@@ -1,5 +1,5 @@
 import { MobileNavButton } from '../../components/MobileNavButton';
-import { Avatar, Button, Icon } from '@opencord/ui';
+import { Avatar, avatarColor, Button, Icon } from '@opencord/ui';
 import type { Member } from '@opencord/contracts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { openContextMenu, useContextMenu, type MenuEntry } from '../../components/ContextMenu';
@@ -13,6 +13,7 @@ import { closeStreamWindow, openStreamWindow } from './popout';
 import { ActivitiesPanel, ActivityTile } from './WatchTogether';
 import { useActivity } from '../../store/activity';
 import { useIsMobile } from '../../lib/media';
+import { bestTileWidth } from './tileLayout';
 
 const NO_MEMBERS: Member[] = [];
 
@@ -28,6 +29,10 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   const members = useData((s) => s.details[serverId]?.members) ?? NO_MEMBERS;
   const here = machine.channelId === channelId && isInCall(machine);
   const stageRef = useRef<HTMLElement>(null);
+  // ref por estado: a grade monta e desmonta ao alternar com a live em destaque, e a medição precisa acompanhar
+  const [gridEl, setGridEl] = useState<HTMLUListElement | null>(null);
+  const tileCount = here ? participants.filter((p) => p.hasScreen).length + participants.length + (activity ? 1 : 0) : 0;
+  useTileGrid(gridEl, tileCount);
 
   if (!here) {
     return (
@@ -69,10 +74,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
       ) : focus ? (
         <FocusLayout main={<StreamTile p={focus} large />} exclude={focus.identity} participants={participants} />
       ) : (
-        <ul
-          className="stage-grid"
-          data-count={Math.min(participants.length + streamers.length + (activity ? 1 : 0), 9)}
-        >
+        <ul className="stage-grid" ref={setGridEl} data-count={Math.min(tileCount, 9)}>
           {activity && (
             <li key="activity">
               <ActivityTile />
@@ -93,6 +95,25 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
       <CallControls stageRef={stageRef} />
     </section>
   );
+}
+
+/** Mede a grade e publica em --tile-w a largura que faz todos os quadros 16:9 caberem o maior possível. */
+function useTileGrid(el: HTMLUListElement | null, count: number) {
+  useEffect(() => {
+    if (!el) return;
+    const fit = () => {
+      const cs = getComputedStyle(el);
+      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const tile = bestTileWidth(w, h, count, parseFloat(cs.columnGap) || 8);
+      // piso para a grade nunca virar selos minúsculos: abaixo disso a grade rola
+      el.style.setProperty('--tile-w', `${Math.max(tile, Math.min(w, 200))}px`);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el, count]);
 }
 
 /** Cabeçalho do palco: canal · quem está ao vivo (e o que transmite) · selo de qualidade AO VIVO. */
@@ -306,11 +327,16 @@ function Video({ identity, source, mirrored }: { identity: string; source: 'came
 
 function ParticipantTile({ p, compact }: { p: ParticipantView; compact?: boolean }) {
   return (
-    <div className="tile" data-speaking={p.speaking ? 'true' : undefined} data-compact={compact ? 'true' : undefined}>
+    <div
+      className="tile"
+      data-speaking={p.speaking ? 'true' : undefined}
+      data-compact={compact ? 'true' : undefined}
+      style={p.hasCamera ? undefined : ({ '--tile-bg': avatarColor(p.identity) } as React.CSSProperties)}
+    >
       {p.hasCamera ? (
         <Video identity={p.identity} source="camera" mirrored={p.isLocal} />
       ) : (
-        <Avatar id={p.identity} name={p.name} size={compact ? 40 : 72} speaking={p.speaking} />
+        <Avatar id={p.identity} name={p.name} size={compact ? 40 : 80} speaking={p.speaking} />
       )}
       <div className="tile-label">
         {p.micMuted && <Icon name="microphone" size={14} slashed label="Microfone desligado" />}

@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '21:55',
+    kind: 'melhoria',
+    icon: 'users',
+    title: 'Quadros da chamada em galeria',
+    body: 'Cada pessoa vira um quadro 16:9 na cor dela, com a foto no centro e o nome embaixo; os quadros crescem para ocupar a tela e a última fileira fica centralizada.',
+  },
+  {
+    date: '2026-10-29',
     time: '21:40',
     kind: 'melhoria',
     icon: 'screen',

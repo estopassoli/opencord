@@ -1376,17 +1376,33 @@ textarea:focus-visible {
   padding: 0;
   margin: 0;
 }
+/* galeria de quadros 16:9: a largura (--tile-w) vem de bestTileWidth; linhas centralizadas, a última no meio */
 .stage-grid {
   flex: 1;
+  min-height: 0;
   list-style: none;
   margin: 0;
   padding: 12px;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  grid-auto-rows: minmax(160px, 1fr);
-  overflow: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-content: center;
+  gap: 8px;
+  overflow: auto;
+}
+.stage-grid > li {
+  width: var(--tile-w, 320px);
+  aspect-ratio: 16 / 9;
+}
+.stage-grid .tile {
+  min-height: 0;
+}
+/* sem câmera: fundo na cor da pessoa (um tom abaixo) com o avatar no centro, destacado por um aro */
+.stage-grid .tile[style*='--tile-bg'] {
+  background: color-mix(in srgb, var(--tile-bg) 72%, #000);
+}
+.stage-grid .tile[style*='--tile-bg'] .oc-avatar-face {
+  box-shadow: 0 0 0 3px rgb(0 0 0 / 0.18), 0 4px 16px rgb(0 0 0 / 0.25);
 }
 .tile {
   position: relative;
@@ -2495,9 +2511,6 @@ body {
 }
 .stage-grid {
   padding: 16px 16px 96px;
-  max-width: 1280px;
-  width: 100%;
-  margin: 0 auto;
 }
 .tile {
   background: #222429;
@@ -2684,10 +2697,7 @@ body {
   min-width: 0;
 }
 
-/* palco de voz: grade se adapta; controles compactam em larguras pequenas */
-.stage-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
-}
+/* palco de voz: controles compactam em larguras pequenas */
 @container content (max-width: 720px) {
   .call-controls {
     gap: 4px;
