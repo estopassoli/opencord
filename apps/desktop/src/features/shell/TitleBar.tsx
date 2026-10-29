@@ -25,12 +25,16 @@ function UpdateButton() {
     s.state === 'downloading'
       ? `Baixando atualização ${s.version}… ${s.progress}%`
       : s.state === 'ready'
-        ? `Atualização pronta! Clique para instalar a versão ${s.version}`
+        ? `Atualização pronta! Clique para reiniciar e atualizar para a versão ${s.version}`
         : `Atualização ${s.version} disponível. Clique para baixar`;
   const install = () => {
     if (!bridge || s.state === 'downloading') return;
     const inCall = useVoice.getState().machine.status !== 'disconnected';
-    if (s.state === 'ready' && inCall && !confirm('Instalar agora fecha o OpenCord e encerra a chamada. Continuar?'))
+    if (
+      s.state === 'ready' &&
+      inCall &&
+      !confirm('Atualizar agora reinicia o OpenCord e encerra a chamada. Continuar?')
+    )
       return;
     void bridge.updates.install();
   };

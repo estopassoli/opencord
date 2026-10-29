@@ -112,7 +112,9 @@ export async function installUpdate(quit: () => void) {
     return;
   }
   if (status.state !== 'ready' || !installerPath) return;
-  const child = spawn(installerPath, [], { detached: true, stdio: 'ignore' });
+  // --updated: o instalador (NSIS um clique) encerra o app que ainda estiver fechando, sem perguntar;
+  // --force-run: reabre o OpenCord ao terminar
+  const child = spawn(installerPath, ['--updated', '--force-run'], { detached: true, stdio: 'ignore' });
   child.unref();
   quit();
 }
