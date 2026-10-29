@@ -72,6 +72,37 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
 
   await B.page.getByRole('button', { name: 'Assistir', exact: true }).click({ timeout: 15_000 });
   const v = B.page.locator('.tile-stream video');
+  // fluidez da interface de quem assiste (relato: "interface fica lagada com alguém transmitindo")
+  const perf = async (p: typeof B.page) =>
+    p.evaluate(
+      () =>
+        new Promise<{ fps: number; longTasks: number; longMs: number }>((resolve) => {
+          let longTasks = 0;
+          let longMs = 0;
+          const po = new PerformanceObserver((l) => {
+            for (const e of l.getEntries()) {
+              longTasks++;
+              longMs += e.duration;
+            }
+          });
+          po.observe({ type: 'longtask', buffered: false });
+          let frames = 0;
+          const t0 = performance.now();
+          const tick = () => {
+            frames++;
+            if (performance.now() - t0 < 5000) requestAnimationFrame(tick);
+            else {
+              po.disconnect();
+              resolve({
+                fps: Math.round((frames * 1000) / (performance.now() - t0)),
+                longTasks,
+                longMs: Math.round(longMs),
+              });
+            }
+          };
+          requestAnimationFrame(tick);
+        }),
+    );
   // registra a evolução (resolução no espectador + métricas do publisher) antes de afirmar
   for (let i = 0; i < 4; i++) {
     await A.page.waitForTimeout(2500);
@@ -90,6 +121,8 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
     .poll(async () => v.evaluate((el: HTMLVideoElement) => el.videoWidth), { timeout: 10_000 })
     .toBeGreaterThan(640);
   const dims = await v.evaluate((el: HTMLVideoElement) => ({ w: el.videoWidth, h: el.videoHeight }));
+  console.warn('PERF_VIEWER', JSON.stringify(await perf(B.page)));
+  console.warn('PERF_STREAMER', JSON.stringify(await perf(A.page)));
   // o vídeo inteiro cabe no card (antes ficava mais alto que o card e o topo/rodapé da tela eram cortados)
   const fit = await v.evaluate((el: HTMLVideoElement) => {
     const r = el.getBoundingClientRect();
