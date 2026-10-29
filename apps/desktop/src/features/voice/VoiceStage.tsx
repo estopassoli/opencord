@@ -467,8 +467,23 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
 
 /** Barra de controles da chamada (centralizada embaixo do palco). */
 function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElement | null>; popout?: boolean }) {
-  const v = useVoice();
-  const live = v.stream.status === 'live';
+  // Seletor raso: a barra não re-renderiza a cada estatística da live ou mudança de participante.
+  const v = useVoice(
+    useShallow((s) => ({
+      streamStatus: s.stream.status,
+      selfMute: s.selfMute,
+      selfDeaf: s.selfDeaf,
+      camera: s.camera,
+      perms: s.perms,
+      toggleMute: s.toggleMute,
+      toggleDeafen: s.toggleDeafen,
+      toggleCamera: s.toggleCamera,
+      stopStream: s.stopStream,
+      openStreamPicker: s.openStreamPicker,
+      leave: s.leave,
+    })),
+  );
+  const live = v.streamStatus === 'live';
   const activityOn = useActivity((s) => s.state !== null);
   const [panel, setPanel] = useState(false);
   const menu = (e: React.MouseEvent, kind: 'audioinput' | 'audiooutput') => {
@@ -535,7 +550,7 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
               className="call-btn"
               aria-pressed={live}
               aria-label={live ? 'Parar transmissão' : 'Transmitir tela'}
-              disabled={!v.perms.canStream || v.stream.status === 'starting' || v.stream.status === 'stopping'}
+              disabled={!v.perms.canStream || v.streamStatus === 'starting' || v.streamStatus === 'stopping'}
               onClick={() => (live ? void v.stopStream() : v.openStreamPicker())}
             >
               <Icon name="screen" />

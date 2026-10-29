@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '21:40',
+    kind: 'melhoria',
+    icon: 'screen',
+    title: 'Chamada mais leve durante a live',
+    body: 'A barra de controles da chamada não é mais redesenhada a cada atualização das estatísticas da transmissão.',
+  },
+  {
+    date: '2026-10-29',
     time: '21:25',
     kind: 'melhoria',
     icon: 'upload',
