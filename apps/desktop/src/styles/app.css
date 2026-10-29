@@ -3674,3 +3674,29 @@ a.rail-item {
   font-size: 1.5rem;
   font-weight: 800;
 }
+.golive-skeleton {
+  cursor: default;
+}
+.golive-skeleton .golive-thumb,
+.golive-skeleton-text {
+  background: linear-gradient(90deg, var(--sidebar) 25%, var(--interactive) 50%, var(--sidebar) 75%);
+  background-size: 200% 100%;
+  animation: oc-skeleton 1.2s ease-in-out infinite;
+}
+.golive-skeleton-text {
+  display: block;
+  width: 40%;
+  height: 12px;
+  border-radius: 6px;
+}
+@keyframes oc-skeleton {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .golive-skeleton .golive-thumb,
+  .golive-skeleton-text {
+    animation: none;
+  }
+}

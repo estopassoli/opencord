@@ -61,6 +61,9 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   await dialog.getByRole('button', { name: 'Opções da transmissão' }).click();
   await A.page.getByRole('menuitemcheckbox', { name: /^1080p · 60 fps/ }).click();
   await dialog.getByRole('tab', { name: 'Tela inteira' }).click();
+  // trava contra clique acidental: cards só aceitam clique 0,5 s depois de aparecer/trocar de aba
+  await expect(A.page.locator('.golive-grid[aria-busy]')).toHaveCount(0, { timeout: 15_000 });
+  await A.page.waitForTimeout(600);
   await dialog.getByRole('listbox').getByRole('option').first().click();
   await expect(A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true })).toBeVisible({
     timeout: 20_000,
