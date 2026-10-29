@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Req,
 } from '@nestjs/common';
 import { UpdateVoiceStateRequest } from '@opencord/contracts';
@@ -18,13 +19,23 @@ import { z } from 'zod';
 import { CurrentUser, Public, type AuthUser } from '../common/auth.js';
 import { zodPipe } from '../common/zod.pipe.js';
 import { VoiceService } from './voice.service.js';
+import { ActivitiesService } from './activities.service.js';
 
 const id = new ParseUUIDPipe();
 const MuteBody = z.object({ muted: z.boolean() });
 
 @Controller()
 export class VoiceController {
-  constructor(private readonly voice: VoiceService) {}
+  constructor(
+    private readonly voice: VoiceService,
+    private readonly activities: ActivitiesService,
+  ) {}
+
+  /** Pesquisa de vídeos para o "Assistir juntos" (precisa de YOUTUBE_API_KEY no servidor). */
+  @Get('activities/youtube/search')
+  searchYouTube(@Query('q', zodPipe(z.string().trim().min(1).max(100))) q: string) {
+    return this.activities.search(q);
+  }
 
   @Post('voice/channels/:id/join')
   join(@CurrentUser() u: AuthUser, @Param('id', id) channelId: string) {

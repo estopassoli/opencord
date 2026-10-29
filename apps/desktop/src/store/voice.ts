@@ -18,6 +18,7 @@ import { useData } from './data';
 import { api, describeError } from './session';
 import { useUi } from './ui';
 import { playSound } from '../lib/sounds';
+import { useActivity } from './activity';
 
 interface VoiceStore {
   machine: VoiceState;
@@ -142,6 +143,8 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     const reconnecting = get().machine.status === 'reconnecting';
     await engine.connect(j.url, j.token, { canSpeak: j.canSpeak, selfMute: s.selfMute, selfDeaf: s.selfDeaf });
     dispatch({ type: 'CONNECTED', generation });
+    // atividade já em andamento nesta chamada (Assistir juntos)
+    if (j.channelId) void useActivity.getState().load(j.channelId);
     if (!reconnecting) playSound('join');
   }
 
@@ -226,6 +229,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       await engine?.disconnect().catch(() => undefined);
       const wasIn = get().machine.status !== 'disconnected';
       dispatch({ type: 'LEAVE' });
+      useActivity.getState().reset();
       if (wasIn) playSound('leave');
       set({ serverId: null, participants: [], camera: false, stream: initialStreamState, stats: null });
       if (wasIn) await useApiSafe((a) => a.request('POST', '/voice/leave'));

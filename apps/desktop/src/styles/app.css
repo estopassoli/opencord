@@ -3163,3 +3163,174 @@ a.rail-item {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* ---------- Assistir juntos (YouTube) ---------- */
+.tile-activity {
+  background: #000;
+  /* a barra de controle se adapta à largura do próprio tile (grade estreita × destaque) */
+  container-type: inline-size;
+}
+@container (max-width: 560px) {
+  .yt-volume,
+  .yt-extra {
+    display: none;
+  }
+}
+@container (max-width: 380px) {
+  .yt-time {
+    display: none;
+  }
+}
+.activity-cover {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background-size: cover;
+  background-position: center;
+}
+.activity-cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(0 0 0 / 0.35), rgb(0 0 0 / 0.75));
+}
+.activity-cover-body {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: min(80%, 520px);
+  text-align: center;
+  color: #fff;
+}
+.activity-cover-body p {
+  margin: 0;
+  max-width: 100%;
+  font-weight: 700;
+}
+.activity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--text-on-brand);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.yt-player {
+  position: absolute;
+  inset: 0;
+}
+.yt-player iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+}
+/* cliques no vídeo viram play/pausa do grupo (o player do YouTube está sem controles) */
+.yt-click {
+  position: absolute;
+  inset: 0 0 52px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.yt-bar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  background: rgb(0 0 0 / 0.72);
+  color: #fff;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.tile-activity:hover .yt-bar,
+.yt-bar:focus-within,
+.yt-bar[data-large='true'] {
+  opacity: 1;
+}
+.yt-time {
+  flex: none;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.yt-seek {
+  flex: 1;
+  min-width: 80px;
+}
+.yt-volume {
+  flex: none;
+  width: 110px;
+}
+.yt-bar .icon-btn {
+  color: #fff;
+}
+.yt-bar .icon-btn.danger:hover {
+  color: var(--danger-text);
+}
+.yt-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.yt-result {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.yt-result:hover,
+.yt-result:focus-visible {
+  background: var(--interactive);
+}
+.yt-result img {
+  width: 160px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: #000;
+}
+.yt-result span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.activity-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 2px 32px;
+  color: var(--brand-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .yt-volume {
+    display: none;
+  }
+}

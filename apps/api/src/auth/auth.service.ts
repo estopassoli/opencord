@@ -75,6 +75,7 @@ export class AuthService {
       name: this.cfg.INSTANCE_NAME,
       guestJoin: this.cfg.GUEST_JOIN_ENABLED,
       requiresAccessCode: Boolean(this.cfg.INSTANCE_ACCESS_CODE),
+      youtubeSearch: Boolean(this.cfg.YOUTUBE_API_KEY),
     };
   }
 

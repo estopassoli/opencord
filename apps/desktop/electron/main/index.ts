@@ -270,6 +270,12 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(ALLOWED_PERMISSIONS.has(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
   session.defaultSession.setDevicePermissionHandler(() => false);
+  // Assistir juntos: o player embutido do YouTube exige Referer (sem ele, "erro 153"); páginas file:// não enviam.
+  // Só para o player do YouTube, identificando o app.
+  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube.com/embed/*'] }, (d, cb) => {
+    if (!d.requestHeaders.Referer) d.requestHeaders.Referer = 'https://opencord.pro/';
+    cb({ requestHeaders: d.requestHeaders });
+  });
   installDisplayMediaHandler();
   registerIpc();
   createWindow();

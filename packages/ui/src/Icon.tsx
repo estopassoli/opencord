@@ -1,5 +1,9 @@
 import type { IconType } from 'react-icons';
 import {
+  HiOutlinePause,
+  HiPause,
+  HiFilm,
+  HiOutlineFilm,
   HiArrowDownOnSquare,
   HiArrowTopRightOnSquare,
   HiChevronUp,
@@ -165,6 +169,9 @@ const ICONS = {
   lock: [HiOutlineLockClosed, HiLockClosed],
   'chevron-down': [HiOutlineChevronDown, HiChevronDown],
   'chevron-up': [HiOutlineChevronUp, HiChevronUp],
+  /** Assistir juntos */
+  film: [HiOutlineFilm, HiFilm],
+  pause: [HiOutlinePause, HiPause],
   /** abrir em janela separada */
   popout: [HiOutlineArrowTopRightOnSquare, HiArrowTopRightOnSquare],
   /** devolver da janela separada */

@@ -43,6 +43,8 @@ export const InstanceInfo = z.object({
   name: z.string(),
   guestJoin: z.boolean(),
   requiresAccessCode: z.boolean(),
+  /** pesquisa do YouTube no "Assistir juntos" (servidor com YOUTUBE_API_KEY) */
+  youtubeSearch: z.boolean().default(false),
 });
 export type InstanceInfo = z.infer<typeof InstanceInfo>;
 

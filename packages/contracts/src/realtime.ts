@@ -14,6 +14,7 @@ import {
   Conversation,
   VoiceMemberState,
 } from './api.js';
+import { ActivityControl, type ActivityState, YouTubeVideoId } from './activities.js';
 
 /** Versão do protocolo realtime; incrementar ao quebrar compatibilidade. */
 export const REALTIME_SCHEMA_VERSION = 1 as const;
@@ -45,6 +46,10 @@ export const ClientCommands = {
   'chat:typing:stop': z.object({ channelId: Id.optional(), conversationId: Id.optional() }),
   'chat:read': z.object({ channelId: Id.optional(), conversationId: Id.optional(), messageId: Id }),
   'presence:heartbeat': z.object({ status: PresenceStatus.exclude(['offline']).optional() }),
+  'activity:get': z.object({ channelId: Id }),
+  'activity:youtube:start': z.object({ channelId: Id, videoId: YouTubeVideoId }),
+  'activity:youtube:control': ActivityControl,
+  'activity:stop': z.object({ channelId: Id }),
   'sync:resume': z.object({
     /** último eventId/seq visto por canal, para ressincronização por cursor */
     channels: z.array(z.object({ channelId: Id, lastMessageId: Id.nullable() })).max(500),
@@ -65,6 +70,10 @@ export interface ClientCommandResults {
   'chat:read': null;
   'presence:heartbeat': { ttlSeconds: number };
   'sync:resume': { missed: Message[]; truncated: boolean };
+  'activity:get': ActivityState | null;
+  'activity:youtube:start': ActivityState;
+  'activity:youtube:control': ActivityState;
+  'activity:stop': null;
 }
 
 // ---------- Eventos servidor → cliente ----------
@@ -126,6 +135,9 @@ export interface ServerEvents {
     serverId?: string;
   };
   'session:revoked': { reason: string };
+  /** atividade da chamada começou ou mudou (vídeo, play/pausa/posição) */
+  'activity:state': ActivityState;
+  'activity:ended': { channelId: string; serverId: string };
 }
 export type ServerEventName = keyof ServerEvents;
 

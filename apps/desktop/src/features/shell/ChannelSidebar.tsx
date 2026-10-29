@@ -7,6 +7,7 @@ import { api, describeError, markTargetRead } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { ProfileButton } from './ProfileButton';
+import { ActivityHint } from '../voice/WatchTogether';
 
 /** Categorias recolhidas (por id de categoria), lembradas neste dispositivo. */
 const COLLAPSED_KEY = 'oc:collapsed-categories';
@@ -202,6 +203,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                       )}
                       {(u?.mentionCount ?? 0) > 0 && <span className="badge badge-inline">{u?.mentionCount}</span>}
                     </button>
+                    {c.kind === 'voice' && <ActivityHint channelId={c.id} />}
                     {c.kind === 'voice' && inVoice.length > 0 && (
                       <ul className="voice-members" aria-label={`Pessoas em ${c.name}`}>
                         {inVoice.map((v) => {

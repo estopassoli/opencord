@@ -1,7 +1,7 @@
 import { MobileNavButton } from '../../components/MobileNavButton';
 import { Avatar, Button, Icon } from '@opencord/ui';
 import type { Member } from '@opencord/contracts';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useContextMenu } from '../../components/ContextMenu';
 import { Tooltip } from '../../components/Tooltip';
 import { deviceMenu } from './devices';
@@ -10,6 +10,8 @@ import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
 import { isInCall, useVoice, type ParticipantView } from '../../store/voice';
 import { closeStreamWindow, openStreamWindow } from './popout';
+import { ActivityTile } from './WatchTogether';
+import { useActivity } from '../../store/activity';
 import { useIsMobile } from '../../lib/media';
 
 const NO_MEMBERS: Member[] = [];
@@ -19,6 +21,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   const machine = useVoice((s) => s.machine);
   const participants = useVoice((s) => s.participants);
   const focused = useUi((s) => s.focusedStream);
+  const activity = useActivity((s) => s.state);
   const channel = useData((s) => s.details[serverId]?.channels.find((c) => c.id === channelId));
   // seletores que derivam arrays precisam de comparação rasa (zustand v5 + useSyncExternalStore)
   const others = useData(useShallow((s) => Object.values(s.voiceStates).filter((v) => v.channelId === channelId)));
@@ -56,14 +59,25 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
 
   const streamers = participants.filter((p) => p.hasScreen);
   const focus = streamers.find((p) => p.identity === focused && p.watchingScreen) ?? null;
+  const activityFocused = Boolean(activity) && focused === 'activity';
 
   return (
     <section className="stage" aria-label={`Chamada em ${channel?.name ?? ''}`} ref={stageRef}>
-      <StageHeader channelName={channel?.name ?? ''} focus={focus} mobile />
-      {focus ? (
-        <FocusLayout focus={focus} participants={participants} />
+      <StageHeader channelName={channel?.name ?? ''} focus={focus} activity={activityFocused} mobile />
+      {activityFocused ? (
+        <FocusLayout main={<ActivityTile large />} participants={participants} />
+      ) : focus ? (
+        <FocusLayout main={<StreamTile p={focus} large />} exclude={focus.identity} participants={participants} />
       ) : (
-        <ul className="stage-grid" data-count={Math.min(participants.length + streamers.length, 9)}>
+        <ul
+          className="stage-grid"
+          data-count={Math.min(participants.length + streamers.length + (activity ? 1 : 0), 9)}
+        >
+          {activity && (
+            <li key="activity">
+              <ActivityTile />
+            </li>
+          )}
           {streamers.map((p) => (
             <li key={`s-${p.identity}`}>
               <StreamTile p={p} />
@@ -85,13 +99,16 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
 function StageHeader({
   channelName,
   focus,
+  activity,
   mobile,
 }: {
   channelName: string;
   focus: ParticipantView | null;
+  activity?: boolean;
   mobile?: boolean;
 }) {
   const source = useVoice((s) => s.streamSource);
+  const title = useActivity((s) => s.state?.title);
   return (
     <header className="chat-header stage-header">
       {mobile && <MobileNavButton />}
@@ -105,6 +122,13 @@ function StageHeader({
             {focus.isLocal ? 'Você' : focus.name} está transmitindo
             {focus.isLocal && source ? <strong> {source}</strong> : null}
           </span>
+        </span>
+      )}
+      {activity && (
+        <span className="stage-live-who truncate">
+          <span aria-hidden="true">·</span>
+          <Icon name="play" size={16} />
+          <span className="truncate">Assistindo juntos{title ? <strong> {title}</strong> : null}</span>
         </span>
       )}
       <span className="spacer" />
@@ -161,21 +185,22 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
   );
 }
 
-/** Transmissão em destaque + faixa de participantes (que pode ser ocultada para deixar só a live). */
+/** Item em destaque (transmissão ou atividade) + faixa de participantes (que pode ser ocultada). */
 function FocusLayout({
-  focus,
+  main,
+  exclude,
   participants,
-  popout,
 }: {
-  focus: ParticipantView;
+  main: ReactNode;
+  /** quem transmite não se repete na faixa (a não ser com câmera) */
+  exclude?: string;
   participants: ParticipantView[];
-  popout?: boolean;
 }) {
   const hidden = useUi((s) => s.stripHidden);
   const label = hidden ? 'Mostrar membros' : 'Ocultar membros';
   return (
     <div className="stage-focus" data-strip={hidden ? 'hidden' : undefined}>
-      <StreamTile p={focus} large inPopout={popout} />
+      {main}
       <div className="strip-wrap">
         <Tooltip label={label}>
           <button
@@ -191,7 +216,7 @@ function FocusLayout({
         {!hidden && (
           <ul className="stage-strip">
             {participants
-              .filter((p) => p.identity !== focus.identity || p.hasCamera)
+              .filter((p) => p.identity !== exclude || p.hasCamera)
               .map((p) => (
                 <li key={p.identity}>
                   <ParticipantTile p={p} compact />
@@ -225,7 +250,11 @@ export function PopoutStage() {
   return (
     <section className="stage popout-stage" aria-label="Transmissão" ref={ref}>
       <StageHeader channelName={channel?.name ?? ''} focus={focus} />
-      <FocusLayout focus={focus} participants={participants} popout />
+      <FocusLayout
+        main={<StreamTile p={focus} large inPopout />}
+        exclude={focus.identity}
+        participants={participants}
+      />
       <CallControls stageRef={ref} popout />
     </section>
   );
@@ -372,6 +401,7 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
 function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElement | null>; popout?: boolean }) {
   const v = useVoice();
   const live = v.stream.status === 'live';
+  const activityOn = useActivity((s) => s.state !== null);
   const menu = (e: React.MouseEvent, kind: 'audioinput' | 'audiooutput') => {
     const target = e.currentTarget as HTMLElement;
     const r = target.getBoundingClientRect();
@@ -418,6 +448,21 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
           </Tooltip>
         </div>
         <div className="call-group">
+          <Tooltip label={activityOn ? 'Mostrar o vídeo' : 'Assistir juntos (YouTube)'}>
+            <button
+              className="call-btn"
+              aria-label={activityOn ? 'Mostrar o vídeo' : 'Assistir juntos (YouTube)'}
+              aria-pressed={activityOn}
+              onClick={() => {
+                if (activityOn) {
+                  useActivity.getState().join(true);
+                  useUi.getState().focusStream('activity');
+                } else useUi.getState().openModal({ kind: 'watch-together' });
+              }}
+            >
+              <Icon name="film" />
+            </button>
+          </Tooltip>
           <Tooltip label={live ? 'Parar transmissão' : 'Transmitir tela'}>
             <button
               className="call-btn"
