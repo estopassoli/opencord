@@ -36,8 +36,3 @@ Você é o agente de implementação do OpenCord. Leia `docs/PRD.md`, `docs/SDD.
 ## Gate especial de mídia
 Antes de afirmar que Go Live funciona: validar vídeo e **áudio do sistema** em duas máquinas Windows reais e em redes diferentes, incluindo o encerramento de captura e reconexão. Se não houver ambiente, status = BLOQUEADO PARA VALIDAÇÃO, nunca CONCLUÍDO.
 
-## Engenharia reversa com REA
-- Antes do refinamento de UI e fluxos, ler `docs/REVERSE_ENGINEERING.md` e executar as tarefas F-1 do plano quando possível.
-- REA é ferramenta de investigação, não fonte de código para copiar. Preferir observação de comportamento com contas próprias e consentimento.
-- Nunca extrair ou transpor código, assets, credenciais, tokens, protocolos internos ou conteúdo privado do Discord; não contornar proteções.
-- Manter evidências e incertezas em `docs/research/discord/`; implementar OpenCord de forma independente com APIs próprias e LiveKit.

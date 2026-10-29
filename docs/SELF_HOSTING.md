@@ -1,6 +1,6 @@
 # Guia de self-hosting e runbook
 
-> Estado: a stack Docker Compose (`infra/docker/`) foi escrita, mas **não validada nesta máquina (sem Docker)**. O caminho validado é o de desenvolvimento nativo descrito abaixo. Não faça deploy em produção sem antes rodar o checklist do fim deste guia.
+> Estado: a stack Docker Compose (`infra/docker/`) sobe do zero a cada push no CI (job `self-host-compose`: Postgres, Redis, LiveKit, migrações, API e web, com `/health` e criação do dono). As mesmas imagens rodam em produção em opencord.pro. Mídia entre redes diferentes (NAT/TURN) depende da sua rede: rode o checklist do fim deste guia antes de chamar os amigos.
 
 ## Requisitos
 - Linux com Docker e Docker Compose (produção) ou Node 24 + pnpm 12 + PostgreSQL 18 + Redis 8 (dev nativo).
@@ -13,11 +13,11 @@
 3. Em `infra/coturn/turnserver.conf`, troque `static-auth-secret`, `realm` e os certificados TLS.
 4. `docker compose -f infra/docker/docker-compose.yml up -d --build` (o serviço `migrate` aplica `prisma migrate deploy`).
 5. Primeiro proprietário: `docker compose -f infra/docker/docker-compose.yml run --rm -e OWNER_EMAIL=... -e OWNER_USERNAME=... -e OWNER_PASSWORD=... api node node_modules/@opencord/db/dist/create-owner.js`. Ele cria a conta do dono e o primeiro servidor (aberto a todos).
-6. Proxy reverso: `https://chat.exemplo.com` → `127.0.0.1:3000` (incluindo WebSocket em `/realtime`); `wss://rtc.exemplo.com` → `livekit:7880`. Defina `TRUST_PROXY=true` só atrás do proxy.
+6. Proxy reverso: `https://chat.exemplo.com` → `127.0.0.1:3000` (incluindo WebSocket em `/realtime`); `wss://rtc.exemplo.com` → `livekit:7880`; `https://app.exemplo.com` (`APP_HOST`, interface no navegador) e o domínio da landing → `127.0.0.1:8080` (serviço `web`). Defina `TRUST_PROXY=true` só atrás do proxy.
 
 ## Distribuir o app aos amigos (só apelido)
 1. No servidor: `GUEST_JOIN_ENABLED=true` (padrão). Se a instância estiver na internet, defina `INSTANCE_ACCESS_CODE` e passe o código aos amigos.
-2. Gere o instalador apontando para o seu servidor: `VITE_OPENCORD_SERVER_URL=https://chat.exemplo.com pnpm --filter @opencord/desktop build`, depois `stage:win` e `npm run dist` no Windows.
+2. Gere os instaladores apontando para o seu servidor (o endereço fica embutido; os instaladores oficiais só conectam em opencord.pro). Mais simples: faça um fork e rode o workflow **Desktop (instaladores)** (Actions → Run workflow) com `server_url=https://chat.exemplo.com`; os `.exe`, `.dmg`, `.AppImage` e `.deb` ficam como artefatos do run. A entrega automática no servidor (secrets `DOWNLOADS_SSH_*`) é opcional, ver `docs/DEPLOYMENT.md`. Local: `VITE_OPENCORD_SERVER_URL=https://chat.exemplo.com pnpm --filter @opencord/desktop build` e o electron-builder na plataforma alvo.
 3. Os amigos instalam, abrem, digitam o apelido e entram em todos os servidores (abertos, sem convite). Criar conta é opcional.
 4. Para quem abrir pelo navegador aparecer o botão de baixar o app: defina `DOWNLOADS_DIR` (pasta com os instaladores gerados pelo workflow `desktop.yml`: `.exe`, `.dmg`, `.AppImage`, `.deb`; a API serve o mais recente de cada plataforma em `/downloads/files/…` e sugere o do sistema de quem visita) e/ou `DESKTOP_DOWNLOAD_URL` (link externo só do instalador Windows). Sem nenhum dos dois, o botão não aparece.
 

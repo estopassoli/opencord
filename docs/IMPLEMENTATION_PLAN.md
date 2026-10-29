@@ -3,19 +3,8 @@
 ## Como operar
 Status: `[ ]` pendente, `[x]` concluído com evidência. Não marcar `x` sem testes. Bloqueios: registrar abaixo da tarefa. Executar em ordem de dependência, mas o **spike de mídia** deve ocorrer cedo. Cada PR/fatia: código + testes + docs + evidência.
 
-## F-1 — Pesquisa comportamental com REA (antes de implementação visual final)
-- [x] RE-0.1 Revisar `docs/REVERSE_ENGINEERING.md`, termos/licenças aplicáveis e disponibilidade de REA; registrar versão e limites.
-  - Evidência: `docs/research/discord/RE-0_SETUP.md` (REA 6.5.0 configurado; 6.8.0 disponível; análise estática do Discord não autorizada sem revisão de termos).
-- [x] RE-0.2 Configurar MCP do REA no Claude Code (com revisão das mudanças) e validar conectividade, se autorizado.
-  - Evidência: MCP já existente respondeu (`list_electron_targets` → erro estruturado `endpoint_unreachable`). Upgrade para 6.8.0 pendente do mantenedor.
-- [ ] RE-0.3 Observar shell, navegação, chat e controles do Discord em ambiente próprio; registrar relatórios em `docs/research/discord/`.
-  - BLOQUEADO: requer sessão/contas do usuário e definição de escopo (black-box vs CDP). Ver `RE-0_SETUP.md`.
-- [ ] RE-0.4 Observar voz, vídeo, Go Live e transições de estado, usando contas de teste próprias e consentimento dos participantes.
-  - BLOQUEADO: idem RE-0.3 + consentimento de participantes.
-- [ ] RE-0.5 Levantar estados de erro, reconexão, atalhos e comportamento em segundo plano.
-  - BLOQUEADO: idem RE-0.3.
-- [ ] RE-0.6 (BLOQUEADO por RE-0.3–0.5) Transformar observações em requisitos verificáveis e atualizar `docs/DESIGN_SYSTEM.md`, `docs/SDD.md` e `docs/TEST_PLAN.md` sem copiar código/assets.
-**Gate F-1:** relatórios de comportamento com evidências e limitações; pesquisas não executáveis não impedem F0.
+## F-1 — Pesquisa comportamental (cancelada)
+A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (nenhum binário ou dado de terceiros foi analisado) e saiu do repositório antes da abertura do código. O OpenCord seguiu a própria especificação (`docs/PRD.md`, `docs/SDD.md`, `docs/DESIGN_SYSTEM.md`).
 
 ## F0 — Descoberta e viabilidade (gate antes de UI final)
 - [x] F0.1 Inspecionar repo, SO, toolchain, disponibilidade de Docker/Node/pnpm; registrar baseline.
@@ -118,8 +107,8 @@ Status: `[ ]` pendente, `[x]` concluído com evidência. Não marcar `x` sem tes
   - Local: 10 participantes + 3 streams 720p30 → SFU 36% de 1 núcleo, 166 MiB (`docs/research/LOAD_TEST.md`). Pendente com clientes e rede reais.
 - [x] F6.3 Backups/restore, deploy/rollback e runbook.
   - `scripts/backup.sh`/`restore.sh` ensaiados (contagens idênticas; recusa banco não vazio); runbook em `docs/SELF_HOSTING.md`.
-- [ ] F6.4 README, CONTRIBUTING, SECURITY, guia self-hosted e escolha de licença pelo mantenedor.
-  - Documentos escritos. **Pendente: licença (decisão do mantenedor).**
+- [x] F6.4 README, CONTRIBUTING, SECURITY, guia self-hosted e escolha de licença pelo mantenedor.
+  - Licença AGPL-3.0 (`LICENSE`), escolhida pelo mantenedor em 2026-10-29; README com instância pública, self-hosting, como foi construído e aviso de projeto sem fins lucrativos.
 - [ ] F6.5 Release candidate, checklist manual completo e registro de limitações.
   - **BLOQUEADO:** depende dos gates de mídia e da aprovação do mantenedor.
 **Gate F6:** release somente após gates e aprovação explícita do mantenedor.
@@ -127,7 +116,6 @@ Status: `[ ]` pendente, `[x]` concluído com evidência. Não marcar `x` sem tes
 ## Registro de execução
 | Data | Tarefa | Evidência (comando/arquivo/log) | Resultado | Bloqueio |
 |---|---|---|---|---|
-| 2026-10-29 | RE-0.1/0.2 | `docs/research/discord/RE-0_SETUP.md`; chamada MCP `list_electron_targets` | REA ativo | RE-0.3+ requer usuário/consentimento |
 | 2026-10-29 | F0.1 | PowerShell CIM + `--version` das ferramentas | baseline registrado | sem Docker |
 | 2026-10-29 | F0.2 | `node poc.mjs` ×4 contra `livekit-server --dev` 1.13.10 | PASS 4/4 local | redes distintas/TURN |
 | 2026-10-29 | F0.3 | `electron . --selftest` ×9 (Electron 44.7.1) | monitor/janela/stop OK; 1 falha de janela de terceiros (run4) | fullscreen manual |

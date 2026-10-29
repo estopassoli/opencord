@@ -1,7 +1,9 @@
 # Registro de decisões e pendências
 
 ## Definidas
-- Nome: OpenCord; código aberto e self-hosted.
+- Nome: OpenCord (de *open source* + Discord: alternativa aberta, sem vínculo com o Discord); código aberto e self-hosted.
+- Licença: AGPL-3.0-only (2026-10-29). Quem rodar uma versão modificada como serviço precisa publicar o código.
+- Sem fins lucrativos: sem anúncios, sem planos pagos, sem venda de dados.
 - Público: amigos, instância privada, desktop-first Windows 11.
 - Visual: experiência familiar ao Discord, dark e compacta, com marca/assets próprios; descartar tema Órbita.
 - Stack: Electron/React/Vite; NestJS/PostgreSQL/Prisma/Redis/Socket.IO; LiveKit/coturn.
@@ -10,7 +12,7 @@
 ## Registro
 - 2026-10-29 | Áudio do sistema na V1 via loopback do Chromium + `restrictOwnAudio` (ADR-0003, Proposed) | módulo nativo WASAPI process loopback | caminho comprovado no spike F0.4 sem código nativo | sem áudio por aplicativo; revalidar a cada upgrade do Electron | agente (aguarda aprovação do mantenedor)
 - 2026-10-29 | Preferir H.264 (encoder de hardware) para Go Live, VP8 como fallback | VP9/AV1 | F0.5: H.264/HEVC via NVENC; VP9/AV1 só software no Chromium 152 | perfis devem medir `encoderImplementation` | agente
-- 2026-10-29 | Pesquisa REA restrita a observação black-box; sem análise estática/CDP do Discord | análise de ASAR/binário | termos do Discord restringem engenharia reversa | RE-0.3+ depende do usuário | agente (aguarda revisão do mantenedor)
+- 2026-10-29 | Remover do repositório a pesquisa comportamental de terceiros (plano e registros), que nunca chegou a analisar nada | manter como histórico | evitar dúvida sobre a origem do código ao abrir o repositório | nenhum (não havia achados) | mantenedor
 
 - 2026-10-29 | Toolchain em majors estáveis (ADR-0004) | majors mais novos | risco de API | upgrades planejados | agente
 - 2026-10-29 | PTT global em alternância, sem hook nativo (ADR-0005) | uiohook | privacidade/anti-cheat | sem "segurar" com jogo em foco | agente
@@ -40,13 +42,11 @@
 - 2026-10-29 | Arquivos (anexos, fotos, imagens de servidor) podem ir para Cloudflare R2 via driver S3 compatível (`STORAGE_DRIVER=s3`), bucket privado servido pela API (ADR-0010) | só volume local; URLs públicas/pré-assinadas do bucket | pedido do mantenedor; tira a API do volume preso a um nó | nova dependência `@aws-sdk/client-s3`; arquivos antigos precisam ser copiados ao trocar | mantenedor
 
 ## Pendentes de decisão do mantenedor
-- Licença (MIT, Apache-2.0 ou AGPL-3.0); não inventar licença. **Ainda pendente; nenhum arquivo LICENSE foi criado.**
 - Nome do domínio, infraestrutura e política de retenção.
 - ~~Política de contas~~: decidido, entrada por apelido (ADR-0007). Pendente: exigir ou não `INSTANCE_ACCESS_CODE` em produção.
 - Certificados de assinatura de código (Windows/macOS); com eles, reavaliar auto-update silencioso.
 - Limites máximos de upload, stream e usuários.
 - Exigir `INSTANCE_ACCESS_CODE` em produção? Implementar ban (kick hoje permite voltar pelo diretório)?
-- Upgrade do REA 6.5.0 → 6.8.0 e escopo da pesquisa (black-box vs CDP).
 - Docker: instalar Docker Desktop (WSL integration) ou rodar Postgres/Redis/LiveKit nativos no dev.
 
 ## Modelo de registro

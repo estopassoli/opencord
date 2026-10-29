@@ -71,3 +71,30 @@ jobs:
           name: opencord-windows-unsigned
           path: apps/desktop/release/*.exe
           retention-days: 7
+
+  # Sobe a stack do guia de self-hosting (infra/docker) do zero e confere API, migrações e web.
+  self-host-compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: infra/docker
+    steps:
+      - uses: actions/checkout@v4
+      - name: .env com segredos aleatórios
+        run: |
+          gen() { openssl rand -base64 48 | tr -d '/+=\n' | cut -c1-48; }
+          cp .env.example .env
+          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|;s|^JWT_ACCESS_SECRET=.*|JWT_ACCESS_SECRET=$(gen)|;s|^ATTACHMENT_URL_SECRET=.*|ATTACHMENT_URL_SECRET=$(gen)|" .env
+          sed -i "s|^LIVEKIT_API_KEY=.*|LIVEKIT_API_KEY=CHANGE_ME_API_KEY|;s|^LIVEKIT_API_SECRET=.*|LIVEKIT_API_SECRET=CHANGE_ME_SECRET_AT_LEAST_32_CHARACTERS_LONG|" .env
+      - name: Subir postgres, redis, livekit, migrate, api e web
+        run: docker compose up -d --build --wait --wait-timeout 300 postgres redis livekit api web
+      - name: Saúde
+        run: |
+          curl -fsS http://127.0.0.1:3000/health | tee /dev/stderr | grep -q '"database":"ok".*"livekit":"ok"'
+          curl -fsS -H 'Host: app.exemplo.com' http://127.0.0.1:8080/ | grep -qi '<div id="root"'
+          curl -fsS http://127.0.0.1:8080/ | grep -qi 'OpenCord'
+          docker compose run --rm --no-deps -e OWNER_EMAIL=dono@exemplo.com -e OWNER_USERNAME=dono -e OWNER_PASSWORD="$(openssl rand -hex 16)" api node node_modules/@opencord/db/dist/create-owner.js
+      - name: Logs
+        if: failure()
+        run: docker compose logs --no-color --tail 200

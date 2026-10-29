@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "description": "OpenCord desktop (Electron, Windows-first)",
+  "license": "AGPL-3.0-only",
   "author": "OpenCord contributors",
   "type": "module",
   "main": "dist-electron/main.cjs",

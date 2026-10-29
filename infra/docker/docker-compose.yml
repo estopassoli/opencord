@@ -69,6 +69,17 @@ services:
       redis: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
 
+  # Landing (site/) e interface no navegador (APP_HOST); o proxy com TLS fica à frente (ver docs/SELF_HOSTING.md).
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+      args: { VITE_OPENCORD_SERVER_URL: '${PUBLIC_API_URL:?defina PUBLIC_API_URL}' }
+    restart: unless-stopped
+    environment:
+      APP_HOST: ${APP_HOST:?defina APP_HOST}
+    ports: ['127.0.0.1:8080:80']
+
 volumes:
   pgdata:
   uploads:
