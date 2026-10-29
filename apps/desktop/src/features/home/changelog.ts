@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '22:15',
+    kind: 'correção',
+    icon: 'upload',
+    title: 'Envio de foto e imagem do servidor no servidor oficial',
+    body: 'O envio falhava com "não foi possível salvar a imagem" porque a pasta de arquivos do servidor não aceitava gravação. Corrigido na instalação do servidor.',
+  },
+  {
+    date: '2026-10-29',
     time: '22:05',
     kind: 'correção',
     icon: 'screen',
