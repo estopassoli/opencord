@@ -350,3 +350,54 @@ export function ActivityHint({ channelId }: { channelId: string }) {
     </span>
   );
 }
+
+/**
+ * Painel "Atividades" (aberto pelo botão da chamada): cartões das atividades disponíveis. Por ora, o YouTube.
+ * Arte própria (sem logotipos de terceiros).
+ */
+export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
+  const running = useActivity((a) => a.state);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!ref.current?.contains(t) && !t.closest('.activities-btn')) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    ref.current?.querySelector<HTMLButtonElement>('.activity-card')?.focus();
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+  const openYouTube = () => {
+    onClose();
+    if (running) {
+      useActivity.getState().join(true);
+      useUi.getState().focusStream('activity');
+    } else useUi.getState().openModal({ kind: 'watch-together' });
+  };
+  return (
+    <div className="activities-panel" ref={ref} role="dialog" aria-label="Atividades">
+      <div className="activities-head">
+        <Icon name="activities" size={18} />
+        <strong>Atividades</strong>
+      </div>
+      <ul className="activities-list">
+        <li>
+          <button className="activity-card activity-youtube" onClick={openYouTube}>
+            <span className="activity-art" aria-hidden="true">
+              <Icon name="play" size={34} />
+            </span>
+            <span className="activity-name">
+              <strong>YouTube</strong>
+              <span className="muted small">{running ? 'Em andamento: abrir' : 'Assistir juntos'}</span>
+            </span>
+          </button>
+        </li>
+      </ul>
+    </div>
+  );
+}

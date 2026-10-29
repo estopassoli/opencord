@@ -3334,3 +3334,77 @@ a.rail-item {
     display: none;
   }
 }
+
+/* painel "Atividades" (acima dos controles da chamada) */
+.activities-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  z-index: 5;
+  translate: -50% 0;
+  width: min(560px, calc(100% - 32px));
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: #111317;
+  box-shadow: var(--shadow);
+  animation: oc-pop var(--dur) var(--ease-out);
+  transform-origin: bottom center;
+}
+.activities-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.activities-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.activity-card {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 0 0 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition:
+    outline-color var(--dur-fast) var(--ease),
+    transform var(--dur) var(--ease-out);
+}
+.activity-card:hover,
+.activity-card:focus-visible {
+  outline-color: var(--brand-text);
+  transform: translateY(-2px);
+}
+.activity-art {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  color: #fff;
+}
+.activity-youtube .activity-art {
+  background: radial-gradient(circle at 30% 20%, #ff6b6b, #c4161c 60%, #6d0b0f);
+}
+.activity-name {
+  display: grid;
+  padding: 0 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-card:hover,
+  .activity-card:focus-visible {
+    transform: none;
+  }
+}
