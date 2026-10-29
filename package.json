@@ -1,7 +1,8 @@
 {
   "name": "opencord",
   "private": true,
-  "description": "OpenCord — comunicação privada self-hosted, desktop-first (Windows 11).",
+  "description": "OpenCord — chat, voz e Go Live self-hosted e open source para grupos de amigos.",
+  "license": "AGPL-3.0-only",
   "packageManager": "pnpm@12.4.1",
   "engines": {
     "node": ">=24.0.0"
