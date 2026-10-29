@@ -9,6 +9,7 @@ import { useVoice } from '../../store/voice';
 import { ServerSettings } from '../admin/ServerSettings';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ScreenSourcePicker } from '../voice/ScreenSourcePicker';
+import { WatchTogetherDialog } from '../voice/WatchTogether';
 import { QuickSwitcher } from './QuickSwitcher';
 
 export function Modals() {
@@ -22,6 +23,8 @@ export function Modals() {
       return <ExploreServers onClose={close} />;
     case 'create-channel':
       return <CreateChannel modal={modal} onClose={close} />;
+    case 'watch-together':
+      return <WatchTogetherDialog onClose={close} />;
     case 'create-category':
       return <CreateCategory serverId={modal.serverId} onClose={close} />;
     case 'settings':

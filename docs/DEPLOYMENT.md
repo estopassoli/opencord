@@ -51,5 +51,6 @@ sudo chown opencord-dl ~opencord-dl/.ssh/authorized_keys && sudo chmod 600 ~open
 ssh-keyscan -t ed25519 <IP-ou-host-do-nó>           # saída = DOWNLOADS_SSH_KNOWN_HOSTS
 ```
 Secrets no GitHub (Settings → Secrets → Actions): `DOWNLOADS_SSH_KEY` (conteúdo de `opencord-dl`, a chave privada; depois apague o arquivo), `DOWNLOADS_SSH_HOST` (IP/host do nó, porta 22 liberada para o GitHub Actions), `DOWNLOADS_SSH_USER` (`opencord-dl`) e `DOWNLOADS_SSH_KNOWN_HOSTS`. `rrsync` vem no pacote `rsync` (≥ 3.2.4; em versões antigas fica em `/usr/share/doc/rsync/scripts/rrsync`). Revogar = apagar a linha do `authorized_keys`. Versões antigas acumulam no volume; a API sempre serve a mais recente de cada plataforma (pode apagar as velhas).
+- **Assistir juntos (YouTube)**: funciona sem configuração (por link). Para a **pesquisa**, crie uma chave da YouTube Data API v3 no Google Cloud (restrinja à API do YouTube) e defina `YOUTUBE_API_KEY` no `opencord-api`; a cota grátis dá ~100 pesquisas/dia. Sem a chave, o app mostra só o campo de link.
 - Sem coturn/TURN por enquanto: o fallback quando UDP é bloqueado é ICE/TCP 7901. Redes que só liberam 443 não conectam a mídia.
 - Configuração da infraestrutura (stack do LiveKit, rotas do Traefik, ufw) fica fora deste repositório, no repositório de infraestrutura do cluster.

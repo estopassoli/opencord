@@ -67,7 +67,7 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   });
   await expect(A.page.getByText('sem áudio do sistema')).toHaveCount(0);
 
-  await B.page.getByRole('button', { name: 'Assistir' }).click({ timeout: 15_000 });
+  await B.page.getByRole('button', { name: 'Assistir', exact: true }).click({ timeout: 15_000 });
   const v = B.page.locator('.tile-stream video');
   // registra a evolução (resolução no espectador + métricas do publisher) antes de afirmar
   for (let i = 0; i < 4; i++) {
@@ -136,7 +136,7 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   await B.page.locator('.tile-stream').hover();
   await B.page.getByRole('button', { name: 'Parar de assistir' }).click();
   await expect(A.page.getByText('ninguém assistindo', { exact: false })).toBeVisible({ timeout: 20_000 });
-  await B.page.getByRole('button', { name: 'Assistir' }).click();
+  await B.page.getByRole('button', { name: 'Assistir', exact: true }).click();
   await expect(A.page.locator('.stream-stats')).toHaveAttribute('title', /Transmitindo \d+×\d+/, { timeout: 20_000 });
   await expect
     .poll(async () => v.evaluate((el: HTMLVideoElement) => el.videoWidth), { timeout: 20_000 })

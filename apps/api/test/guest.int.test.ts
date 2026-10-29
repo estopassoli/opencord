@@ -32,7 +32,7 @@ const join = (nickname: string, extra: Record<string, unknown> = {}) =>
 describe('entrada só com apelido (ADR-0007)', () => {
   it('instância informa que aceita apelido e não exige código', async () => {
     const r = await http.req<InstanceInfo>('GET', '/auth/instance');
-    expect(r.body).toEqual({ name: 'OpenCord', guestJoin: true, requiresAccessCode: false });
+    expect(r.body).toEqual({ name: 'OpenCord', guestJoin: true, requiresAccessCode: false, youtubeSearch: false });
   });
 
   it('cria identidade sem e-mail/senha e entra em TODOS os servidores (abertos, sem convite)', async () => {

@@ -241,7 +241,7 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   await expect(B.page.locator('.voice-member').filter({ hasText: 'Proprietário' }).locator('.live-pill')).toBeVisible({
     timeout: 15_000,
   });
-  await B.page.getByRole('button', { name: 'Assistir' }).click();
+  await B.page.getByRole('button', { name: 'Assistir', exact: true }).click();
   const v = B.page.locator('.tile-stream video');
   await expect
     .poll(async () => v.evaluate((el: HTMLVideoElement) => el.videoWidth), { timeout: 20_000 })
@@ -271,6 +271,37 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   test.info().annotations.push({ type: 'publisher-stats', description: stats });
   await A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
   await expect(B.page.locator('.tile-stream')).toHaveCount(0, { timeout: 15_000 });
+});
+
+test('Assistir juntos: A abre um vídeo por link, B entra, pausa sincroniza e encerrar some para os dois', async () => {
+  // processo com --mute-audio: o vídeo toca mudo
+  await A.page.getByRole('button', { name: 'Assistir juntos (YouTube)' }).click();
+  const dialog = A.page.getByRole('dialog', { name: 'Assistir juntos' });
+  await dialog.getByLabel(/Link/).fill('https://youtu.be/jNQXAC9IVRw');
+  await dialog.getByRole('button', { name: 'Assistir juntos' }).click();
+  // A já entra assistindo, em destaque
+  await expect(A.page.locator('.tile-activity[data-large="true"] iframe')).toBeVisible({ timeout: 15_000 });
+  await expect(A.page.locator('.tile-activity iframe')).toHaveAttribute('src', /youtube\.com\/embed\/jNQXAC9IVRw/);
+  // B: indicador na barra lateral e capa com "Assistir"
+  await expect(B.page.locator('.activity-hint')).toBeVisible({ timeout: 10_000 });
+  await B.page.locator('.tile-activity').getByRole('button', { name: 'Assistir', exact: true }).click();
+  const bFrame = B.page.locator('.tile-activity iframe');
+  await expect(bFrame).toBeVisible();
+  // o player do YouTube responde ao nosso controle (postMessage funcionando no app): a duração aparece
+  await expect(B.page.locator('.yt-time')).toContainText('/', { timeout: 30_000 });
+  await B.page.screenshot({ path: shot('15-assistir-juntos') });
+  // A pausa para todos → B passa a mostrar "Tocar para todos"
+  await A.page.locator('.tile-activity').hover();
+  await A.page.locator('.yt-bar').getByRole('button', { name: 'Pausar para todos' }).click();
+  await expect(B.page.locator('.yt-bar').getByRole('button', { name: 'Tocar para todos' })).toBeAttached({
+    timeout: 10_000,
+  });
+  // encerrar para todos
+  await A.page.locator('.tile-activity').hover();
+  await A.page.getByRole('button', { name: 'Encerrar para todos' }).click();
+  await expect(A.page.locator('.tile-activity')).toHaveCount(0);
+  await expect(B.page.locator('.tile-activity')).toHaveCount(0, { timeout: 10_000 });
+  await expect(B.page.locator('.activity-hint')).toHaveCount(0);
 });
 
 test('fechar a janela vai para a bandeja e a chamada continua (P11)', async () => {

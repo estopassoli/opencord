@@ -322,6 +322,17 @@ function wireRealtime(rt: RealtimeClient) {
         void loadServer(v.serverId).catch(() => undefined);
     });
     rt.on('voice:state:changed', (v) => d().setVoiceState(v));
+    // Assistir juntos: estado da chamada em que estou; das outras, só o indicador na barra lateral
+    rt.on('activity:state', (s) => {
+      void Promise.all([import('./activity'), import('./voice')]).then(([{ useActivity }, { useVoice }]) => {
+        if (useVoice.getState().machine.channelId === s.channelId) useActivity.getState().apply(s);
+        else useActivity.getState().observe(s);
+      });
+    });
+    rt.on(
+      'activity:ended',
+      (e) => void import('./activity').then(({ useActivity }) => useActivity.getState().ended(e.channelId)),
+    );
     rt.on('voice:member:left', (e) => {
       const cur = d().voiceStates[e.userId];
       if (cur?.channelId === e.channelId) d().removeVoiceState(e.userId);

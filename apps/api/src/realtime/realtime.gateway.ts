@@ -19,6 +19,7 @@ import type { Server } from 'socket.io';
 import { randomUUID } from 'node:crypto';
 import { TokenService } from '../auth/token.service.js';
 import { RedisService } from '../common/redis.service.js';
+import { ActivitiesService } from '../voice/activities.service.js';
 import { MessagesService, type Target } from '../messages/messages.service.js';
 import { HEARTBEAT_INTERVAL_MS, PresenceService } from './presence.service.js';
 import { RealtimeService, type AppSocket } from './realtime.service.js';
@@ -61,6 +62,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     private readonly presence: PresenceService,
     private readonly messages: MessagesService,
     private readonly redis: RedisService,
+    private readonly activities: ActivitiesService,
   ) {}
 
   afterInit(io: Server) {
@@ -178,6 +180,22 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       case 'presence:heartbeat': {
         const d = p as { status?: 'online' | 'idle' | 'dnd' | 'invisible' };
         return (await this.presence.heartbeat(userId, socket.id, d.status)) as R;
+      }
+      case 'activity:get': {
+        const d = p as { channelId: string };
+        return (await this.activities.get(userId, d.channelId)) as R;
+      }
+      case 'activity:youtube:start': {
+        const d = p as { channelId: string; videoId: string };
+        return (await this.activities.startYouTube(userId, d.channelId, d.videoId)) as R;
+      }
+      case 'activity:youtube:control': {
+        const d = p as { channelId: string; action: 'play' | 'pause' | 'seek'; positionSec: number };
+        return (await this.activities.control(userId, d.channelId, d.action, d.positionSec)) as R;
+      }
+      case 'activity:stop': {
+        const d = p as { channelId: string };
+        return (await this.activities.stop(userId, d.channelId)) as R;
       }
       case 'sync:resume': {
         const d = p as { channels: { channelId: string; lastMessageId: string | null }[] };

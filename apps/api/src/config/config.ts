@@ -52,6 +52,10 @@ export const ConfigSchema = z.object({
   DOWNLOADS_DIR: z.string().optional(),
   /** API pública do Discord para modelos de servidor (importação). Só muda em testes. */
   DISCORD_API_URL: z.url().default('https://discord.com/api/v10'),
+  /** Chave da YouTube Data API v3: liga a pesquisa no "Assistir juntos" (sem ela, só por link). */
+  YOUTUBE_API_KEY: z.string().min(10).optional(),
+  /** Busca título/canal do vídeo no oEmbed público do YouTube (desligado nos testes: sem rede externa). */
+  YOUTUBE_OEMBED: bool.default(true),
   /** Limite de novos apelidos por IP por hora. */
   GUEST_JOIN_PER_IP_HOUR: z.coerce.number().int().min(1).default(10),
   VOICE_RECONCILE_INTERVAL_MS: z.coerce.number().int().min(0).default(30000),
