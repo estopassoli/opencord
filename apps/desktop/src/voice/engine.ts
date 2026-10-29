@@ -58,6 +58,8 @@ export interface MediaStats {
     height: number | null;
     limitation: string | null;
     codec: string | null;
+    /** fmtp negociado (para H.264, o perfil decide se o encoder de hardware é usado) */
+    fmtp: string | null;
   };
 }
 
@@ -124,6 +126,7 @@ export class VoiceEngine {
   // ---------- conexão ----------
   async connect(url: string, token: string, opts: { canSpeak: boolean; selfMute: boolean; selfDeaf: boolean }) {
     this.intentional = false;
+    preferHardwareH264();
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
@@ -666,10 +669,11 @@ export class VoiceEngine {
       });
       const b = best as Record<string, unknown> | null;
       if (b) {
-        const codec =
+        const c =
           typeof b.codecId === 'string'
-            ? ((vr?.get(b.codecId) as { mimeType?: string } | undefined)?.mimeType ?? null)
-            : null;
+            ? (vr?.get(b.codecId) as { mimeType?: string; sdpFmtpLine?: string } | undefined)
+            : undefined;
+        const codec = c?.mimeType ?? null;
         const encoder = typeof b.encoderImplementation === 'string' ? b.encoderImplementation : null;
         s.stream = {
           encoder,
@@ -679,11 +683,44 @@ export class VoiceEngine {
           height: typeof b.frameHeight === 'number' ? b.frameHeight : null,
           limitation: typeof b.qualityLimitationReason === 'string' ? b.qualityLimitationReason : null,
           codec,
+          fmtp: c?.sdpFmtpLine ?? null,
         };
       }
     }
     this.cb.onStats(s);
   }
+}
+
+/**
+ * Encoder de GPU para H.264. O SFU escolhe H.264 Constrained Baseline (profile-level-id 42e0xx) quando ele é
+ * oferecido, e o Chromium só codifica esse perfil em software (OpenH264). Medido no PC do mantenedor (RTX, Electron
+ * 44): Baseline 42001f, Main 4d001f e High 64xxxx usam MediaFoundation/NVENC. Antes de cada oferta, os transceivers
+ * de envio de vídeo deixam de oferecer 42e0xx, e o SFU responde com um perfil acelerável. Se este Chromium não
+ * anuncia nenhum outro perfil H.264, nada muda.
+ */
+let h264Patched = false;
+function preferHardwareH264() {
+  if (h264Patched || typeof RTCPeerConnection === 'undefined' || !RTCRtpSender.getCapabilities) return;
+  h264Patched = true;
+  const codecs = RTCRtpSender.getCapabilities('video')?.codecs ?? [];
+  const isH264 = (c: RTCRtpCodec) => c.mimeType.toLowerCase() === 'video/h264';
+  const constrainedBaseline = (c: RTCRtpCodec) => isH264(c) && /profile-level-id=42e0/i.test(c.sdpFmtpLine ?? '');
+  if (!codecs.some((c) => isH264(c) && !constrainedBaseline(c))) return;
+  const prefs = codecs.filter((c) => !constrainedBaseline(c));
+  const createOffer = RTCPeerConnection.prototype.createOffer;
+  RTCPeerConnection.prototype.createOffer = function (this: RTCPeerConnection, ...args: unknown[]) {
+    for (const t of this.getTransceivers()) {
+      const sending = t.direction === 'sendonly' || t.direction === 'sendrecv';
+      if (sending && t.sender.track?.kind === 'video') {
+        try {
+          t.setCodecPreferences(prefs);
+        } catch {
+          /* transceiver parado ou preferência recusada: segue com a oferta padrão */
+        }
+      }
+    }
+    return (createOffer as (...a: unknown[]) => Promise<RTCSessionDescriptionInit>).apply(this, args);
+  } as typeof createOffer;
 }
 
 export const RECONNECT = {

@@ -65,7 +65,10 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
         <h2 className="truncate">{channel?.name}</h2>
         <span className="spacer" />
         {stream.status === 'live' && stats?.stream && (
-          <span className="muted small" title={stats.stream.encoder ?? ''}>
+          <span
+            className="muted small stream-stats"
+            title={[stats.stream.encoder, stats.stream.fmtp].filter(Boolean).join(' · ')}
+          >
             Transmitindo {stats.stream.width}×{stats.stream.height} · {stats.stream.fps ?? '–'} fps ·{' '}
             {stats.stream.codec?.replace('video/', '') ?? ''}
             {stats.stream.hardware ? ' (hardware)' : stats.stream.hardware === false ? ' (software)' : ''}
