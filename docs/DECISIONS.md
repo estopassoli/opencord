@@ -25,6 +25,8 @@
 
 - 2026-10-29 | Conta opcional (entrar só com apelido), sem endereço do servidor e servidores abertos sem convites (ADR-0007) | convite + login | pedido do mantenedor | instância aberta por padrão; código de acesso opcional; sem ban | mantenedor
 - 2026-10-29 | App desktop também para macOS (dmg arm64/x64) e Linux (AppImage/deb), gerados no workflow `desktop.yml`; API lista todas as plataformas (ADR-0008) | só Windows | pedido do mantenedor | macOS sem notarização; áudio do sistema no Go Live só no Windows | mantenedor
+- 2026-10-29 | Go Live volta a camada única com contentHint `detail` + `maintain-resolution` (substitui a entrada do simulcast) | simulcast | em teste real, com banda estimada baixa o espectador recebia só 960×540; camada única manteve 1920×1080 no E2E | sem camada leve para espectadores com download fraco; sob pressão cai o fps | mantenedor
+- 2026-10-29 | Supressão de ruído com RNNoise (`@sapphi-red/web-noise-suppressor`, MIT, WASM local) como processador do microfone; CSP ganha `'wasm-unsafe-eval'` | só `noiseSuppression` do navegador; Krisp (exige LiveKit Cloud) | teste real: ruído da casa passava | ~1 MB de WASM; se falhar, segue sem filtro | mantenedor
 
 ## Pendentes de decisão do mantenedor
 - Licença (MIT, Apache-2.0 ou AGPL-3.0); não inventar licença. **Ainda pendente; nenhum arquivo LICENSE foi criado.**

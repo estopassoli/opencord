@@ -72,7 +72,11 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
       }
     >
       {!bridge ? (
-        <p>No navegador, o seletor do próprio navegador será aberto ao iniciar.</p>
+        <p>
+          No navegador, o seletor do próprio navegador será aberto ao iniciar. Para incluir o som, escolha{' '}
+          <strong>Tela inteira</strong> (ou uma aba) e deixe marcado <strong>Compartilhar áudio do sistema</strong>:
+          janelas avulsas não enviam áudio no navegador. O app para Windows captura o som de qualquer fonte.
+        </p>
       ) : (
         <>
           <div className="tabs" role="tablist" aria-label="Tipo de fonte">

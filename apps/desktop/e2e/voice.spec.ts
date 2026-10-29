@@ -80,6 +80,9 @@ test('dois usuários entram na mesma sala e se veem; indicador de fala acende', 
       ),
     }),
   );
+  // supressão de ruído ligada por padrão: o microfone publica pela trilha do RNNoise
+  const local = (d2 as unknown as { media: { local: { noiseFilter: string | null } } }).media.local;
+  expect(local.noiseFilter).toBe('rnnoise');
   const bytes = (d: typeof d1) => d.media.remotes.find((r) => r.identity === bobId)?.bytesReceived ?? 0;
   expect(bytes(d2) - bytes(d1)).toBeGreaterThan(1000);
   // regressão: bytes chegavam mas ninguém anexava a trilha a um <audio>, então nada tocava (relato do usuário)
