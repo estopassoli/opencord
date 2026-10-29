@@ -210,6 +210,22 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   const streamInfo = await B.page.locator('.tile-stream .tile-label').innerText();
   expect(streamInfo).not.toContain('sem áudio');
   await B.page.screenshot({ path: shot('12-golive-watching') });
+  // regressão (piscadas na live): mudanças na chamada (mute, fala) não podem reanexar/esvaziar o vídeo
+  await v.evaluate((el: HTMLVideoElement & { __emptied?: number; __src?: MediaProvider | null }) => {
+    el.__emptied = 0;
+    el.__src = el.srcObject;
+    el.addEventListener('emptied', () => (el.__emptied = (el.__emptied ?? 0) + 1));
+  });
+  const muteBtn = A.page.locator('.dock').getByRole('button', { name: /^(Silenciar|Ativar) microfone$/ });
+  for (let i = 0; i < 4; i++) {
+    await muteBtn.click();
+    await A.page.waitForTimeout(600);
+  }
+  const flicker = await v.evaluate((el: HTMLVideoElement & { __emptied?: number; __src?: MediaProvider | null }) => ({
+    emptied: el.__emptied,
+    sameSource: el.srcObject === el.__src,
+  }));
+  expect(flicker).toEqual({ emptied: 0, sameSource: true });
   // métricas do publisher (encoder/fps) visíveis em A
   await expect(A.page.getByText(/Transmitindo \d+×\d+/)).toBeVisible({ timeout: 10_000 });
   const stats = await A.page.getByText(/Transmitindo \d+×\d+/).innerText();
