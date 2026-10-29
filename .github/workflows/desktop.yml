@@ -1,22 +1,60 @@
 # Instaladores do app desktop para Windows, macOS e Linux, cada um no próprio sistema (o .dmg só é gerado em macOS).
 # Sem assinatura (Windows) / assinatura ad-hoc sem notarização (macOS) até haver certificados (ADR-0008).
-# Os arquivos ficam como artefatos do run; publicar no servidor = copiar para o DOWNLOADS_DIR da API (docs/DEPLOYMENT.md).
+#
+# Automático (decisão do mantenedor, docs/DECISIONS.md): push no main que mexe no app gera a versão
+# <major>.<minor>.<nº do run> (base no package.json) e, se o secret DOWNLOADS_SSH_KEY existir, entrega os arquivos
+# no volume de downloads do servidor por SSH restrito (rrsync só-escrita). O app instalado vê a versão nova e mostra
+# "Atualização pronta". Tag vX.Y.Z usa exatamente essa versão; o disparo manual empacota sem publicar por padrão.
 name: Desktop (instaladores)
 on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - apps/desktop/**
+      - packages/**
+      - pnpm-lock.yaml
+      - .github/workflows/desktop.yml
   workflow_dispatch:
     inputs:
       server_url:
         description: Servidor embutido no app (VITE_OPENCORD_SERVER_URL)
         default: https://api.opencord.pro
-  push:
-    tags: ['v*']
+      publish:
+        description: Entregar no servidor (DOWNLOADS_SSH_*) ao final
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+# um lançamento por vez; um push novo cancela a build anterior ainda em andamento
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            v="${GITHUB_REF_NAME#v}"
+          else
+            base=$(node -p "require('./apps/desktop/package.json').version")
+            v="$(echo "$base" | cut -d. -f1-2).$GITHUB_RUN_NUMBER"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Versão do app: $v" >> "$GITHUB_STEP_SUMMARY"
+
   package:
     name: ${{ matrix.name }}
+    needs: version
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     strategy:
@@ -37,12 +75,11 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # tag v1.2.3 → versão 1.2.3 no app: é por ela que o app instalado detecta a atualização (electron/main/updater.ts)
-      - name: Versão pelo tag
-        if: github.ref_type == 'tag'
+      # é por essa versão que o app instalado detecta a atualização (electron/main/updater.ts)
+      - name: Versão
         shell: bash
         working-directory: apps/desktop
-        run: npm pkg set version="${GITHUB_REF_NAME#v}"
+        run: npm pkg set version="${{ needs.version.outputs.version }}"
       # Dependências pelo turbo; o app fora dele, porque o turbo não repassa VITE_OPENCORD_SERVER_URL ao vite.
       - run: pnpm turbo run build --filter "@opencord/desktop^..."
       - run: pnpm --filter @opencord/desktop build
@@ -60,3 +97,40 @@ jobs:
             apps/desktop/release/*.deb
           if-no-files-found: error
           retention-days: 14
+
+  # Entrega no volume de downloads da API (docs/DEPLOYMENT.md → "Entrega automática"). Só roda se todos os
+  # instaladores foram gerados e o secret existe; a API passa a servir a versão nova sem redeploy.
+  publish:
+    needs: [version, package]
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    concurrency: desktop-publish
+    env:
+      SSH_KEY: ${{ secrets.DOWNLOADS_SSH_KEY }}
+      SSH_HOST: ${{ secrets.DOWNLOADS_SSH_HOST }}
+      SSH_USER: ${{ secrets.DOWNLOADS_SSH_USER }}
+      SSH_KNOWN_HOSTS: ${{ secrets.DOWNLOADS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Sem secret de entrega
+        if: env.SSH_KEY == ''
+        run: echo "::notice::DOWNLOADS_SSH_KEY não configurado; instaladores ficam só como artefatos do run."
+      - uses: actions/download-artifact@v4
+        if: env.SSH_KEY != ''
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Enviar por SSH (rrsync só-escrita)
+        if: env.SSH_KEY != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_downloads && chmod 600 ~/.ssh/id_downloads
+          # host fixado: sem known_hosts certo não envia (evita entregar instaladores a um servidor trocado)
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ls -la dist
+          # destino relativo à pasta fixada pelo rrsync no servidor; o rsync grava em arquivo temporário oculto e
+          # renomeia no fim, então a API nunca serve um instalador pela metade
+          rsync -rt --chmod=F644 -e "ssh -i ~/.ssh/id_downloads -o StrictHostKeyChecking=yes -o BatchMode=yes" \
+            dist/ "$SSH_USER@$SSH_HOST:"
+          echo "Publicado ${{ needs.version.outputs.version }} em $SSH_HOST" >> "$GITHUB_STEP_SUMMARY"
