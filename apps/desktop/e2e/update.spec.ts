@@ -21,7 +21,7 @@ test('versão nova publicada → baixa e mostra "Atualização pronta"', async (
   const dir = path.join(__dirname, 'results', 'update-profile');
   rmSync(dir, { recursive: true, force: true });
   app = await electron.launch({
-    args: ['.', `--user-data-dir=${dir}`],
+    args: ['.', '--mute-audio', `--user-data-dir=${dir}`],
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, OPENCORD_UPDATE_SERVER: API, OPENCORD_UPDATE_DELAY_MS: '500' },
   });

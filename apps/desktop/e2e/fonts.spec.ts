@@ -13,7 +13,10 @@ let app: ElectronApplication;
 let page: Page;
 
 const launch = async () => {
-  app = await electron.launch({ args: ['.', `--user-data-dir=${DIR}`], cwd: path.join(__dirname, '..') });
+  app = await electron.launch({
+    args: ['.', '--mute-audio', `--user-data-dir=${DIR}`],
+    cwd: path.join(__dirname, '..'),
+  });
   page = await app.firstWindow();
 };
 const openAppearance = async () => {

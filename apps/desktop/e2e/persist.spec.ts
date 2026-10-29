@@ -11,7 +11,7 @@ const servers = (page: Page) => page.getByRole('navigation', { name: 'Servidores
 
 async function launch(dir: string, devUrl?: string) {
   const app = await electron.launch({
-    args: ['.', `--user-data-dir=${dir}`],
+    args: ['.', '--mute-audio', `--user-data-dir=${dir}`],
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, OPENCORD_DEV_URL: devUrl ?? '' },
   });

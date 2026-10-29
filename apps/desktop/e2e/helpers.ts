@@ -60,7 +60,7 @@ export async function launch(
   const dir = path.join(__dirname, 'results', profile);
   rmSync(dir, { recursive: true, force: true });
   const app = await electron.launch({
-    args: ['.', `--user-data-dir=${dir}`, ...flags],
+    args: ['.', '--mute-audio', `--user-data-dir=${dir}`, ...flags],
     cwd: path.join(__dirname, '..'),
   });
   return { app, page: await app.firstWindow() };

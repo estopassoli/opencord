@@ -2984,12 +2984,15 @@ a.rail-item {
 .golive-card {
   display: grid;
   gap: 8px;
+  /* item de grade: sem isso, nome longo ou miniatura grande alarga a coluna */
+  min-width: 0;
   cursor: pointer;
   outline: none;
 }
 .golive-thumb {
   position: relative;
   display: block;
+  width: 100%;
   aspect-ratio: 16 / 9;
   border-radius: var(--radius);
   overflow: hidden;
@@ -2999,6 +3002,7 @@ a.rail-item {
   transition: outline-color var(--dur-fast) var(--ease);
 }
 .golive-thumb > img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;

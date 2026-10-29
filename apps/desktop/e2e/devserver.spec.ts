@@ -5,7 +5,7 @@ import path from 'node:path';
 test('modo dev carrega o renderer do Vite', async () => {
   test.skip(!process.env.OPENCORD_DEV_URL, 'defina OPENCORD_DEV_URL');
   const app = await electron.launch({
-    args: ['.', `--user-data-dir=${path.join(__dirname, 'results', 'dev-profile')}`],
+    args: ['.', '--mute-audio', `--user-data-dir=${path.join(__dirname, 'results', 'dev-profile')}`],
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, OPENCORD_DEV_URL: process.env.OPENCORD_DEV_URL ?? '' },
   });

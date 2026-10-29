@@ -144,6 +144,12 @@ test('dois usuários entram na mesma sala e se veem; indicador de fala acende', 
     expect(overlap).toBe(false);
     expect(full.x).toBeGreaterThan(hang.x + hang.width);
   }
+  // efeitos sonoros disparam (o processo está com --mute-audio: nada sai nos alto-falantes)
+  const soundsA = await A.page.evaluate(() =>
+    (window as unknown as { __opencordSounds: () => string[] }).__opencordSounds(),
+  );
+  console.warn('SOUNDS_A', JSON.stringify(soundsA));
+  expect(soundsA).toEqual(expect.arrayContaining(['join', 'peerJoin']));
   test.info().annotations.push({ type: 'join-ms', description: String(joinMs) });
 });
 
@@ -172,6 +178,9 @@ test('mute é refletido para o outro participante', async () => {
     A.page.locator('.tile').filter({ hasText: B_NICK }).getByRole('img', { name: 'Microfone desligado' }),
   ).toBeVisible({ timeout: 10_000 });
   await B.page.locator('.dock').getByRole('button', { name: 'Ativar microfone', exact: true }).click();
+  expect(
+    await B.page.evaluate(() => (window as unknown as { __opencordSounds: () => string[] }).__opencordSounds()),
+  ).toEqual(expect.arrayContaining(['mute', 'unmute']));
   await expect(
     A.page.locator('.tile').filter({ hasText: B_NICK }).getByRole('img', { name: 'Microfone desligado' }),
   ).toHaveCount(0, { timeout: 10_000 });
@@ -193,6 +202,22 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   await expect(dialog.getByRole('listbox').getByRole('option').first()).toBeVisible({ timeout: 10_000 });
   await dialog.getByRole('listbox').getByRole('option').first().hover();
   await A.page.screenshot({ path: shot('11-golive-picker') });
+  // regressão (bugs visuais): miniaturas de tamanhos variados e nomes longos não deformam a grade
+  const layout = await dialog.locator('.golive-grid').evaluate((grid) => {
+    const g = grid.getBoundingClientRect();
+    const cards = [...grid.querySelectorAll('.golive-card')].map((c) => c.getBoundingClientRect());
+    const thumbs = [...grid.querySelectorAll('.golive-thumb')].map((t) => Math.round(t.getBoundingClientRect().height));
+    return {
+      n: cards.length,
+      widths: [...new Set(cards.map((c) => Math.round(c.width)))],
+      thumbHeights: [...new Set(thumbs)],
+      overflow: cards.some((c) => c.right > g.right + 1 || c.left < g.left - 1),
+    };
+  });
+  console.warn('PICKER_LAYOUT', JSON.stringify(layout));
+  expect(layout.widths.length).toBeLessThanOrEqual(1);
+  expect(layout.thumbHeights.length).toBeLessThanOrEqual(1);
+  expect(layout.overflow).toBe(false);
   await dialog.getByRole('tab', { name: 'Tela inteira' }).click();
   // um clique no card já inicia a transmissão
   await dialog.getByRole('listbox').getByRole('option').first().click();

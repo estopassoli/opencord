@@ -13,7 +13,7 @@ let page: Page;
 test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(async () => {
-  browser = await chromium.launch({ channel: 'msedge' });
+  browser = await chromium.launch({ channel: 'msedge', args: ['--mute-audio'] });
   const ctx = await browser.newContext({
     viewport: { width: 390, height: 844 },
     isMobile: true,
