@@ -1,0 +1,186 @@
+{
+  "startedAt": "2026-10-29T04:45:49.528Z",
+  "platform": "win32",
+  "osRelease": "10.0.26200",
+  "versions": {
+    "electron": "44.7.1",
+    "chrome": "152.0.7977.149"
+  },
+  "sources": {
+    "screens": 3,
+    "windows": 6,
+    "screenThumbnails": [
+      {
+        "width": 320,
+        "height": 180
+      },
+      {
+        "width": 320,
+        "height": 180
+      },
+      {
+        "width": 101,
+        "height": 180
+      }
+    ],
+    "nonEmptyThumbnails": 9
+  },
+  "tests": [
+    {
+      "name": "screen+systemAudio",
+      "ok": true,
+      "acquireMs": 132,
+      "videoTracks": 1,
+      "audioTracks": 1,
+      "video": {
+        "kind": "video",
+        "readyState": "live",
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "frameRate": 60,
+          "displaySurface": "monitor"
+        },
+        "fps": 57.1,
+        "videoWidth": 1920,
+        "videoHeight": 1080
+      },
+      "audio": {
+        "kind": "audio",
+        "readyState": "live",
+        "settings": {
+          "sampleRate": 48000,
+          "channelCount": 1
+        },
+        "loopback": {
+          "source": "same-process",
+          "sampleRate": 48000,
+          "toneHz": 1234,
+          "baselineDb": -101.7,
+          "toneDb": -39,
+          "deltaDb": 62.7,
+          "detected": true
+        }
+      },
+      "stop": {
+        "stopMs": 1,
+        "allEnded": true,
+        "streamActive": false
+      }
+    },
+    {
+      "name": "screen recapture after stop (30fps)",
+      "ok": true,
+      "acquireMs": 123,
+      "audioTracks": 1,
+      "video": {
+        "kind": "video",
+        "readyState": "live",
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "frameRate": 30,
+          "displaySurface": "monitor"
+        },
+        "fps": 29.4,
+        "videoWidth": 1920,
+        "videoHeight": 1080
+      },
+      "externalLoopback": {
+        "source": "external-process",
+        "sampleRate": 48000,
+        "toneHz": 1234,
+        "baselineDb": -640,
+        "toneDb": -28.8,
+        "deltaDb": 611.2,
+        "detected": true
+      },
+      "stop": {
+        "stopMs": 1,
+        "allEnded": true,
+        "streamActive": false
+      }
+    },
+    {
+      "name": "screen+systemAudio restrictOwnAudio",
+      "ok": true,
+      "acquireMs": 127,
+      "supported": true,
+      "appliedRestrictOwnAudio": true,
+      "sameProcess": {
+        "source": "same-process",
+        "sampleRate": 48000,
+        "toneHz": 1234,
+        "baselineDb": "-Infinity",
+        "toneDb": "-Infinity",
+        "deltaDb": "NaN",
+        "detected": false
+      },
+      "externalProcess": {
+        "source": "external-process",
+        "sampleRate": 48000,
+        "toneHz": 1234,
+        "baselineDb": "-Infinity",
+        "toneDb": -42.9,
+        "deltaDb": "Infinity",
+        "detected": true
+      },
+      "stop": {
+        "stopMs": 0,
+        "allEnded": true,
+        "streamActive": false
+      }
+    },
+    {
+      "name": "own window video + source closed ends track",
+      "ok": true,
+      "acquireMs": 27,
+      "video": {
+        "kind": "video",
+        "readyState": "live",
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "frameRate": 60,
+          "displaySurface": "window"
+        },
+        "fps": 0,
+        "videoWidth": 624,
+        "videoHeight": 320
+      },
+      "endedOnClose": true,
+      "endMs": 5,
+      "readyStateAfterClose": "ended",
+      "stop": {
+        "stopMs": 0,
+        "allEnded": true,
+        "streamActive": false
+      }
+    },
+    {
+      "name": "third-party window video (informativo)",
+      "ok": true,
+      "acquireMs": 109,
+      "video": {
+        "kind": "video",
+        "readyState": "live",
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "frameRate": 60,
+          "displaySurface": "window"
+        },
+        "fps": 17.7,
+        "videoWidth": 608,
+        "videoHeight": 1080
+      },
+      "stop": {
+        "stopMs": 0,
+        "allEnded": true,
+        "streamActive": false
+      }
+    }
+  ],
+  "handlerErrors": [],
+  "finishedAt": "2026-10-29T04:46:10.245Z"
+}

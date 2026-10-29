@@ -1,0 +1,194 @@
+/*
+ * Camada de movimento do app. Carregada depois de app.css.
+ * Todas as durações vêm dos tokens (--dur-fast/--dur/--dur-slow), que viram 0ms com
+ * prefers-reduced-motion ou com "Reduzir movimento" nas configurações (data-motion=reduced).
+ */
+
+/* ---------- transições de estado em elementos interativos ---------- */
+:where(
+  button,
+  a,
+  summary,
+  [role='button'],
+  [role='tab'],
+  [role='menuitem'],
+  [role='option'],
+  .channel-row,
+  .member-row,
+  .friend-row,
+  .dock-action,
+  .search-trigger,
+  .oc-interactive
+) {
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    opacity var(--dur) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+/* leve "afundar" no clique; botões de texto e linhas de lista ficam parados */
+:where(.icon-btn, .dock-action, .call-btn, .oc-btn, .close-circle):active:not(:disabled) {
+  transform: scale(0.94);
+}
+:where(input, textarea, [contenteditable='true']) {
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    background-color var(--dur) var(--ease);
+}
+/* o anel de foco aparece suavemente */
+:focus-visible {
+  transition: outline-offset var(--dur-fast) var(--ease);
+}
+
+/* ---------- diálogos: entrada e saída com fade + escala ---------- */
+dialog.dialog {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+  transition:
+    opacity var(--dur) var(--ease-in),
+    transform var(--dur) var(--ease-in),
+    overlay var(--dur) allow-discrete,
+    display var(--dur) allow-discrete;
+}
+dialog.dialog[open] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-slow) var(--ease-out),
+    transform var(--dur-slow) var(--ease-out),
+    overlay var(--dur-slow) allow-discrete,
+    display var(--dur-slow) allow-discrete;
+}
+@starting-style {
+  dialog.dialog[open] {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+/* tela cheia (configurações): só fade + leve zoom, sem deslocamento */
+dialog.dialog-fullscreen,
+dialog.dialog-fullscreen[open] {
+  transform-origin: 50% 40%;
+}
+@starting-style {
+  dialog.dialog-fullscreen[open] {
+    transform: scale(1.02);
+  }
+}
+dialog.dialog::backdrop {
+  background-color: rgb(0 0 0 / 0);
+  transition:
+    background-color var(--dur-slow) var(--ease),
+    overlay var(--dur-slow) allow-discrete,
+    display var(--dur-slow) allow-discrete;
+}
+dialog.dialog[open]::backdrop {
+  background-color: var(--overlay);
+}
+dialog.dialog-fullscreen[open]::backdrop {
+  background-color: var(--chat);
+}
+@starting-style {
+  dialog.dialog[open]::backdrop {
+    background-color: rgb(0 0 0 / 0);
+  }
+}
+
+/* ---------- popovers: menus, menu de contexto, cartão de perfil, listbox ---------- */
+.menu,
+.context-menu,
+.profile-card,
+.oc-listbox {
+  animation: oc-pop var(--dur) var(--ease-out);
+  transform-origin: var(--oc-pop-origin, top left);
+}
+.menu-up {
+  --oc-pop-origin: bottom left;
+}
+@keyframes oc-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- toasts entram deslizando ---------- */
+.toast {
+  animation: oc-slide-up var(--dur-slow) var(--ease-out);
+}
+@keyframes oc-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- conteúdo: troca de tela, aba e mensagens ---------- */
+.content > *,
+.settings-panel,
+.home-body {
+  animation: oc-fade-in var(--dur-slow) var(--ease-out);
+}
+.msg {
+  animation: oc-fade-in var(--dur) var(--ease-out);
+}
+.voice-dock {
+  animation: oc-slide-up var(--dur-slow) var(--ease-out);
+}
+.tile {
+  animation: oc-scale-in var(--dur-slow) var(--ease-out);
+  transition:
+    box-shadow var(--dur) var(--ease),
+    outline-color var(--dur) var(--ease);
+}
+@keyframes oc-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes oc-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- reduzir movimento: corta animações e transições, mantém mudanças de estado ---------- */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) *,
+  :root:not([data-motion='full']) *::before,
+  :root:not([data-motion='full']) *::after,
+  :root:not([data-motion='full']) ::backdrop {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after,
+:root[data-motion='reduced'] ::backdrop {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

@@ -1,0 +1,38 @@
+# Empacotamento Windows (NSIS). Executado no Windows a partir da pasta preparada por scripts/stage-windows.mjs.
+appId: org.opencord.desktop
+productName: OpenCord
+copyright: OpenCord contributors
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - '!**/*.map'
+  - package.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+  # Assinatura: configurar CSC_LINK/CSC_KEY_PASSWORD (ou signtool) quando houver certificado. Sem certificado o
+  # instalador não é assinado e o Windows SmartScreen exibirá aviso (registrado em docs).
+  signAndEditExecutable: true
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: OpenCord
+  uninstallDisplayName: OpenCord
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+# Atualização automática desativada: só habilitar com builds assinados e origem confiável (docs/DEPLOYMENT.md).
+publish: null

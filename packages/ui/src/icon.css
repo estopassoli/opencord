@@ -1,0 +1,85 @@
+/* Ícone com crossfade outline → solid. O estado vem do elemento interativo ancestral. */
+.oc-icon {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  width: var(--oc-icon-size, 20px);
+  height: var(--oc-icon-size, 20px);
+  line-height: 0;
+}
+.oc-icon > svg {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  transition: opacity var(--dur, 150ms) var(--ease, ease);
+}
+.oc-icon > .oc-icon-solid {
+  opacity: 0;
+}
+:is(
+    button,
+    a,
+    summary,
+    [role='button'],
+    [role='tab'],
+    [role='menuitem'],
+    [role='option'],
+    [role='treeitem'],
+    .oc-interactive
+  ):not(:disabled, [aria-disabled='true']):is(
+    :hover,
+    :focus-visible,
+    [aria-current]:not([aria-current='false']),
+    [aria-selected='true'],
+    [aria-pressed='true'],
+    [aria-expanded='true']
+  )
+  .oc-icon
+  > .oc-icon-solid,
+.oc-icon[data-active='true'] > .oc-icon-solid {
+  opacity: 1;
+}
+:is(
+    button,
+    a,
+    summary,
+    [role='button'],
+    [role='tab'],
+    [role='menuitem'],
+    [role='option'],
+    [role='treeitem'],
+    .oc-interactive
+  ):not(:disabled, [aria-disabled='true']):is(
+    :hover,
+    :focus-visible,
+    [aria-current]:not([aria-current='false']),
+    [aria-selected='true'],
+    [aria-pressed='true'],
+    [aria-expanded='true']
+  )
+  .oc-icon
+  > .oc-icon-outline,
+.oc-icon[data-active='true'] > .oc-icon-outline {
+  opacity: 0;
+}
+/* traço diagonal para estados "desligado" sem ícone dedicado (ex.: microfone mutado) */
+.oc-icon[data-slashed='true']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -8%;
+  width: 2px;
+  height: 116%;
+  background: currentColor;
+  transform: translateX(-50%) rotate(-45deg);
+  border-radius: 1px;
+  box-shadow: 0 0 0 1.5px var(--oc-icon-slash-gap, var(--sidebar));
+}
+@media (prefers-reduced-motion: reduce) {
+  .oc-icon > svg {
+    transition: none;
+  }
+}
+:root[data-motion='reduced'] .oc-icon > svg {
+  transition: none;
+}

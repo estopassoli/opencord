@@ -1,0 +1,10 @@
+{
+  "room": "load-1793253840189",
+  "participants": 10,
+  "videoStreams": 3,
+  "video": "1280x720@30 simulcast",
+  "seconds": 30,
+  "livekitCpuPercentOfOneCore": 36,
+  "livekitRssMiB": 166,
+  "minRecvFramesPerSec": 930
+}

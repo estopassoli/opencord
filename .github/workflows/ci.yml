@@ -1,0 +1,73 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: opencord
+          POSTGRES_PASSWORD: opencord_ci
+          POSTGRES_DB: opencord_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U opencord" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:8
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://opencord:opencord_ci@127.0.0.1:5432/opencord_test
+      TEST_REDIS_URL: redis://127.0.0.1:6379/11
+      LIVEKIT_VERSION: 1.13.10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm turbo run build typecheck lint test
+      - name: LiveKit (binário oficial, checksum verificado)
+        run: |
+          mkdir -p .tools/livekit && cd .tools/livekit
+          curl -sSLO https://github.com/livekit/livekit/releases/download/v$LIVEKIT_VERSION/livekit_${LIVEKIT_VERSION}_linux_amd64.tar.gz
+          curl -sSLO https://github.com/livekit/livekit/releases/download/v$LIVEKIT_VERSION/checksums.txt
+          grep linux_amd64 checksums.txt | sha256sum -c -
+          tar xzf livekit_${LIVEKIT_VERSION}_linux_amd64.tar.gz
+      - name: Testes de integração da API (Postgres/Redis/LiveKit reais)
+        run: pnpm --filter @opencord/api test:integration
+
+  desktop-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter @opencord/desktop...
+      - run: pnpm --filter @opencord/desktop test
+      # Instalador NSIS sem assinatura (certificado ainda não definido pelo mantenedor).
+      - name: Empacotar instalador (não assinado)
+        working-directory: apps/desktop
+        run: npx --yes electron-builder@26.17.0 --win --config electron-builder.yml --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencord-windows-unsigned
+          path: apps/desktop/release/*.exe
+          retention-days: 7

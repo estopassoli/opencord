@@ -1,0 +1,207 @@
+/**
+ * E2E de voz/vídeo/Go Live com DUAS instâncias reais do app, dois usuários e a SFU LiveKit de dev.
+ * Silencioso por construção: dispositivos falsos do Chromium e `--mute-audio` (nenhum som sai pelos alto-falantes).
+ * Limitação: mesma máquina e mesma rede (não substitui o teste manual em dois PCs/redes distintas).
+ */
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { joinVoice, joinWithNickname, json, launch, login, OWNER, shot, uniqueNick, writeTone, TONE } from './helpers';
+
+let A: { app: ElectronApplication; page: Page };
+let B: { app: ElectronApplication; page: Page };
+let B_NICK = '';
+let bobId = '';
+let ownerToken: string;
+let serverId: string;
+
+test.describe.configure({ mode: 'serial' });
+
+test.beforeAll(async () => {
+  writeTone(TONE);
+  const owner = await json<{ user: { id: string }; tokens: { accessToken: string } }>('POST', '/auth/login', {
+    login: OWNER.email,
+    password: OWNER.password,
+  });
+  ownerToken = owner.tokens.accessToken;
+  const servers = await json<{ id: string; name: string }[]>('GET', '/servers', undefined, ownerToken);
+  serverId = (servers.find((s) => s.name === 'OpenCord') ?? servers[0])!.id;
+  B_NICK = uniqueNick('Bob');
+  A = await launch('voice-a');
+  B = await launch('voice-b');
+  await login(A.page, OWNER.email, OWNER.password);
+  // B entra só com apelido (fluxo padrão, sem conta)
+  await joinWithNickname(B.page, B_NICK);
+  const detail = await json<{ members: { user: { id: string; displayName: string } }[] }>(
+    'GET',
+    `/servers/${serverId}`,
+    undefined,
+    ownerToken,
+  );
+  bobId = detail.members.find((m) => m.user.displayName === B_NICK)?.user.id ?? '';
+  expect(bobId).not.toBe('');
+});
+
+test.afterAll(async () => {
+  await A?.app.close();
+  await B?.app.close();
+  // limpeza: remove o usuário de teste do servidor
+  if (bobId)
+    await json('DELETE', `/servers/${serverId}/members/${bobId}`, undefined, ownerToken).catch(() => undefined);
+});
+
+test('dois usuários entram na mesma sala e se veem; indicador de fala acende', async () => {
+  const t0 = Date.now();
+  await joinVoice(A.page);
+  const joinMs = Date.now() - t0;
+  await joinVoice(B.page);
+  // cada um vê dois participantes no palco
+  // outras pessoas reais podem estar na sala (ex.: o usuário testando): verificar pelos nomes, não pelo total
+  await expect(A.page.locator('.stage-grid .tile').filter({ hasText: B_NICK })).toBeVisible({ timeout: 15_000 });
+  await expect(B.page.locator('.stage-grid .tile').filter({ hasText: 'Proprietário' })).toBeVisible({
+    timeout: 15_000,
+  });
+  // áudio de B chega de fato em A (bytes recebidos crescendo)
+  const diag = () =>
+    A.page.evaluate(() =>
+      (
+        window as unknown as {
+          __opencordDiag: () => Promise<{ media: { remotes: { identity: string; bytesReceived: number | null }[] } }>;
+        }
+      ).__opencordDiag(),
+    );
+  const d1 = await diag();
+  await A.page.waitForTimeout(2000);
+  const d2 = await diag();
+  console.warn(
+    'DIAG',
+    JSON.stringify({
+      a: d2,
+      b: await B.page.evaluate(() =>
+        (window as unknown as { __opencordDiag: () => Promise<unknown> }).__opencordDiag(),
+      ),
+    }),
+  );
+  const bytes = (d: typeof d1) => d.media.remotes.find((r) => r.identity === bobId)?.bytesReceived ?? 0;
+  expect(bytes(d2) - bytes(d1)).toBeGreaterThan(1000);
+  // o microfone falso gera um tom periódico: o indicador de fala de B deve acender em A
+  await expect(A.page.locator('.tile[data-speaking="true"]').filter({ hasText: B_NICK })).toBeVisible({
+    timeout: 20_000,
+  });
+  await A.page.screenshot({ path: shot('10-voice-two-users') });
+  // regressão: participante novo aparece com o apelido na sidebar (não "Alguém")
+  await expect(A.page.locator('.voice-member').filter({ hasText: B_NICK })).toBeVisible({ timeout: 10_000 });
+  // regressão: o botão de tela cheia não pode ficar por cima do botão de sair (relato do usuário)
+  const hang = await A.page.locator('.call-hangup').boundingBox();
+  const full = await A.page.locator('.call-fullscreen').boundingBox();
+  expect(hang && full).toBeTruthy();
+  if (hang && full) {
+    const overlap = !(
+      full.x >= hang.x + hang.width ||
+      full.x + full.width <= hang.x ||
+      full.y >= hang.y + hang.height ||
+      full.y + full.height <= hang.y
+    );
+    expect(overlap).toBe(false);
+    expect(full.x).toBeGreaterThan(hang.x + hang.width);
+  }
+  test.info().annotations.push({ type: 'join-ms', description: String(joinMs) });
+});
+
+test('cartão de voz: status, 4 ações e atalhos funcionam', async () => {
+  const dock = A.page.locator('.voice-dock');
+  await expect(dock.getByText('Voz conectada')).toBeVisible();
+  await expect(dock.locator('.dock-action')).toHaveCount(4);
+  await dock.screenshot({ path: shot('13-cartao-voz') });
+  const noise = dock.getByRole('button', { name: 'Supressão de ruído' });
+  const before = await noise.getAttribute('aria-pressed');
+  await noise.click();
+  await expect(noise).not.toHaveAttribute('aria-pressed', before ?? 'true');
+  await noise.click();
+  await expect(noise).toHaveAttribute('aria-pressed', before ?? 'true');
+  await dock.getByRole('button', { name: 'Configurações de voz' }).click();
+  await expect(A.page.getByRole('dialog').getByRole('tab', { name: 'Voz e vídeo' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await A.page.keyboard.press('Escape');
+});
+
+test('mute é refletido para o outro participante', async () => {
+  await B.page.locator('.dock').getByRole('button', { name: 'Silenciar microfone', exact: true }).click();
+  await expect(
+    A.page.locator('.tile').filter({ hasText: B_NICK }).getByRole('img', { name: 'Microfone desligado' }),
+  ).toBeVisible({ timeout: 10_000 });
+  await B.page.locator('.dock').getByRole('button', { name: 'Ativar microfone', exact: true }).click();
+  await expect(
+    A.page.locator('.tile').filter({ hasText: B_NICK }).getByRole('img', { name: 'Microfone desligado' }),
+  ).toHaveCount(0, { timeout: 10_000 });
+});
+
+test('câmera: B liga e A recebe vídeo', async () => {
+  await B.page.locator('.dock').getByRole('button', { name: 'Câmera', exact: true }).click();
+  const video = A.page.locator('.tile').filter({ hasText: B_NICK }).locator('video');
+  await expect(video).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(async () => video.evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 15_000 })
+    .toBeGreaterThan(0);
+  await B.page.locator('.dock').getByRole('button', { name: 'Câmera', exact: true }).click();
+});
+
+test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerra para B', async () => {
+  await A.page.locator('.dock').getByRole('button', { name: 'Transmitir', exact: true }).click();
+  const dialog = A.page.getByRole('dialog', { name: 'Transmitir (Go Live)' });
+  await expect(dialog.getByRole('listbox').getByRole('option').first()).toBeVisible({ timeout: 10_000 });
+  await A.page.screenshot({ path: shot('11-golive-picker') });
+  await dialog.getByRole('listbox').getByRole('option').first().click();
+  await dialog.getByRole('button', { name: 'Transmitir' }).click();
+  // `live` só após confirmação da SFU
+  await expect(A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  // estado derivado do webhook da SFU chega ao outro cliente (AO VIVO na sidebar)
+  await expect(B.page.locator('.voice-member').filter({ hasText: 'Proprietário' }).locator('.live-pill')).toBeVisible({
+    timeout: 15_000,
+  });
+  await B.page.getByRole('button', { name: 'Assistir' }).click();
+  const v = B.page.locator('.tile-stream video');
+  await expect
+    .poll(async () => v.evaluate((el: HTMLVideoElement) => el.videoWidth), { timeout: 20_000 })
+    .toBeGreaterThan(0);
+  const streamInfo = await B.page.locator('.tile-stream .tile-label').innerText();
+  expect(streamInfo).not.toContain('sem áudio');
+  await B.page.screenshot({ path: shot('12-golive-watching') });
+  // métricas do publisher (encoder/fps) visíveis em A
+  await expect(A.page.getByText(/Transmitindo \d+×\d+/)).toBeVisible({ timeout: 10_000 });
+  const stats = await A.page.getByText(/Transmitindo \d+×\d+/).innerText();
+  test.info().annotations.push({ type: 'publisher-stats', description: stats });
+  await A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
+  await expect(B.page.locator('.tile-stream')).toHaveCount(0, { timeout: 15_000 });
+});
+
+test('fechar a janela vai para a bandeja e a chamada continua (P11)', async () => {
+  await A.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
+  await A.page.waitForTimeout(4000);
+  const state = await A.app.evaluate(({ BrowserWindow }) => ({
+    windows: BrowserWindow.getAllWindows().length,
+    visible: BrowserWindow.getAllWindows()[0]?.isVisible(),
+  }));
+  expect(state).toEqual({ windows: 1, visible: false });
+  const diag = await A.page.evaluate(() =>
+    (
+      window as unknown as { __opencordDiag: () => Promise<{ machine: string; media: { remotes: unknown[] } }> }
+    ).__opencordDiag(),
+  );
+  expect(diag.machine).toBe('connected');
+  expect(diag.media.remotes.length).toBeGreaterThanOrEqual(1);
+  // B continua vendo A na sala
+  await expect(B.page.locator('.stage-grid .tile').filter({ hasText: 'Proprietário' })).toBeVisible();
+  await A.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.show());
+});
+
+test('kick revoga a voz de B ativamente', async () => {
+  await json('DELETE', `/servers/${serverId}/members/${bobId}`, undefined, ownerToken);
+  await expect(
+    B.page.getByText(/removido do servidor|desconectado da chamada|removido da chamada/).first(),
+  ).toBeVisible({ timeout: 10_000 });
+  await expect(A.page.locator('.stage-grid .tile').filter({ hasText: B_NICK })).toHaveCount(0, { timeout: 15_000 });
+  await A.page.locator('.dock').getByRole('button', { name: 'Sair da chamada', exact: true }).click();
+});

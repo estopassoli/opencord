@@ -1,0 +1,40 @@
+{
+  "name": "@opencord/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
+    "seed": "tsx src/seed.ts",
+    "create-owner": "node dist/create-owner.js"
+  },
+  "dependencies": {
+    "@opencord/contracts": "workspace:*",
+    "@prisma/client": "6.19.3",
+    "@node-rs/argon2": "2.2.2"
+  },
+  "devDependencies": {
+    "prisma": "6.19.3",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "@types/node": "24.19.2"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  }
+}

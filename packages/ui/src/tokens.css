@@ -1,0 +1,124 @@
+/*
+ * OpenCord — tokens de design (identidade própria; não reutiliza tokens/cores de marca de terceiros).
+ * Contrastes verificados (WCAG AA): texto primário ≥ 9.5:1, secundário ≥ 5.2:1 e mudo ≥ 4.5:1 nas superfícies de texto.
+ */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --rail: #111317;
+  --sidebar: #1b1d22;
+  --chat: #24262c;
+  --elevated: #2e3138;
+  --interactive: #3a3d45;
+  --interactive-hover: #44474f;
+  --border: #383b42;
+  --overlay: rgb(0 0 0 / 0.6);
+
+  --text: #eef0f3;
+  --text-2: #b0b5bf;
+  --text-muted: #969ca7;
+  --text-on-brand: #ffffff;
+
+  --brand: #4d56fd;
+  --brand-hover: #3f48e8;
+  --brand-text: #9ca3ff;
+  --link: #6cc7ff;
+  --success: #3fb27f;
+  --warning: #e8a33d;
+  --danger: #d93b40;
+  --danger-text: #ff7a7f;
+  --mention-bg: rgb(232 163 61 / 0.12);
+  --mention-bar: #e8a33d;
+
+  --status-online: #3fb27f;
+  --status-idle: #e8a33d;
+  --status-dnd: #e5484d;
+  --status-offline: #7d838e;
+
+  --focus-ring: #6cc7ff;
+  --speaking: #3fb27f;
+
+  /* cantos: escala ajustável em Aparência (0 = retos, 2 = bem arredondados) */
+  --radius-scale: 1;
+  --radius-sm: calc(4px * var(--radius-scale));
+  --radius: calc(8px * var(--radius-scale));
+  --radius-lg: calc(12px * var(--radius-scale));
+  --rail-width: 72px;
+  --dock-height: 52px;
+  --header-height: 48px;
+  --font: 'Inter Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  --shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+  --dur-fast: 110ms;
+  --dur: 160ms;
+  --dur-slow: 260ms;
+  /* desaceleração padrão (entrada/hover) e saída um pouco mais rápida */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Tons de superfície do tema escuro (Aparência → Fundo). Texto mudo mantém ≥ 4.5:1 em --chat. */
+:root:not([data-theme='light'])[data-surface='midnight'] {
+  --rail: #0b0e1a;
+  --sidebar: #121628;
+  --chat: #191d33;
+  --elevated: #232843;
+  --interactive: #2d3354;
+  --interactive-hover: #363d63;
+  --border: #2b3150;
+}
+:root:not([data-theme='light'])[data-surface='oled'] {
+  --rail: #000000;
+  --sidebar: #060607;
+  --chat: #0b0b0c;
+  --elevated: #17171a;
+  --interactive: #232326;
+  --interactive-hover: #2c2c30;
+  --border: #222225;
+}
+:root:not([data-theme='light'])[data-surface='slate'] {
+  --rail: #1d1f25;
+  --sidebar: #25282e;
+  --chat: #2c2f36;
+  --elevated: #303339;
+  --interactive: #454953;
+  --interactive-hover: #4f535e;
+  --border: #42464f;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --rail: #e3e5e8;
+  --sidebar: #f0f1f3;
+  --chat: #ffffff;
+  --elevated: #ffffff;
+  --interactive: #e1e3e7;
+  --interactive-hover: #d5d8dd;
+  --border: #d5d8dd;
+  --overlay: rgb(0 0 0 / 0.45);
+  --text: #15171a;
+  --text-2: #464b54;
+  --text-muted: #5c626c;
+  --brand: #4d56fd;
+  --brand-hover: #3f48e8;
+  --brand-text: #3a42d6;
+  --link: #0b63a8;
+  --danger-text: #b3262b;
+  --mention-bg: rgb(232 163 61 / 0.18);
+  --focus-ring: #0b63a8;
+  --status-offline: #80858e;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+  }
+}
+:root[data-motion='reduced'] {
+  --dur-fast: 0ms;
+  --dur: 0ms;
+  --dur-slow: 0ms;
+}

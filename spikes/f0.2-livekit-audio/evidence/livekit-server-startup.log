@@ -1,0 +1,4 @@
+2026-10-29T01:39:10.398-0300	INFO	livekit	server/main.go:211	starting in development mode
+2026-10-29T01:39:10.398-0300	INFO	livekit	server/main.go:214	no keys provided, using placeholder keys	{"API Key": "devkey", "API Secret": "secret"}
+2026-10-29T01:39:10.406-0300	INFO	livekit	routing/interfaces.go:181	using single-node routing
+2026-10-29T01:39:10.426-0300	INFO	livekit	service/server.go:309	starting LiveKit server	{"portHttp": 7880, "nodeID": "ND_HZzWRQmx4ppx", "nodeIP": "10.255.255.254", "version": "1.13.10", "bindAddresses": ["127.0.0.1"], "rtc.portTCP": 7881, "rtc.portUDP": {"Start":7882,"End":0}}

@@ -1,0 +1,33 @@
+{
+  "name": "opencord",
+  "private": true,
+  "description": "OpenCord — comunicação privada self-hosted, desktop-first (Windows 11).",
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration --concurrency=1",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @opencord/db generate",
+    "db:migrate": "pnpm --filter @opencord/db migrate:dev",
+    "db:seed": "pnpm --filter @opencord/db seed",
+    "dev:api": "pnpm --filter @opencord/api dev"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "24.19.2",
+    "eslint": "9.39.5",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "turbo": "2.11.8",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
+    "vitest": "3.2.7"
+  }
+}

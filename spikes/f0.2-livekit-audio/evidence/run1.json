@@ -1,0 +1,27 @@
+{
+  "livekitUrl": "ws://127.0.0.1:7880",
+  "room": "poc-7ebe3c1a-a43b-4766-ac6f-815725ba91fd",
+  "alice": {
+    "connectMs": 578,
+    "heard": {
+      "from": "bob",
+      "samples": 168480,
+      "e440": 0.6269540663452305,
+      "e880": 3994.2411392216272,
+      "subscribeAfterConnectMs": 266
+    }
+  },
+  "bob": {
+    "connectMs": 117,
+    "heard": {
+      "from": "alice",
+      "samples": 168000,
+      "e440": 4002.804105440022,
+      "e880": 0.27447292859271555,
+      "subscribeAfterConnectMs": 3
+    }
+  },
+  "aliceOk": true,
+  "bobOk": true,
+  "result": "PASS"
+}

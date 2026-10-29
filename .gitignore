@@ -1,0 +1,21 @@
+node_modules/
+.tools/
+*.log
+!spikes/**/evidence/*.log
+*:Zone.Identifier
+.env
+.env.*
+!.env.example
+dist/
+out/
+.turbo/
+infra/livekit/.livekit.dev.generated.yaml
+apps/api/var/
+dist-electron/
+apps/desktop/build/
+release/
+coverage/
+e2e/results/
+
+# Fontes de terceiros com licença que proíbe redistribuição (ex.: gg sans) — nunca versionar
+public/fonts/
