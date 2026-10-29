@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '20:55',
+    kind: 'correção',
+    icon: 'download',
+    title: 'Atualizar sempre leva à versão mais nova',
+    body: 'Se saiu outra versão enquanto a atualização esperava o clique, o app baixa e instala direto a mais nova, em vez de pedir de novo logo depois.',
+  },
+  {
+    date: '2026-10-29',
     time: '20:45',
     kind: 'novo',
     icon: 'shield',

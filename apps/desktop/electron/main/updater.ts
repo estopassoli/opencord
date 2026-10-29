@@ -112,6 +112,10 @@ export async function installUpdate(quit: () => void) {
     return;
   }
   if (status.state !== 'ready' || !installerPath) return;
+  // pode ter saído outra versão enquanto esta esperava o clique (relato: 0.2.21 → 0.2.22 → já pedia 0.2.23):
+  // confere agora e, se houver, baixa e instala direto a mais nova (falha na conferência = instala a pronta)
+  await checkForUpdate();
+  if (status.state !== 'ready' || !installerPath) return;
   // --updated: o instalador (NSIS um clique) encerra o app que ainda estiver fechando, sem perguntar;
   // --force-run: reabre o OpenCord ao terminar
   const child = spawn(installerPath, ['--updated', '--force-run'], { detached: true, stdio: 'ignore' });
