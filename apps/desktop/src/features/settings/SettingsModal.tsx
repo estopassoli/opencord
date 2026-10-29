@@ -1290,6 +1290,47 @@ function NotificationsTab({ settings }: { settings: UserSettings }) {
 // Sobre
 // ---------------------------------------------------------------------------
 
+/** "Verificar atualizações": o app também verifica sozinho ao abrir, a cada 20 min e ao voltar para a janela. */
+function UpdateCheck() {
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const check = () => {
+    if (!bridge) return;
+    setBusy(true);
+    setMsg(null);
+    bridge.updates.check().then(
+      (s) => {
+        setBusy(false);
+        setMsg(
+          s.state === 'ready'
+            ? `Versão ${s.version} baixada: clique em "Atualização pronta" na barra de título para instalar.`
+            : s.state === 'downloading'
+              ? `Baixando a versão ${s.version}… ${s.progress}%`
+              : s.state === 'available'
+                ? `Versão ${s.version} disponível: use o botão de atualização na barra de título.`
+                : 'Você já está na versão mais recente.',
+        );
+      },
+      () => {
+        setBusy(false);
+        setMsg('Não foi possível verificar agora. Tente de novo em instantes.');
+      },
+    );
+  };
+  return (
+    <div className="update-check">
+      <Button variant="secondary" icon="refresh" disabled={busy} onClick={check}>
+        {busy ? 'Verificando…' : 'Verificar atualizações'}
+      </Button>
+      {msg && (
+        <p className="muted small" role="status">
+          {msg}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AboutTab() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [error, setError] = useState(false);
@@ -1329,6 +1370,7 @@ function AboutTab() {
           <dd>{info.secureStorage ? 'Sim' : 'Não'}</dd>
         </dl>
       )}
+      {bridge && <UpdateCheck />}
     </Section>
   );
 }
