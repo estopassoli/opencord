@@ -31,7 +31,9 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   const stageRef = useRef<HTMLElement>(null);
   // ref por estado: a grade monta e desmonta ao alternar com a live em destaque, e a medição precisa acompanhar
   const [gridEl, setGridEl] = useState<HTMLUListElement | null>(null);
-  const tileCount = here ? participants.filter((p) => p.hasScreen).length + participants.length + (activity ? 1 : 0) : 0;
+  const tileCount = here
+    ? participants.filter((p) => p.hasScreen).length + participants.length + (activity ? 1 : 0)
+    : 0;
   useTileGrid(gridEl, tileCount);
 
   if (!here) {

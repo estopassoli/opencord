@@ -57,8 +57,8 @@ export class Http {
 }
 
 /**
- * Cria o proprietário (conta com senha) direto no banco com um servidor aberto.
- * Servidores são abertos (ADR-0007): todo usuário existente também vira membro.
+ * Cria o proprietário (conta com senha) direto no banco com um servidor OFICIAL (aberto):
+ * todo usuário existente e todo usuário novo vira membro.
  */
 export async function bootstrapOwner(http: Http) {
   const tag = randomUUID().slice(0, 8);
@@ -72,7 +72,7 @@ export async function bootstrapOwner(http: Http) {
       passwordHash: await (await import('@node-rs/argon2')).hash('owner-password-123', { algorithm: 2 }),
     },
   });
-  const server = await prisma.$transaction((tx) => createServerWithDefaults(tx, owner.id, 'Teste'));
+  const server = await prisma.$transaction((tx) => createServerWithDefaults(tx, owner.id, 'Teste', { official: true }));
   const login = await http.req<AuthResponse>('POST', '/auth/login', {
     body: { login: nickname, password: 'owner-password-123' },
   });

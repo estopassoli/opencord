@@ -1,5 +1,13 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { Permission, type Channel, type Role, type ServerDirectoryEntry, type ServerDetail } from '@opencord/contracts';
+import {
+  Permission,
+  type Channel,
+  type Invite,
+  type InvitePreview,
+  type Role,
+  type ServerDirectoryEntry,
+  type ServerDetail,
+} from '@opencord/contracts';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { bootstrapOwner, Http, outsider, prisma, register, resetDb, startApp } from './helpers.js';
 
@@ -171,14 +179,50 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     ).toBe(404);
   });
 
-  it('servidor novo inclui todos os usuários; usuário novo entra em todos os servidores', async () => {
-    const { alice } = await setup();
-    const created = await http.req<ServerDetail>('POST', '/servers', { token: alice.token, body: { name: 'Aberto' } });
-    const total = await prisma.user.count();
-    expect(created.body.members).toHaveLength(total);
+  it('servidor criado por usuário é privado: só o dono, fora do diretório e sem entrada direta', async () => {
+    const { alice, serverId } = await setup();
+    const created = await http.req<ServerDetail>('POST', '/servers', { token: alice.token, body: { name: 'Privado' } });
+    expect(created.body.official).toBe(false);
+    expect(created.body.members.map((m) => m.user.id)).toEqual([alice.id]);
     const late = await register(http);
-    const mine = await http.req<{ id: string }[]>('GET', '/servers', { token: late.token });
-    expect(mine.body.map((x) => x.id)).toContain(created.body.id);
+    const mine = await http.req<{ id: string; official: boolean }[]>('GET', '/servers', { token: late.token });
+    expect(mine.body.map((x) => x.id)).not.toContain(created.body.id);
+    // o oficial continua com entrada automática
+    expect(mine.body.find((x) => x.id === serverId)?.official).toBe(true);
+    const dir = await http.req<ServerDirectoryEntry[]>('GET', '/servers/directory', { token: late.token });
+    expect(dir.body.map((d) => d.id)).not.toContain(created.body.id);
+    expect((await http.req('POST', `/servers/${created.body.id}/join`, { token: late.token })).status).toBe(404);
+    expect((await http.req('GET', `/servers/${created.body.id}`, { token: late.token })).status).toBe(404);
+  });
+
+  it('convite: membro gera código, outra pessoa vê a prévia e entra; código inválido é 404', async () => {
+    const { alice } = await setup();
+    const created = await http.req<ServerDetail>('POST', '/servers', { token: alice.token, body: { name: 'Amigos' } });
+    const sid = created.body.id;
+    const inv = await http.req<Invite>('POST', `/servers/${sid}/invites`, { token: alice.token });
+    expect(inv.status).toBe(201);
+    expect(inv.body.code).toMatch(/^[A-Za-z0-9]{10}$/);
+    // a mesma pessoa recebe o mesmo código
+    expect((await http.req<Invite>('POST', `/servers/${sid}/invites`, { token: alice.token })).body.code).toBe(
+      inv.body.code,
+    );
+    const bob = await register(http);
+    // quem não é membro não gera convite
+    expect((await http.req('POST', `/servers/${sid}/invites`, { token: bob.token })).status).toBe(404);
+    const pre = await http.req<InvitePreview>('GET', `/invites/${inv.body.code}`, { token: bob.token });
+    expect(pre.body).toMatchObject({
+      server: { id: sid, name: 'Amigos', official: false },
+      memberCount: 1,
+      joined: false,
+    });
+    const joined = await http.req<ServerDetail>('POST', `/invites/${inv.body.code}`, { token: bob.token });
+    expect(joined.status).toBe(201);
+    expect(joined.body.members.map((m) => m.user.id).sort()).toEqual([alice.id, bob.id].sort());
+    // idempotente e conta usos só uma vez
+    expect((await http.req('POST', `/invites/${inv.body.code}`, { token: bob.token })).status).toBe(201);
+    expect((await prisma.invite.findUnique({ where: { code: inv.body.code } }))?.uses).toBe(1);
+    expect((await http.req('GET', '/invites/AAAAAAAAAA', { token: bob.token })).status).toBe(404);
+    expect((await http.req('GET', '/invites/../x', { token: bob.token })).status).toBe(404);
   });
 
   it('expulsar ainda funciona como moderação (removido pode voltar pelo diretório)', async () => {

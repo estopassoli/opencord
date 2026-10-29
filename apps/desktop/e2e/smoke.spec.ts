@@ -131,12 +131,15 @@ test('perfil: cartão abre por cima do chat e inteiro na janela (avatar da mensa
   }
 });
 
-test('servidores abertos: explorar lista o servidor sem pedir convite', async () => {
+test('explorar: o oficial aparece verificado e há campo para convite', async () => {
   await page.getByRole('button', { name: 'Explorar servidores' }).click();
   const dialog = page.getByRole('dialog', { name: 'Explorar servidores' });
   await expect(dialog.getByText('OpenCord')).toBeVisible();
+  await expect(dialog.getByRole('img', { name: 'Servidor oficial verificado' }).first()).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Abrir' }).first()).toBeVisible();
-  await expect(page.getByText(/convite/i)).toHaveCount(0);
+  await dialog.getByLabel('Código ou link do convite').fill('AAAAAAAAAA');
+  await dialog.getByRole('button', { name: 'Ver convite' }).click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
   await page.keyboard.press('Escape');
 });
 

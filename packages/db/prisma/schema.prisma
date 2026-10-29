@@ -26,6 +26,7 @@ model User {
 
   sessions          Session[]
   ownedServers      Server[]             @relation("ServerOwner")
+  invites           Invite[]
   memberships       ServerMember[]
   messages          Message[]
   reactions         Reaction[]
@@ -97,8 +98,12 @@ model Server {
   name       String
   ownerId    String         @db.Uuid
   iconKey    String?
+  /// Servidor oficial da instância: aberto a todos (entrada automática, diretório) e com selo de verificado.
+  /// Os demais são privados: só entra quem tem convite.
+  official   Boolean        @default(false)
   createdAt  DateTime       @default(now()) @db.Timestamptz(3)
   owner      User           @relation("ServerOwner", fields: [ownerId], references: [id])
+  invites    Invite[]
   members    ServerMember[]
   roles      Role[]
   categories Category[]
@@ -318,4 +323,17 @@ model AuditLog {
   server    Server?  @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
   @@index([serverId, createdAt])
+}
+
+/// Convite para servidor privado: código aleatório, sem expiração; o criador ou quem gerencia o servidor revoga.
+model Invite {
+  code      String   @id
+  serverId  String   @db.Uuid
+  creatorId String   @db.Uuid
+  uses      Int      @default(0)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  server    Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  creator   User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
 }

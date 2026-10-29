@@ -1,5 +1,5 @@
 # ADR-0007 — Conta opcional, entrada por apelido e servidores abertos
-Status: Accepted (decisão do mantenedor, 2026-10-29) · Substitui o P01 do PRD e o fluxo de convites
+Status: Accepted (decisão do mantenedor, 2026-10-29) · Substitui o P01 do PRD e o fluxo de convites · **Servidores abertos revisado pela ADR-0011** (só o servidor oficial é aberto; os demais usam convite)
 
 ## Contexto
 Pedidos do mantenedor:

@@ -17,6 +17,7 @@ export type Modal =
   | { kind: 'server-settings'; serverId: string; tab?: string }
   | { kind: 'create-server' }
   | { kind: 'explore-servers' }
+  | { kind: 'invite'; serverId: string }
   | { kind: 'create-channel'; serverId: string; channelKind: 'text' | 'voice'; categoryId: string | null }
   | { kind: 'create-category'; serverId: string }
   | { kind: 'watch-together' }

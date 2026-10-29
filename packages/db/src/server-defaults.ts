@@ -1,15 +1,24 @@
 import { DEFAULT_EVERYONE_PERMISSIONS } from '@opencord/contracts';
 import type { Prisma } from '@prisma/client';
 
-/** Cria servidor com @everyone, categorias e canais iniciais; todos os usuários entram como membros. */
-/** Servidor sem canais: dono, cargo @everyone e membros (servidores abertos, ADR-0007). */
+export interface ServerOptions {
+  /** Servidor oficial da instância: todos os usuários entram e ele aparece no diretório. */
+  official?: boolean;
+}
+
+/**
+ * Servidor sem canais: dono e cargo @everyone. O oficial inclui todos os usuários ativos;
+ * os demais (privados) começam só com o dono e crescem por convite.
+ */
 export async function createServerShell(
   tx: Prisma.TransactionClient,
   ownerId: string,
   name: string,
   everyonePermissions: number = DEFAULT_EVERYONE_PERMISSIONS,
+  opts: ServerOptions = {},
 ) {
-  const server = await tx.server.create({ data: { name, ownerId } });
+  const official = opts.official ?? false;
+  const server = await tx.server.create({ data: { name, ownerId, official } });
   const everyone = await tx.role.create({
     data: {
       serverId: server.id,
@@ -19,8 +28,7 @@ export async function createServerShell(
       isEveryone: true,
     },
   });
-  // Servidores são abertos (ADR-0007): todos os usuários ativos entram como membros, sem convite.
-  const users = await tx.user.findMany({ where: { disabledAt: null }, select: { id: true } });
+  const users = official ? await tx.user.findMany({ where: { disabledAt: null }, select: { id: true } }) : [];
   const ids = new Set([ownerId, ...users.map((u) => u.id)]);
   await tx.serverMember.createMany({
     data: [...ids].map((userId) => ({ serverId: server.id, userId })),
@@ -29,8 +37,14 @@ export async function createServerShell(
   return { server, everyone };
 }
 
-export async function createServerWithDefaults(tx: Prisma.TransactionClient, ownerId: string, name: string) {
-  const { server } = await createServerShell(tx, ownerId, name);
+/** Cria servidor com @everyone, categorias e canais iniciais. */
+export async function createServerWithDefaults(
+  tx: Prisma.TransactionClient,
+  ownerId: string,
+  name: string,
+  opts: ServerOptions = {},
+) {
+  const { server } = await createServerShell(tx, ownerId, name, DEFAULT_EVERYONE_PERMISSIONS, opts);
   const text = await tx.category.create({ data: { serverId: server.id, name: 'Canais de texto', position: 0 } });
   const voice = await tx.category.create({ data: { serverId: server.id, name: 'Canais de voz', position: 1 } });
   await tx.channel.create({
@@ -42,9 +56,9 @@ export async function createServerWithDefaults(tx: Prisma.TransactionClient, own
   return server;
 }
 
-/** Adiciona um usuário novo a todos os servidores (servidores abertos, ADR-0007). Retorna os IDs. */
+/** Adiciona um usuário novo aos servidores oficiais (abertos a todos). Retorna os IDs. */
 export async function joinAllServers(tx: Prisma.TransactionClient, userId: string): Promise<string[]> {
-  const servers = await tx.server.findMany({ select: { id: true } });
+  const servers = await tx.server.findMany({ where: { official: true }, select: { id: true } });
   await tx.serverMember.createMany({ data: servers.map((s) => ({ serverId: s.id, userId })), skipDuplicates: true });
   return servers.map((s) => s.id);
 }

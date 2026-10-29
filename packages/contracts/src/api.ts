@@ -165,6 +165,8 @@ export const ServerSummary = z.object({
   name: z.string().min(1).max(100),
   iconKey: z.string().nullable(),
   ownerId: Id,
+  /** Servidor oficial da instância: aberto a todos e com selo de verificado. */
+  official: z.boolean(),
 });
 export type ServerSummary = z.infer<typeof ServerSummary>;
 
@@ -254,7 +256,7 @@ export const UpdateRoleRequest = z.object({
 export type UpdateRoleRequest = z.input<typeof UpdateRoleRequest>;
 export const SetMemberRolesRequest = z.object({ roleIds: z.array(Id).max(50) });
 
-// ---------- Servidores abertos (sem convites, ADR-0007) ----------
+// ---------- Servidor oficial aberto + convites para os privados (ADR-0007, revisado) ----------
 export const ServerDirectoryEntry = z.object({
   id: Id,
   name: z.string(),
@@ -263,6 +265,18 @@ export const ServerDirectoryEntry = z.object({
   joined: z.boolean(),
 });
 export type ServerDirectoryEntry = z.infer<typeof ServerDirectoryEntry>;
+
+/** Código de convite: 10 caracteres alfanuméricos. Aceita também o link inteiro (o código é o final). */
+export const INVITE_CODE = /^[A-Za-z0-9]{10}$/;
+export const Invite = z.object({ code: z.string(), serverId: Id });
+export type Invite = z.infer<typeof Invite>;
+export const InvitePreview = z.object({
+  code: z.string(),
+  server: z.object({ id: Id, name: z.string(), iconKey: z.string().nullable(), official: z.boolean() }),
+  memberCount: z.number().int(),
+  joined: z.boolean(),
+});
+export type InvitePreview = z.infer<typeof InvitePreview>;
 
 // ---------- Mensagens ----------
 export const Attachment = z.object({

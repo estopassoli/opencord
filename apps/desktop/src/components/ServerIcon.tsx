@@ -8,14 +8,16 @@ export function useServerIconUrl(iconKey: string | null | undefined): string | n
   return iconKey && base ? `${base}/server-icons/${encodeURIComponent(iconKey)}` : null;
 }
 
-/** Imagem do servidor; sem imagem (ou se falhar ao carregar), as iniciais do nome. */
+/** Imagem do servidor; sem imagem (ou se falhar ao carregar), a marca do OpenCord no oficial ou as iniciais. */
 export function ServerIcon({
   name,
   iconKey,
+  official,
   className,
 }: {
   name: string;
   iconKey: string | null | undefined;
+  official?: boolean;
   className?: string;
 }) {
   const url = useServerIconUrl(iconKey);
@@ -30,5 +32,6 @@ export function ServerIcon({
         onError={() => setFailed(url)}
       />
     );
+  if (official) return <span className="brand-mark brand-mark-sm" aria-hidden />;
   return <span aria-hidden>{initials(name)}</span>;
 }
