@@ -1,6 +1,19 @@
-/** Recorta o centro em quadrado e reduz para `side`×`side` (WebP, com PNG de reserva): envio pequeno e rápido. */
+/**
+ * Recorta o centro em quadrado e reduz para `side`×`side` (WebP, com PNG de reserva): envio pequeno e rápido.
+ * GIF de até 1 MB e 1024 px segue original (animado).
+ */
 export async function squareImage(file: File, side = 256, name = 'imagem'): Promise<File> {
   const bmp = await createImageBitmap(file);
+  // GIF pequeno vai como está para manter a animação (o avatar recorta no centro na exibição)
+  if (
+    file.type === 'image/gif' &&
+    file.size <= 1024 * 1024 &&
+    Math.max(bmp.width, bmp.height) <= 1024 &&
+    Math.min(bmp.width, bmp.height) >= 16
+  ) {
+    bmp.close();
+    return file;
+  }
   const s = Math.min(bmp.width, bmp.height);
   const canvas = document.createElement('canvas');
   canvas.width = side;
