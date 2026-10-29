@@ -13,7 +13,7 @@ test.beforeAll(async () => {
   // perfil isolado e limpo a cada execução: não toca na sessão real do usuário
   rmSync(path.join(__dirname, 'results', 'profile'), { recursive: true, force: true });
   app = await electron.launch({
-    args: ['.', `--user-data-dir=${path.join(__dirname, 'results', 'profile')}`],
+    args: ['.', '--mute-audio', `--user-data-dir=${path.join(__dirname, 'results', 'profile')}`],
     cwd: path.join(__dirname, '..'),
   });
   page = await app.firstWindow();

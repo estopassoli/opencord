@@ -17,6 +17,7 @@ import { RECONNECT, VoiceEngine, type AudioPrefs, type MediaStats, type Particip
 import { useData } from './data';
 import { api, describeError } from './session';
 import { useUi } from './ui';
+import { playSound } from '../lib/sounds';
 
 interface VoiceStore {
   machine: VoiceState;
@@ -94,13 +95,40 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     syncTray();
   };
 
+  /** quem estava na sala na última atualização (outros participantes) → sons de entrada/saída/transmissão */
+  let seen: Map<string, boolean> | null = null;
+  function soundsFor(participants: ParticipantView[]) {
+    const remote = participants.filter((p) => !p.isLocal);
+    // lista vazia = desconectei/estou reconectando: zera a referência sem tocar nada
+    if (!participants.length) {
+      seen = null;
+      return;
+    }
+    const now = new Map(remote.map((p) => [p.identity, p.hasScreen]));
+    if (seen) {
+      if ([...now.keys()].some((id) => !seen!.has(id))) playSound('peerJoin');
+      else if ([...seen.keys()].some((id) => !now.has(id))) playSound('peerLeave');
+      if ([...now].some(([id, screen]) => screen && seen!.get(id) === false)) playSound('streamStart');
+    }
+    seen = now;
+  }
+
   async function connectWith(j: VoiceJoinResponse, generation: number) {
     const s = get();
     engine ??= new VoiceEngine(
       {
-        onParticipants: (participants) => set({ participants }),
-        onConnectionLost: () => dispatch({ type: 'CONNECTION_LOST' }),
-        onReconnected: () => dispatch({ type: 'RECONNECTED' }),
+        onParticipants: (participants) => {
+          soundsFor(participants);
+          set({ participants });
+        },
+        onConnectionLost: () => {
+          playSound('disconnect');
+          dispatch({ type: 'CONNECTION_LOST' });
+        },
+        onReconnected: () => {
+          playSound('reconnect');
+          dispatch({ type: 'RECONNECTED' });
+        },
         onDisconnected: (reason) => void handleDisconnect(reason),
         onStreamEnded: () => {
           sdispatch({ type: 'SOURCE_ENDED' });
@@ -111,8 +139,10 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       prefsFrom(useData.getState().settings),
     );
     for (const [id, m] of Object.entries(s.localMuted)) engine.setUserMuted(id, m);
+    const reconnecting = get().machine.status === 'reconnecting';
     await engine.connect(j.url, j.token, { canSpeak: j.canSpeak, selfMute: s.selfMute, selfDeaf: s.selfDeaf });
     dispatch({ type: 'CONNECTED', generation });
+    if (!reconnecting) playSound('join');
   }
 
   /** SFU caiu sem ser intencional: reentrar com token novo e backoff; remoção/duplicação não reconecta. */
@@ -122,6 +152,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     if (reason === 'replaced') return get().forcedOut('Você entrou nesta chamada em outro dispositivo.');
     if (!machine.channelId || !serverId) return;
     sdispatch({ type: 'RESET' });
+    playSound('disconnect');
     for (let attempt = 0; attempt < RECONNECT.maxAttempts; attempt++) {
       dispatch({ type: 'CONNECTION_LOST' });
       await new Promise((r) => setTimeout(r, RECONNECT.delay(attempt)));
@@ -132,6 +163,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
         const j = await api().request<VoiceJoinResponse>('POST', `/voice/channels/${machine.channelId}/join`);
         await connectWith(j, cur.generation);
         dispatch({ type: 'RECONNECTED' });
+        playSound('reconnect');
         return;
       } catch {
         /* próxima tentativa */
@@ -194,6 +226,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       await engine?.disconnect().catch(() => undefined);
       const wasIn = get().machine.status !== 'disconnected';
       dispatch({ type: 'LEAVE' });
+      if (wasIn) playSound('leave');
       set({ serverId: null, participants: [], camera: false, stream: initialStreamState, stats: null });
       if (wasIn) await useApiSafe((a) => a.request('POST', '/voice/leave'));
       syncTray();
@@ -203,6 +236,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       ptt?.reset();
       void engine?.disconnect();
       dispatch({ type: 'FORCED_OUT', reason });
+      playSound('leave');
       set({ serverId: null, participants: [], camera: false, stream: initialStreamState });
       useUi.getState().toast('error', reason);
       syncTray();
@@ -213,6 +247,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       // desmutar enquanto ensurdecido também remove o ensurdecer
       const selfDeaf = selfMute ? get().selfDeaf : false;
       set({ selfMute, selfDeaf });
+      playSound(selfMute ? 'mute' : 'unmute');
       await engine?.setDeafen(selfDeaf);
       await engine?.setSelfMute(selfMute);
       pushState();
@@ -222,6 +257,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     async toggleDeafen() {
       const selfDeaf = !get().selfDeaf;
       set({ selfDeaf, selfMute: selfDeaf ? true : false });
+      playSound(selfDeaf ? 'deafen' : 'undeafen');
       await engine?.setDeafen(selfDeaf);
       await engine?.setSelfMute(selfDeaf);
       pushState();
@@ -285,6 +321,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
         const r = await (engine as VoiceEngine).startStream(sourceId, withAudio, profile, codec);
         // `live` só após a publicação ser confirmada pela SFU
         sdispatch({ type: 'PUBLISHED', audioPublished: r.audioPublished });
+        playSound('streamStart');
         // a própria transmissão abre em destaque (dá para voltar à grade)
         const me = get().participants.find((p) => p.isLocal);
         if (me) useUi.getState().focusStream(me.identity);
@@ -301,6 +338,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       sdispatch({ type: 'STOP' });
       await engine?.stopStream();
       sdispatch({ type: 'STOPPED' });
+      playSound('streamStop');
       set({ streamSource: null });
       const err = get().stream.error;
       if (err) useUi.getState().toast('info', `Transmissão encerrada: ${err}`);

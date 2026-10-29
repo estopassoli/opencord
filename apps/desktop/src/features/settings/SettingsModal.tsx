@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent,
 import type { AppInfo } from '../../../electron/shared/ipc';
 import { Dialog } from '../../components/Dialog';
 import { bridge } from '../../lib/bridge';
+import { playSound } from '../../lib/sounds';
 import {
   familyFromFileName,
   FONT_ACCEPT,
@@ -1254,11 +1255,27 @@ function NotificationsTab({ settings }: { settings: UserSettings }) {
     <Section title="Notificações">
       <Switch label="Notificações na área de trabalho" checked={n.desktop} onChange={(v) => set({ desktop: v })} />
       <Switch
-        label="Sons"
-        description="Entrada e saída da voz, mensagens e menções."
+        label="Efeitos sonoros"
+        description="Entrar e sair da voz, gente entrando e saindo, mutar, transmissão, conexão e mensagens."
         checked={n.sounds}
         onChange={(v) => set({ sounds: v })}
       />
+      {n.sounds && (
+        <div className="sound-volume">
+          <Slider
+            label="Volume dos efeitos"
+            min={0}
+            max={1}
+            step={0.05}
+            value={n.soundVolume}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(v) => set({ soundVolume: v })}
+          />
+          <Button variant="secondary" icon="play" onClick={() => playSound('join', { force: true })}>
+            Ouvir exemplo
+          </Button>
+        </div>
+      )}
       <Switch
         label="Não perturbe"
         description="Silencia notificações e sons."

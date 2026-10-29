@@ -15,7 +15,10 @@ test.describe.configure({ mode: 'serial' });
 test.beforeAll(async () => {
   const dir = path.join(__dirname, 'results', 'motion-profile');
   rmSync(dir, { recursive: true, force: true });
-  app = await electron.launch({ args: ['.', `--user-data-dir=${dir}`], cwd: path.join(__dirname, '..') });
+  app = await electron.launch({
+    args: ['.', '--mute-audio', `--user-data-dir=${dir}`],
+    cwd: path.join(__dirname, '..'),
+  });
   page = await app.firstWindow();
   await joinWithNickname(page, uniqueNick('Motion'));
 });

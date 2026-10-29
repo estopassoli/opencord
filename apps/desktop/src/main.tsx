@@ -10,6 +10,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { loadImportedFonts } from './lib/fonts';
+import { soundLog } from './lib/sounds';
 import { useVoice } from './store/voice';
 
 // Diagnóstico somente leitura para suporte/E2E (não expõe tokens nem conteúdo).
@@ -22,6 +23,8 @@ import { useVoice } from './store/voice';
       .then((d) => ({ machine: v.machine.status, stream: v.stream.status, media: d })) ?? { machine: v.machine.status }
   );
 };
+
+(window as unknown as { __opencordSounds: () => string[] }).__opencordSounds = () => [...soundLog];
 
 // fontes importadas pelo usuário (só deste PC); não bloqueia a renderização
 void loadImportedFonts();
