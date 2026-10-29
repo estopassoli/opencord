@@ -22,6 +22,7 @@ import {
   type LocalTrackPublication,
   type Participant,
   type RemoteParticipant,
+  type RemoteTrack,
   type RemoteTrackPublication,
   Room,
   RoomEvent,
@@ -154,6 +155,7 @@ export class VoiceEngine {
     this.statsTimer = null;
     const r = this.room;
     this.room = null;
+    if (r) this.detachAudio(r);
     await r?.disconnect(true);
     this.speaking.clear();
     this.speakingSet.clear();
@@ -183,11 +185,31 @@ export class VoiceEngine {
         emit();
       })
       .on(RoomEvent.TrackUnpublished, emit)
-      .on(RoomEvent.TrackSubscribed, (_t, pub: RemoteTrackPublication, p: RemoteParticipant) => {
-        if (pub.kind === Track.Kind.Audio) this.applyVolume(p);
+      .on(RoomEvent.TrackSubscribed, (t: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
+        if (pub.kind === Track.Kind.Audio) {
+          // o livekit-client só toca áudio remoto anexado a um elemento <audio>
+          const el = t.attach();
+          el.hidden = true;
+          document.body.append(el);
+          this.applyVolume(p);
+        }
         emit();
       })
-      .on(RoomEvent.TrackUnsubscribed, emit)
+      .on(RoomEvent.TrackUnsubscribed, (t: RemoteTrack) => {
+        if (t.kind === Track.Kind.Audio) for (const el of t.detach()) el.remove();
+        emit();
+      })
+      // navegador bloqueou autoplay: libera o áudio no próximo clique/tecla
+      .on(RoomEvent.AudioPlaybackStatusChanged, () => {
+        if (room.canPlaybackAudio) return;
+        const unlock = () => {
+          window.removeEventListener('pointerdown', unlock);
+          window.removeEventListener('keydown', unlock);
+          void room.startAudio().catch(() => undefined);
+        };
+        window.addEventListener('pointerdown', unlock);
+        window.addEventListener('keydown', unlock);
+      })
       .on(RoomEvent.TrackMuted, emit)
       .on(RoomEvent.TrackUnmuted, emit)
       .on(RoomEvent.LocalTrackPublished, emit)
@@ -215,6 +237,7 @@ export class VoiceEngine {
       .on(RoomEvent.Reconnecting, () => this.cb.onConnectionLost())
       .on(RoomEvent.Reconnected, () => this.cb.onReconnected())
       .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+        this.detachAudio(room);
         if (this.intentional) return;
         this.stopVad();
         if (reason === DisconnectReason.PARTICIPANT_REMOVED) this.cb.onDisconnected('removed');
@@ -222,6 +245,11 @@ export class VoiceEngine {
         else if (reason === DisconnectReason.ROOM_DELETED) this.cb.onDisconnected('ended');
         else this.cb.onDisconnected('failed', reason !== undefined ? DisconnectReason[reason] : undefined);
       });
+  }
+
+  private detachAudio(room: Room) {
+    for (const p of room.remoteParticipants.values())
+      for (const pub of p.audioTrackPublications.values()) for (const el of pub.track?.detach() ?? []) el.remove();
   }
 
   private autoSubscribe(pub: RemoteTrackPublication, p: RemoteParticipant) {
@@ -377,7 +405,8 @@ export class VoiceEngine {
     });
     const [v] = stream.getVideoTracks();
     if (!v) throw new Error('nenhuma trilha de vídeo capturada');
-    v.contentHint = 'motion';
+    // 'detail': o encoder preserva nitidez (texto, interface) e sacrifica fps sob pressão; 'motion' borrava a tela
+    v.contentHint = 'detail';
     const [a] = stream.getAudioTracks();
     const video = new LocalVideoTrack(v, undefined, false);
     const audio = a ? new LocalAudioTrack(a, undefined, false) : null;
@@ -394,7 +423,8 @@ export class VoiceEngine {
         // software, não NVENC. Camada única sem simulcast ficou presa em 480×270 neste ambiente — ver docs/research.
         simulcast: true,
         screenShareEncoding: { maxBitrate: profile.maxBitrate, maxFramerate: profile.fps, priority: 'medium' },
-        degradationPreference: 'maintain-framerate',
+        // sob falta de banda/CPU reduz fps, não resolução: texto continua legível
+        degradationPreference: 'maintain-resolution',
       });
       if (audio) {
         await this.room.localParticipant.publishTrack(audio, {

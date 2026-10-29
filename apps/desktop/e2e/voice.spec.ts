@@ -82,6 +82,19 @@ test('dois usuários entram na mesma sala e se veem; indicador de fala acende', 
   );
   const bytes = (d: typeof d1) => d.media.remotes.find((r) => r.identity === bobId)?.bytesReceived ?? 0;
   expect(bytes(d2) - bytes(d1)).toBeGreaterThan(1000);
+  // regressão: bytes chegavam mas ninguém anexava a trilha a um <audio>, então nada tocava (relato do usuário)
+  const playing = (p: Page) =>
+    p.evaluate(
+      () =>
+        [...document.querySelectorAll('audio')].filter(
+          (el) =>
+            !el.paused &&
+            el.srcObject instanceof MediaStream &&
+            el.srcObject.getAudioTracks().some((t) => t.readyState === 'live'),
+        ).length,
+    );
+  await expect.poll(() => playing(A.page), { timeout: 10_000 }).toBeGreaterThan(0);
+  await expect.poll(() => playing(B.page), { timeout: 10_000 }).toBeGreaterThan(0);
   // o microfone falso gera um tom periódico: o indicador de fala de B deve acender em A
   await expect(A.page.locator('.tile[data-speaking="true"]').filter({ hasText: B_NICK })).toBeVisible({
     timeout: 20_000,
