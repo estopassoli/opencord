@@ -423,7 +423,6 @@ export class VoiceEngine {
     withAudio: boolean,
     profileId: StreamProfileId,
     codec: VideoCodec,
-    mode: StreamMode = 'motion',
   ): Promise<{ audioPublished: boolean }> {
     if (!this.room) throw new Error('não conectado');
     const profile = effectiveProfile(profileId, { hardware: codec === 'h264' ? null : false });
@@ -448,9 +447,9 @@ export class VoiceEngine {
     } as DisplayMediaStreamOptions);
     const [v] = stream.getVideoTracks();
     if (!v) throw new Error('nenhuma trilha de vídeo capturada');
-    // 'motion' (jogos/vídeo): fps alto; 'detail' (texto/telas paradas): o WebRTC entra em modo de tela e limita o fps
-    // (medido: jogo a 16 fps), mas mantém a nitidez
-    v.contentHint = mode;
+    // Pensado para jogos: 'motion' mantém o fps de captura ('detail' põe o WebRTC em modo de tela e limitou um jogo
+    // a 16 fps); a nitidez vem de maintain-resolution + bitrate alto (abaixo).
+    v.contentHint = 'motion';
     const [a] = stream.getAudioTracks();
     const video = new LocalVideoTrack(v, undefined, false);
     const audio = a ? new LocalAudioTrack(a, undefined, false) : null;
@@ -467,7 +466,8 @@ export class VoiceEngine {
         // maintain-resolution a camada única mantém 1920×1080 no espectador. Custo: sem camada leve para
         // espectadores com download fraco (aceitável para grupos pequenos).
         simulcast: false,
-        screenShareEncoding: { maxBitrate: profile.maxBitrate, maxFramerate: profile.fps, priority: 'medium' },
+        // prioridade alta: na disputa de banda, o vídeo da live vem antes das câmeras
+        screenShareEncoding: { maxBitrate: profile.maxBitrate, maxFramerate: profile.fps, priority: 'high' },
         // sob pressão cai o fps, não a resolução ("balanced" derrubava 1080p para 540p no espectador — E2E golive-real)
         degradationPreference: 'maintain-resolution',
       });
@@ -685,9 +685,6 @@ export class VoiceEngine {
     this.cb.onStats(s);
   }
 }
-
-/** Para que a transmissão é otimizada: jogos/vídeo (fluidez) ou texto/telas paradas (nitidez). */
-export type StreamMode = 'motion' | 'detail';
 
 export const RECONNECT = {
   maxAttempts: MAX_RECONNECT_ATTEMPTS,

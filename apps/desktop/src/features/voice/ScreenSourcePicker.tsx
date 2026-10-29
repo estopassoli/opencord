@@ -1,12 +1,11 @@
 import { availableProfiles, type StreamProfileId } from '@opencord/media';
-import { Button, Checkbox, Icon, Select } from '@opencord/ui';
+import { Button, Icon, Select } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import type { CaptureSourceDto } from '../../../electron/shared/ipc';
 import { Dialog } from '../../components/Dialog';
 import { bridge } from '../../lib/bridge';
 import { useData } from '../../store/data';
 import { useVoice } from '../../store/voice';
-import type { StreamMode } from '../../voice/engine';
 
 /** Seletor de fonte do Go Live com miniaturas reais (desktopCapturer), perfil e opção de áudio do sistema. */
 export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
@@ -14,10 +13,8 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'screen' | 'window'>('screen');
   const [selected, setSelected] = useState<string | null>(null);
-  const [withAudio, setWithAudio] = useState(true);
-  const defaultProfile = useData((s) => s.settings?.video.streamProfile ?? '720p30');
+  const defaultProfile = useData((s) => s.settings?.video.streamProfile ?? '1080p60');
   const [profile, setProfile] = useState<StreamProfileId>(defaultProfile);
-  const [mode, setMode] = useState<StreamMode>('motion');
   const isWindows = navigator.userAgent.includes('Windows');
 
   const refresh = () => {
@@ -35,7 +32,8 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
   const profiles = availableProfiles({ hardware: true });
 
   const start = () =>
-    void useVoice.getState().startStream(bridge ? selected : null, withAudio && (isWindows || !bridge), profile, mode);
+    // áudio do sistema sempre junto (Windows no app; no navegador, depende da opção marcada no seletor dele)
+    void useVoice.getState().startStream(bridge ? selected : null, isWindows || !bridge, profile);
 
   const visible = (sources ?? []).filter((s) => s.kind === tab);
 
@@ -46,12 +44,7 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
       wide
       actions={
         <>
-          <Checkbox
-            checked={withAudio}
-            onChange={setWithAudio}
-            disabled={Boolean(bridge) && !isWindows}
-            label={`Incluir áudio do sistema${bridge && !isWindows ? ' (apenas Windows)' : ''}`}
-          />
+          {bridge && !isWindows && <span className="muted small">Áudio do sistema só no Windows</span>}
           <Select<StreamProfileId>
             aria-label="Qualidade"
             className="picker-quality"
@@ -62,16 +55,6 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
               label: p.id,
               ...(p.requiresHardware ? { description: 'requer encoder por hardware' } : {}),
             }))}
-          />
-          <Select<StreamMode>
-            aria-label="Otimizar para"
-            className="picker-quality"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: 'motion', label: 'Movimento', description: 'jogos e vídeos: mais fps' },
-              { value: 'detail', label: 'Nitidez', description: 'texto e telas paradas' },
-            ]}
           />
           <span className="spacer" />
           <Button variant="ghost" onClick={onClose}>
