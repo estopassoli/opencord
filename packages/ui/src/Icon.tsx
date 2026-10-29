@@ -2,6 +2,7 @@ import type { IconType } from 'react-icons';
 import {
   HiArrowDownTray,
   HiArrowUpTray,
+  HiBars3,
   HiArrowPath,
   HiArrowRightStartOnRectangle,
   HiArrowsPointingIn,
@@ -35,6 +36,7 @@ import {
   HiNoSymbol,
   HiOutlineArrowDownTray,
   HiOutlineArrowUpTray,
+  HiOutlineBars3,
   HiOutlineArrowPath,
   HiOutlineArrowRightStartOnRectangle,
   HiOutlineArrowsPointingIn,
@@ -172,6 +174,7 @@ const ICONS = {
   server: [HiOutlineServer, HiServer],
   download: [HiOutlineArrowDownTray, HiArrowDownTray],
   upload: [HiOutlineArrowUpTray, HiArrowUpTray],
+  menu: [HiOutlineBars3, HiBars3],
 } as const satisfies Record<string, readonly [IconType, IconType]>;
 
 export type IconName = keyof typeof ICONS;

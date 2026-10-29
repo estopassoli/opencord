@@ -1,3 +1,5 @@
+import { MobileNavButton } from '../../components/MobileNavButton';
+import { useIsMobile } from '../../lib/media';
 import { hasPermission, Permission, type Message, type MessagePage } from '@opencord/contracts';
 import { Icon } from '@opencord/ui';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -31,6 +33,8 @@ export function ChatView({ target }: { target: ChatTarget }) {
   const typing = useData((s) => s.typing[key]);
   const members = useData((s) => (channel ? s.details[channel.serverId]?.members : undefined));
   const showMembers = useUi((s) => s.showMembers);
+  const membersPanel = useUi((s) => s.panel === 'members');
+  const mobile = useIsMobile();
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const [firstUnreadId] = useState(() => (unread && unread.unreadCount > 0 ? unread.lastReadMessageId : null));
@@ -127,6 +131,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
   return (
     <section className="chat" aria-label={`Conversa ${title}`}>
       <header className="chat-header">
+        <MobileNavButton />
         <Icon name={channel ? 'hashtag' : 'chat'} size={22} />
         <h2 className="truncate">{title}</h2>
         {channel?.topic && <span className="chat-topic truncate">{channel.topic}</span>}
@@ -134,10 +139,12 @@ export function ChatView({ target }: { target: ChatTarget }) {
         {channel && (
           <button
             className="icon-btn"
-            aria-pressed={showMembers}
+            aria-pressed={mobile ? membersPanel : showMembers}
             aria-label="Mostrar membros"
             title="Lista de membros"
-            onClick={() => useUi.getState().toggleMembers()}
+            onClick={() =>
+              mobile ? useUi.getState().setPanel(membersPanel ? 'none' : 'members') : useUi.getState().toggleMembers()
+            }
           >
             <Icon name="users" />
           </button>

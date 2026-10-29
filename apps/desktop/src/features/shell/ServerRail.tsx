@@ -89,7 +89,7 @@ export function ServerRail() {
           active={homeActive}
           unread={dmUnread > 0}
           badge={dmUnread}
-          onClick={() => go({ kind: 'home', tab: 'friends' })}
+          onClick={() => go({ kind: 'home', tab: 'friends' }, { keepPanel: true })}
         >
           <span className="brand-mark brand-mark-sm" aria-hidden />
         </RailItem>
@@ -105,7 +105,10 @@ export function ServerRail() {
               unread={b.any}
               badge={b.mentions}
               onClick={() =>
-                go({ kind: 'server', serverId: s.id, channelId: useUi.getState().lastChannel[s.id] ?? null })
+                go(
+                  { kind: 'server', serverId: s.id, channelId: useUi.getState().lastChannel[s.id] ?? null },
+                  { keepPanel: true },
+                )
               }
               onContextMenu={(e) =>
                 openContextMenu(

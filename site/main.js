@@ -33,6 +33,7 @@ fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accep
     const version = String(rel.tag_name || '').replace(/^v/, '');
     for (const a of document.querySelectorAll('a[href$="/releases/latest"]')) a.href = exe.browser_download_url;
     document.getElementById('download-label').textContent = `Baixar para Windows ${version}`.trim();
-    document.getElementById('download-meta').textContent = `Windows 11 (64 bits) · ${mb} MB · código público no GitHub`;
+    document.getElementById('download-meta').textContent =
+      `Windows 11 (64 bits) · ${mb} MB · ou use direto no navegador`;
   })
   .catch(() => undefined);

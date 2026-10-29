@@ -30,6 +30,8 @@ interface UiState {
   replyTo: Record<TargetKey, string | null>;
   modal: Modal;
   showMembers: boolean;
+  /** celular: painel aberto por cima do conteúdo (gaveta de navegação ou de membros) */
+  panel: 'none' | 'nav' | 'members';
   /** stream em foco no palco (identity do publisher) */
   focusedStream: string | null;
   /** mensagem em edição inline (seta para cima no composer edita a última própria) */
@@ -39,13 +41,15 @@ interface UiState {
   /** histórico para os botões voltar/avançar da barra de título */
   back: View[];
   forward: View[];
-  go(v: View): void;
+  /** `keepPanel`: navegação feita de dentro da gaveta que não deve fechá-la (ex.: trocar de servidor no rail) */
+  go(v: View, opts?: { keepPanel?: boolean }): void;
   goBack(): void;
   goForward(): void;
   setDraft(key: TargetKey, text: string): void;
   setReplyTo(key: TargetKey, id: string | null): void;
   openModal(m: Modal): void;
   toggleMembers(): void;
+  setPanel(p: UiState['panel']): void;
   focusStream(id: string | null): void;
   setEditing(id: string | null): void;
   toast(kind: Toast['kind'], text: string): void;
@@ -62,6 +66,7 @@ export const useUi = create<UiState>()((set) => ({
   replyTo: {},
   modal: null,
   showMembers: true,
+  panel: 'none',
   focusedStream: null,
   editing: null,
   toasts: [],
@@ -71,16 +76,21 @@ export const useUi = create<UiState>()((set) => ({
   goBack: () =>
     set((s) => {
       const prev = s.back.at(-1);
-      return prev ? { view: prev, back: s.back.slice(0, -1), forward: [s.view, ...s.forward].slice(0, 50) } : {};
+      return prev
+        ? { view: prev, back: s.back.slice(0, -1), forward: [s.view, ...s.forward].slice(0, 50), panel: 'none' }
+        : {};
     }),
   goForward: () =>
     set((s) => {
       const next = s.forward[0];
-      return next ? { view: next, forward: s.forward.slice(1), back: [...s.back, s.view].slice(-50) } : {};
+      return next
+        ? { view: next, forward: s.forward.slice(1), back: [...s.back, s.view].slice(-50), panel: 'none' }
+        : {};
     }),
-  go: (v) =>
+  go: (v, opts) =>
     set((s) => ({
       view: v,
+      panel: opts?.keepPanel ? s.panel : 'none',
       back: JSON.stringify(s.view) === JSON.stringify(v) ? s.back : [...s.back, s.view].slice(-50),
       forward: JSON.stringify(s.view) === JSON.stringify(v) ? s.forward : [],
       lastChannel: v.kind === 'server' && v.channelId ? { ...s.lastChannel, [v.serverId]: v.channelId } : s.lastChannel,
@@ -89,6 +99,7 @@ export const useUi = create<UiState>()((set) => ({
   setReplyTo: (key, id) => set((s) => ({ replyTo: { ...s.replyTo, [key]: id } })),
   openModal: (m) => set({ modal: m }),
   toggleMembers: () => set((s) => ({ showMembers: !s.showMembers })),
+  setPanel: (panel) => set({ panel }),
   focusStream: (id) => set({ focusedStream: id }),
   setEditing: (editing) => set({ editing }),
   toast: (kind, text) => {
