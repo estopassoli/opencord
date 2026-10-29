@@ -413,7 +413,7 @@ export const UserSettingsV1 = z.object({
   video: z
     .object({
       cameraDeviceId: z.string().nullable().default(null),
-      streamProfile: z.enum(['720p30', '1080p60', '1440p60']).default('720p30'),
+      streamProfile: z.enum(['720p30', '1080p60', '1440p60']).default('1080p60'),
       preferredCodec: z.enum(['h264', 'vp8', 'vp9', 'av1']).default('h264'),
     })
     .prefault({}),
