@@ -35,6 +35,6 @@ export class AvatarsController {
       .header('Content-Security-Policy', "default-src 'none'; sandbox")
       .header('Cross-Origin-Resource-Policy', 'cross-origin')
       .header('Cache-Control', 'public, max-age=31536000, immutable')
-      .send(this.storage.read(f.key));
+      .send(await this.storage.read(f.key));
   }
 }

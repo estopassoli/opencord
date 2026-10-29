@@ -23,7 +23,7 @@ Não executar deploy em produção sem aprovação. Não habilitar auto-update d
 | Peça | Onde |
 |---|---|
 | `opencord.pro` (landing) e `app.opencord.pro` (interface no navegador) | app Dokploy `opencord-web` — `infra/docker/web.Dockerfile` (nginx; escolhe pelo Host) |
-| `api.opencord.pro` (API + Socket.IO) | app Dokploy `opencord-api` — `infra/docker/api.Dockerfile`; anexos no volume `opencord-uploads`, réplica única presa a um nó |
+| `api.opencord.pro` (API + Socket.IO) | app Dokploy `opencord-api` — `infra/docker/api.Dockerfile`; anexos no volume `opencord-uploads` (réplica única presa a um nó) ou no Cloudflare R2 com `STORAGE_DRIVER=s3` (ADR-0010) |
 | `rtc.opencord.pro` (sinalização WSS) | LiveKit 1.13.10 em dois nós (stack `livekit-opencord`, rede do host, Redis db 4); mídia direto no IP do nó: **TCP 7901** e **UDP 7902** (mux numa porta só, em vez de 50000-50100) |
 | PostgreSQL / Redis | instâncias compartilhadas do cluster (banco `opencord`, Redis db 5), com réplica e backup a cada 5 h |
 
