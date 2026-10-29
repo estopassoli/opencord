@@ -11,6 +11,7 @@ import type {
   ServerDetail,
   ServerSummary,
   UnreadState,
+  UserPublic,
   UserSettings,
   VoiceMemberState,
 } from '@opencord/contracts';
@@ -55,6 +56,8 @@ interface DataState {
   markRead(key: TargetKey, messageId: string): void;
   setTyping(key: TargetKey, userId: string, active: boolean): void;
   upsertConversation(c: Conversation): void;
+  /** perfil público mudou (foto/apelido): atualiza onde a pessoa aparece */
+  patchUser(u: UserPublic): void;
 }
 
 const empty = {
@@ -197,6 +200,26 @@ export const useData = create<DataState>()((set) => ({
       if (active) cur[userId] = Date.now() + 8000;
       else delete cur[userId];
       return { typing: { ...s.typing, [key]: cur } };
+    }),
+  patchUser: (u) =>
+    set((s) => {
+      const fix = <T extends { id: string }>(x: T): T => (x.id === u.id ? { ...x, ...u } : x);
+      const details = Object.fromEntries(
+        Object.entries(s.details).map(([id, d]) => [
+          id,
+          d.members.some((m) => m.user.id === u.id)
+            ? { ...d, members: d.members.map((m) => (m.user.id === u.id ? { ...m, user: { ...m.user, ...u } } : m)) }
+            : d,
+        ]),
+      );
+      return {
+        me: s.me && s.me.id === u.id ? { ...s.me, displayName: u.displayName, avatarKey: u.avatarKey } : s.me,
+        details,
+        friends: s.friends.map((f) => (f.user.id === u.id ? { ...f, user: fix(f.user) } : f)),
+        conversations: s.conversations.map((c) =>
+          c.members.some((m) => m.id === u.id) ? { ...c, members: c.members.map(fix) } : c,
+        ),
+      };
     }),
   upsertConversation: (c) =>
     set((s) => ({

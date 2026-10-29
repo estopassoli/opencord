@@ -322,6 +322,8 @@ function wireRealtime(rt: RealtimeClient) {
         void loadServer(v.serverId).catch(() => undefined);
     });
     rt.on('voice:state:changed', (v) => d().setVoiceState(v));
+    // foto/apelido de alguém mudou: atualiza em todo lugar
+    rt.on('user:updated', (u) => d().patchUser(u));
     // Assistir juntos: estado da chamada em que estou; das outras, só o indicador na barra lateral
     rt.on('activity:state', (s) => {
       void Promise.all([import('./activity'), import('./voice')]).then(([{ useActivity }, { useVoice }]) => {

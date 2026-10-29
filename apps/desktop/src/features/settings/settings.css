@@ -482,3 +482,21 @@
 .update-check p {
   margin: 0;
 }
+.avatar-picker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.avatar-picker-actions {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.avatar-picker-buttons {
+  display: flex;
+  gap: 8px;
+}
+.avatar-picker .form-error {
+  margin: 0;
+}

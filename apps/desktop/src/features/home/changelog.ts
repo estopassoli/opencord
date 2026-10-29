@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '20:30',
+    kind: 'novo',
+    icon: 'upload',
+    title: 'Foto de perfil',
+    body: 'Em Configurações → Minha conta: envie uma foto (recortada em quadrado) ou remova. Ela aparece para todos nos seus servidores na hora, e trocas de apelido também.',
+  },
+  {
+    date: '2026-10-29',
     time: '20:10',
     kind: 'melhoria',
     icon: 'users',

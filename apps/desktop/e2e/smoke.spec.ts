@@ -284,3 +284,20 @@ test('Novidades: linha do tempo pelo item da página inicial', async () => {
   await expect(page.locator('.timeline-item').first()).toBeVisible();
   await page.screenshot({ path: shots('06-novidades') });
 });
+
+test('foto de perfil: envia em Minha conta, aparece no painel do usuário e pode ser removida', async () => {
+  await page.getByRole('button', { name: 'Configurações do usuário' }).click();
+  const dialog = page.locator('dialog[open]');
+  await dialog.getByRole('tab', { name: 'Minha conta' }).click();
+  await dialog.getByLabel('Escolher foto de perfil').setInputFiles(path.join(__dirname, 'fixtures', 'avatar-azul.png'));
+  await expect(dialog.getByRole('button', { name: 'Trocar foto' })).toBeVisible({ timeout: 10_000 });
+  const img = dialog.locator('.avatar-picker .oc-avatar-img');
+  await expect(img).toHaveAttribute('src', /\/avatars\/[0-9a-f-]{36}-(webp|png)$/);
+  // a imagem carrega de verdade do servidor
+  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(256);
+  await page.screenshot({ path: shots('07-foto-perfil') });
+  await dialog.getByRole('button', { name: 'Remover' }).click();
+  await expect(dialog.getByRole('button', { name: 'Enviar foto' })).toBeVisible();
+  await expect(dialog.locator('.avatar-picker .oc-avatar-img')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+});

@@ -19,6 +19,7 @@ import { api, describeError, useSession } from '../../store/session';
 import { updateSettings } from '../../store/settings';
 import { useUi } from '../../store/ui';
 import './settings.css';
+import { AvatarPicker } from './AvatarPicker';
 
 // ---------------------------------------------------------------------------
 // Layout de abas verticais (compartilhado com as configurações do servidor)
@@ -286,6 +287,7 @@ function AccountTab() {
   return (
     <>
       <Section title="Perfil">
+        <AvatarPicker me={me} />
         <dl className="settings-kv">
           <dt>Usuário</dt>
           <dd>@{me.username}</dd>

@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Patch, Put } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Patch, Post, Put, Req } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
 import {
   SetPresenceRequest,
   UpdateProfileRequest,
@@ -13,6 +14,7 @@ import { PrismaService } from '../common/prisma.service.js';
 import { zodPipe } from '../common/zod.pipe.js';
 import { AuthService } from '../auth/auth.service.js';
 import { PresenceService } from '../realtime/presence.service.js';
+import { AvatarService } from './avatar.service.js';
 
 @Controller('me')
 export class UsersController {
@@ -20,6 +22,7 @@ export class UsersController {
     private readonly prisma: PrismaService,
     private readonly auth: AuthService,
     private readonly presence: PresenceService,
+    private readonly avatars: AvatarService,
   ) {}
 
   @Get()
@@ -34,7 +37,23 @@ export class UsersController {
     @Body(zodPipe(UpdateProfileRequest)) dto: z.infer<typeof UpdateProfileRequest>,
   ) {
     if (!dto.displayName) return this.auth.toMe(await this.prisma.user.findUniqueOrThrow({ where: { id: u.userId } }));
-    return this.auth.toMe(await this.auth.rename(u.userId, dto.displayName));
+    const user = await this.auth.rename(u.userId, dto.displayName);
+    await this.avatars.announce(u.userId);
+    return this.auth.toMe(user);
+  }
+
+  /** Foto de perfil (multipart, campo "file"): PNG/JPEG/WebP/GIF até 1 MB e 1024 px de lado. */
+  @Post('avatar')
+  async setAvatar(@CurrentUser() u: AuthUser, @Req() req: FastifyRequest) {
+    if (!req.isMultipart()) throw new BadRequestException('multipart/form-data esperado');
+    const file = await req.file();
+    if (!file) throw new BadRequestException('campo "file" ausente');
+    return this.auth.toMe(await this.avatars.set(u.userId, file.file));
+  }
+
+  @Delete('avatar')
+  async clearAvatar(@CurrentUser() u: AuthUser) {
+    return this.auth.toMe(await this.avatars.clear(u.userId));
   }
 
   @Put('presence')
