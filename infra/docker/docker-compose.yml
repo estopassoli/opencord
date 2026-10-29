@@ -34,7 +34,7 @@ services:
     network_mode: host
     volumes: ['../coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro']
 
-  # Opcional e AINDA NÃO USADO pela API (STORAGE_DRIVER=s3 não implementado na V1; anexos ficam no volume `uploads`).
+  # Opcional: S3 local para testar STORAGE_DRIVER=s3 (S3_ENDPOINT=http://minio:9000, S3_FORCE_PATH_STYLE=true; ADR-0010).
   minio:
     profiles: ['s3']
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { Readable } from 'node:stream';
 import {
   BadRequestException,
   Injectable,
@@ -79,12 +78,17 @@ export class AvatarService {
       throw new BadRequestException(`a foto precisa ter entre 16 e ${MAX_SIDE} pixels de lado`);
     const name = `${randomUUID()}-${ext}`;
     try {
-      await this.storage.write(`${folder}/${name}`, Readable.from(buf));
+      await this.storage.write(`${folder}/${name}`, buf, mime);
     } catch (e) {
-      // ex.: pasta do volume sem permissão de escrita para o usuário do contêiner
+      // ex.: pasta do volume sem permissão de escrita, ou bucket/credenciais do S3 incorretos
       this.log.error(`gravar ${folder}/${name}: ${e instanceof Error ? e.message : String(e)}`);
       // só o código do sistema (ex.: EACCES), sem caminhos: permite diagnosticar pelo app
-      const code = e instanceof Error && 'code' in e && typeof e.code === 'string' ? ` (${e.code})` : '';
+      const code =
+        e instanceof Error && 'code' in e && typeof e.code === 'string'
+          ? ` (${e.code})`
+          : e instanceof Error && e.name !== 'Error'
+            ? ` (${e.name})`
+            : '';
       throw new InternalServerErrorException(`não foi possível salvar a imagem no armazenamento do servidor${code}`);
     }
     return name;

@@ -32,8 +32,15 @@ export const ConfigSchema = z.object({
   LIVEKIT_API_KEY: z.string().min(1),
   LIVEKIT_API_SECRET: z.string().min(1),
   LIVEKIT_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(600),
-  STORAGE_DRIVER: z.enum(['local']).default('local'),
+  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   STORAGE_LOCAL_DIR: z.string().default('./var/uploads'),
+  /** Driver `s3` (ex.: Cloudflare R2 — endpoint https://<account-id>.r2.cloudflarestorage.com, região `auto`). */
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_REGION: z.string().default('auto'),
+  S3_BUCKET: z.string().min(1).optional(),
+  S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  S3_FORCE_PATH_STYLE: bool.default(false),
   UPLOAD_MAX_BYTES: z.coerce
     .number()
     .int()
@@ -71,6 +78,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Configuração inválida: ${issues}`);
   }
   const cfg = parsed.data;
+  if (cfg.STORAGE_DRIVER === 's3') {
+    const missing = (['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const).filter(
+      (k) => !cfg[k],
+    );
+    if (missing.length) throw new Error(`STORAGE_DRIVER=s3 exige ${missing.join(', ')}`);
+  }
   if (cfg.NODE_ENV === 'production') {
     for (const k of ['JWT_ACCESS_SECRET', 'ATTACHMENT_URL_SECRET'] as const) {
       if (cfg[k].startsWith('dev-only')) throw new Error(`${k} de desenvolvimento não pode ser usado em produção`);

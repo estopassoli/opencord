@@ -1,5 +1,4 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { Readable } from 'node:stream';
 import {
   BadRequestException,
   Inject,
@@ -160,7 +159,7 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
     const id = randomUUID();
     const d = new Date();
     const key = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${id}`;
-    await this.storage.write(key, Readable.from(buf));
+    await this.storage.write(key, buf, mime);
     try {
       const row = await this.prisma.attachment.create({
         data: {
@@ -188,7 +187,7 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
     });
     // anexos de mensagens excluídas deixam de ser servidos
     if (!a || a.message?.deletedAt) return null;
-    return { row: a, stream: this.storage.read(a.storageKey), inline: INLINE_MIME.test(a.mime) };
+    return { row: a, stream: await this.storage.read(a.storageKey), inline: INLINE_MIME.test(a.mime) };
   }
 
   /** Vincula anexos à mensagem: só do próprio autor, ainda não vinculados e recentes. */
