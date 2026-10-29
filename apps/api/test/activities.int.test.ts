@@ -44,12 +44,23 @@ describe('Assistir juntos (YouTube)', () => {
     const s1 = await got;
     expect(s1).toMatchObject({ kind: 'youtube', videoId: 'dQw4w9WgXcQ', playing: true, positionSec: 0, revision: 1 });
 
-    // alice pausa em 42 s; o dono recebe
-    const paused = nextEvent<ActivityState>(so, 'activity:state', (s) => s.revision === 2);
+    // o dono pausa em 42 s; alice recebe
+    const paused = nextEvent<ActivityState>(sa, 'activity:state', (s) => s.revision === 2);
     expect(
-      (await command(sa, 'activity:youtube:control', { channelId: voiceId, action: 'pause', positionSec: 42 })).ok,
+      (await command(so, 'activity:youtube:control', { channelId: voiceId, action: 'pause', positionSec: 42 })).ok,
     ).toBe(true);
     expect(await paused).toMatchObject({ playing: false, positionSec: 42 });
+
+    // quem não iniciou não controla o grupo (pausa só para si, no app), não troca o vídeo nem encerra
+    for (const [name, payload] of [
+      ['activity:youtube:control', { channelId: voiceId, action: 'play', positionSec: 10 }],
+      ['activity:youtube:start', { channelId: voiceId, videoId: 'jNQXAC9IVRw' }],
+      ['activity:stop', { channelId: voiceId }],
+    ] as const) {
+      const r = await command(sa, name, payload);
+      expect(r.ok, name).toBe(false);
+      expect(r.error?.code).toBe('403');
+    }
 
     // quem entra depois pega o estado atual
     const now = await command<ActivityState>(sa, 'activity:get', { channelId: voiceId });
@@ -76,6 +87,20 @@ describe('Assistir juntos (YouTube)', () => {
     expect(r.error?.code).toBe('403');
     expect((await command(so, 'activity:youtube:start', { channelId: voiceId, videoId: 'curto' })).ok).toBe(false);
     expect((await command(sb, 'activity:get', { channelId: voiceId })).ok).toBe(false);
+  });
+
+  it('dono sai da chamada: a sessão passa para quem ficou, na posição em que estava', async () => {
+    const { owner, alice, voiceId, so, sa } = await setup();
+    await command(so, 'activity:youtube:start', { channelId: voiceId, videoId: 'dQw4w9WgXcQ' });
+    await command(so, 'activity:youtube:control', { channelId: voiceId, action: 'pause', positionSec: 30 });
+    const handed = nextEvent<ActivityState>(sa, 'activity:state', (s) => s.startedBy === alice.id);
+    await http.req('POST', '/voice/leave', { token: owner.token });
+    const s = await handed;
+    expect(s).toMatchObject({ startedBy: alice.id, playing: false, positionSec: 30 });
+    // agora alice controla
+    expect(
+      (await command(sa, 'activity:youtube:control', { channelId: voiceId, action: 'play', positionSec: 30 })).ok,
+    ).toBe(true);
   });
 
   it('a atividade acaba quando a chamada esvazia', async () => {

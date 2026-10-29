@@ -34,6 +34,11 @@ export class ActivitiesService {
     return s.serverId;
   }
 
+  /** Tocar/pausar/pular para o grupo, trocar e encerrar: só quem iniciou (os outros pausam só para si, no app). */
+  private requireOwner(s: ActivityState, userId: string) {
+    if (s.startedBy !== userId) throw forbidden('só quem colocou o vídeo controla a reprodução do grupo');
+  }
+
   private async load(channelId: string): Promise<ActivityState | null> {
     const raw = await this.r.get(key(channelId));
     return raw ? (JSON.parse(raw) as ActivityState) : null;
@@ -55,6 +60,8 @@ export class ActivitiesService {
   async startYouTube(userId: string, channelId: string, videoId: string): Promise<ActivityState> {
     const serverId = await this.requireInCall(userId, channelId);
     const prev = await this.load(channelId);
+    // trocar o vídeo de uma sessão em andamento é só para quem a iniciou
+    if (prev) this.requireOwner(prev, userId);
     const meta = await this.oembed(videoId);
     return this.publish({
       kind: 'youtube',
@@ -81,6 +88,7 @@ export class ActivitiesService {
     await this.requireInCall(userId, channelId);
     const s = await this.load(channelId);
     if (!s) throw forbidden('nenhuma atividade em andamento');
+    this.requireOwner(s, userId);
     return this.publish({
       ...s,
       playing: action === 'play' ? true : action === 'pause' ? false : s.playing,
@@ -93,6 +101,8 @@ export class ActivitiesService {
 
   async stop(userId: string, channelId: string): Promise<null> {
     const serverId = await this.requireInCall(userId, channelId);
+    const s = await this.load(channelId);
+    if (s) this.requireOwner(s, userId);
     await this.end(channelId, serverId);
     return null;
   }

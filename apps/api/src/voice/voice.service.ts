@@ -7,7 +7,14 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
-import { hasPermission, Permission, rooms, type VoiceJoinResponse, type VoiceMemberState } from '@opencord/contracts';
+import {
+  hasPermission,
+  Permission,
+  rooms,
+  type ActivityState,
+  type VoiceJoinResponse,
+  type VoiceMemberState,
+} from '@opencord/contracts';
 import { AccessToken, RoomServiceClient, TrackSource, WebhookReceiver, type WebhookEvent } from 'livekit-server-sdk';
 import type { Subscription } from 'rxjs';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
@@ -103,8 +110,36 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       .exec();
   }
 
+  /**
+   * Quem iniciou o "Assistir juntos" saiu da chamada: a sessão passa para alguém que continua nela
+   * (chamada vazia encerra logo abaixo).
+   */
+  private async handOffActivity(s: StoredState) {
+    const raw = await this.r.get(`activity:${s.channelId}`);
+    if (!raw) return;
+    const a = JSON.parse(raw) as ActivityState;
+    if (a.startedBy !== s.userId) return;
+    const [next] = await this.r.smembers(`voice:channel:${s.channelId}`);
+    if (!next) return;
+    const now = Date.now();
+    // congela a posição atual no novo dono
+    const pos = a.playing ? a.positionSec + (now - a.updatedAt) / 1000 : a.positionSec;
+    const out: ActivityState = {
+      ...a,
+      startedBy: next,
+      updatedBy: next,
+      positionSec: Math.round(pos * 10) / 10,
+      updatedAt: now,
+      revision: a.revision + 1,
+      serverNow: now,
+    };
+    await this.r.set(`activity:${s.channelId}`, JSON.stringify(out), 'KEEPTTL');
+    this.realtime.emit(rooms.server(s.serverId), 'activity:state', out);
+  }
+
   private async clear(s: StoredState) {
     await this.r.multi().del(`voice:user:${s.userId}`).srem(`voice:channel:${s.channelId}`, s.userId).exec();
+    await this.handOffActivity(s);
     if ((await this.r.scard(`voice:channel:${s.channelId}`)) === 0) {
       await this.r.srem('voice:channels', s.channelId);
       // chamada vazia: a atividade (Assistir juntos) acaba junto

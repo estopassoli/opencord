@@ -11,6 +11,7 @@ import { Button, Icon, Slider, TextField } from '@opencord/ui';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { useActivity } from '../../store/activity';
+import { useData } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
@@ -130,10 +131,19 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
   const [scrub, setScrub] = useState<number | null>(null);
   const lastApplied = useRef(0);
   const seekTimer = useRef<number | undefined>(undefined);
+  // dono = quem colocou o vídeo: controla o grupo. Os outros pausam só para si; ao voltar, alcançam o dono.
+  const me = useData((d) => d.me?.id);
+  const owner = s.startedBy === me;
+  const ownerName = useVoice((v) => v.participants.find((p) => p.identity === s.startedBy)?.name) ?? 'quem iniciou';
+  const [localPaused, setLocalPaused] = useState(false);
 
   // segue o estado do grupo: play/pausa e posição (com tolerância), sem nunca anunciar nada por conta própria
   useEffect(() => {
     if (!ready) return;
+    if (localPaused) {
+      if (info.state === 1) send('pauseVideo');
+      return;
+    }
     const sync = () => {
       const want = useActivity.getState().expectedPosition();
       const cur = useActivity.getState().state;
@@ -151,14 +161,30 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
     sync();
     const t = setInterval(sync, 1000);
     return () => clearInterval(t);
-  }, [ready, info.state, info.currentTime, s.revision, send]);
+  }, [ready, info.state, info.currentTime, s.revision, send, localPaused]);
 
   useEffect(() => {
     if (ready) send('setVolume', [volume]);
   }, [ready, volume, send]);
 
-  const toggle = () =>
-    void useActivity.getState().control(s.playing ? 'pause' : 'play', useActivity.getState().expectedPosition());
+  // o que o botão mostra: para o dono, o estado do grupo; para os outros, o próprio player
+  const showPlaying = owner ? s.playing : s.playing && !localPaused;
+  const groupPausedForMe = !owner && !s.playing;
+  const toggleLabel = owner
+    ? s.playing
+      ? 'Pausar para todos'
+      : 'Tocar para todos'
+    : groupPausedForMe
+      ? `Pausado por ${ownerName}`
+      : localPaused
+        ? 'Voltar a assistir (alcança o dono)'
+        : 'Pausar só para você';
+  const toggle = () => {
+    if (groupPausedForMe) return;
+    if (owner)
+      void useActivity.getState().control(s.playing ? 'pause' : 'play', useActivity.getState().expectedPosition());
+    else setLocalPaused((p) => !p);
+  };
   const duration = info.duration || 0;
   const position = scrub ?? Math.min(duration || Infinity, useActivity.getState().expectedPosition());
 
@@ -172,10 +198,16 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
         referrerPolicy="strict-origin-when-cross-origin"
       />
       {/* camada transparente: cliques no vídeo viram play/pausa do grupo (o player não tem controles próprios) */}
-      <button className="yt-click" aria-label={s.playing ? 'Pausar para todos' : 'Tocar para todos'} onClick={toggle} />
+      <button className="yt-click" aria-label={toggleLabel} onClick={toggle} />
       <div className="yt-bar" data-large={large ? 'true' : undefined}>
-        <button className="icon-btn" aria-label={s.playing ? 'Pausar para todos' : 'Tocar para todos'} onClick={toggle}>
-          <Icon name={s.playing ? 'pause' : 'play'} />
+        <button
+          className="icon-btn"
+          aria-label={toggleLabel}
+          title={toggleLabel}
+          aria-disabled={groupPausedForMe || undefined}
+          onClick={toggle}
+        >
+          <Icon name={showPlaying ? 'pause' : 'play'} />
         </button>
         <span className="yt-time">
           {fmt(position)}
@@ -183,13 +215,13 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
         </span>
         <div className="yt-seek">
           <Slider
-            aria-label="Posição do vídeo (para todos)"
+            aria-label={owner ? 'Posição do vídeo (para todos)' : `Posição do vídeo (controlada por ${ownerName})`}
             min={0}
             max={Math.max(1, duration)}
             step={1}
             value={Math.min(position, Math.max(1, duration))}
             format={fmt}
-            disabled={!duration}
+            disabled={!duration || !owner}
             onChange={(v) => {
               setScrub(v);
               // arrastar a barra: só anuncia ao grupo quando para de mexer
@@ -212,14 +244,20 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
             onChange={setVolume}
           />
         </div>
-        <button
-          className="icon-btn yt-extra"
-          aria-label="Trocar vídeo"
-          title="Trocar vídeo"
-          onClick={() => useUi.getState().openModal({ kind: 'watch-together' })}
-        >
-          <Icon name="refresh" />
-        </button>
+        {owner ? (
+          <button
+            className="icon-btn yt-extra"
+            aria-label="Trocar vídeo"
+            title="Trocar vídeo"
+            onClick={() => useUi.getState().openModal({ kind: 'watch-together' })}
+          >
+            <Icon name="refresh" />
+          </button>
+        ) : (
+          <span className="yt-owner muted small yt-extra" title={`Quem controla a reprodução: ${ownerName}`}>
+            de {ownerName}
+          </span>
+        )}
         <button
           className="icon-btn yt-extra"
           aria-label="Sair do vídeo (só você)"
@@ -228,14 +266,16 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
         >
           <Icon name="eye-off" />
         </button>
-        <button
-          className="icon-btn danger"
-          aria-label="Encerrar para todos"
-          title="Encerrar para todos"
-          onClick={() => void useActivity.getState().stop()}
-        >
-          <Icon name="close" />
-        </button>
+        {owner && (
+          <button
+            className="icon-btn danger"
+            aria-label="Encerrar para todos"
+            title="Encerrar para todos"
+            onClick={() => void useActivity.getState().stop()}
+          >
+            <Icon name="close" />
+          </button>
+        )}
       </div>
     </div>
   );

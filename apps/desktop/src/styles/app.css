@@ -3521,3 +3521,11 @@ a.rail-item {
 .strip-stream:focus-visible {
   outline-color: var(--brand-text);
 }
+.yt-owner {
+  flex: none;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(255 255 255 / 0.75);
+}
