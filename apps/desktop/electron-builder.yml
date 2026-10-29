@@ -58,9 +58,12 @@ linux:
   synopsis: Chat, voz e transmissão de tela self-hosted
   artifactName: OpenCord-${version}-linux-${arch}.${ext}
 nsis:
-  oneClick: false
+  # "Um clique": sem assistente; só a janela de progresso e o app reabre no fim (atualização como a do Discord).
+  # Por usuário (AppData\Local\Programs\OpenCord, sem pedir administrador), mesmo lugar das instalações anteriores.
+  oneClick: true
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: OpenCord
