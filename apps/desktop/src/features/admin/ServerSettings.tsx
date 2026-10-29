@@ -19,6 +19,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { Section, TabbedLayout, type TabDef } from '../settings/SettingsModal';
 import '../settings/settings.css';
+import { ServerIconPicker } from './ServerIconPicker';
 
 type ServerTab = 'overview' | 'roles' | 'members' | 'channels' | 'audit';
 
@@ -160,6 +161,11 @@ function OverviewTab({ detail, isOwner, onClose }: { detail: ServerDetail; isOwn
 
   return (
     <>
+      {canManage && (
+        <Section title="Imagem do servidor">
+          <ServerIconPicker detail={detail} />
+        </Section>
+      )}
       <Section title="Nome do servidor">
         {canManage ? (
           <form className="form inline-form" onSubmit={(e) => void rename(e)}>

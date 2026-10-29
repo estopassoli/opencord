@@ -110,6 +110,39 @@ describe('foto de perfil', () => {
     expect((await fetch(`${base}/avatars/qualquer`)).status).toBe(404);
   });
 
+  it('imagem do servidor: dono envia, membros recebem server:updated, membro comum não pode', async () => {
+    const { owner, serverId } = await bootstrapOwner(http);
+    const alice = await register(http);
+    const sa = await connectSocket(alice.token);
+    sockets.push(sa);
+    const sendIcon = async (token: string, data: Buffer) => {
+      const form = new FormData();
+      form.append('file', new Blob([data], { type: 'image/png' }), 'icone.png');
+      const res = await fetch(`${base}/servers/${serverId}/icon`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+        body: form,
+      });
+      return { status: res.status, body: (await res.json()) as { iconKey: string | null } };
+    };
+    expect((await sendIcon(alice.token, png(64, 64))).status).toBe(403);
+    const updated = nextEvent<{ id: string; iconKey: string | null }>(sa, 'server:updated', (s) => s.id === serverId);
+    const r = await sendIcon(owner.token, png(128, 128));
+    expect(r.status).toBe(201);
+    expect(r.body.iconKey).toMatch(/^[0-9a-f-]{36}-png$/);
+    expect((await updated).iconKey).toBe(r.body.iconKey);
+    const img = await fetch(`${base}/server-icons/${r.body.iconKey}`);
+    expect(img.status).toBe(200);
+    expect(img.headers.get('content-type')).toBe('image/png');
+    // a rota de avatares não serve ícones de servidor (pastas separadas)
+    expect((await fetch(`${base}/avatars/${r.body.iconKey}`)).status).toBe(404);
+    const del = await http.req<{ iconKey: string | null }>('DELETE', `/servers/${serverId}/icon`, {
+      token: owner.token,
+    });
+    expect(del.body.iconKey).toBeNull();
+    expect((await fetch(`${base}/server-icons/${r.body.iconKey}`)).status).toBe(404);
+  });
+
   it('apelido trocado também chega em tempo real', async () => {
     const { owner } = await bootstrapOwner(http);
     const alice = await register(http);
