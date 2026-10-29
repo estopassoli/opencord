@@ -269,6 +269,36 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   await expect(A.page.locator('.stream-stats')).toHaveAttribute('title', /Transmitindo \d+×\d+/, { timeout: 10_000 });
   const stats = (await A.page.locator('.stream-stats').getAttribute('title')) ?? '';
   test.info().annotations.push({ type: 'publisher-stats', description: stats });
+
+  // os dois transmitindo (relato real): B abre a própria live, que vai para o destaque; a de A fica na faixa
+  await B.page.locator('.dock').getByRole('button', { name: 'Transmitir', exact: true }).click();
+  const bDialog = B.page.getByRole('dialog', { name: 'Transmitir' });
+  await bDialog.getByRole('tab', { name: 'Tela inteira' }).click();
+  await bDialog.getByRole('listbox').getByRole('option').first().click();
+  await expect(B.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  const aInStrip = B.page
+    .locator('.stage-strip')
+    .getByRole('button', { name: /Assistir a transmissão de Proprietário/ });
+  await expect(aInStrip).toBeVisible({ timeout: 10_000 });
+  await aInStrip.click();
+  await expect(B.page.locator('.stage-header')).toContainText('Proprietário está transmitindo');
+  // botão direito na live do amigo: volume da transmissão (só para mim)
+  await B.page.locator('.tile-stream[data-large="true"]').click({ button: 'right' });
+  const menu = B.page.getByRole('menu', { name: /Transmissão de Proprietário/ });
+  await expect(menu.getByRole('slider')).toBeVisible();
+  await expect(menu.getByRole('menuitemcheckbox', { name: /Silenciar transmissão/ })).toBeVisible();
+  await B.page.screenshot({ path: shot('16-menu-volume-live') });
+  await menu.getByRole('menuitemcheckbox', { name: /Silenciar transmissão/ }).click();
+  await B.page.locator('.tile-stream[data-large="true"]').click({ button: 'right' });
+  await expect(menu.getByRole('menuitemcheckbox', { name: /Silenciar transmissão/ })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await B.page.keyboard.press('Escape');
+  await B.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
+
   await A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
   await expect(B.page.locator('.tile-stream')).toHaveCount(0, { timeout: 15_000 });
 });

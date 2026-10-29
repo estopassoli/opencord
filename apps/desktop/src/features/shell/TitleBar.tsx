@@ -63,7 +63,7 @@ export function TitleBar() {
   const canForward = useUi((s) => s.forward.length > 0);
   // seletor devolve só uma string (primitivo): objetos novos a cada chamada causariam loop no zustand v5
   const text = useData((s) => {
-    if (view.kind === 'home') return 'Amigos';
+    if (view.kind === 'home') return view.tab === 'news' ? 'Novidades' : 'Amigos';
     if (view.kind === 'dm') {
       const c = s.conversations.find((x) => x.id === view.conversationId);
       const name =
@@ -76,7 +76,7 @@ export function TitleBar() {
     }
     return s.details[view.serverId]?.name ?? 'OpenCord';
   });
-  const icon = view.kind === 'home' ? 'users' : view.kind === 'dm' ? 'chat' : 'server';
+  const icon = view.kind === 'home' ? (view.tab === 'news' ? 'bell' : 'users') : view.kind === 'dm' ? 'chat' : 'server';
   return (
     <header className="titlebar">
       <div className="titlebar-nav">

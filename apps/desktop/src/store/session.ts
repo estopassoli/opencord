@@ -182,7 +182,7 @@ export const useSession = create<SessionState>()((set, get) => {
       await secrets.delete('session');
       useData.getState().reset();
       useMessages.getState().clear();
-      useUi.setState({ view: { kind: 'home', tab: 'friends' }, modal: null });
+      useUi.setState({ view: { kind: 'home', tab: 'news' }, modal: null });
       set({ status: 'anonymous', api: null, realtime: null });
     },
   };

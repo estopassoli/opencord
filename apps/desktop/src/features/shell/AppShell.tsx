@@ -6,6 +6,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { ChatView } from '../chat/ChatView';
 import { HomeView } from '../home/HomeView';
+import { NewsView } from '../home/NewsView';
 import { DmSidebar } from '../home/DmSidebar';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { Modals } from './Modals';
@@ -152,7 +153,7 @@ export function AppShell() {
       )}
       <main id="main-content" className="content" tabIndex={-1} inert={mobile && panel !== 'none'}>
         <ConnectionBanner />
-        {view.kind === 'home' && <HomeView />}
+        {view.kind === 'home' && (view.tab === 'news' ? <NewsView /> : <HomeView />)}
         {view.kind === 'dm' && <ChatView key={view.conversationId} target={{ conversationId: view.conversationId }} />}
         {view.kind === 'server' && channel?.kind === 'text' && (
           <ChatView key={channel.id} target={{ channelId: channel.id }} />
