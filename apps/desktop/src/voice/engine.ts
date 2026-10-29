@@ -62,6 +62,8 @@ export interface MediaStats {
     fmtp: string | null;
     /** vídeo enviado de fato (kb/s) e estimativa de banda de subida do WebRTC (kb/s) */
     kbps: number | null;
+    /** SFU pausou o envio (dynacast): ninguém está assistindo; volta sozinho quando alguém assiste */
+    paused: boolean;
     availableKbps: number | null;
   };
 }
@@ -683,25 +685,29 @@ export class VoiceEngine {
       const kbps =
         prev && videoBytes >= prev.bytes ? Math.round(((videoBytes - prev.bytes) * 8) / (now - prev.t)) : null;
       this.lastVideoBytes = { t: now, bytes: videoBytes };
+      const encodings = this.screen.video.sender?.getParameters().encodings ?? [];
+      const paused = encodings.length > 0 && encodings.every((e) => e.active === false);
       const b = best as Record<string, unknown> | null;
-      if (b) {
+      if (b || paused) {
         const c =
-          typeof b.codecId === 'string'
+          b && typeof b.codecId === 'string'
             ? (vr?.get(b.codecId) as { mimeType?: string; sdpFmtpLine?: string } | undefined)
             : undefined;
         const codec = c?.mimeType ?? null;
-        const encoder = typeof b.encoderImplementation === 'string' ? b.encoderImplementation : null;
+        const r: Record<string, unknown> = b ?? {};
+        const encoder = typeof r.encoderImplementation === 'string' ? r.encoderImplementation : null;
         s.stream = {
           encoder,
-          hardware: typeof b.powerEfficientEncoder === 'boolean' ? b.powerEfficientEncoder : isHardwareEncoder(encoder),
-          fps: typeof b.framesPerSecond === 'number' ? Math.round(b.framesPerSecond) : null,
-          width: typeof b.frameWidth === 'number' ? b.frameWidth : null,
-          height: typeof b.frameHeight === 'number' ? b.frameHeight : null,
-          limitation: typeof b.qualityLimitationReason === 'string' ? b.qualityLimitationReason : null,
+          hardware: typeof r.powerEfficientEncoder === 'boolean' ? r.powerEfficientEncoder : isHardwareEncoder(encoder),
+          fps: typeof r.framesPerSecond === 'number' ? Math.round(r.framesPerSecond) : null,
+          width: typeof r.frameWidth === 'number' ? r.frameWidth : null,
+          height: typeof r.frameHeight === 'number' ? r.frameHeight : null,
+          limitation: typeof r.qualityLimitationReason === 'string' ? r.qualityLimitationReason : null,
           codec,
           fmtp: c?.sdpFmtpLine ?? null,
           kbps,
           availableKbps,
+          paused,
         };
       }
     }

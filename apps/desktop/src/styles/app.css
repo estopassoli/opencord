@@ -1469,6 +1469,8 @@ textarea:focus-visible {
   background: var(--sidebar);
   cursor: pointer;
   outline: 2px solid transparent;
+  /* por dentro: a lista com rolagem cortava a borda de seleção */
+  outline-offset: -2px;
 }
 .source[aria-selected='true'] {
   outline-color: var(--brand-text);

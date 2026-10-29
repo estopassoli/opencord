@@ -133,6 +133,15 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   test.info().annotations.push({ type: 'encoder', description: negotiated });
   if (/H264/.test(stats)) expect(negotiated).not.toMatch(/profile-level-id=42e0/i);
 
+  // ninguém assistindo → o SFU pausa o envio (dynacast) e o indicador explica; ao voltar a assistir, retoma
+  await B.page.locator('.tile-stream').hover();
+  await B.page.getByRole('button', { name: 'Parar de assistir' }).click();
+  await expect(A.page.getByText('ninguém assistindo', { exact: false })).toBeVisible({ timeout: 20_000 });
+  await B.page.getByRole('button', { name: 'Assistir' }).click();
+  await expect(A.page.getByText(/Transmitindo \d+×\d+/)).toBeVisible({ timeout: 20_000 });
+  await expect
+    .poll(async () => v.evaluate((el: HTMLVideoElement) => el.videoWidth), { timeout: 20_000 })
+    .toBeGreaterThan(640);
   await A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
   await expect(B.page.locator('.tile-stream')).toHaveCount(0, { timeout: 15_000 });
   await A.page.locator('.dock').getByRole('button', { name: 'Sair da chamada', exact: true }).click();
