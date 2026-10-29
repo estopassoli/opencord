@@ -130,6 +130,41 @@ test('dois usuários entram na mesma sala e se veem; indicador de fala acende', 
     'true',
   );
   await menu.getByRole('menuitemcheckbox', { name: /^Silenciar Só para você/ }).click();
+
+  // Cargos ›: submenu com os cargos do servidor; marcar aplica na hora (e o menu continua aberto)
+  const role = await json<{ id: string }>(
+    'POST',
+    `/servers/${serverId}/roles`,
+    { name: `Moderação E2E ${Date.now() % 10000}`, color: '#e74c3c', permissions: 0 },
+    ownerToken,
+  );
+  try {
+    await bob.click({ button: 'right' });
+    await menu.getByRole('menuitem', { name: 'Cargos' }).hover();
+    const roleItem = A.page
+      .getByRole('menu', { name: 'Cargos' })
+      .getByRole('menuitemcheckbox', { name: /Moderação E2E/ });
+    await expect(roleItem).toHaveAttribute('aria-checked', 'false');
+    await A.page.screenshot({ path: shot('18-menu-cargos') });
+    await roleItem.click();
+    await expect(roleItem).toHaveAttribute('aria-checked', 'true');
+    await expect
+      .poll(async () => {
+        const d = await json<{ members: { user: { id: string }; roleIds: string[] }[] }>(
+          'GET',
+          `/servers/${serverId}`,
+          undefined,
+          ownerToken,
+        );
+        return d.members.find((m) => m.user.id === bobId)?.roleIds ?? [];
+      })
+      .toContain(role.id);
+    await roleItem.click();
+    await expect(roleItem).toHaveAttribute('aria-checked', 'false');
+    await A.page.keyboard.press('Escape');
+  } finally {
+    await json('DELETE', `/roles/${role.id}`, undefined, ownerToken).catch(() => undefined);
+  }
   // regressão: o botão de tela cheia não pode ficar por cima do botão de sair (relato do usuário)
   const hang = await A.page.locator('.call-hangup').boundingBox();
   const full = await A.page.locator('.call-fullscreen').boundingBox();
