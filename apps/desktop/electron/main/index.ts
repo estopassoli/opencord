@@ -34,7 +34,7 @@ import {
 import { installDisplayMediaHandler, listSources, selectSource } from './capture';
 import { secureAvailable, secureDelete, secureGet, secureSet } from './secure-store';
 import { appIcon, badgeIcon, trayIcon } from './icons';
-import { checkForUpdate, installUpdate, startUpdater, updateStatus } from './updater';
+import { checkForUpdate, checkIfStale, installUpdate, startUpdater, updateStatus } from './updater';
 
 /** nome da janela da transmissão desanexada (src/features/voice/popout.tsx) */
 const POPOUT_NAME = 'opencord-live';
@@ -124,6 +124,7 @@ function createWindow() {
   });
   win.removeMenu();
   win.once('ready-to-show', () => win?.show());
+  win.on('focus', () => checkIfStale());
 
   const wc = win.webContents;
   wc.setWindowOpenHandler(({ url, frameName }) => {
@@ -275,7 +276,10 @@ app.whenReady().then(() => {
   tray = new Tray(trayIcon());
   tray.on('click', () => showWindow());
   buildTrayMenu();
-  powerMonitor.on('resume', () => send(IPC.evPowerResume));
+  powerMonitor.on('resume', () => {
+    send(IPC.evPowerResume);
+    checkIfStale();
+  });
   startUpdater((s) => send(IPC.evUpdate, s));
 });
 

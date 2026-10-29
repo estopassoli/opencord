@@ -17,11 +17,16 @@ import { pickUpdate, targetFor, type DesktopFileDto } from '../shared/update-cor
 import { secureGet } from './secure-store';
 
 const FIRST_CHECK_MS = 15_000;
-const CHECK_EVERY_MS = 4 * 60 * 60 * 1000;
+/** verificação periódica (uma requisição pequena à API) */
+const CHECK_EVERY_MS = 20 * 60 * 1000;
+/** ao voltar para a janela ou acordar o PC, verifica de novo se a última foi há mais que isto */
+const STALE_MS = 5 * 60 * 1000;
 
 let status: UpdateStatus = { state: 'idle' };
 let installerPath: string | null = null;
 let busy = false;
+let enabled = false;
+let lastCheck = 0;
 let notify: (s: UpdateStatus) => void = () => undefined;
 
 const set = (s: UpdateStatus) => {
@@ -60,6 +65,7 @@ async function download(url: string, file: string, size: number | null, version:
 
 export async function checkForUpdate(): Promise<UpdateStatus> {
   if (busy || status.state === 'ready') return status;
+  lastCheck = Date.now();
   const server = serverUrl();
   const target = targetFor(process.platform, process.arch, Boolean(process.env.APPIMAGE));
   if (!server || !target) return status;
@@ -104,10 +110,16 @@ export async function installUpdate(quit: () => void) {
   quit();
 }
 
+/** Janela voltou ao foco / PC acordou: verifica se a última verificação já ficou velha. */
+export function checkIfStale() {
+  if (enabled && Date.now() - lastCheck > STALE_MS) void checkForUpdate();
+}
+
 export function startUpdater(onStatus: (s: UpdateStatus) => void) {
   notify = onStatus;
   // só no app instalado: em desenvolvimento/E2E o app roda sem empacotar (OPENCORD_UPDATE_SERVER força, para testes)
   if (!app.isPackaged && !process.env.OPENCORD_UPDATE_SERVER) return;
+  enabled = true;
   setTimeout(() => void checkForUpdate(), Number(process.env.OPENCORD_UPDATE_DELAY_MS ?? FIRST_CHECK_MS));
   setInterval(() => void checkForUpdate(), CHECK_EVERY_MS);
 }
