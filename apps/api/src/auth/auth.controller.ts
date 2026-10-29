@@ -21,7 +21,7 @@ const AUTH_RATE = { rateLimit: { max: Number(process.env.AUTH_RATE_PER_MINUTE) |
 
 const client = (req: FastifyRequest): ClientInfo => ({
   userAgent: req.headers['user-agent'],
-  ip: req.ip,
+  ip: req.clientIp || req.ip,
   deviceId: typeof req.headers['x-device-id'] === 'string' ? req.headers['x-device-id'].slice(0, 128) : undefined,
 });
 

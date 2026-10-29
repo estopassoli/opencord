@@ -30,5 +30,6 @@ Não executar deploy em produção sem aprovação. Não habilitar auto-update d
 - TLS na Cloudflare (zona em SSL Full); a mídia WebRTC não passa pela Cloudflare.
 - **Migrações não rodam na subida da API**: a cada deploy com migração nova, aplicar antes com
   `prisma migrate deploy --schema /app/prisma/schema.prisma` (CLI 6.19.3 incluída na imagem).
+- `CLIENT_IP_HEADER=cf-connecting-ip`: o Traefik do cluster não confia no X-Forwarded-For da Cloudflare e o reescreve com o IP da borda; sem isso, todos os usuários dividiriam os limites por IP (global 300/min, entrada por apelido). Quem chegar à origem sem passar pela Cloudflare consegue forjar o cabeçalho e contornar esses limites.
 - Sem coturn/TURN por enquanto: o fallback quando UDP é bloqueado é ICE/TCP 7901. Redes que só liberam 443 não conectam a mídia.
 - Configuração da infraestrutura (stack do LiveKit, rotas do Traefik, ufw) fica fora deste repositório, no repositório de infraestrutura do cluster.

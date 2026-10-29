@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { TrackSource } from 'livekit-server-sdk';
 import { DEFAULT_EVERYONE_PERMISSIONS, Permission } from '@opencord/contracts';
 import { imageSize, sanitizeFilename } from './attachments/attachments.service.js';
+import type { FastifyRequest } from 'fastify';
+import { clientIp } from './common/client-ip.js';
 import { loadConfig } from './config/config.js';
 import { sourcesFor } from './voice/voice.service.js';
 
@@ -73,5 +75,29 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...baseEnv, NODE_ENV: 'production', LIVEKIT_API_SECRET: 'secret' } as NodeJS.ProcessEnv),
     ).toThrow(/produção/);
+  });
+});
+
+describe('clientIp', () => {
+  const req = (headers: Record<string, string | string[]>, ip = '172.70.1.1') =>
+    ({ headers, ip }) as unknown as FastifyRequest;
+  it('sem cabeçalho configurado usa req.ip', () => {
+    expect(clientIp(req({ 'cf-connecting-ip': '203.0.113.7' }))).toBe('172.70.1.1');
+  });
+  it('usa o cabeçalho configurado quando é um IP válido (v4 ou v6)', () => {
+    expect(clientIp(req({ 'cf-connecting-ip': ' 203.0.113.7 ' }), 'cf-connecting-ip')).toBe('203.0.113.7');
+    expect(clientIp(req({ 'cf-connecting-ip': '2001:db8::1' }), 'cf-connecting-ip')).toBe('2001:db8::1');
+    expect(clientIp(req({ 'cf-connecting-ip': ['198.51.100.2', '1.1.1.1'] }), 'cf-connecting-ip')).toBe('198.51.100.2');
+  });
+  it('ignora valor ausente ou que não é IP', () => {
+    expect(clientIp(req({}), 'cf-connecting-ip')).toBe('172.70.1.1');
+    expect(clientIp(req({ 'cf-connecting-ip': 'evil, 1.2.3.4' }), 'cf-connecting-ip')).toBe('172.70.1.1');
+  });
+  it('CLIENT_IP_HEADER: vazio vira ausente, nome é normalizado e validado', () => {
+    expect(loadConfig({ ...baseEnv, CLIENT_IP_HEADER: '' } as NodeJS.ProcessEnv).CLIENT_IP_HEADER).toBeUndefined();
+    expect(
+      loadConfig({ ...baseEnv, CLIENT_IP_HEADER: ' CF-Connecting-IP ' } as NodeJS.ProcessEnv).CLIENT_IP_HEADER,
+    ).toBe('cf-connecting-ip');
+    expect(() => loadConfig({ ...baseEnv, CLIENT_IP_HEADER: 'x y' } as NodeJS.ProcessEnv)).toThrow(/CLIENT_IP_HEADER/);
   });
 });
