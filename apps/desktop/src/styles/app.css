@@ -2045,6 +2045,34 @@ body {
   background: var(--interactive);
   color: var(--text);
 }
+.titlebar-actions {
+  justify-self: end;
+  display: flex;
+  gap: 2px;
+  padding-right: 8px;
+  -webkit-app-region: no-drag;
+}
+.titlebar-update {
+  color: var(--success);
+}
+.titlebar-update:hover:not(:disabled) {
+  color: var(--success);
+}
+.titlebar-update[data-state='downloading'] {
+  color: var(--text-2);
+  cursor: progress;
+  animation: oc-update-pulse 1.4s var(--ease) infinite;
+}
+@keyframes oc-update-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-update[data-state='downloading'] {
+    animation: none;
+  }
+}
 .titlebar-btn .flip {
   transform: scaleX(-1);
 }

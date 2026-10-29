@@ -13,9 +13,13 @@ export const IPC = {
   appInfo: 'app:info',
   openExternal: 'app:open-external',
   trayVoiceState: 'tray:voice-state',
+  updateStatus: 'update:status',
+  updateCheck: 'update:check',
+  updateInstall: 'update:install',
   // eventos main → renderer
   evShortcut: 'ev:shortcut',
   evNotificationClick: 'ev:notification-click',
   evPowerResume: 'ev:power-resume',
   evTrayAction: 'ev:tray-action',
+  evUpdate: 'ev:update',
 } as const;

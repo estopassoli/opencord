@@ -50,6 +50,7 @@ test('janela segura: sem Node no renderer e bridge mínima exposta', async () =>
     'setBadge',
     'setShortcuts',
     'setTrayVoiceState',
+    'updates',
   ]);
   const prefs = await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0];

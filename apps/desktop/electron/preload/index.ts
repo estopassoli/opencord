@@ -11,6 +11,7 @@ const EVENT_CHANNELS = {
   'notification-click': IPC.evNotificationClick,
   'power-resume': IPC.evPowerResume,
   'tray-action': IPC.evTrayAction,
+  update: IPC.evUpdate,
 } as const;
 
 const bridge: OpenCordBridge = {
@@ -31,6 +32,11 @@ const bridge: OpenCordBridge = {
   setTrayVoiceState: (state) => ipcRenderer.invoke(IPC.trayVoiceState, state),
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
   openExternal: (url) => ipcRenderer.invoke(IPC.openExternal, url),
+  updates: {
+    status: () => ipcRenderer.invoke(IPC.updateStatus),
+    check: () => ipcRenderer.invoke(IPC.updateCheck),
+    install: () => ipcRenderer.invoke(IPC.updateInstall),
+  },
   on: ((event: keyof typeof EVENT_CHANNELS, cb: (arg: unknown) => void) => {
     const channel = EVENT_CHANNELS[event];
     if (!channel) throw new Error('evento desconhecido');

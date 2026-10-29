@@ -28,12 +28,14 @@
 - 2026-10-29 | Go Live volta a camada única com contentHint `detail` + `maintain-resolution` (substitui a entrada do simulcast) | simulcast | em teste real, com banda estimada baixa o espectador recebia só 960×540; camada única manteve 1920×1080 no E2E | sem camada leve para espectadores com download fraco; sob pressão cai o fps | mantenedor
 - 2026-10-29 | Supressão de ruído com RNNoise (`@sapphi-red/web-noise-suppressor`, MIT, WASM local) como processador do microfone; CSP ganha `'wasm-unsafe-eval'` | só `noiseSuppression` do navegador; Krisp (exige LiveKit Cloud) | teste real: ruído da casa passava | ~1 MB de WASM; se falhar, segue sem filtro | mantenedor
 - 2026-10-29 | Tela de entrada pede apelido/e-mail e senha por padrão; "Utilizar apenas apelido (dados ficam neste navegador/computador)" vira link (ajusta ADR-0007, que mantém a entrada sem conta) | apelido como padrão | pedido do mantenedor | E2E de login/apelido atualizados | mantenedor
+- 2026-10-29 | Atualização do desktop "avisar e baixar": o app consulta `/downloads/desktop` do próprio servidor (mesma origem, https), baixa o instalador mais novo e mostra "Atualização pronta"; só executa no clique (SmartScreen/instalador confirmam). macOS/Linux abrem o download | auto-update silencioso com assinatura própria (Ed25519); certificado pago | instaladores sem assinatura (SECURITY.md proíbe auto-update silencioso) | publicar = tag `v*` (versão vem do tag) + copiar arquivos ao DOWNLOADS_DIR; servidor comprometido ainda poderia oferecer instalador malicioso, mas nada roda sem o clique | mantenedor
+- 2026-10-29 | Go Live: escolha "Movimento" (contentHint `motion`, padrão) ou "Nitidez" (`detail`); ambos `maintain-resolution` | só `detail` | `detail` põe o WebRTC em modo de tela e limitou um jogo a 16 fps; `balanced` derrubou o espectador a 540p no E2E | sob banda baixa cai o fps | mantenedor
 
 ## Pendentes de decisão do mantenedor
 - Licença (MIT, Apache-2.0 ou AGPL-3.0); não inventar licença. **Ainda pendente; nenhum arquivo LICENSE foi criado.**
 - Nome do domínio, infraestrutura e política de retenção.
 - ~~Política de contas~~: decidido, entrada por apelido (ADR-0007). Pendente: exigir ou não `INSTANCE_ACCESS_CODE` em produção.
-- Política de atualização desktop e certificados de assinatura.
+- Certificados de assinatura de código (Windows/macOS); com eles, reavaliar auto-update silencioso.
 - Limites máximos de upload, stream e usuários.
 - Exigir `INSTANCE_ACCESS_CODE` em produção? Implementar ban (kick hoje permite voltar pelo diretório)?
 - Upgrade do REA 6.5.0 → 6.8.0 e escopo da pesquisa (black-box vs CDP).

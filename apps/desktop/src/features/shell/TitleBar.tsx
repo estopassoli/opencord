@@ -1,6 +1,53 @@
 import { Icon } from '@opencord/ui';
+import { useEffect, useState } from 'react';
+import type { UpdateStatus } from '../../../electron/shared/ipc';
+import { Tooltip } from '../../components/Tooltip';
+import { bridge } from '../../lib/bridge';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
+import { useVoice } from '../../store/voice';
+
+function useUpdateStatus(): UpdateStatus {
+  const [s, setS] = useState<UpdateStatus>({ state: 'idle' });
+  useEffect(() => {
+    if (!bridge) return;
+    void bridge.updates.status().then(setS, () => undefined);
+    return bridge.on('update', setS);
+  }, []);
+  return s;
+}
+
+/** Botão de atualização (só no app desktop): baixando → pronta (Windows) ou disponível (abre o download). */
+function UpdateButton() {
+  const s = useUpdateStatus();
+  if (s.state === 'idle') return null;
+  const label =
+    s.state === 'downloading'
+      ? `Baixando atualização ${s.version}… ${s.progress}%`
+      : s.state === 'ready'
+        ? `Atualização pronta! Clique para instalar a versão ${s.version}`
+        : `Atualização ${s.version} disponível. Clique para baixar`;
+  const install = () => {
+    if (!bridge || s.state === 'downloading') return;
+    const inCall = useVoice.getState().machine.status !== 'disconnected';
+    if (s.state === 'ready' && inCall && !confirm('Instalar agora fecha o OpenCord e encerra a chamada. Continuar?'))
+      return;
+    void bridge.updates.install();
+  };
+  return (
+    <Tooltip label={label} side="bottom">
+      <button
+        className="titlebar-btn titlebar-update"
+        data-state={s.state}
+        aria-label={label}
+        aria-disabled={s.state === 'downloading' || undefined}
+        onClick={install}
+      >
+        <Icon name="download" size={16} />
+      </button>
+    </Tooltip>
+  );
+}
 
 /**
  * Barra de título integrada (janela com titleBarOverlay): voltar/avançar à esquerda, local atual ao centro.
@@ -49,6 +96,9 @@ export function TitleBar() {
       <div className="titlebar-title">
         <Icon name={icon} size={14} />
         <span className="truncate">{text}</span>
+      </div>
+      <div className="titlebar-actions">
+        <UpdateButton />
       </div>
     </header>
   );
