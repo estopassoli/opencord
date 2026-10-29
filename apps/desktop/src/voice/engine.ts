@@ -110,6 +110,8 @@ export class VoiceEngine {
   private volumes = new Map<string, number>();
   /** silenciados só para mim (não afeta os outros participantes) */
   private mutedUsers = new Set<string>();
+  /** volume do áudio da transmissão de cada pessoa (0–2; 0 = silenciada) */
+  private screenVolumes = new Map<string, number>();
   private deafened = false;
   private selfMuted = false;
   private gateOpen = true;
@@ -376,7 +378,17 @@ export class VoiceEngine {
         ? 0
         : (this.volumes.get(p.identity) ?? 1) * this.prefs.outputVolume;
     p.setVolume(v, Track.Source.Microphone);
-    p.setVolume(this.deafened ? 0 : this.prefs.outputVolume, Track.Source.ScreenShareAudio);
+    // áudio da transmissão: volume próprio por pessoa (menu da live), independente do volume da voz
+    p.setVolume(
+      this.deafened ? 0 : (this.screenVolumes.get(p.identity) ?? 1) * this.prefs.outputVolume,
+      Track.Source.ScreenShareAudio,
+    );
+  }
+
+  setScreenVolume(identity: string, v: number) {
+    this.screenVolumes.set(identity, v);
+    const p = this.room?.remoteParticipants.get(identity);
+    if (p) this.applyVolume(p);
   }
 
   setUserMuted(identity: string, muted: boolean) {

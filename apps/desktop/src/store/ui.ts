@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { TargetKey } from './data';
 
 export type View =
-  | { kind: 'home'; tab: 'friends' }
+  | { kind: 'home'; tab: 'friends' | 'news' }
   | { kind: 'dm'; conversationId: string }
   | { kind: 'server'; serverId: string; channelId: string | null };
 
@@ -68,7 +68,8 @@ interface UiState {
 let toastSeq = 0;
 
 export const useUi = create<UiState>()((set) => ({
-  view: { kind: 'home', tab: 'friends' },
+  // o app abre em Novidades (linha do tempo do que entrou)
+  view: { kind: 'home', tab: 'news' },
   lastChannel: {},
   drafts: {},
   replyTo: {},

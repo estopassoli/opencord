@@ -24,7 +24,15 @@ export function DmSidebar() {
         <nav className="dm-nav" aria-label="Início">
           <button
             className="channel-row nav-row"
-            aria-current={view.kind === 'home' ? 'page' : undefined}
+            aria-current={view.kind === 'home' && view.tab === 'news' ? 'page' : undefined}
+            onClick={() => go({ kind: 'home', tab: 'news' })}
+          >
+            <Icon name="bell" size={22} />
+            <span>Novidades</span>
+          </button>
+          <button
+            className="channel-row nav-row"
+            aria-current={view.kind === 'home' && view.tab === 'friends' ? 'page' : undefined}
             onClick={() => go({ kind: 'home', tab: 'friends' })}
           >
             <Icon name="users" size={22} />

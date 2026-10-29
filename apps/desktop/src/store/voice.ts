@@ -44,6 +44,9 @@ interface VoiceStore {
   /** silenciados só para mim nesta sessão do app */
   localMuted: Record<string, boolean>;
   setUserMuted(userId: string, muted: boolean): void;
+  /** volume do áudio da transmissão de cada pessoa nesta sessão (0–2) */
+  screenVolume: Record<string, number>;
+  setScreenVolume(userId: string, v: number): void;
   openStreamPicker(): void;
   cancelStreamPicker(): void;
   startStream(
@@ -140,6 +143,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       prefsFrom(useData.getState().settings),
     );
     for (const [id, m] of Object.entries(s.localMuted)) engine.setUserMuted(id, m);
+    for (const [id, v] of Object.entries(s.screenVolume)) engine.setScreenVolume(id, v);
     const reconnecting = get().machine.status === 'reconnecting';
     await engine.connect(j.url, j.token, { canSpeak: j.canSpeak, selfMute: s.selfMute, selfDeaf: s.selfDeaf });
     dispatch({ type: 'CONNECTED', generation });
@@ -289,6 +293,12 @@ export const useVoice = create<VoiceStore>()((set, get) => {
 
     setUserVolume(userId, v) {
       engine?.setUserVolume(userId, v);
+    },
+
+    screenVolume: {},
+    setScreenVolume(userId, v) {
+      set((s) => ({ screenVolume: { ...s.screenVolume, [userId]: v } }));
+      engine?.setScreenVolume(userId, v);
     },
 
     localMuted: {},

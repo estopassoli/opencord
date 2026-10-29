@@ -92,6 +92,8 @@ test('entrar só com apelido → servidor padrão → canal → enviar mensagem'
   await page.getByLabel('Apelido').fill(NICK);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByRole('navigation', { name: 'Servidores' })).toBeVisible({ timeout: 15_000 });
+  // o app abre na linha do tempo de Novidades
+  await expect(page.getByRole('heading', { name: 'Novidades', exact: true })).toBeVisible();
   await page.screenshot({ path: shots('02-home') });
   await page.getByRole('button', { name: 'OpenCord' }).first().click();
   await expect(page.getByRole('heading', { name: 'geral', exact: true })).toBeVisible();
@@ -273,4 +275,12 @@ test('criar servidor → importar do Discord: formulário, aviso do que vem e er
   await page.screenshot({ path: shots('05-importar-discord') });
   await dialog.getByRole('button', { name: 'Cancelar' }).click();
   await expect(dialog).toHaveCount(0);
+});
+
+test('Novidades: linha do tempo pelo item da página inicial', async () => {
+  await page.getByRole('button', { name: 'Mensagens diretas' }).first().click();
+  await page.getByRole('navigation', { name: 'Início' }).getByRole('button', { name: 'Novidades' }).click();
+  await expect(page.getByRole('heading', { name: 'Novidades', exact: true })).toBeVisible();
+  await expect(page.locator('.timeline-item').first()).toBeVisible();
+  await page.screenshot({ path: shots('06-novidades') });
 });

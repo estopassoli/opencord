@@ -2,7 +2,7 @@ import { MobileNavButton } from '../../components/MobileNavButton';
 import { Avatar, Button, Icon } from '@opencord/ui';
 import type { Member } from '@opencord/contracts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useContextMenu } from '../../components/ContextMenu';
+import { openContextMenu, useContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Tooltip } from '../../components/Tooltip';
 import { deviceMenu } from './devices';
 import { useShallow } from 'zustand/react/shallow';
@@ -215,6 +215,14 @@ function FocusLayout({
         </Tooltip>
         {!hidden && (
           <ul className="stage-strip">
+            {/* as outras transmissões (inclusive a minha) ficam na faixa: um clique assiste e destaca */}
+            {participants
+              .filter((p) => p.hasScreen && p.identity !== exclude)
+              .map((p) => (
+                <li key={`s-${p.identity}`}>
+                  <StripStream p={p} />
+                </li>
+              ))}
             {participants
               .filter((p) => p.identity !== exclude || p.hasCamera)
               .map((p) => (
@@ -226,6 +234,28 @@ function FocusLayout({
         )}
       </div>
     </div>
+  );
+}
+
+/** Transmissão na faixa sob o destaque: miniatura "AO VIVO"; clique assiste e põe em destaque. */
+function StripStream({ p }: { p: ParticipantView }) {
+  const open = () => {
+    if (p.isLocal) useUi.getState().focusStream(p.identity);
+    else useVoice.getState().watch(p.identity, true);
+  };
+  return (
+    <button
+      className="tile strip-stream"
+      data-compact="true"
+      aria-label={p.isLocal ? 'Ver sua transmissão' : `Assistir a transmissão de ${p.name}`}
+      onClick={open}
+    >
+      {p.watchingScreen ? <Video identity={p.identity} source="screen" /> : <Icon name="screen" size={28} />}
+      <span className="tile-label">
+        <span className="live-pill">AO VIVO</span>
+        <span className="truncate">{p.isLocal ? 'Sua transmissão' : p.name}</span>
+      </span>
+    </button>
   );
 }
 
@@ -309,8 +339,47 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
     if (doc.fullscreenElement) void doc.exitFullscreen();
     else void box.current?.requestFullscreen();
   };
+  // botão direito na transmissão: volume do áudio dela (só para mim), silenciar, janela, tela cheia, parar de assistir
+  const menu = (e: React.MouseEvent) => {
+    const vol = useVoice.getState().screenVolume[p.identity] ?? 1;
+    const items: MenuEntry[] = [];
+    if (!p.isLocal && p.screenAudio)
+      items.push(
+        {
+          kind: 'slider',
+          label: 'Volume da transmissão',
+          value: vol,
+          min: 0,
+          max: 2,
+          step: 0.05,
+          format: (x) => `${Math.round(x * 100)}%`,
+          onChange: (x) => useVoice.getState().setScreenVolume(p.identity, x),
+        },
+        {
+          label: 'Silenciar transmissão',
+          hint: 'Só para você',
+          checked: vol === 0,
+          onSelect: () => useVoice.getState().setScreenVolume(p.identity, vol === 0 ? 1 : 0),
+        },
+        'separator',
+      );
+    if (watching && !mobile && !inPopout)
+      items.push({
+        label: 'Abrir em nova janela',
+        icon: 'popout',
+        onSelect: () => {
+          useUi.getState().focusStream(p.identity);
+          openStreamWindow(p.identity);
+        },
+      });
+    if (watching) items.push({ label: 'Tela cheia', icon: 'maximize', onSelect: fullscreen });
+    if (!p.isLocal && watching)
+      items.push({ label: 'Parar de assistir', icon: 'eye-off', onSelect: () => engineWatch(false) });
+    if (!p.isLocal && !watching) items.push({ label: 'Assistir', icon: 'play', onSelect: () => engineWatch(true) });
+    if (items.length) openContextMenu(e, items, `Transmissão de ${p.name}`);
+  };
   return (
-    <div className="tile tile-stream" ref={box} data-large={large ? 'true' : undefined}>
+    <div className="tile tile-stream" ref={box} data-large={large ? 'true' : undefined} onContextMenu={menu}>
       {elsewhere ? (
         <div className="stream-cover">
           <Icon name="popout" size={32} />

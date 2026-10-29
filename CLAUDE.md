@@ -26,6 +26,7 @@ Você é o agente de implementação do OpenCord. Leia `docs/PRD.md`, `docs/SDD.
 7. Continue com a próxima tarefa desbloqueada, sem pular gates de aceite.
 
 ## Convenções
+- Toda mudança perceptível pelo usuário ganha uma entrada na linha do tempo "Novidades" (`apps/desktop/src/features/home/changelog.ts`, mais nova primeiro, texto para quem usa).
 - pnpm + Turborepo, TypeScript strict, NestJS/Fastify, React/Vite/Electron, Prisma/PostgreSQL, Redis, Socket.IO, LiveKit, coturn.
 - API de domínio tipada; schemas compartilhados em `packages/contracts`.
 - Sem uso de `any` salvo exceção documentada; sem secrets hardcoded.

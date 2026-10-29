@@ -3408,3 +3408,116 @@ a.rail-item {
     transform: none;
   }
 }
+
+/* ---------- Novidades (linha do tempo) ---------- */
+.news-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px 48px;
+}
+.news-intro {
+  margin: 0 0 16px;
+}
+.news-day + .news-day {
+  margin-top: 24px;
+}
+.news-date {
+  margin: 0 0 12px;
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.timeline {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 4px;
+  max-width: 760px;
+}
+/* trilho vertical */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--border);
+}
+.timeline-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 14px;
+  padding-bottom: 12px;
+}
+.timeline-dot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--elevated);
+  color: var(--text-2);
+  box-shadow: 0 0 0 4px var(--chat);
+}
+.timeline-item[data-kind='novo'] .timeline-dot {
+  background: var(--brand);
+  color: var(--text-on-brand);
+}
+.timeline-item[data-kind='correção'] .timeline-dot {
+  color: var(--success);
+}
+.timeline-card {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--sidebar);
+}
+.timeline-card h4 {
+  margin: 2px 0 4px;
+  font-size: 0.95rem;
+}
+.timeline-card p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.timeline-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.timeline-kind {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--interactive);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.timeline-item[data-kind='novo'] .timeline-kind {
+  background: color-mix(in srgb, var(--brand) 25%, transparent);
+  color: var(--brand-text);
+}
+
+/* transmissões na faixa sob o destaque */
+.strip-stream {
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.strip-stream:hover,
+.strip-stream:focus-visible {
+  outline-color: var(--brand-text);
+}
