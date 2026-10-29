@@ -20,6 +20,30 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '20:10',
+    kind: 'melhoria',
+    icon: 'users',
+    title: 'Ocultar/mostrar membros com animação',
+    body: 'A faixa de membros sob a live recolhe e aparece suavemente, e a transmissão cresce junto.',
+  },
+  {
+    date: '2026-10-29',
+    time: '20:05',
+    kind: 'melhoria',
+    icon: 'users',
+    title: 'Card "Em atividade" redesenhado',
+    body: 'Mostra o servidor, o canal, quem está na chamada, quem está transmitindo e o vídeo em "Assistir juntos", com botão para entrar na chamada.',
+  },
+  {
+    date: '2026-10-29',
+    time: '20:00',
+    kind: 'correção',
+    icon: 'chat',
+    title: 'Caixa de mensagem no tom do tema',
+    body: 'A barra de escrever usava um cinza claro de botão; agora segue o tema escolhido, com borda sutil e destaque ao digitar.',
+  },
+  {
+    date: '2026-10-29',
     time: '19:50',
     kind: 'correção',
     icon: 'screen',

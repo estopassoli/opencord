@@ -406,7 +406,7 @@ export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
-    ref.current?.querySelector<HTMLButtonElement>('.activity-card')?.focus();
+    ref.current?.querySelector<HTMLButtonElement>('.app-card')?.focus();
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
@@ -427,11 +427,11 @@ export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
       </div>
       <ul className="activities-list">
         <li>
-          <button className="activity-card activity-youtube" onClick={openYouTube}>
-            <span className="activity-art" aria-hidden="true">
+          <button className="app-card app-youtube" onClick={openYouTube}>
+            <span className="app-art" aria-hidden="true">
               <Icon name="play" size={34} />
             </span>
-            <span className="activity-name">
+            <span className="app-name">
               <strong>YouTube</strong>
               <span className="muted small">{running ? 'Em andamento: abrir' : 'Assistir juntos'}</span>
             </span>

@@ -150,12 +150,31 @@ test('dois usuários entram na mesma sala e se veem; indicador de fala acende', 
   );
   console.warn('SOUNDS_A', JSON.stringify(soundsA));
   expect(soundsA).toEqual(expect.arrayContaining(['join', 'peerJoin']));
+  // tela inicial (Amigos): card "Em atividade" com o canal, quem está nele e o botão para abrir a chamada
+  await A.page.getByRole('button', { name: 'Mensagens diretas' }).first().click();
+  // a coluna "Em atividade" só aparece em janelas largas
+  await A.app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]!.setBounds({ x: 0, y: 0, width: 1700, height: 900 }),
+  );
+  await A.page.getByRole('navigation', { name: 'Início' }).getByRole('button', { name: 'Amigos' }).click();
+  const now = A.page.locator('.now-card').filter({ hasText: 'Sala' });
+  await expect(now).toBeVisible({ timeout: 10_000 });
+  await expect(now).toContainText(B_NICK);
+  await A.page.screenshot({ path: shot('17-em-atividade') });
+  await now.getByRole('button', { name: 'Abrir chamada' }).click();
+  await expect(A.page.locator('.stage-grid, .stage-focus').first()).toBeVisible();
+  await A.app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]!.setBounds({ x: 0, y: 0, width: 1280, height: 800 }),
+  );
   test.info().annotations.push({ type: 'join-ms', description: String(joinMs) });
 });
 
 test('dono: botão direito no espaço livre da lista oferece criar canal e categoria', async () => {
-  const last = (await A.page.locator('.sidebar-scroll .cat').last().boundingBox())!;
-  await A.page.mouse.click(last.x + last.width / 2, last.y + last.height + 24, { button: 'right' });
+  // botão direito no próprio contêiner da lista (espaço livre, fora de canais/categorias)
+  const list = (await A.page.locator('.sidebar-scroll').boundingBox())!;
+  await A.page
+    .locator('.sidebar-scroll')
+    .dispatchEvent('contextmenu', { clientX: list.x + 40, clientY: list.y + list.height / 2, button: 2 });
   const menu = A.page.getByRole('menu', { name: 'Opções da lista de canais' });
   await expect(menu.getByRole('menuitem', { name: 'Criar canal' })).toBeVisible();
   await menu.getByRole('menuitem', { name: 'Criar categoria' }).click();

@@ -5,6 +5,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useData } from '../../store/data';
 import { api, describeError, loadFriends } from '../../store/session';
 import { useUi } from '../../store/ui';
+import { useActivity } from '../../store/activity';
+import { useVoice } from '../../store/voice';
 
 type Tab = 'online' | 'all' | 'pending' | 'blocked' | 'add';
 const TABS: [Tab, string][] = [
@@ -232,6 +234,8 @@ function ActivityColumn() {
   const voiceStates = useData((s) => s.voiceStates);
   const details = useData((s) => s.details);
   const meId = useData((s) => s.me?.id);
+  const activities = useActivity((s) => s.channels);
+  const myCall = useVoice((s) => (s.machine.status === 'disconnected' ? null : s.machine.channelId));
   const active = Object.values(voiceStates).filter((v) => v.userId !== meId);
   const byChannel = new Map<string, typeof active>();
   for (const v of active) byChannel.set(v.channelId, [...(byChannel.get(v.channelId) ?? []), v]);
@@ -249,27 +253,68 @@ function ActivityColumn() {
         [...byChannel].map(([channelId, states]) => {
           const server = details[states[0]?.serverId ?? ''];
           const channel = server?.channels.find((c) => c.id === channelId);
+          const nameOf = (id: string) => {
+            const m = server?.members.find((x) => x.user.id === id);
+            return m?.nickname ?? m?.user.displayName ?? 'Alguém';
+          };
           const streaming = states.filter((s) => s.streaming);
+          const names = states.map((s) => nameOf(s.userId));
+          const people = names.length <= 2 ? names.join(' e ') : `${names[0]} e mais ${names.length - 1}`;
+          const watch = activities[channelId];
+          const open = () => server && useUi.getState().go({ kind: 'server', serverId: server.id, channelId });
+          const here = myCall === channelId;
           return (
-            <button
+            <article
               key={channelId}
-              className="activity-card"
-              onClick={() => server && useUi.getState().go({ kind: 'server', serverId: server.id, channelId })}
+              className="now-card"
+              aria-label={`${channel?.name ?? 'Canal de voz'} em ${server?.name ?? ''}`}
             >
-              <span className="activity-avatars">
-                {states.slice(0, 4).map((s) => {
-                  const m = server?.members.find((x) => x.user.id === s.userId);
-                  return <Avatar key={s.userId} id={s.userId} name={m?.user.displayName ?? '?'} size={28} />;
-                })}
-              </span>
-              <span className="activity-text">
-                <strong className="truncate">{channel?.name ?? 'Canal de voz'}</strong>
-                <span className="muted small truncate">
-                  {server?.name} · {states.length} na chamada{streaming.length ? ` · ${streaming.length} ao vivo` : ''}
+              <div className="now-head">
+                <span className="now-server" aria-hidden="true">
+                  {(server?.name ?? '?').slice(0, 2).toUpperCase()}
                 </span>
-              </span>
-              {streaming.length > 0 && <span className="live-pill">AO VIVO</span>}
-            </button>
+                <span className="truncate">{server?.name}</span>
+                {streaming.length > 0 && <span className="live-pill">AO VIVO</span>}
+              </div>
+              <button className="now-channel" onClick={open}>
+                <Icon name="speaker" size={18} />
+                <span className="truncate">{channel?.name ?? 'Canal de voz'}</span>
+              </button>
+              <div className="now-people">
+                <span className="now-avatars">
+                  {states.slice(0, 5).map((s) => (
+                    <Avatar key={s.userId} id={s.userId} name={nameOf(s.userId)} size={28} />
+                  ))}
+                </span>
+                <span className="muted small truncate">{people}</span>
+              </div>
+              {streaming.length > 0 && (
+                <span className="now-extra live">
+                  <Icon name="screen" size={14} />
+                  <span className="truncate">
+                    {streaming.length === 1
+                      ? `${nameOf(streaming[0]!.userId)} está transmitindo`
+                      : `${streaming.length} transmissões`}
+                  </span>
+                </span>
+              )}
+              {watch && (
+                <span className="now-extra watch">
+                  <Icon name="play" size={14} />
+                  <span className="truncate">Assistindo: {watch.title ?? 'vídeo do YouTube'}</span>
+                </span>
+              )}
+              <Button
+                variant="secondary"
+                className="now-join"
+                onClick={() => {
+                  open();
+                  if (!here && server) void useVoice.getState().join(channelId, server.id);
+                }}
+              >
+                {here ? 'Abrir chamada' : 'Entrar na chamada'}
+              </Button>
+            </article>
           );
         })
       )}
