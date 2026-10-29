@@ -169,9 +169,9 @@
     margin-bottom: max(8px, env(safe-area-inset-bottom));
   }
 
-  /* no celular não faz sentido oferecer o instalador do Windows */
+  /* no celular não faz sentido oferecer o app desktop */
   .rail-li:has(a.rail-item),
-  .download-cta {
+  .download-block {
     display: none;
   }
 

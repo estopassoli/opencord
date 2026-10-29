@@ -136,6 +136,7 @@ Status: `[ ]` pendente, `[x]` concluído com evidência. Não marcar `x` sem tes
 | 2026-10-29 | F2 | `pnpm --filter @opencord/api test:integration` → 64/64 | verde | — |
 | 2026-10-29 | F3/F4 | E2E voice 6/6 + golive-real 1/1 (Windows, 2 instâncias) | verde em 1 máquina | 2º PC / redes distintas |
 | 2026-10-29 | F5 | instalador NSIS + smoke no app empacotado; REA fuses | gerado, não assinado | certificado |
+| 2026-10-29 | F5 | instaladores macOS (dmg arm64/x64) e Linux (AppImage/deb) no workflow `desktop.yml` (ADR-0008); Linux empacotado iniciou em WSLg | gerados, não assinados | validar em Mac e Linux reais |
 | 2026-10-29 | F6 | load 10×3; backup/restore; revisão de segurança | ver docs | auditoria externa |
 | 2026-10-29 | ADR-0007 | int 76/76; E2E 14/14 (só apelido, conta opcional, explorar servidores) | verde | — |
 | 2026-10-29 | F0.5 | `selftest` silencioso (runs 8–9), `getStats` | NVENC H.264/HEVC | outras GPUs |

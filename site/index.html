@@ -6,15 +6,17 @@
     <title>OpenCord — chat, voz e Go Live para o seu grupo</title>
     <meta
       name="description"
-      content="OpenCord é um app gratuito de chat, voz e transmissão de tela com áudio do sistema para grupos de amigos. Entre só com um apelido, no navegador ou no Windows."
+      content="OpenCord é um app gratuito de chat, voz e transmissão de tela com áudio do sistema para grupos de amigos. Entre só com um apelido, no navegador ou no app para Windows, macOS e Linux."
     />
     <meta name="theme-color" content="#4d56fd" />
     <meta property="og:title" content="OpenCord" />
     <meta
       property="og:description"
-      content="Chat, voz e Go Live com áudio do sistema. Gratuito, sem anúncios, no navegador ou no Windows."
+      content="Chat, voz e Go Live com áudio do sistema. Gratuito, sem anúncios, no navegador ou no app para Windows, macOS e Linux."
     />
     <meta property="og:image" content="https://opencord.pro/assets/opencord-logo.png" />
+    <!-- servidor que publica os instaladores (GET /downloads/desktop) -->
+    <meta name="opencord-api" content="https://api.opencord.pro" />
     <link rel="icon" type="image/png" href="assets/opencord-logo.png" />
     <link rel="preload" href="assets/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="styles.css" />
@@ -50,15 +52,10 @@
           <h1 class="reveal">Seu grupo, sua voz, <span class="accent">seu servidor.</span></h1>
           <p class="lead reveal">
             Um lugar para a turma conversar, jogar junto e transmitir a tela <strong>com o áudio do jogo</strong>.
-            Escolha um apelido e entre: no navegador, agora mesmo, ou no app para Windows.
+            Escolha um apelido e entre: no navegador, agora mesmo, ou no app para Windows, macOS e Linux.
           </p>
           <div class="cta cta-center reveal">
-            <a
-              class="btn btn-light btn-lg"
-              id="download"
-              href="https://github.com/estopassoli/opencord/releases/latest"
-              rel="noopener"
-            >
+            <a class="btn btn-light btn-lg js-download" id="download" href="https://app.opencord.pro" rel="noopener">
               <span class="ic" aria-hidden="true"
                 ><svg
                   class="o"
@@ -88,7 +85,7 @@
                     d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z"
                     clip-rule="evenodd"
                   ></path></svg></span
-              ><span id="download-label">Baixar para Windows</span>
+              ><span class="download-label">Baixar o app</span>
             </a>
             <a class="btn btn-dark btn-lg" href="https://app.opencord.pro" rel="noopener">
               <span class="ic" aria-hidden="true"
@@ -121,7 +118,8 @@
               ><span>Abrir no navegador</span>
             </a>
           </div>
-          <p class="fine reveal" id="download-meta">Windows 11 (64 bits) ou qualquer navegador moderno</p>
+          <p class="fine reveal" id="download-meta">Windows, macOS e Linux (64 bits) ou qualquer navegador moderno</p>
+          <p class="fine download-others" id="download-others" hidden></p>
 
           <div
             class="mock reveal"
@@ -990,8 +988,9 @@ pnpm --filter @opencord/desktop build</code></pre>
                       clip-rule="evenodd"
                     ></path></svg
                 ></span>
-                Interface no navegador, inclusive no celular, e instalador para Windows (ainda sem assinatura digital,
-                então o Windows pode exibir um aviso).
+                Interface no navegador, inclusive no celular, e app para Windows, macOS e Linux (ainda sem assinatura
+                digital: o Windows pode exibir um aviso, e no macOS a primeira abertura é liberada em Ajustes do Sistema
+                → Privacidade e Segurança → Abrir mesmo assim).
               </li>
               <li class="pending">
                 <span class="ic" aria-hidden="true"
@@ -1078,8 +1077,9 @@ pnpm --filter @opencord/desktop build</code></pre>
           <details class="reveal">
             <summary>Preciso instalar alguma coisa?</summary>
             <p>
-              Não. Dá para usar direto no navegador em app.opencord.pro, no computador ou no celular. O app para Windows
-              existe para quem quer bandeja, atalhos globais e transmitir o jogo com o áudio do sistema.
+              Não. Dá para usar direto no navegador em app.opencord.pro, no computador ou no celular. O app para
+              computador (Windows, macOS e Linux) existe para quem quer bandeja e atalhos globais. Transmitir o jogo com
+              o áudio do sistema, por enquanto, só no app para Windows.
             </p>
           </details>
           <details class="reveal">
@@ -1108,10 +1108,7 @@ pnpm --filter @opencord/desktop build</code></pre>
         <div class="wrap final-inner reveal">
           <h2>Pronto para chamar a turma?</h2>
           <div class="cta cta-center">
-            <a
-              class="btn btn-light btn-lg"
-              href="https://github.com/estopassoli/opencord/releases/latest"
-              rel="noopener"
+            <a class="btn btn-light btn-lg js-download" href="https://app.opencord.pro" rel="noopener"
               ><span class="ic" aria-hidden="true"
                 ><svg
                   class="o"
@@ -1141,7 +1138,7 @@ pnpm --filter @opencord/desktop build</code></pre>
                     d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z"
                     clip-rule="evenodd"
                   ></path></svg></span
-              ><span>Baixar para Windows</span></a
+              ><span class="download-label">Baixar o app</span></a
             >
             <a class="btn btn-dark btn-lg" href="https://app.opencord.pro" rel="noopener"
               ><span class="ic" aria-hidden="true"

@@ -304,6 +304,17 @@ h1 {
   color: rgb(255 255 255 / 0.7);
   font-size: 14px;
 }
+.download-others {
+  margin-top: 6px;
+}
+.download-others a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+[hidden] {
+  display: none !important;
+}
 .hero .mock {
   width: min(980px, 100%);
   margin: 64px 0 -2px;

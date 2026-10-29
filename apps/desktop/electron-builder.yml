@@ -1,7 +1,12 @@
-# Empacotamento Windows (NSIS). Executado no Windows a partir da pasta preparada por scripts/stage-windows.mjs.
+# Empacotamento: Windows (NSIS), macOS (dmg arm64 + x64) e Linux (AppImage + deb), cada um no próprio SO
+# (workflow .github/workflows/desktop.yml). Os nomes dos arquivos seguem um padrão fixo porque a API
+# (/downloads/desktop) identifica plataforma e arquitetura pelo nome.
 appId: org.opencord.desktop
 productName: OpenCord
 copyright: OpenCord contributors
+extraMetadata:
+  homepage: https://opencord.pro
+  desktopName: opencord.desktop
 directories:
   output: release
   buildResources: resources
@@ -9,6 +14,8 @@ files:
   - dist/**/*
   - dist-electron/**/*
   - '!**/*.map'
+  # main/preload (esbuild) e renderer (vite) já saem empacotados; node_modules só inflaria o instalador.
+  - '!node_modules/**/*'
   - package.json
 asar: true
 win:
@@ -16,9 +23,40 @@ win:
     - target: nsis
       arch: [x64]
   icon: resources/icon.ico
+  artifactName: OpenCord-Setup-${version}-${arch}.${ext}
   # Assinatura: configurar CSC_LINK/CSC_KEY_PASSWORD (ou signtool) quando houver certificado. Sem certificado o
   # instalador não é assinado e o Windows SmartScreen exibirá aviso (registrado em docs).
   signAndEditExecutable: true
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  icon: resources/icon.png
+  category: public.app-category.social-networking
+  artifactName: OpenCord-${version}-mac-${arch}.${ext}
+  # Sem certificado Apple: assinatura ad-hoc ("-"), sem notarização. O Gatekeeper pede "Abrir mesmo assim"
+  # em Ajustes do Sistema → Privacidade e Segurança na primeira execução (registrado em docs).
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  extendInfo:
+    NSMicrophoneUsageDescription: O OpenCord usa o microfone nos canais de voz.
+    NSCameraUsageDescription: O OpenCord usa a câmera quando você liga o vídeo.
+dmg:
+  artifactName: OpenCord-${version}-mac-${arch}.${ext}
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  icon: resources/icon.png
+  category: Network
+  executableName: opencord
+  syncDesktopName: true
+  maintainer: OpenCord contributors <noreply@opencord.pro>
+  synopsis: Chat, voz e transmissão de tela self-hosted
+  artifactName: OpenCord-${version}-linux-${arch}.${ext}
 nsis:
   oneClick: false
   perMachine: false

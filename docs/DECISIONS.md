@@ -24,6 +24,7 @@
 - 2026-10-29 | Go Live com simulcast (H.264 em software no Chromium 152) | camada única com NVENC | camada única ficou em 480×270 no teste | revisitar | agente
 
 - 2026-10-29 | Conta opcional (entrar só com apelido), sem endereço do servidor e servidores abertos sem convites (ADR-0007) | convite + login | pedido do mantenedor | instância aberta por padrão; código de acesso opcional; sem ban | mantenedor
+- 2026-10-29 | App desktop também para macOS (dmg arm64/x64) e Linux (AppImage/deb), gerados no workflow `desktop.yml`; API lista todas as plataformas (ADR-0008) | só Windows | pedido do mantenedor | macOS sem notarização; áudio do sistema no Go Live só no Windows | mantenedor
 
 ## Pendentes de decisão do mantenedor
 - Licença (MIT, Apache-2.0 ou AGPL-3.0); não inventar licença. **Ainda pendente; nenhum arquivo LICENSE foi criado.**
