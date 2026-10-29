@@ -1400,6 +1400,12 @@ textarea:focus-visible {
   object-fit: contain;
   background: #000;
 }
+/* dentro do card o vídeo preenche por posição absoluta: o tamanho natural dele não altera o layout,
+   e com contain o quadro inteiro aparece (faixas pretas quando a proporção não bate) */
+.tile > .video {
+  position: absolute;
+  inset: 0;
+}
 .mirrored {
   transform: scaleX(-1);
 }
@@ -1438,7 +1444,8 @@ textarea:focus-visible {
 .stage-focus {
   flex: 1;
   display: grid;
-  grid-template-rows: 1fr auto;
+  /* minmax(0, 1fr): o destaque nunca passa do espaço disponível (com 1fr, a altura do vídeo empurrava a linha) */
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 8px;
   padding: 12px;
   min-height: 0;
@@ -2857,7 +2864,7 @@ a.rail-item {
   padding-bottom: 88px;
 }
 .stage-focus[data-strip='hidden'] {
-  grid-template-rows: 1fr;
+  grid-template-rows: minmax(0, 1fr);
 }
 .strip-wrap {
   position: relative;

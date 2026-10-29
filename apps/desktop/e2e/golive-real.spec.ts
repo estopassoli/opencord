@@ -115,6 +115,36 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
     };
   });
   console.warn('GOLIVE_FIT_OWN', JSON.stringify(ownFit));
+  // janela grande como a do relato (2000×1088): o quadro inteiro tem de caber acima da faixa de membros
+  await B.app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]!.setBounds({ x: 0, y: 0, width: 2000, height: 1088 }),
+  );
+  await B.page.waitForTimeout(800);
+  const big = await B.page.evaluate(() => {
+    const el = document.querySelector<HTMLVideoElement>('.tile-stream[data-large="true"] video')!;
+    const tile = el.closest('.tile')!.getBoundingClientRect();
+    const strip = document.querySelector('.strip-wrap')?.getBoundingClientRect();
+    const stage = el.closest('.stage')!.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    // área realmente pintada com object-fit: contain
+    const scale = Math.min(r.width / el.videoWidth, r.height / el.videoHeight);
+    const w = el.videoWidth * scale;
+    const h = el.videoHeight * scale;
+    const top = r.top + (r.height - h) / 2;
+    return {
+      contentBottom: Math.round(top + h),
+      contentRight: Math.round(r.left + (r.width + w) / 2),
+      tileBottom: Math.round(tile.bottom),
+      tileRight: Math.round(tile.right),
+      stripTop: strip ? Math.round(strip.top) : null,
+      stageBottom: Math.round(stage.bottom),
+    };
+  });
+  console.warn('GOLIVE_FIT_BIG', JSON.stringify(big));
+  expect(big.contentBottom).toBeLessThanOrEqual(big.tileBottom + 1);
+  expect(big.contentRight).toBeLessThanOrEqual(big.tileRight + 1);
+  if (big.stripTop !== null) expect(big.tileBottom).toBeLessThanOrEqual(big.stripTop + 1);
+  expect(big.tileBottom).toBeLessThanOrEqual(big.stageBottom);
   await A.page.screenshot({ path: 'e2e/results/41-golive-own-focus.png' });
   expect(ownFit.videoH).toBeLessThanOrEqual(ownFit.tileH);
   expect(ownFit.videoW).toBeLessThanOrEqual(ownFit.tileW);

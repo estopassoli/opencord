@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '19:50',
+    kind: 'correção',
+    icon: 'screen',
+    title: 'A live mostra a tela inteira',
+    body: 'Com os membros à mostra em janelas grandes, a parte de baixo da transmissão era cortada. Agora o quadro inteiro aparece, com faixas pretas quando a proporção não bate.',
+  },
+  {
+    date: '2026-10-29',
     time: '19:35',
     kind: 'melhoria',
     icon: 'activities',
