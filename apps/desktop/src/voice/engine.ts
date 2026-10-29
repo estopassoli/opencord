@@ -418,10 +418,11 @@ export class VoiceEngine {
         source: Track.Source.ScreenShare,
         videoCodec: codec,
         backupCodec: codec === 'vp8' ? false : { codec: 'vp8' },
-        // Simulcast: espectadores recebem a camada adequada ao tamanho do player (adaptiveStream).
-        // Limitação medida (E2E golive-real, Chromium 152): com simulcast o H.264 usa SimulcastEncoderAdapter em
-        // software, não NVENC. Camada única sem simulcast ficou presa em 480×270 neste ambiente — ver docs/research.
-        simulcast: true,
+        // Camada única: com simulcast, banda estimada baixa desligava a camada cheia e o espectador recebia só a
+        // de meia resolução (960×540, texto borrado — relato real). Medido no E2E golive-real: com 'detail' +
+        // maintain-resolution a camada única mantém 1920×1080 no espectador. Custo: sem camada leve para
+        // espectadores com download fraco (aceitável para grupos pequenos).
+        simulcast: false,
         screenShareEncoding: { maxBitrate: profile.maxBitrate, maxFramerate: profile.fps, priority: 'medium' },
         // sob falta de banda/CPU reduz fps, não resolução: texto continua legível
         degradationPreference: 'maintain-resolution',
