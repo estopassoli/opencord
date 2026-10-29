@@ -1,5 +1,9 @@
 import type { IconType } from 'react-icons';
 import {
+  HiOutlineRectangleGroup,
+  HiOutlineSquares2X2,
+  HiRectangleGroup,
+  HiSquares2X2,
   HiAtSymbol,
   HiOutlineAtSymbol,
   HiArrowDownTray,
@@ -146,6 +150,10 @@ const ICONS = {
   signal: [HiOutlineSignal, HiSignal],
   maximize: [HiOutlineArrowsPointingOut, HiArrowsPointingOut],
   minimize: [HiOutlineArrowsPointingIn, HiArrowsPointingIn],
+  /** grade de participantes (voltar da transmissão em destaque) */
+  grid: [HiOutlineSquares2X2, HiSquares2X2],
+  /** destacar um item no palco */
+  spotlight: [HiOutlineRectangleGroup, HiRectangleGroup],
   lock: [HiOutlineLockClosed, HiLockClosed],
   'chevron-down': [HiOutlineChevronDown, HiChevronDown],
   'chevron-right': [HiOutlineChevronRight, HiChevronRight],

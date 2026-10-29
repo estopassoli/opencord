@@ -112,13 +112,16 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
 
 function Video({ identity, source, mirrored }: { identity: string; source: 'camera' | 'screen'; mirrored?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
-  const participants = useVoice((s) => s.participants);
+  // reanexa só quando a TRILHA muda: depender da lista de participantes reanexava a cada fala/mute/qualidade e o
+  // vídeo piscava (relato real durante Go Live). O seletor devolve um id (primitivo), então só muda com a trilha.
+  // (o seletor roda a cada atualização da store, inclusive as de participantes)
+  const trackId = useVoice((s) => s.engine()?.videoTrack(identity, source)?.id ?? '');
   useEffect(() => {
     const el = ref.current;
     const engine = useVoice.getState().engine();
-    if (!el || !engine) return;
+    if (!el || !engine || !trackId) return;
     return engine.attach(identity, source, el);
-  }, [identity, source, participants]);
+  }, [identity, source, trackId]);
   return <video ref={ref} autoPlay playsInline muted className={mirrored ? 'video mirrored' : 'video'} />;
 }
 
@@ -178,7 +181,7 @@ function StreamTile({ p, large }: { p: ParticipantView; large?: boolean }) {
               title="Destacar"
               onClick={() => useUi.getState().focusStream(p.identity)}
             >
-              <Icon name="maximize" />
+              <Icon name="spotlight" />
             </button>
           ) : (
             <button
@@ -187,7 +190,7 @@ function StreamTile({ p, large }: { p: ParticipantView; large?: boolean }) {
               title="Voltar à grade"
               onClick={() => useUi.getState().focusStream(null)}
             >
-              <Icon name="minimize" />
+              <Icon name="grid" />
             </button>
           )}
           <button className="icon-btn" aria-label="Tela cheia" title="Tela cheia" onClick={fullscreen}>
