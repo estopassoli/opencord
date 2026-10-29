@@ -299,6 +299,9 @@ importers:
       '@opencord/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@sapphi-red/web-noise-suppressor':
+        specifier: 0.4.1
+        version: 0.4.1
       livekit-client:
         specifier: 2.22.4
         version: 2.22.4(@types/dom-mediacapture-record@1.0.22)
@@ -1294,6 +1297,9 @@ packages:
     resolution: {integrity: sha512-+Y1Sd49cSDq60UOl8/U2HI0ebUvnSl/hDhMHQn+ouw17yb8fYwMWIazzJ4JFpSkjPE7sj5NTNSX9IoyEqcFfyQ==}
     cpu: [x64]
     os: [win32]
+
+  '@sapphi-red/web-noise-suppressor@0.4.1':
+    resolution: {integrity: sha512-hy2GnF079+zi4n9BZUf+GGIQ1IofApAk6rgGMyMQ3soHfz/GKu1pcCsmePyIHVvUuv1LrFudw9BmmBqoOKay5w==}
 
   '@socket.io/component-emitter@3.1.2':
     resolution: {integrity: sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA==}
@@ -3688,6 +3694,8 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.65.1':
     optional: true
+
+  '@sapphi-red/web-noise-suppressor@0.4.1': {}
 
   '@socket.io/component-emitter@3.1.2': {}
 

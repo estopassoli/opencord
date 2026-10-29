@@ -29,6 +29,7 @@ import {
   Track,
   type VideoCodec,
 } from 'livekit-client';
+import { RNNOISE, RnnoiseProcessor } from './noise';
 import { bridge } from '../lib/bridge';
 
 export interface ParticipantView {
@@ -138,6 +139,7 @@ export class VoiceEngine {
       for (const pub of p.trackPublications.values()) this.autoSubscribe(pub as RemoteTrackPublication, p);
     if (opts.canSpeak) {
       await room.localParticipant.setMicrophoneEnabled(true, this.captureOpts());
+      await this.applyNoiseFilter();
       await this.applyMic();
       this.startVad();
     }
@@ -275,6 +277,19 @@ export class VoiceEngine {
     this.emit();
   }
 
+  /** RNNoise junto com a supressão do navegador quando "Supressão de ruído" está ligada. Falha → segue sem filtro. */
+  private async applyNoiseFilter() {
+    const t = this.micTrack;
+    if (!t) return;
+    const active = t.getProcessor()?.name === RNNOISE;
+    try {
+      if (this.prefs.noiseSuppression && !active) await t.setProcessor(new RnnoiseProcessor());
+      else if (!this.prefs.noiseSuppression && active) await t.stopProcessor();
+    } catch (e) {
+      console.warn('supressão de ruído (RNNoise) indisponível', e);
+    }
+  }
+
   private startVad() {
     this.stopVad();
     if (this.prefs.inputMode !== 'vad') return;
@@ -358,6 +373,7 @@ export class VoiceEngine {
       prefs.noiseSuppression !== prev.noiseSuppression ||
       prefs.autoGainControl !== prev.autoGainControl;
     if (procChanged) await this.micTrack?.restartTrack(this.captureOpts()).catch(() => undefined);
+    if (prefs.noiseSuppression !== prev.noiseSuppression) await this.applyNoiseFilter();
     if (prefs.inputMode !== prev.inputMode || procChanged) {
       this.pttOpen = false;
       this.startVad();
@@ -402,7 +418,9 @@ export class VoiceEngine {
             restrictOwnAudio: true,
           } as MediaTrackConstraints)
         : false,
-    });
+      // navegador (sem bridge): pede o áudio do sistema já marcado no seletor do Chrome/Edge e esconde a própria aba
+      ...(bridge ? {} : { systemAudio: withAudio ? 'include' : 'exclude', selfBrowserSurface: 'exclude' }),
+    } as DisplayMediaStreamOptions);
     const [v] = stream.getVideoTracks();
     if (!v) throw new Error('nenhuma trilha de vídeo capturada');
     // 'detail': o encoder preserva nitidez (texto, interface) e sacrifica fps sob pressão; 'motion' borrava a tela
@@ -570,6 +588,7 @@ export class VoiceEngine {
         micMuted: mic?.isMuted ?? null,
         gateOpen: this.gateOpen,
         inputMode: this.prefs.inputMode,
+        noiseFilter: mic?.getProcessor()?.name ?? null,
       },
       remotes,
     };
