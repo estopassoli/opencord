@@ -32,7 +32,7 @@ async function main() {
     }));
 
   let server = await prisma.server.findFirst({ where: { ownerId: owner.id, name: 'OpenCord' } });
-  if (!server) server = await prisma.$transaction((tx) => createServerWithDefaults(tx, owner.id, 'OpenCord'));
+  if (!server) server = await prisma.$transaction((tx) => createServerWithDefaults(tx, owner.id, 'OpenCord', { official: true }));
 
   console.warn(
     JSON.stringify(

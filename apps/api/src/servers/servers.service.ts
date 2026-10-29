@@ -3,6 +3,7 @@ import {
   ALL_PERMISSIONS,
   Permission,
   hasPermission,
+  INVITE_CODE,
   rooms,
   type Category,
   type Channel,
@@ -10,8 +11,11 @@ import {
   type Role,
   type ServerDetail,
   type ServerDirectoryEntry,
+  type Invite,
+  type InvitePreview,
   type ServerSummary,
 } from '@opencord/contracts';
+import { randomInt } from 'node:crypto';
 import { createServerShell, createServerWithDefaults } from '@opencord/db';
 import type { ImportPlan } from './discord-template.js';
 import { PrismaService } from '../common/prisma.service.js';
@@ -25,6 +29,9 @@ import { PermissionsService, type ServerAccess } from './permissions.service.js'
 const MAX_SERVERS_PER_OWNER = 20;
 const MAX_CHANNELS = 200;
 const MAX_ROLES = 100;
+const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+/** 10 caracteres de um alfabeto sem ambíguos (~57 bits): inviável de adivinhar com o rate limit. */
+const inviteCode = () => Array.from({ length: 10 }, () => INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)]).join('');
 
 @Injectable()
 export class ServersService {
@@ -54,9 +61,9 @@ export class ServersService {
     return this.announceNew(server, userId);
   }
 
-  /** Servidor aberto: todos já são membros; avisa cada um conectado para carregar o servidor. */
+  /** Servidor novo: avisa cada membro conectado (no oficial, todos; no privado, só o dono) para carregá-lo. */
   private async announceNew(
-    server: { id: string; name: string; ownerId: string; iconKey: string | null },
+    server: { id: string; name: string; ownerId: string; iconKey: string | null; official: boolean },
     userId: string,
   ) {
     const members = await this.prisma.serverMember.findMany({
@@ -184,9 +191,10 @@ export class ServersService {
     await this.realtime.memberRemoved(serverId, userId, 'left');
   }
 
-  /** Diretório de servidores abertos, com contagem de membros e se o usuário já participa. */
+  /** Diretório: só os servidores oficiais (abertos a todos), com contagem de membros e se o usuário já participa. */
   async directory(userId: string): Promise<ServerDirectoryEntry[]> {
     const rows = await this.prisma.server.findMany({
+      where: { official: true },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
@@ -205,16 +213,63 @@ export class ServersService {
     }));
   }
 
-  /** Entrar num servidor aberto, sem convite. Idempotente. */
+  /** Entrar no servidor oficial pelo diretório, sem convite. Privados exigem convite (404, sem revelar que existem). */
   async join(serverId: string, userId: string): Promise<ServerDetail> {
-    const server = await this.prisma.server.findUnique({ where: { id: serverId }, select: { id: true } });
-    if (!server) throw notFound('servidor');
+    const server = await this.prisma.server.findUnique({ where: { id: serverId }, select: { official: true } });
+    if (!server?.official) throw notFound('servidor');
+    return this.addMember(serverId, userId, { via: 'directory' });
+  }
+
+  /** Idempotente: só audita e avisa quando a pessoa ainda não era membro. */
+  private async addMember(serverId: string, userId: string, meta: Record<string, string>): Promise<ServerDetail> {
     const created = await this.prisma.serverMember.createMany({ data: [{ serverId, userId }], skipDuplicates: true });
     if (created.count) {
-      await this.audit.log(userId, serverId, 'member.join', userId, { via: 'directory' });
+      await this.audit.log(userId, serverId, 'member.join', userId, meta);
       await this.realtime.memberJoined(serverId, userId);
     }
     return this.detail(serverId, userId);
+  }
+
+  // ---------- Convites ----------
+  /** Convite do membro para o servidor: reaproveita o que ele já criou (um link por pessoa e servidor). */
+  async createInvite(serverId: string, userId: string): Promise<Invite> {
+    await this.perms.server(serverId, userId); // 404 para quem não é membro
+    const existing = await this.prisma.invite.findFirst({ where: { serverId, creatorId: userId } });
+    if (existing) return { code: existing.code, serverId };
+    const invite = await this.prisma.invite.create({ data: { code: inviteCode(), serverId, creatorId: userId } });
+    await this.audit.log(userId, serverId, 'invite.create', invite.code, {});
+    return { code: invite.code, serverId };
+  }
+
+  async previewInvite(code: string, userId: string): Promise<InvitePreview> {
+    const inv = await this.findInvite(code);
+    const [memberCount, me] = await Promise.all([
+      this.prisma.serverMember.count({ where: { serverId: inv.serverId } }),
+      this.prisma.serverMember.findUnique({ where: { serverId_userId: { serverId: inv.serverId, userId } } }),
+    ]);
+    const s = inv.server;
+    return {
+      code: inv.code,
+      server: { id: s.id, name: s.name, iconKey: s.iconKey, official: s.official },
+      memberCount,
+      joined: Boolean(me),
+    };
+  }
+
+  async acceptInvite(code: string, userId: string): Promise<ServerDetail> {
+    const inv = await this.findInvite(code);
+    const already = await this.prisma.serverMember.findUnique({
+      where: { serverId_userId: { serverId: inv.serverId, userId } },
+    });
+    if (!already) await this.prisma.invite.update({ where: { code: inv.code }, data: { uses: { increment: 1 } } });
+    return this.addMember(inv.serverId, userId, { via: 'invite', code: inv.code });
+  }
+
+  private async findInvite(code: string) {
+    if (!INVITE_CODE.test(code)) throw notFound('convite');
+    const inv = await this.prisma.invite.findUnique({ where: { code }, include: { server: true } });
+    if (!inv) throw notFound('convite');
+    return inv;
   }
 
   async listMemberIds(serverId: string): Promise<string[]> {

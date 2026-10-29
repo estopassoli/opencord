@@ -15,11 +15,13 @@ export const serverSummary = (s: {
   name: string;
   iconKey: string | null;
   ownerId: string;
+  official: boolean;
 }): ServerSummary => ({
   id: s.id,
   name: s.name,
   iconKey: s.iconKey,
   ownerId: s.ownerId,
+  official: s.official,
 });
 
 export const role = (r: {

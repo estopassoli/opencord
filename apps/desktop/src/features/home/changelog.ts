@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '23:45',
+    kind: 'novo',
+    icon: 'verified',
+    title: 'Servidores privados com convite e OpenCord verificado',
+    body: 'Servidores que você cria agora são só seus até você convidar: use "Convidar pessoas" e envie o código; quem recebe cola em Explorar servidores → Tenho um convite. O servidor OpenCord continua aberto a todos e ganhou o selo de verificado.',
+  },
+  {
+    date: '2026-10-29',
     time: '22:15',
     kind: 'correção',
     icon: 'upload',

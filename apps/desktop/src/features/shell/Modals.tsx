@@ -1,7 +1,17 @@
-import type { Category, Channel, DiscordImportPreview, ServerDetail, ServerDirectoryEntry } from '@opencord/contracts';
+import type {
+  Category,
+  Channel,
+  DiscordImportPreview,
+  Invite,
+  InvitePreview,
+  ServerDetail,
+  ServerDirectoryEntry,
+} from '@opencord/contracts';
 import { Button, Icon, RadioGroup, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
+import { ServerIcon } from '../../components/ServerIcon';
+import { parseInviteCode } from '../../lib/invite';
 import { loadServer, api, describeError } from '../../store/session';
 import { useData } from '../../store/data';
 import { useUi, type Modal } from '../../store/ui';
@@ -21,6 +31,8 @@ export function Modals() {
       return <CreateServer onClose={close} />;
     case 'explore-servers':
       return <ExploreServers onClose={close} />;
+    case 'invite':
+      return <InviteDialog serverId={modal.serverId} onClose={close} />;
     case 'create-channel':
       return <CreateChannel modal={modal} onClose={close} />;
     case 'watch-together':
@@ -220,6 +232,115 @@ function ImportDiscord({ onClose }: { onClose: () => void }) {
 }
 
 /** Servidores são abertos a todos (ADR-0007): lista e entra com um clique, sem convite. */
+/** Convidar pessoas: mostra o código de convite do servidor (o mesmo a cada abertura) para copiar e enviar. */
+function InviteDialog({ serverId, onClose }: { serverId: string; onClose: () => void }) {
+  const name = useData((s) => s.details[serverId]?.name ?? s.servers.find((x) => x.id === serverId)?.name ?? '');
+  const [code, setCode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    api()
+      .request<Invite>('POST', `/servers/${serverId}/invites`)
+      .then(
+        (i) => setCode(i.code),
+        (e: unknown) => setError(describeError(e)),
+      );
+  }, [serverId]);
+  const copy = () => {
+    if (!code) return;
+    void navigator.clipboard.writeText(code).then(() => setCopied(true));
+  };
+  return (
+    <Dialog title={`Convidar pessoas para ${name}`} onClose={onClose}>
+      <p className="muted">
+        Envie este código. A pessoa entra em <strong>Explorar servidores → Tenho um convite</strong>.
+      </p>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="invite-code-row">
+        <TextField
+          label="Código de convite"
+          value={code ?? 'Gerando…'}
+          readOnly
+          onFocus={(e) => e.currentTarget.select()}
+        />
+        <Button icon={copied ? 'check' : 'copy'} disabled={!code} onClick={copy}>
+          {copied ? 'Copiado' : 'Copiar'}
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
+/** Colar um convite: mostra o servidor (prévia) e entra. */
+function InviteJoin({ onJoined }: { onJoined: (serverId: string) => void }) {
+  const [text, setText] = useState('');
+  const [preview, setPreview] = useState<InvitePreview | null>(null);
+  const look = useSubmit(async () => {
+    setPreview(null);
+    const code = parseInviteCode(text);
+    if (!code) throw new Error('Cole o código de convite (10 letras e números) ou o link.');
+    setPreview(await api().request<InvitePreview>('GET', `/invites/${code}`));
+  });
+  const join = useSubmit(async () => {
+    if (!preview) return;
+    await api().request<ServerDetail>('POST', `/invites/${preview.code}`);
+    await loadServer(preview.server.id);
+    onJoined(preview.server.id);
+  });
+  return (
+    <section className="invite-join" aria-label="Tenho um convite">
+      <h3 className="section-label">Tenho um convite</h3>
+      <form className="invite-code-row" onSubmit={(e) => void look.submit(e)}>
+        <TextField
+          label="Código ou link do convite"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setPreview(null);
+          }}
+          placeholder="ex.: hK3mP9xQ2a"
+        />
+        <Button type="submit" variant="secondary" disabled={look.busy || !text.trim()}>
+          Ver convite
+        </Button>
+      </form>
+      {(look.error ?? join.error) && (
+        <p className="form-error" role="alert">
+          {look.error ?? join.error}
+        </p>
+      )}
+      {preview && (
+        <form className="directory-row invite-preview" onSubmit={(e) => void join.submit(e)}>
+          <span className="directory-icon" aria-hidden>
+            <ServerIcon
+              name={preview.server.name}
+              iconKey={preview.server.iconKey}
+              official={preview.server.official}
+            />
+          </span>
+          <span className="directory-names">
+            <strong className="truncate">{preview.server.name}</strong>
+            <span className="muted small">{preview.memberCount} membro(s)</span>
+          </span>
+          {preview.joined ? (
+            <Button type="button" variant="secondary" size="sm" onClick={() => onJoined(preview.server.id)}>
+              Abrir
+            </Button>
+          ) : (
+            <Button type="submit" size="sm" disabled={join.busy}>
+              Entrar
+            </Button>
+          )}
+        </form>
+      )}
+    </section>
+  );
+}
+
 function ExploreServers({ onClose }: { onClose: () => void }) {
   const [list, setList] = useState<ServerDirectoryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -249,16 +370,25 @@ function ExploreServers({ onClose }: { onClose: () => void }) {
           {error}
         </p>
       )}
+      <InviteJoin
+        onJoined={(id) => {
+          useUi.getState().go({ kind: 'server', serverId: id, channelId: null });
+          onClose();
+        }}
+      />
+      <h3 className="section-label">Servidores abertos</h3>
       {!list && !error && <p className="muted">Carregando…</p>}
-      {list?.length === 0 && <p className="muted">Nenhum servidor ainda. Crie o primeiro!</p>}
+      {list?.length === 0 && <p className="muted">Nenhum servidor aberto.</p>}
       <ul className="directory">
         {list?.map((s) => (
           <li key={s.id} className="directory-row">
             <span className="directory-icon" aria-hidden>
-              {s.name.slice(0, 2).toUpperCase()}
+              <ServerIcon name={s.name} iconKey={s.iconKey} official />
             </span>
             <span className="directory-names">
-              <strong className="truncate">{s.name}</strong>
+              <strong className="truncate">
+                {s.name} <Icon name="verified" size={14} active label="Servidor oficial verificado" />
+              </strong>
               <span className="muted small">{s.memberCount} membro(s)</span>
             </span>
             {s.joined ? (

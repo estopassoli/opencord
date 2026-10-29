@@ -272,7 +272,7 @@ function ActivityColumn() {
             >
               <div className="now-head">
                 <span className="now-server" aria-hidden="true">
-                  <ServerIcon name={server?.name ?? '?'} iconKey={server?.iconKey} />
+                  <ServerIcon name={server?.name ?? '?'} iconKey={server?.iconKey} official={server?.official} />
                 </span>
                 <span className="truncate">{server?.name}</span>
                 {streaming.length > 0 && <span className="live-pill">AO VIVO</span>}

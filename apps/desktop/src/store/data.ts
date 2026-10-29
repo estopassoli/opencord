@@ -79,6 +79,14 @@ const withDetail = (s: DataState, serverId: string, fn: (d: ServerDetail) => Ser
   return d ? { details: { ...s.details, [serverId]: fn(d) } } : {};
 };
 
+const summaryOf = (d: ServerSummary): ServerSummary => ({
+  id: d.id,
+  name: d.name,
+  iconKey: d.iconKey,
+  ownerId: d.ownerId,
+  official: d.official,
+});
+
 export const useData = create<DataState>()((set) => ({
   ...empty,
   reset: () => set({ ...empty }),
@@ -86,8 +94,8 @@ export const useData = create<DataState>()((set) => ({
     set((s) => ({
       details: { ...s.details, [d.id]: d },
       servers: s.servers.some((x) => x.id === d.id)
-        ? s.servers.map((x) => (x.id === d.id ? { id: d.id, name: d.name, iconKey: d.iconKey, ownerId: d.ownerId } : x))
-        : [...s.servers, { id: d.id, name: d.name, iconKey: d.iconKey, ownerId: d.ownerId }],
+        ? s.servers.map((x) => (x.id === d.id ? summaryOf(d) : x))
+        : [...s.servers, summaryOf(d)],
     })),
   removeServer: (id) =>
     set((s) => {

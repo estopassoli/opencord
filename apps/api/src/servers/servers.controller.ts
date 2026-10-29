@@ -96,16 +96,33 @@ export class ServersController {
     return serverSummary(await this.avatars.clearServerIcon(id));
   }
 
-  /** Diretório: todos os servidores (abertos a todos, sem convite). */
+  /** Diretório: servidores oficiais (abertos a todos, sem convite). */
   @Get('servers/directory')
   directory(@CurrentUser() u: AuthUser) {
     return this.servers.directory(u.userId);
   }
 
-  /** Entrar num servidor aberto (ex.: depois de ter saído). */
+  /** Entrar no servidor oficial (ex.: depois de ter saído). */
   @Post('servers/:id/join')
   join(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
     return this.servers.join(id, u.userId);
+  }
+
+  /** Convite para o servidor (qualquer membro); devolve o mesmo código a cada pedido da mesma pessoa. */
+  @Post('servers/:id/invites')
+  createInvite(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    return this.servers.createInvite(id, u.userId);
+  }
+
+  /** Prévia do convite (nome, imagem e membros do servidor) antes de entrar. */
+  @Get('invites/:code')
+  previewInvite(@CurrentUser() u: AuthUser, @Param('code') code: string) {
+    return this.servers.previewInvite(code, u.userId);
+  }
+
+  @Post('invites/:code')
+  acceptInvite(@CurrentUser() u: AuthUser, @Param('code') code: string) {
+    return this.servers.acceptInvite(code, u.userId);
   }
 
   @Get('servers/:id')

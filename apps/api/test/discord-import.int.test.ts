@@ -61,7 +61,7 @@ describe('importar servidor do Discord por modelo', () => {
     expect(list.body.map((s) => s.name)).toEqual(['Teste']);
   });
 
-  it('importa categorias, canais, cargos e permissões; todos viram membros', async () => {
+  it('importa categorias, canais, cargos e permissões; servidor nasce privado (só o dono)', async () => {
     const { owner } = await bootstrapOwner(http);
     const alice = await register(http);
     const r = await http.req<ServerDetail>('POST', '/servers/import/discord', {
@@ -85,8 +85,11 @@ describe('importar servidor do Discord por modelo', () => {
     const mod = d.roles.find((x) => x.name === 'Moderação')!;
     expect(mod.permissions).toBe(Permission.ADMINISTRATOR);
     expect(mod.color).toBe('#e74c3c');
-    expect(d.members.map((m) => m.user.id).sort()).toEqual([owner.id, alice.id].sort());
-    // membro comum: não pode escrever em #regras
+    expect(d.members.map((m) => m.user.id)).toEqual([owner.id]);
+    expect(d.official).toBe(false);
+    // membro comum (entra por convite): não pode escrever em #regras
+    const inv = await http.req<{ code: string }>('POST', `/servers/${d.id}/invites`, { token: owner.token });
+    expect((await http.req('POST', `/invites/${inv.body.code}`, { token: alice.token })).status).toBe(201);
     const a = await http.req<ServerDetail>('GET', `/servers/${d.id}`, { token: alice.token });
     const regrasA = a.body.channels.find((c) => c.name === 'regras')!;
     expect(regrasA.myPermissions & Permission.SEND_MESSAGES).toBe(0);

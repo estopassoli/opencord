@@ -121,6 +121,11 @@ export function ServerRail() {
                       disabled: !b.any,
                       onSelect: () => void markServerRead(s.id),
                     },
+                    {
+                      label: 'Convidar pessoas',
+                      icon: 'user-plus',
+                      onSelect: () => open({ kind: 'invite', serverId: s.id }),
+                    },
                     'separator',
                     {
                       label: 'Configurações do servidor',
@@ -132,7 +137,7 @@ export function ServerRail() {
                 )
               }
             >
-              <ServerIcon name={s.name} iconKey={s.iconKey} />
+              <ServerIcon name={s.name} iconKey={s.iconKey} official={s.official} />
             </RailItem>
           );
         })}

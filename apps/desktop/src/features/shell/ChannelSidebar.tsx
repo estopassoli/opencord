@@ -8,6 +8,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { ProfileButton } from './ProfileButton';
 import { ActivityHint } from '../voice/WatchTogether';
+import { Tooltip } from '../../components/Tooltip';
 
 /** Categorias recolhidas (por id de categoria), lembradas neste dispositivo. */
 const COLLAPSED_KEY = 'oc:collapsed-categories';
@@ -70,9 +71,23 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
           onClick={() => open({ kind: 'server-settings', serverId })}
           title="Configurações do servidor"
         >
+          {detail.official && (
+            <span className="verified-badge" title="Servidor oficial verificado">
+              <Icon name="verified" size={16} active label="Servidor oficial verificado" />
+            </span>
+          )}
           <span className="truncate">{detail.name}</span>
           <Icon name="chevron-down" size={16} />
         </button>
+        <Tooltip label="Convidar pessoas">
+          <button
+            className="icon-btn sidebar-invite"
+            aria-label="Convidar pessoas"
+            onClick={() => open({ kind: 'invite', serverId })}
+          >
+            <Icon name="user-plus" size={18} />
+          </button>
+        </Tooltip>
       </header>
       <div
         className="sidebar-scroll"

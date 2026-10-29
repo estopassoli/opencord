@@ -29,7 +29,7 @@ async function main() {
       const owner = await tx.user.create({
         data: { email, username, displayName: username, nickKey: nickKeyOf(username), passwordHash },
       });
-      const server = await createServerWithDefaults(tx, owner.id, serverName);
+      const server = await createServerWithDefaults(tx, owner.id, serverName, { official: true });
       await tx.auditLog.create({
         data: { actorId: owner.id, serverId: server.id, action: 'server.bootstrap', targetId: owner.id, metadata: {} },
       });
