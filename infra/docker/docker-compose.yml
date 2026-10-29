@@ -41,7 +41,8 @@ services:
     command: ['server', '/data', '--console-address', ':9001']
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-opencord}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD}
+      # vazio = o MinIO recusa subir (exige >= 8 caracteres); só é lido com --profile s3
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
     volumes: [minio:/data]
 
   migrate:
