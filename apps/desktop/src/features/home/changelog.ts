@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '19:35',
+    kind: 'melhoria',
+    icon: 'activities',
+    title: 'Assistir juntos: quem coloca o vídeo comanda',
+    body: 'Só quem colocou o vídeo toca, pausa, pula, troca e encerra para o grupo. Os outros ajustam o volume e pausam só para si; ao voltar, alcançam o dono. Se o dono sair, outra pessoa assume.',
+  },
+  {
+    date: '2026-10-29',
     time: '19:15',
     kind: 'novo',
     icon: 'speaker',

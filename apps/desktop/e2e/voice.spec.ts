@@ -325,10 +325,23 @@ test('Assistir juntos: A abre um vídeo por link, B entra, pausa sincroniza e en
   // o player do YouTube responde ao nosso controle (postMessage funcionando no app): a duração aparece
   await expect(B.page.locator('.yt-time')).toContainText('/', { timeout: 30_000 });
   await B.page.screenshot({ path: shot('15-assistir-juntos') });
-  // A pausa para todos → B passa a mostrar "Tocar para todos"
+  // B não é o dono: não encerra nem troca o vídeo; pausa só para si e volta alcançando o dono
+  await expect(B.page.getByRole('button', { name: 'Encerrar para todos' })).toHaveCount(0);
+  await expect(B.page.getByRole('button', { name: 'Trocar vídeo' })).toHaveCount(0);
+  await B.page.locator('.tile-activity').hover();
+  await B.page.locator('.yt-bar').getByRole('button', { name: 'Pausar só para você' }).click();
+  await expect(B.page.locator('.yt-bar').getByRole('button', { name: /Voltar a assistir/ })).toBeAttached();
+  // o dono segue tocando
+  await expect(A.page.locator('.yt-bar').getByRole('button', { name: 'Pausar para todos' })).toBeAttached();
+  await B.page
+    .locator('.yt-bar')
+    .getByRole('button', { name: /Voltar a assistir/ })
+    .click();
+  await expect(B.page.locator('.yt-bar').getByRole('button', { name: 'Pausar só para você' })).toBeAttached();
+  // A (dono) pausa para todos → B vê "Pausado por Proprietário"
   await A.page.locator('.tile-activity').hover();
   await A.page.locator('.yt-bar').getByRole('button', { name: 'Pausar para todos' }).click();
-  await expect(B.page.locator('.yt-bar').getByRole('button', { name: 'Tocar para todos' })).toBeAttached({
+  await expect(B.page.locator('.yt-bar').getByRole('button', { name: 'Pausado por Proprietário' })).toBeAttached({
     timeout: 10_000,
   });
   // encerrar para todos
