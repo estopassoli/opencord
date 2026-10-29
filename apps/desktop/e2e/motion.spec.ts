@@ -44,10 +44,11 @@ test('ícones trocam outline → solid no hover', async () => {
     'button[aria-label="Escolher microfone"]',
   ];
   await page.mouse.move(1, 1);
+  // a troca tem transição (~120 ms): espera o estado final em vez de medir no instante do hover
   for (const sel of targets) {
-    expect(await layers(sel), `${sel} em repouso`).toEqual({ outline: 1, solid: 0 });
+    await expect.poll(() => layers(sel), { message: `${sel} em repouso` }).toEqual({ outline: 1, solid: 0 });
     await page.hover(sel);
-    expect(await layers(sel), `${sel} no hover`).toEqual({ outline: 0, solid: 1 });
+    await expect.poll(() => layers(sel), { message: `${sel} no hover` }).toEqual({ outline: 0, solid: 1 });
     await page.mouse.move(1, 1);
   }
   // ícone dentro de wrapper (span) dentro do botão também troca

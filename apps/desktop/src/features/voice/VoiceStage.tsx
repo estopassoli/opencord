@@ -213,25 +213,24 @@ function FocusLayout({
             <Icon name="users" size={16} />
           </button>
         </Tooltip>
-        {!hidden && (
-          <ul className="stage-strip">
-            {/* as outras transmissões (inclusive a minha) ficam na faixa: um clique assiste e destaca */}
-            {participants
-              .filter((p) => p.hasScreen && p.identity !== exclude)
-              .map((p) => (
-                <li key={`s-${p.identity}`}>
-                  <StripStream p={p} />
-                </li>
-              ))}
-            {participants
-              .filter((p) => p.identity !== exclude || p.hasCamera)
-              .map((p) => (
-                <li key={p.identity}>
-                  <ParticipantTile p={p} compact />
-                </li>
-              ))}
-          </ul>
-        )}
+        {/* sempre montada: some/aparece com animação (altura, opacidade, deslize); oculta = inerte */}
+        <ul className="stage-strip" aria-hidden={hidden || undefined} inert={hidden || undefined}>
+          {/* as outras transmissões (inclusive a minha) ficam na faixa: um clique assiste e destaca */}
+          {participants
+            .filter((p) => p.hasScreen && p.identity !== exclude)
+            .map((p) => (
+              <li key={`s-${p.identity}`}>
+                <StripStream p={p} />
+              </li>
+            ))}
+          {participants
+            .filter((p) => p.identity !== exclude || p.hasCamera)
+            .map((p) => (
+              <li key={p.identity}>
+                <ParticipantTile p={p} compact />
+              </li>
+            ))}
+        </ul>
       </div>
     </div>
   );

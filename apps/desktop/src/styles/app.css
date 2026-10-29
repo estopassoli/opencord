@@ -1139,9 +1139,14 @@ textarea:focus-visible {
 }
 .composer {
   margin: 0 16px 16px;
-  background: var(--interactive);
+  /* um degrau acima do fundo do chat em todos os temas (--interactive é cor de hover e ficava clara demais) */
+  background: var(--elevated);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   flex: none;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 .composer-disabled {
   padding: 12px 16px;
@@ -1166,7 +1171,8 @@ textarea:focus-visible {
   outline: none;
 }
 .composer:focus-within {
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent);
 }
 .composer-reply {
   display: flex;
@@ -2377,29 +2383,96 @@ body {
 .activity-empty p {
   margin: 6px 0 0;
 }
-.activity-card {
-  display: flex;
-  align-items: center;
+.now-card {
+  display: grid;
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--border);
-  border-radius: calc(8px * var(--radius-scale, 1));
+  border-radius: var(--radius);
   background: var(--sidebar);
-  text-align: left;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
 }
-.activity-card:hover {
-  background: var(--interactive);
+.now-card:hover,
+.now-card:focus-within {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
 }
-.activity-avatars {
+.now-head {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-weight: 600;
 }
-.activity-avatars .oc-avatar + .oc-avatar {
+.now-server {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: calc(6px * var(--radius-scale, 1));
+  background: var(--interactive);
+  color: var(--text);
+  font-size: 0.625rem;
+  font-weight: 800;
+}
+.now-head .live-pill {
+  margin-left: auto;
+}
+.now-channel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.now-channel:hover span {
+  text-decoration: underline;
+}
+.now-people {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.now-avatars {
+  display: flex;
+  flex: none;
+}
+.now-avatars .oc-avatar {
+  box-shadow: 0 0 0 2px var(--sidebar);
+  border-radius: 50%;
+}
+.now-avatars .oc-avatar + .oc-avatar {
   margin-left: -8px;
 }
-.activity-text {
-  display: grid;
+.now-extra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
-  flex: 1;
+  color: var(--text-2);
+  font-size: 0.8125rem;
+}
+.now-extra.live {
+  color: var(--danger-text);
+}
+.now-extra.watch {
+  color: var(--brand-text);
+}
+.now-join {
+  justify-self: stretch;
 }
 
 /* palco de voz */
@@ -2863,24 +2936,30 @@ a.rail-item {
   /* a barra de controles fica por cima do rodapé do palco: a faixa de membros termina acima dela */
   padding-bottom: 88px;
 }
-.stage-focus[data-strip='hidden'] {
-  grid-template-rows: minmax(0, 1fr);
-}
 .strip-wrap {
   position: relative;
   display: grid;
   justify-items: center;
 }
-.stage-focus[data-strip='hidden'] .strip-wrap {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100px;
-  pointer-events: none;
-}
 .stage-strip {
   justify-content: center;
   max-width: 100%;
+  /* ocultar/mostrar membros: a faixa recolhe com fade e deslize; a live cresce junto (linha "auto" da grade) */
+  max-height: 140px;
+  transition:
+    max-height var(--dur-slow) var(--ease-out),
+    opacity var(--dur) var(--ease),
+    translate var(--dur-slow) var(--ease-out);
+}
+.stage-focus[data-strip='hidden'] .stage-strip {
+  max-height: 0;
+  opacity: 0;
+  translate: 0 16px;
+  pointer-events: none;
+}
+.stage-focus[data-strip='hidden'] {
+  /* sem a faixa, o espaço entre a live e os controles fecha junto */
+  gap: 0;
 }
 /* botão "Ocultar/Mostrar membros": discreto, aparece por cima da borda superior da faixa */
 .strip-toggle {
@@ -2901,9 +2980,6 @@ a.rail-item {
   transition:
     opacity var(--dur) var(--ease),
     color var(--dur-fast) var(--ease);
-}
-.stage-focus[data-strip='hidden'] .strip-toggle {
-  position: static;
 }
 .stage-focus:hover .strip-toggle,
 .strip-toggle:focus-visible {
@@ -3372,7 +3448,7 @@ a.rail-item {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px;
 }
-.activity-card {
+.app-card {
   display: grid;
   gap: 8px;
   width: 100%;
@@ -3391,27 +3467,27 @@ a.rail-item {
     outline-color var(--dur-fast) var(--ease),
     transform var(--dur) var(--ease-out);
 }
-.activity-card:hover,
-.activity-card:focus-visible {
+.app-card:hover,
+.app-card:focus-visible {
   outline-color: var(--brand-text);
   transform: translateY(-2px);
 }
-.activity-art {
+.app-art {
   display: grid;
   place-items: center;
   aspect-ratio: 16 / 9;
   color: #fff;
 }
-.activity-youtube .activity-art {
+.app-youtube .app-art {
   background: radial-gradient(circle at 30% 20%, #ff6b6b, #c4161c 60%, #6d0b0f);
 }
-.activity-name {
+.app-name {
   display: grid;
   padding: 0 10px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .activity-card:hover,
-  .activity-card:focus-visible {
+  .app-card:hover,
+  .app-card:focus-visible {
     transform: none;
   }
 }

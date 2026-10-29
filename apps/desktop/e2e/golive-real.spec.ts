@@ -175,7 +175,9 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   // "Ocultar membros" deixa só a transmissão
   await B.page.locator('.stage-focus').hover();
   await B.page.getByRole('button', { name: 'Ocultar membros' }).click();
-  await expect(B.page.locator('.stage-strip')).toHaveCount(0);
+  // a faixa recolhe com animação (continua montada, inerte) e a live ocupa o espaço
+  await expect(B.page.locator('.stage-focus')).toHaveAttribute('data-strip', 'hidden');
+  await expect(B.page.locator('.stage-strip')).toBeHidden();
   await B.page.screenshot({ path: 'e2e/results/42-golive-sem-membros.png' });
   await B.page.getByRole('button', { name: 'Mostrar membros' }).click();
   await expect(B.page.locator('.stage-strip')).toBeVisible();
