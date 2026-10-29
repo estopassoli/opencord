@@ -17,8 +17,8 @@ export interface StreamProfile {
 
 export const STREAM_PROFILES: Record<StreamProfileId, StreamProfile> = {
   '720p30': { id: '720p30', width: 1280, height: 720, fps: 30, maxBitrate: 2_500_000, requiresHardware: false },
-  '1080p60': { id: '1080p60', width: 1920, height: 1080, fps: 60, maxBitrate: 8_000_000, requiresHardware: false },
-  '1440p60': { id: '1440p60', width: 2560, height: 1440, fps: 60, maxBitrate: 12_000_000, requiresHardware: true },
+  '1080p60': { id: '1080p60', width: 1920, height: 1080, fps: 60, maxBitrate: 12_000_000, requiresHardware: false },
+  '1440p60': { id: '1440p60', width: 2560, height: 1440, fps: 60, maxBitrate: 18_000_000, requiresHardware: true },
 };
 
 export interface EncoderCapability {

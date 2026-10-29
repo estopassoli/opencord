@@ -60,6 +60,9 @@ export interface MediaStats {
     codec: string | null;
     /** fmtp negociado (para H.264, o perfil decide se o encoder de hardware é usado) */
     fmtp: string | null;
+    /** vídeo enviado de fato (kb/s) e estimativa de banda de subida do WebRTC (kb/s) */
+    kbps: number | null;
+    availableKbps: number | null;
   };
 }
 
@@ -115,6 +118,7 @@ export class VoiceEngine {
   private vadCtx: AudioContext | null = null;
   private screen: { video: LocalVideoTrack; audio: LocalAudioTrack | null; stream: MediaStream } | null = null;
   private lastBytes: { t: number; bytes: number } | null = null;
+  private lastVideoBytes: { t: number; bytes: number } | null = null;
 
   constructor(
     private readonly cb: EngineCallbacks,
@@ -493,6 +497,7 @@ export class VoiceEngine {
   async stopStream() {
     const s = this.screen;
     this.screen = null;
+    this.lastVideoBytes = null;
     if (!s) return;
     const lp = this.room?.localParticipant;
     if (lp) {
@@ -659,7 +664,13 @@ export class VoiceEngine {
     if (this.screen) {
       const vr = await this.screen.video.getRTCStatsReport().catch(() => undefined);
       let best: Record<string, unknown> | null = null;
+      let videoBytes = 0;
+      let availableKbps: number | null = null;
       vr?.forEach((r: Record<string, unknown>) => {
+        if (r.type === 'outbound-rtp' && r.kind === 'video' && typeof r.bytesSent === 'number')
+          videoBytes += r.bytesSent;
+        if (r.type === 'candidate-pair' && r.nominated && typeof r.availableOutgoingBitrate === 'number')
+          availableKbps = Math.round(r.availableOutgoingBitrate / 1000);
         if (
           r.type === 'outbound-rtp' &&
           r.kind === 'video' &&
@@ -667,6 +678,11 @@ export class VoiceEngine {
         )
           best = r;
       });
+      const now = performance.now();
+      const prev = this.lastVideoBytes;
+      const kbps =
+        prev && videoBytes >= prev.bytes ? Math.round(((videoBytes - prev.bytes) * 8) / (now - prev.t)) : null;
+      this.lastVideoBytes = { t: now, bytes: videoBytes };
       const b = best as Record<string, unknown> | null;
       if (b) {
         const c =
@@ -684,6 +700,8 @@ export class VoiceEngine {
           limitation: typeof b.qualityLimitationReason === 'string' ? b.qualityLimitationReason : null,
           codec,
           fmtp: c?.sdpFmtpLine ?? null,
+          kbps,
+          availableKbps,
         };
       }
     }

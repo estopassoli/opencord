@@ -68,8 +68,13 @@ export async function launch(
 
 /** Login de conta (apelido ou e-mail + senha): tela padrão de entrada. */
 export async function login(page: Page, email: string, password: string) {
-  await page.getByLabel('Apelido ou e-mail').fill(email);
-  await page.getByLabel('Senha').fill(password);
+  // a tela pode re-renderizar logo após abrir e apagar o que foi digitado: preenche até os valores ficarem
+  await expect(async () => {
+    await page.getByLabel('Apelido ou e-mail').fill(email);
+    await page.getByLabel('Senha').fill(password);
+    await expect(page.getByLabel('Apelido ou e-mail')).toHaveValue(email, { timeout: 500 });
+    await expect(page.getByLabel('Senha')).toHaveValue(password, { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByRole('navigation', { name: 'Servidores' })).toBeVisible({ timeout: 15_000 });
 }

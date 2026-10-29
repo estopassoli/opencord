@@ -87,6 +87,40 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
     .poll(async () => v.evaluate((el: HTMLVideoElement) => el.videoWidth), { timeout: 10_000 })
     .toBeGreaterThan(640);
   const dims = await v.evaluate((el: HTMLVideoElement) => ({ w: el.videoWidth, h: el.videoHeight }));
+  // o vídeo inteiro cabe no card (antes ficava mais alto que o card e o topo/rodapé da tela eram cortados)
+  const fit = await v.evaluate((el: HTMLVideoElement) => {
+    const r = el.getBoundingClientRect();
+    const t = el.closest('.tile')!.getBoundingClientRect();
+    return {
+      videoH: Math.round(r.height),
+      tileH: Math.round(t.height),
+      videoW: Math.round(r.width),
+      tileW: Math.round(t.width),
+    };
+  });
+  console.warn('GOLIVE_FIT', JSON.stringify(fit));
+  // prévia de quem transmite, com a live em destaque (caso do relato)
+  const own = A.page.locator('.tile-stream video');
+  await A.page.locator('.tile-stream').hover();
+  await A.page.getByRole('button', { name: 'Destacar transmissão' }).click();
+  await expect(A.page.locator('.tile-stream[data-large="true"]')).toBeVisible();
+  const ownFit = await own.evaluate((el: HTMLVideoElement) => {
+    const r = el.getBoundingClientRect();
+    const t = el.closest('.tile')!.getBoundingClientRect();
+    return {
+      videoH: Math.round(r.height),
+      tileH: Math.round(t.height),
+      videoW: Math.round(r.width),
+      tileW: Math.round(t.width),
+      src: `${el.videoWidth}x${el.videoHeight}`,
+    };
+  });
+  console.warn('GOLIVE_FIT_OWN', JSON.stringify(ownFit));
+  await A.page.screenshot({ path: 'e2e/results/41-golive-own-focus.png' });
+  expect(ownFit.videoH).toBeLessThanOrEqual(ownFit.tileH);
+  expect(ownFit.videoW).toBeLessThanOrEqual(ownFit.tileW);
+  expect(fit.videoH).toBeLessThanOrEqual(fit.tileH);
+  expect(fit.videoW).toBeLessThanOrEqual(fit.tileW);
   expect(await B.page.locator('.tile-stream .tile-label').innerText()).not.toContain('sem áudio');
 
   // métricas reais do encoder no publisher após alguns segundos
