@@ -9,6 +9,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
 import { isInCall, useVoice, type ParticipantView } from '../../store/voice';
+import { closeStreamWindow, openStreamWindow } from './popout';
+import { useIsMobile } from '../../lib/media';
 
 const NO_MEMBERS: Member[] = [];
 
@@ -16,8 +18,6 @@ const NO_MEMBERS: Member[] = [];
 export function VoiceStage({ channelId, serverId }: { channelId: string; serverId: string }) {
   const machine = useVoice((s) => s.machine);
   const participants = useVoice((s) => s.participants);
-  const stream = useVoice((s) => s.stream);
-  const stats = useVoice((s) => s.stats);
   const focused = useUi((s) => s.focusedStream);
   const channel = useData((s) => s.details[serverId]?.channels.find((c) => c.id === channelId));
   // seletores que derivam arrays precisam de comparação rasa (zustand v5 + useSyncExternalStore)
@@ -59,59 +59,9 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
 
   return (
     <section className="stage" aria-label={`Chamada em ${channel?.name ?? ''}`} ref={stageRef}>
-      <header className="chat-header">
-        <MobileNavButton />
-        <Icon name="speaker" size={22} />
-        <h2 className="truncate">{channel?.name}</h2>
-        <span className="spacer" />
-        {stream.status === 'live' &&
-          stats?.stream &&
-          (stats.stream.paused ? (
-            <span
-              className="muted small stream-stats"
-              title="O servidor pausa o envio enquanto ninguém assiste, para economizar banda; volta sozinho quando alguém clica em Assistir."
-            >
-              Transmitindo · ninguém assistindo (envio em espera)
-            </span>
-          ) : (
-            <span
-              className="muted small stream-stats"
-              title={[
-                stats.stream.encoder,
-                stats.stream.availableKbps !== null
-                  ? `banda de subida estimada: ${(stats.stream.availableKbps / 1000).toFixed(1)} Mb/s`
-                  : null,
-                stats.stream.fmtp,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            >
-              Transmitindo {stats.stream.width}×{stats.stream.height} · {stats.stream.fps ?? '–'} fps ·{' '}
-              {stats.stream.codec?.replace('video/', '') ?? ''}
-              {stats.stream.hardware ? ' (hardware)' : stats.stream.hardware === false ? ' (software)' : ''}
-              {stats.stream.kbps !== null ? ` · ${(stats.stream.kbps / 1000).toFixed(1)} Mb/s` : ''}
-              {stats.stream.limitation && stats.stream.limitation !== 'none'
-                ? ` · limitado por ${stats.stream.limitation === 'cpu' ? 'CPU' : 'banda'}`
-                : ''}
-            </span>
-          ))}
-        {stream.status === 'live' && stream.audioUnavailable && (
-          <span className="warn-text small">sem áudio do sistema</span>
-        )}
-      </header>
+      <StageHeader channelName={channel?.name ?? ''} focus={focus} mobile />
       {focus ? (
-        <div className="stage-focus">
-          <StreamTile p={focus} large />
-          <ul className="stage-strip">
-            {participants
-              .filter((p) => p.identity !== focus.identity || p.hasCamera)
-              .map((p) => (
-                <li key={p.identity}>
-                  <ParticipantTile p={p} compact />
-                </li>
-              ))}
-          </ul>
-        </div>
+        <FocusLayout focus={focus} participants={participants} />
       ) : (
         <ul className="stage-grid" data-count={Math.min(participants.length + streamers.length, 9)}>
           {streamers.map((p) => (
@@ -127,6 +77,156 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
         </ul>
       )}
       <CallControls stageRef={stageRef} />
+    </section>
+  );
+}
+
+/** Cabeçalho do palco: canal · quem está ao vivo (e o que transmite) · selo de qualidade AO VIVO. */
+function StageHeader({
+  channelName,
+  focus,
+  mobile,
+}: {
+  channelName: string;
+  focus: ParticipantView | null;
+  mobile?: boolean;
+}) {
+  const source = useVoice((s) => s.streamSource);
+  return (
+    <header className="chat-header stage-header">
+      {mobile && <MobileNavButton />}
+      <Icon name="speaker" size={22} />
+      <h2 className="truncate">{channelName}</h2>
+      {focus && (
+        <span className="stage-live-who truncate">
+          <span aria-hidden="true">·</span>
+          <Avatar id={focus.identity} name={focus.name} size={20} />
+          <span className="truncate">
+            {focus.isLocal ? 'Você' : focus.name} está transmitindo
+            {focus.isLocal && source ? <strong> {source}</strong> : null}
+          </span>
+        </span>
+      )}
+      <span className="spacer" />
+      <LiveBadge focus={focus} />
+    </header>
+  );
+}
+
+const STATS_HINT =
+  'O servidor pausa o envio enquanto ninguém assiste, para economizar banda; volta sozinho quando alguém clica em Assistir.';
+
+/** Selo "1080p 60 FPS · AO VIVO"; detalhes técnicos (encoder, Mb/s, banda) no tooltip. */
+function LiveBadge({ focus }: { focus: ParticipantView | null }) {
+  const stream = useVoice((s) => s.stream);
+  const stats = useVoice((s) => s.stats?.stream);
+  const audioUnavailable = stream.status === 'live' && stream.audioUnavailable;
+  if (stream.status !== 'live') {
+    return focus ? <span className="live-pill">AO VIVO</span> : null;
+  }
+  if (!stats) return <span className="live-pill">AO VIVO</span>;
+  if (stats.paused) {
+    return (
+      <span className="live-badge stream-stats" title={STATS_HINT}>
+        <span className="live-badge-q">Em espera · ninguém assistindo</span>
+        <span className="live-pill">AO VIVO</span>
+      </span>
+    );
+  }
+  const details = [
+    `Transmitindo ${stats.width}×${stats.height} · ${stats.fps ?? '–'} fps · ${stats.codec?.replace('video/', '') ?? ''}${
+      stats.hardware ? ' (hardware)' : stats.hardware === false ? ' (software)' : ''
+    }`,
+    stats.kbps !== null ? `${(stats.kbps / 1000).toFixed(1)} Mb/s` : null,
+    stats.limitation && stats.limitation !== 'none'
+      ? `limitado por ${stats.limitation === 'cpu' ? 'CPU' : 'banda'}`
+      : null,
+    stats.availableKbps !== null ? `banda de subida estimada: ${(stats.availableKbps / 1000).toFixed(1)} Mb/s` : null,
+    stats.encoder,
+    stats.fmtp,
+    audioUnavailable ? 'sem áudio do sistema' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <span className="live-badge stream-stats" title={details} aria-label={details}>
+      <span className="live-badge-q">
+        <Icon name="signal" size={14} />
+        {stats.height ? `${stats.height}p` : '–'} {stats.fps ?? '–'} FPS
+        {stats.limitation && stats.limitation !== 'none' ? <Icon name="warning" size={14} /> : null}
+      </span>
+      {audioUnavailable && <span className="warn-text small">sem áudio</span>}
+      <span className="live-pill">AO VIVO</span>
+    </span>
+  );
+}
+
+/** Transmissão em destaque + faixa de participantes (que pode ser ocultada para deixar só a live). */
+function FocusLayout({
+  focus,
+  participants,
+  popout,
+}: {
+  focus: ParticipantView;
+  participants: ParticipantView[];
+  popout?: boolean;
+}) {
+  const hidden = useUi((s) => s.stripHidden);
+  const label = hidden ? 'Mostrar membros' : 'Ocultar membros';
+  return (
+    <div className="stage-focus" data-strip={hidden ? 'hidden' : undefined}>
+      <StreamTile p={focus} large inPopout={popout} />
+      <div className="strip-wrap">
+        <Tooltip label={label}>
+          <button
+            className="strip-toggle"
+            aria-label={label}
+            aria-expanded={!hidden}
+            onClick={() => useUi.getState().toggleStrip()}
+          >
+            <Icon name={hidden ? 'chevron-up' : 'chevron-down'} size={14} />
+            <Icon name="users" size={16} />
+          </button>
+        </Tooltip>
+        {!hidden && (
+          <ul className="stage-strip">
+            {participants
+              .filter((p) => p.identity !== focus.identity || p.hasCamera)
+              .map((p) => (
+                <li key={p.identity}>
+                  <ParticipantTile p={p} compact />
+                </li>
+              ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Conteúdo da janela separada da transmissão (renderizado por portal em outra janela). */
+export function PopoutStage() {
+  const popped = useUi((s) => s.poppedStream);
+  const participants = useVoice((s) => s.participants);
+  const machine = useVoice((s) => s.machine);
+  const channel = useData((s) =>
+    Object.values(s.details)
+      .flatMap((d) => d.channels)
+      .find((c) => c.id === machine.channelId),
+  );
+  const ref = useRef<HTMLElement>(null);
+  const focus = participants.find((p) => p.identity === popped && p.hasScreen) ?? null;
+  const ended = !isInCall(machine) || !focus;
+  useEffect(() => {
+    // transmissão acabou (ou saiu da chamada): a janela não tem mais o que mostrar
+    if (ended) closeStreamWindow();
+  }, [ended]);
+  if (!focus) return null;
+  return (
+    <section className="stage popout-stage" aria-label="Transmissão" ref={ref}>
+      <StageHeader channelName={channel?.name ?? ''} focus={focus} />
+      <FocusLayout focus={focus} participants={participants} popout />
+      <CallControls stageRef={ref} popout />
     </section>
   );
 }
@@ -167,17 +267,30 @@ function ParticipantTile({ p, compact }: { p: ParticipantView; compact?: boolean
   );
 }
 
-function StreamTile({ p, large }: { p: ParticipantView; large?: boolean }) {
+function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolean; inPopout?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
+  const popped = useUi((s) => s.poppedStream);
+  const elsewhere = popped === p.identity && !inPopout;
+  // no celular uma "nova janela" vira outra aba: não oferece
+  const mobile = useIsMobile();
   const watching = p.watchingScreen;
   const engineWatch = (on: boolean) => useVoice.getState().watch(p.identity, on);
   const fullscreen = () => {
-    if (document.fullscreenElement) void document.exitFullscreen();
+    const doc = box.current?.ownerDocument ?? document;
+    if (doc.fullscreenElement) void doc.exitFullscreen();
     else void box.current?.requestFullscreen();
   };
   return (
     <div className="tile tile-stream" ref={box} data-large={large ? 'true' : undefined}>
-      {watching ? (
+      {elsewhere ? (
+        <div className="stream-cover">
+          <Icon name="popout" size={32} />
+          <p>Transmissão aberta em outra janela</p>
+          <Button variant="secondary" onClick={closeStreamWindow}>
+            Trazer de volta
+          </Button>
+        </div>
+      ) : watching ? (
         <Video identity={p.identity} source="screen" />
       ) : (
         <div className="stream-cover">
@@ -193,9 +306,31 @@ function StreamTile({ p, large }: { p: ParticipantView; large?: boolean }) {
         <span className="truncate">{p.isLocal ? 'Sua transmissão' : p.name}</span>
         {!p.screenAudio && <span className="small muted">sem áudio</span>}
       </div>
-      {watching && (
+      {watching && !elsewhere && (
         <div className="tile-actions">
-          {!large ? (
+          {inPopout ? (
+            <button
+              className="icon-btn"
+              aria-label="Voltar para o app"
+              title="Voltar para o app"
+              onClick={closeStreamWindow}
+            >
+              <Icon name="popin" />
+            </button>
+          ) : mobile ? null : (
+            <button
+              className="icon-btn"
+              aria-label="Abrir em nova janela"
+              title="Abrir em nova janela"
+              onClick={() => {
+                useUi.getState().focusStream(p.identity);
+                openStreamWindow(p.identity);
+              }}
+            >
+              <Icon name="popout" />
+            </button>
+          )}
+          {inPopout ? null : !large ? (
             <button
               className="icon-btn"
               aria-label="Destacar transmissão"
@@ -234,7 +369,7 @@ function StreamTile({ p, large }: { p: ParticipantView; large?: boolean }) {
 }
 
 /** Barra de controles da chamada (centralizada embaixo do palco). */
-function CallControls({ stageRef }: { stageRef: React.RefObject<HTMLElement | null> }) {
+function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElement | null>; popout?: boolean }) {
   const v = useVoice();
   const live = v.stream.status === 'live';
   const menu = (e: React.MouseEvent, kind: 'audioinput' | 'audiooutput') => {
@@ -259,15 +394,17 @@ function CallControls({ stageRef }: { stageRef: React.RefObject<HTMLElement | nu
               <Icon name="microphone" slashed={v.selfMute} />
             </button>
           </Tooltip>
-          <Tooltip label="Escolher microfone">
-            <button
-              className="call-btn call-chevron"
-              aria-label="Escolher microfone"
-              onClick={(e) => menu(e, 'audioinput')}
-            >
-              <Icon name="chevron-down" size={14} />
-            </button>
-          </Tooltip>
+          {!popout && (
+            <Tooltip label="Escolher microfone">
+              <button
+                className="call-btn call-chevron"
+                aria-label="Escolher microfone"
+                onClick={(e) => menu(e, 'audioinput')}
+              >
+                <Icon name="chevron-down" size={14} />
+              </button>
+            </Tooltip>
+          )}
           <Tooltip label={v.camera ? 'Desligar câmera' : 'Ligar câmera'}>
             <button
               className="call-btn"
@@ -315,9 +452,11 @@ function CallControls({ stageRef }: { stageRef: React.RefObject<HTMLElement | nu
         <button
           className="call-btn call-fullscreen"
           aria-label="Tela cheia"
-          onClick={() =>
-            document.fullscreenElement ? void document.exitFullscreen() : void stageRef.current?.requestFullscreen()
-          }
+          onClick={() => {
+            const doc = stageRef.current?.ownerDocument ?? document;
+            if (doc.fullscreenElement) void doc.exitFullscreen();
+            else void stageRef.current?.requestFullscreen();
+          }}
         >
           <Icon name="maximize" />
         </button>

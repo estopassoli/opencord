@@ -28,6 +28,8 @@ interface VoiceStore {
   camera: boolean;
   pttActive: boolean;
   stats: MediaStats | null;
+  /** nome da janela/tela que eu estou transmitindo (para o cabeçalho) */
+  streamSource: string | null;
   perms: { canSpeak: boolean; canVideo: boolean; canStream: boolean };
   join(channelId: string, serverId: string): Promise<void>;
   leave(): Promise<void>;
@@ -42,7 +44,12 @@ interface VoiceStore {
   setUserMuted(userId: string, muted: boolean): void;
   openStreamPicker(): void;
   cancelStreamPicker(): void;
-  startStream(sourceId: string | null, withAudio: boolean, profile: StreamProfileId): Promise<void>;
+  startStream(
+    sourceId: string | null,
+    withAudio: boolean,
+    profile: StreamProfileId,
+    sourceName?: string | null,
+  ): Promise<void>;
   stopStream(): Promise<void>;
   watch(identity: string, on: boolean): void;
   applySettings(s: UserSettings): void;
@@ -144,6 +151,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     camera: false,
     pttActive: false,
     stats: null,
+    streamSource: null,
     perms: { canSpeak: false, canVideo: false, canStream: false },
     engine: () => engine,
 
@@ -263,7 +271,8 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       useUi.getState().openModal(null);
     },
 
-    async startStream(sourceId, withAudio, profile) {
+    async startStream(sourceId, withAudio, profile, sourceName = null) {
+      set({ streamSource: sourceName });
       sdispatch({
         type: 'START',
         sourceId: sourceId ?? 'browser',
@@ -276,6 +285,9 @@ export const useVoice = create<VoiceStore>()((set, get) => {
         const r = await (engine as VoiceEngine).startStream(sourceId, withAudio, profile, codec);
         // `live` só após a publicação ser confirmada pela SFU
         sdispatch({ type: 'PUBLISHED', audioPublished: r.audioPublished });
+        // a própria transmissão abre em destaque (dá para voltar à grade)
+        const me = get().participants.find((p) => p.isLocal);
+        if (me) useUi.getState().focusStream(me.identity);
         if (withAudio && !r.audioPublished)
           useUi.getState().toast('info', 'Transmitindo sem áudio: o áudio do sistema não pôde ser capturado.');
       } catch (e) {
@@ -289,6 +301,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       sdispatch({ type: 'STOP' });
       await engine?.stopStream();
       sdispatch({ type: 'STOPPED' });
+      set({ streamSource: null });
       const err = get().stream.error;
       if (err) useUi.getState().toast('info', `Transmissão encerrada: ${err}`);
     },

@@ -36,6 +36,8 @@ import { secureAvailable, secureDelete, secureGet, secureSet } from './secure-st
 import { appIcon, badgeIcon, trayIcon } from './icons';
 import { checkForUpdate, installUpdate, startUpdater, updateStatus } from './updater';
 
+/** nome da janela da transmissão desanexada (src/features/voice/popout.tsx) */
+const POPOUT_NAME = 'opencord-live';
 const DEV_URL = process.env.OPENCORD_DEV_URL; // ex.: http://localhost:5173 (apenas desenvolvimento)
 const RENDERER_INDEX = path.join(__dirname, '../dist/index.html');
 const ALLOWED_PERMISSIONS = new Set([
@@ -124,9 +126,36 @@ function createWindow() {
   win.once('ready-to-show', () => win?.show());
 
   const wc = win.webContents;
-  wc.setWindowOpenHandler(({ url }) => {
+  wc.setWindowOpenHandler(({ url, frameName }) => {
+    // única janela filha permitida: a transmissão desanexada (about:blank do próprio app, sem preload/Node)
+    if (url === 'about:blank' && frameName === POPOUT_NAME) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 1120,
+          height: 700,
+          minWidth: 480,
+          minHeight: 300,
+          title: 'OpenCord — Transmissão',
+          backgroundColor: '#000000',
+          icon: appIcon(),
+          autoHideMenuBar: true,
+          webPreferences: {
+            sandbox: true,
+            contextIsolation: true,
+            nodeIntegration: false,
+            backgroundThrottling: false,
+          },
+        },
+      };
+    }
     if (ExternalUrl.safeParse(url).success) void shell.openExternal(url);
     return { action: 'deny' };
+  });
+  wc.on('did-create-window', (child) => {
+    child.removeMenu();
+    child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    child.webContents.on('will-navigate', (e) => e.preventDefault());
   });
   wc.on('will-navigate', (e, url) => {
     if (!(DEV_URL && url.startsWith(DEV_URL))) e.preventDefault();

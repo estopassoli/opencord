@@ -2817,3 +2817,267 @@ a.rail-item {
 :is(.sidebar-scroll, .rail, .members, .settings-nav, .oc-listbox, .menu, .context-menu):hover::-webkit-scrollbar-thumb {
   background-color: var(--interactive);
 }
+
+/* ---------- palco com transmissão: cabeçalho, selo de qualidade, faixa de membros, janela separada ---------- */
+.stage-live-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 0.875rem;
+}
+.stage-live-who strong {
+  color: var(--text);
+}
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.live-badge-q {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.stage-focus {
+  position: relative;
+  /* a barra de controles fica por cima do rodapé do palco: a faixa de membros termina acima dela */
+  padding-bottom: 88px;
+}
+.stage-focus[data-strip='hidden'] {
+  grid-template-rows: 1fr;
+}
+.strip-wrap {
+  position: relative;
+  display: grid;
+  justify-items: center;
+}
+.stage-focus[data-strip='hidden'] .strip-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100px;
+  pointer-events: none;
+}
+.stage-strip {
+  justify-content: center;
+  max-width: 100%;
+}
+/* botão "Ocultar/Mostrar membros": discreto, aparece por cima da borda superior da faixa */
+.strip-toggle {
+  position: absolute;
+  top: -14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgb(13 14 17 / 0.85);
+  color: var(--text-2);
+  pointer-events: auto;
+  opacity: 0;
+  transition:
+    opacity var(--dur) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.stage-focus[data-strip='hidden'] .strip-toggle {
+  position: static;
+}
+.stage-focus:hover .strip-toggle,
+.strip-toggle:focus-visible {
+  opacity: 1;
+}
+.strip-toggle:hover {
+  color: var(--text);
+}
+@media (hover: none) {
+  .strip-toggle {
+    opacity: 1;
+  }
+}
+
+/* janela separada da transmissão */
+.popout-body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: #0d0e11;
+  color: var(--text);
+  font-family: var(--font);
+}
+#oc-popout {
+  height: 100%;
+}
+.popout-stage {
+  position: relative;
+  height: 100%;
+}
+
+/* ---------- seletor do Go Live ---------- */
+.dialog-bare {
+  padding: 16px;
+}
+.golive {
+  display: grid;
+  gap: 12px;
+  min-width: min(860px, calc(100vw - 64px));
+}
+.golive-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+}
+.golive-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.golive-tab:hover {
+  color: var(--text);
+}
+.golive-tab[aria-selected='true'] {
+  background: var(--interactive);
+  color: var(--text);
+}
+.golive-refresh {
+  flex: none;
+}
+.golive-grid {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-height: min(58vh, 620px);
+  overflow-y: auto;
+}
+.golive-card {
+  display: grid;
+  gap: 8px;
+  cursor: pointer;
+  outline: none;
+}
+.golive-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: outline-color var(--dur-fast) var(--ease);
+}
+.golive-thumb > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition:
+    transform var(--dur) var(--ease-out),
+    filter var(--dur) var(--ease);
+}
+.golive-go {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--brand);
+  color: var(--text-on-brand);
+  font-weight: 700;
+  opacity: 0;
+  scale: 0.96;
+  transition:
+    opacity var(--dur) var(--ease),
+    scale var(--dur) var(--ease-out);
+}
+.golive-card:hover .golive-thumb,
+.golive-card:focus-visible .golive-thumb {
+  outline-color: var(--brand-text);
+}
+.golive-card:hover .golive-thumb > img,
+.golive-card:focus-visible .golive-thumb > img {
+  filter: brightness(0.7);
+}
+.golive-card:hover .golive-go,
+.golive-card:focus-visible .golive-go {
+  opacity: 1;
+  scale: 1;
+}
+.golive-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.golive-name > img {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.golive-note,
+.golive-loading {
+  margin: 0;
+}
+.golive-browser {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-2);
+}
+.golive-browser p {
+  max-width: 52ch;
+  margin: 0;
+}
+.golive-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.golive-summary {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .golive-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -9,6 +9,7 @@ export function Dialog({
   wide,
   fullscreen,
   actions,
+  bare,
 }: {
   title: string;
   onClose: () => void;
@@ -17,6 +18,8 @@ export function Dialog({
   /** Ocupa a janela inteira (telas de configurações), com botão de fechar e dica "Esc" à direita. */
   fullscreen?: boolean;
   actions?: ReactNode;
+  /** Sem cabeçalho/rodapé visíveis (o título fica só para leitores de tela); Esc ou clique fora fecham. */
+  bare?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -53,6 +56,13 @@ export function Dialog({
             </button>
             <span aria-hidden>ESC</span>
           </div>
+        </div>
+      ) : bare ? (
+        <div className="dialog-body dialog-bare">
+          <h2 id={titleId} className="oc-visually-hidden">
+            {title}
+          </h2>
+          {children}
         </div>
       ) : (
         <div className="dialog-body">

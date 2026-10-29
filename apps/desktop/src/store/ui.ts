@@ -34,6 +34,10 @@ interface UiState {
   panel: 'none' | 'nav' | 'members';
   /** stream em foco no palco (identity do publisher) */
   focusedStream: string | null;
+  /** transmissão aberta em janela separada (identidade de quem transmite) */
+  poppedStream: string | null;
+  /** faixa de participantes oculta sob a transmissão em destaque */
+  stripHidden: boolean;
   /** mensagem em edição inline (seta para cima no composer edita a última própria) */
   editing: string | null;
   toasts: Toast[];
@@ -51,6 +55,8 @@ interface UiState {
   toggleMembers(): void;
   setPanel(p: UiState['panel']): void;
   focusStream(id: string | null): void;
+  setPoppedStream(id: string | null): void;
+  toggleStrip(): void;
   setEditing(id: string | null): void;
   toast(kind: Toast['kind'], text: string): void;
   dismissToast(id: number): void;
@@ -68,6 +74,8 @@ export const useUi = create<UiState>()((set) => ({
   showMembers: true,
   panel: 'none',
   focusedStream: null,
+  poppedStream: null,
+  stripHidden: false,
   editing: null,
   toasts: [],
   connection: 'connecting',
@@ -101,6 +109,8 @@ export const useUi = create<UiState>()((set) => ({
   toggleMembers: () => set((s) => ({ showMembers: !s.showMembers })),
   setPanel: (panel) => set({ panel }),
   focusStream: (id) => set({ focusedStream: id }),
+  setPoppedStream: (id) => set({ poppedStream: id }),
+  toggleStrip: () => set((s) => ({ stripHidden: !s.stripHidden })),
   setEditing: (editing) => set({ editing }),
   toast: (kind, text) => {
     const id = ++toastSeq;

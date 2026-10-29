@@ -14,7 +14,8 @@ import { MemberList } from './MemberList';
 import { ServerRail } from './ServerRail';
 import { TitleBar } from './TitleBar';
 import { UserDock } from './UserDock';
-import { VoiceStage } from '../voice/VoiceStage';
+import { PopoutStage, VoiceStage } from '../voice/VoiceStage';
+import { PopoutPortal } from '../voice/popout';
 import { ConnectionBanner } from './ConnectionBanner';
 
 /** Layout: rail de servidores | sidebar (canais/DMs + dock) | conteúdo | membros. Cada região rola de forma independente. */
@@ -126,6 +127,8 @@ export function AppShell() {
   // fora da tela no celular = fora da ordem de foco e da árvore de acessibilidade
   const off = (p: typeof panel) => mobile && panel !== p;
 
+  // transmissão desanexada: renderizada aqui para seguir viva ao navegar para outros canais
+  const popped = useUi((st) => st.poppedStream);
   return (
     <div
       className="shell"
@@ -170,6 +173,11 @@ export function AppShell() {
       )}
       <Modals />
       <ContextMenuHost />
+      {popped && (
+        <PopoutPortal key={popped}>
+          <PopoutStage />
+        </PopoutPortal>
+      )}
     </div>
   );
 }
