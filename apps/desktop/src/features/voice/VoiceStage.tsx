@@ -1,3 +1,4 @@
+import { MobileNavButton } from '../../components/MobileNavButton';
 import { Avatar, Button, Icon } from '@opencord/ui';
 import type { Member } from '@opencord/contracts';
 import { useEffect, useRef } from 'react';
@@ -59,6 +60,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   return (
     <section className="stage" aria-label={`Chamada em ${channel?.name ?? ''}`} ref={stageRef}>
       <header className="chat-header">
+        <MobileNavButton />
         <Icon name="speaker" size={22} />
         <h2 className="truncate">{channel?.name}</h2>
         <span className="spacer" />

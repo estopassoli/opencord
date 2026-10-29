@@ -144,6 +144,7 @@ Status: `[ ]` pendente, `[x]` concluído com evidência. Não marcar `x` sem tes
 | 2026-10-29 | Sessão persistente | `restore()` single-flight + trava `navigator.locks` no refresh; unit `api.test` (2 clientes); E2E `persist.spec` (reabrir 3× + dev/StrictMode) | verde | — |
 | 2026-10-29 | Cor da marca | `--brand` #4d56fd (fundo da logo), ADR-0006 atualizado | verde | — |
 | 2026-10-29 | Importar fonte (local) + flush das configurações ao fechar | unit `fonts.test` 11/11; E2E `fonts.spec` (arquivo falso recusado, importa, reabre, remove); suíte E2E 22/22 ×2 | verde | — |
+| 2026-10-29 | Layout de celular (web) | `styles/mobile.css` + `lib/media.ts`; gavetas de navegação/membros, gestos, `inert`, safe-area; E2E `mobile.spec` (Edge, 390×844 toque, 360/320, deitado 844×390) 6/6; suíte 35/35 ×2 | verde em emulação | aparelho real (iOS/Android) não testado |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

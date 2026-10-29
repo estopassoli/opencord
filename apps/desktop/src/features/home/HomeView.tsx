@@ -1,3 +1,4 @@
+import { MobileNavButton } from '../../components/MobileNavButton';
 import type { Conversation, UserPublic } from '@opencord/contracts';
 import { Avatar, Button, Icon, STATUS_LABEL, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -69,6 +70,7 @@ export function HomeView() {
     <div className="home-layout">
       <section className="home" aria-label="Amigos">
         <header className="chat-header home-header">
+          <MobileNavButton />
           <Icon name="users" size={22} />
           <h2>Amigos</h2>
           <span className="header-divider" aria-hidden />
