@@ -27,7 +27,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
 RUN npm install -g prisma@6.19.3
 COPY --from=build /out /app
 COPY --from=build /repo/packages/db/prisma /app/prisma
-USER node
+COPY infra/docker/api-entrypoint.sh /usr/local/bin/api-entrypoint
+# Pastas de upload do usuário `node`: volume novo herda esse dono. Volume antigo criado como root é corrigido
+# pelo entrypoint, que sobe como root só para o chown e então roda a API como `node` (setpriv).
+RUN chmod 755 /usr/local/bin/api-entrypoint && mkdir -p /data/uploads /app/var/uploads && chown -R node:node /data /app/var
+ENTRYPOINT ["/usr/local/bin/api-entrypoint"]
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 # Migrações NÃO rodam na subida (regra do projeto): aplicar como passo do deploy com

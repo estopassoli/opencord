@@ -83,7 +83,9 @@ export class AvatarService {
     } catch (e) {
       // ex.: pasta do volume sem permissão de escrita para o usuário do contêiner
       this.log.error(`gravar ${folder}/${name}: ${e instanceof Error ? e.message : String(e)}`);
-      throw new InternalServerErrorException('não foi possível salvar a imagem no armazenamento do servidor');
+      // só o código do sistema (ex.: EACCES), sem caminhos: permite diagnosticar pelo app
+      const code = e instanceof Error && 'code' in e && typeof e.code === 'string' ? ` (${e.code})` : '';
+      throw new InternalServerErrorException(`não foi possível salvar a imagem no armazenamento do servidor${code}`);
     }
     return name;
   }
