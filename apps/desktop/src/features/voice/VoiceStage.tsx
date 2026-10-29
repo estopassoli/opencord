@@ -1,7 +1,7 @@
 import { MobileNavButton } from '../../components/MobileNavButton';
 import { Avatar, Button, Icon } from '@opencord/ui';
 import type { Member } from '@opencord/contracts';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useContextMenu } from '../../components/ContextMenu';
 import { Tooltip } from '../../components/Tooltip';
 import { deviceMenu } from './devices';
@@ -10,7 +10,7 @@ import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
 import { isInCall, useVoice, type ParticipantView } from '../../store/voice';
 import { closeStreamWindow, openStreamWindow } from './popout';
-import { ActivityTile } from './WatchTogether';
+import { ActivitiesPanel, ActivityTile } from './WatchTogether';
 import { useActivity } from '../../store/activity';
 import { useIsMobile } from '../../lib/media';
 
@@ -402,6 +402,7 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
   const v = useVoice();
   const live = v.stream.status === 'live';
   const activityOn = useActivity((s) => s.state !== null);
+  const [panel, setPanel] = useState(false);
   const menu = (e: React.MouseEvent, kind: 'audioinput' | 'audiooutput') => {
     const target = e.currentTarget as HTMLElement;
     const r = target.getBoundingClientRect();
@@ -411,6 +412,7 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
   };
   return (
     <>
+      {panel && <ActivitiesPanel onClose={() => setPanel(false)} />}
       <div className="call-controls" role="toolbar" aria-label="Controles da chamada">
         <div className="call-group">
           <Tooltip label={v.selfMute ? 'Ativar microfone' : 'Silenciar microfone'}>
@@ -448,19 +450,16 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
           </Tooltip>
         </div>
         <div className="call-group">
-          <Tooltip label={activityOn ? 'Mostrar o vídeo' : 'Assistir juntos (YouTube)'}>
+          <Tooltip label="Atividades">
             <button
-              className="call-btn"
-              aria-label={activityOn ? 'Mostrar o vídeo' : 'Assistir juntos (YouTube)'}
+              className="call-btn activities-btn"
+              aria-label="Atividades"
+              aria-haspopup="dialog"
+              aria-expanded={panel}
               aria-pressed={activityOn}
-              onClick={() => {
-                if (activityOn) {
-                  useActivity.getState().join(true);
-                  useUi.getState().focusStream('activity');
-                } else useUi.getState().openModal({ kind: 'watch-together' });
-              }}
+              onClick={() => setPanel((o) => !o)}
             >
-              <Icon name="film" />
+              <Icon name="activities" />
             </button>
           </Tooltip>
           <Tooltip label={live ? 'Parar transmissão' : 'Transmitir tela'}>

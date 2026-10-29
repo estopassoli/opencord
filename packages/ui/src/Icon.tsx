@@ -1,5 +1,7 @@
 import type { IconType } from 'react-icons';
 import {
+  HiOutlinePuzzlePiece,
+  HiPuzzlePiece,
   HiOutlinePause,
   HiPause,
   HiFilm,
@@ -172,6 +174,8 @@ const ICONS = {
   /** Assistir juntos */
   film: [HiOutlineFilm, HiFilm],
   pause: [HiOutlinePause, HiPause],
+  /** atividades da chamada */
+  activities: [HiOutlinePuzzlePiece, HiPuzzlePiece],
   /** abrir em janela separada */
   popout: [HiOutlineArrowTopRightOnSquare, HiArrowTopRightOnSquare],
   /** devolver da janela separada */

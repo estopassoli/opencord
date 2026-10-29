@@ -275,7 +275,12 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
 
 test('Assistir juntos: A abre um vídeo por link, B entra, pausa sincroniza e encerrar some para os dois', async () => {
   // processo com --mute-audio: o vídeo toca mudo
-  await A.page.getByRole('button', { name: 'Assistir juntos (YouTube)' }).click();
+  // botão "Atividades" abre o painel; o YouTube é uma das atividades
+  await A.page.getByRole('button', { name: 'Atividades' }).click();
+  const panel = A.page.getByRole('dialog', { name: 'Atividades' });
+  await expect(panel).toBeVisible();
+  await A.page.screenshot({ path: shot('14-atividades') });
+  await panel.getByRole('button', { name: /YouTube/ }).click();
   const dialog = A.page.getByRole('dialog', { name: 'Assistir juntos' });
   await dialog.getByLabel(/Link/).fill('https://youtu.be/jNQXAC9IVRw');
   await dialog.getByRole('button', { name: 'Assistir juntos' }).click();
