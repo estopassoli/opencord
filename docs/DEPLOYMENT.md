@@ -39,8 +39,10 @@ Não executar deploy em produção sem aprovação. Não habilitar auto-update d
 A chave só consegue **gravar** na pasta do volume (`rrsync -wo`): não abre shell, não lê arquivos, não sai da pasta.
 ```sh
 # no nó da API (onde o volume opencord-downloads está montado)
-sudo useradd --system --create-home --shell /usr/sbin/nologin opencord-dl
+# shell /bin/sh, não nologin: o sshd roda o command= forçado pelo shell do usuário (o rrsync continua barrando terminal)
+sudo useradd --system --create-home --shell /bin/sh opencord-dl && sudo passwd -l opencord-dl
 VOL=$(docker volume inspect opencord-downloads -f '{{ .Mountpoint }}')   # ex.: /var/lib/docker/volumes/opencord-downloads/_data
+sudo setfacl -m u:opencord-dl:x /var/lib/docker  # só atravessar (é 710 root; pacote acl)
 sudo setfacl -m u:opencord-dl:rwx "$VOL"           # escrever na pasta; a API continua lendo (arquivos 644)
 ssh-keygen -t ed25519 -N '' -C 'github-actions opencord-downloads' -f opencord-dl   # gera opencord-dl e opencord-dl.pub
 sudo install -d -m 700 -o opencord-dl ~opencord-dl/.ssh
