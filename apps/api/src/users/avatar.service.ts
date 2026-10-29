@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
-import { BadRequestException, Injectable, PayloadTooLargeException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  PayloadTooLargeException,
+} from '@nestjs/common';
 import { rooms } from '@opencord/contracts';
 import { imageSize } from '../attachments/attachments.service.js';
 import { StorageService } from '../attachments/storage.service.js';
@@ -22,6 +28,7 @@ export const AVATAR_NAME = /^[0-9a-f-]{36}-(png|jpeg|webp|gif)$/;
 
 @Injectable()
 export class AvatarService {
+  private readonly log = new Logger('Imagens');
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -71,7 +78,13 @@ export class AvatarService {
     if (!dims || dims.width < 16 || dims.height < 16 || dims.width > MAX_SIDE || dims.height > MAX_SIDE)
       throw new BadRequestException(`a foto precisa ter entre 16 e ${MAX_SIDE} pixels de lado`);
     const name = `${randomUUID()}-${ext}`;
-    await this.storage.write(`${folder}/${name}`, Readable.from(buf));
+    try {
+      await this.storage.write(`${folder}/${name}`, Readable.from(buf));
+    } catch (e) {
+      // ex.: pasta do volume sem permissão de escrita para o usuário do contêiner
+      this.log.error(`gravar ${folder}/${name}: ${e instanceof Error ? e.message : String(e)}`);
+      throw new InternalServerErrorException('não foi possível salvar a imagem no armazenamento do servidor');
+    }
     return name;
   }
 

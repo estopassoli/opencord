@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '21:25',
+    kind: 'melhoria',
+    icon: 'upload',
+    title: 'Foto de perfil em GIF animado',
+    body: 'GIFs de até 1 MB e 1024 px vão como estão e ficam animados no avatar; maiores viram imagem parada.',
+  },
+  {
+    date: '2026-10-29',
     time: '21:15',
     kind: 'correção',
     icon: 'screen',

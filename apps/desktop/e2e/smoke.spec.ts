@@ -296,6 +296,12 @@ test('foto de perfil: envia em Minha conta, aparece no painel do usuário e pode
   // a imagem carrega de verdade do servidor
   await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(256);
   await page.screenshot({ path: shots('07-foto-perfil') });
+  // GIF pequeno vai original (animado): a URL termina em -gif e a imagem carrega
+  await dialog
+    .getByLabel('Escolher foto de perfil')
+    .setInputFiles(path.join(__dirname, 'fixtures', 'avatar-animado.gif'));
+  await expect(img).toHaveAttribute('src', /-gif$/, { timeout: 10_000 });
+  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(32);
   await dialog.getByRole('button', { name: 'Remover' }).click();
   await expect(dialog.getByRole('button', { name: 'Enviar foto' })).toBeVisible();
   await expect(dialog.locator('.avatar-picker .oc-avatar-img')).toHaveCount(0);
