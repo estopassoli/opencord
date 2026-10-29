@@ -19,7 +19,7 @@
 1. No servidor: `GUEST_JOIN_ENABLED=true` (padrão). Se a instância estiver na internet, defina `INSTANCE_ACCESS_CODE` e passe o código aos amigos.
 2. Gere o instalador apontando para o seu servidor: `VITE_OPENCORD_SERVER_URL=https://chat.exemplo.com pnpm --filter @opencord/desktop build`, depois `stage:win` e `npm run dist` no Windows.
 3. Os amigos instalam, abrem, digitam o apelido e entram em todos os servidores (abertos, sem convite). Criar conta é opcional.
-4. Para quem abrir pelo navegador aparecer o botão "Baixar para Windows": defina `DESKTOP_DOWNLOAD_URL` (link do instalador) **ou** `DOWNLOADS_DIR` (pasta com os `OpenCord Setup x.y.z.exe`; a API serve o mais recente em `/downloads/files/…`). Sem nenhum dos dois, o botão não aparece.
+4. Para quem abrir pelo navegador aparecer o botão de baixar o app: defina `DOWNLOADS_DIR` (pasta com os instaladores gerados pelo workflow `desktop.yml`: `.exe`, `.dmg`, `.AppImage`, `.deb`; a API serve o mais recente de cada plataforma em `/downloads/files/…` e sugere o do sistema de quem visita) e/ou `DESKTOP_DOWNLOAD_URL` (link externo só do instalador Windows). Sem nenhum dos dois, o botão não aparece.
 
 ## Desenvolvimento nativo (validado)
 Primeira vez (WSL):

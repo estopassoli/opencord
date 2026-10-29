@@ -1,0 +1,56 @@
+# Instaladores do app desktop para Windows, macOS e Linux, cada um no próprio sistema (o .dmg só é gerado em macOS).
+# Sem assinatura (Windows) / assinatura ad-hoc sem notarização (macOS) até haver certificados (ADR-0008).
+# Os arquivos ficam como artefatos do run; publicar no servidor = copiar para o DOWNLOADS_DIR da API (docs/DEPLOYMENT.md).
+name: Desktop (instaladores)
+on:
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: Servidor embutido no app (VITE_OPENCORD_SERVER_URL)
+        default: https://api.opencord.pro
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows, os: windows-latest, flag: --win }
+          - { name: mac, os: macos-latest, flag: --mac }
+          - { name: linux, os: ubuntu-latest, flag: --linux }
+    env:
+      VITE_OPENCORD_SERVER_URL: ${{ inputs.server_url || vars.OPENCORD_SERVER_URL || 'https://api.opencord.pro' }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Dependências pelo turbo; o app fora dele, porque o turbo não repassa VITE_OPENCORD_SERVER_URL ao vite.
+      - run: pnpm turbo run build --filter "@opencord/desktop^..."
+      - run: pnpm --filter @opencord/desktop build
+      - run: pnpm --filter @opencord/desktop test
+      - name: Empacotar
+        working-directory: apps/desktop
+        run: npx --yes electron-builder@26.17.0 ${{ matrix.flag }} --config electron-builder.yml --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencord-${{ matrix.name }}
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+          if-no-files-found: error
+          retention-days: 14
