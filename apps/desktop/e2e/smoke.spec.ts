@@ -230,3 +230,16 @@ test('barra de título: só os botões voltar/avançar ficam fora da área de ar
   expect(nav!.width).toBeLessThan(80);
   expect(nav!.width).toBeLessThan(bar!.width / 10);
 });
+
+test('categoria recolhida esconde os canais (inclusive de voz) e expande de novo', async () => {
+  await page.getByRole('button', { name: 'OpenCord' }).first().click();
+  const toggle = page.locator('.cat-toggle').filter({ hasText: /voz/i });
+  const sala = page.locator('.channel-row').filter({ hasText: 'Sala' });
+  await expect(sala).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(sala).toHaveCount(0);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(sala).toBeVisible();
+});

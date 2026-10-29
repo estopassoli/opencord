@@ -8,6 +8,23 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { ProfileButton } from './ProfileButton';
 
+/** Categorias recolhidas (por id de categoria), lembradas neste dispositivo. */
+const COLLAPSED_KEY = 'oc:collapsed-categories';
+function loadCollapsed(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '{}') as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+function saveCollapsed(c: Record<string, boolean>) {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify(c));
+  } catch {
+    /* armazenamento indisponível: vale só nesta sessão */
+  }
+}
+
 export function ChannelSidebar({ serverId }: { serverId: string }) {
   const detail = useData((s) => s.details[serverId]);
   const unread = useData((s) => s.unread);
@@ -15,7 +32,13 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   const view = useUi((s) => s.view);
   const go = useUi((s) => s.go);
   const open = useUi((s) => s.openModal);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsedState] = useState<Record<string, boolean>>(loadCollapsed);
+  const setCollapsed = (fn: (c: Record<string, boolean>) => Record<string, boolean>) =>
+    setCollapsedState((c) => {
+      const next = fn(c);
+      saveCollapsed(next);
+      return next;
+    });
   const speaking = useVoice((s) => s.participants);
   const voiceChannel = useVoice((s) => s.machine.channelId);
 
@@ -80,7 +103,9 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                 const active = view.kind === 'server' && view.channelId === c.id;
                 const u = unread[`c:${c.id}`];
                 const hasUnread = (u?.unreadCount ?? 0) > 0;
-                if (collapsed[g.id as string] && !active && !hasUnread && c.kind === 'text') return null;
+                // recolhida: some tudo, menos o canal aberto, os não lidos e a voz em que estou conectado
+                const keep = active || hasUnread || (c.kind === 'voice' && voiceChannel === c.id);
+                if (collapsed[g.id as string] && !keep) return null;
                 const inVoice = Object.values(voiceStates).filter((v) => v.channelId === c.id);
                 return (
                   <li key={c.id}>
