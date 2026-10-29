@@ -95,6 +95,10 @@ describe('clientIp', () => {
   });
   it('CLIENT_IP_HEADER: vazio vira ausente, nome é normalizado e validado', () => {
     expect(loadConfig({ ...baseEnv, CLIENT_IP_HEADER: '' } as NodeJS.ProcessEnv).CLIENT_IP_HEADER).toBeUndefined();
+    // .env.example deixa opcionais vazios (DESKTOP_DOWNLOAD_URL=, S3_ENDPOINT=...)
+    const empty = loadConfig({ ...baseEnv, DESKTOP_DOWNLOAD_URL: '', INSTANCE_ACCESS_CODE: '' } as NodeJS.ProcessEnv);
+    expect(empty.DESKTOP_DOWNLOAD_URL).toBeUndefined();
+    expect(empty.INSTANCE_ACCESS_CODE).toBeUndefined();
     expect(
       loadConfig({ ...baseEnv, CLIENT_IP_HEADER: ' CF-Connecting-IP ' } as NodeJS.ProcessEnv).CLIENT_IP_HEADER,
     ).toBe('cf-connecting-ip');

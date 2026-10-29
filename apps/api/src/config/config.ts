@@ -72,7 +72,9 @@ export type AppConfig = z.infer<typeof ConfigSchema>;
 export const APP_CONFIG = Symbol('APP_CONFIG');
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = ConfigSchema.safeParse(env);
+  // `VAR=` vazio (como no .env.example) = não definida; senão campos opcionais como URLs falham na validação
+  const defined = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== ''));
+  const parsed = ConfigSchema.safeParse(defined);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
     throw new Error(`Configuração inválida: ${issues}`);
