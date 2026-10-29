@@ -260,3 +260,17 @@ test('botão direito no espaço livre da lista de canais abre o menu da lista', 
   await menu.getByRole('menuitem', { name: 'Expandir todas as categorias' }).click();
   await expect(page.locator('.channel-row').filter({ hasText: 'Sala' })).toBeVisible();
 });
+
+test('criar servidor → importar do Discord: formulário, aviso do que vem e erro de link inválido', async () => {
+  await page.getByRole('button', { name: 'Criar um servidor' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Criar servidor' });
+  await dialog.getByRole('tab', { name: 'Importar do Discord' }).click();
+  await expect(dialog.getByText(/Mensagens, membros, emojis e arquivos não/)).toBeVisible();
+  // link fora do padrão: a API recusa sem chamar o Discord
+  await dialog.getByLabel('Link do modelo do servidor').fill('https://exemplo.invalido/abc');
+  await dialog.getByRole('button', { name: 'Ver prévia' }).click();
+  await expect(dialog.getByRole('alert')).toContainText('link de modelo inválido');
+  await page.screenshot({ path: shots('05-importar-discord') });
+  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(dialog).toHaveCount(0);
+});

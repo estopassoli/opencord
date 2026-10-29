@@ -177,6 +177,25 @@ export type ServerDetail = z.infer<typeof ServerDetail>;
 
 export const CreateServerRequest = z.object({ name: z.string().trim().min(1).max(100) });
 export type CreateServerRequest = z.infer<typeof CreateServerRequest>;
+/** Importação da estrutura de um servidor do Discord por link de modelo oficial (discord.new/…). */
+export const DiscordImportRequest = z.object({ link: z.string().trim().min(2).max(200) });
+export type DiscordImportRequest = z.infer<typeof DiscordImportRequest>;
+export const DiscordImportPreview = z.object({
+  name: z.string(),
+  roles: z.array(z.object({ name: z.string(), color: z.string().nullable() })),
+  categories: z.array(
+    z.object({
+      name: z.string().nullable(),
+      channels: z.array(z.object({ name: z.string(), kind: z.enum(['text', 'voice']) })),
+    }),
+  ),
+  textChannels: z.number().int(),
+  voiceChannels: z.number().int(),
+  /** itens sem equivalente no OpenCord (tipos de canal, permissões por membro, excesso sobre os limites) */
+  skipped: z.number().int(),
+});
+export type DiscordImportPreview = z.infer<typeof DiscordImportPreview>;
+
 export const UpdateServerRequest = z.object({ name: z.string().trim().min(1).max(100).optional() });
 export type UpdateServerRequest = z.infer<typeof UpdateServerRequest>;
 

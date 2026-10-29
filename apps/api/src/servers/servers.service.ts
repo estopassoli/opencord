@@ -12,7 +12,8 @@ import {
   type ServerDirectoryEntry,
   type ServerSummary,
 } from '@opencord/contracts';
-import { createServerWithDefaults } from '@opencord/db';
+import { createServerShell, createServerWithDefaults } from '@opencord/db';
+import type { ImportPlan } from './discord-template.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { DomainEvents } from '../common/domain-events.js';
 import { forbidden, notFound } from '../common/errors.js';
@@ -50,7 +51,14 @@ export class ServersService {
     if (owned >= MAX_SERVERS_PER_OWNER) throw new BadRequestException('limite de servidores atingido');
     const server = await this.prisma.$transaction((tx) => createServerWithDefaults(tx, userId, name));
     await this.audit.log(userId, server.id, 'server.create', server.id, { name });
-    // servidor aberto: todos já são membros; avisa cada um conectado para carregar o servidor
+    return this.announceNew(server, userId);
+  }
+
+  /** Servidor aberto: todos já são membros; avisa cada um conectado para carregar o servidor. */
+  private async announceNew(
+    server: { id: string; name: string; ownerId: string; iconKey: string | null },
+    userId: string,
+  ) {
     const members = await this.prisma.serverMember.findMany({
       where: { serverId: server.id },
       select: { userId: true },
@@ -60,6 +68,62 @@ export class ServersService {
       if (m.userId !== userId) this.realtime.toUser(m.userId, 'server:added', serverSummary(server));
     }
     return this.detail(server.id, userId);
+  }
+
+  /** Cria um servidor a partir de um plano de importação (estrutura de um modelo do Discord). */
+  async createFromPlan(userId: string, plan: ImportPlan, source: string): Promise<ServerDetail> {
+    const owned = await this.prisma.server.count({ where: { ownerId: userId } });
+    if (owned >= MAX_SERVERS_PER_OWNER) throw new BadRequestException('limite de servidores atingido');
+    const server = await this.prisma.$transaction(
+      async (tx) => {
+        const { server, everyone } = await createServerShell(tx, userId, plan.name, plan.everyonePermissions);
+        const roleIds = new Map<string, string>([['everyone', everyone.id]]);
+        // na ordem do modelo (da base para o topo): posição 1 = logo acima de @everyone
+        for (const [i, r] of plan.roles.entries()) {
+          const row = await tx.role.create({
+            data: { serverId: server.id, name: r.name, color: r.color, permissions: r.permissions, position: i + 1 },
+          });
+          roleIds.set(r.key, row.id);
+        }
+        const catIds = new Map<string, string>();
+        for (const [i, c] of plan.categories.entries()) {
+          const row = await tx.category.create({ data: { serverId: server.id, name: c.name, position: i } });
+          catIds.set(c.key, row.id);
+        }
+        for (const [i, c] of plan.channels.entries()) {
+          await tx.channel.create({
+            data: {
+              serverId: server.id,
+              categoryId: c.categoryKey ? (catIds.get(c.categoryKey) ?? null) : null,
+              kind: c.kind,
+              name: c.name,
+              topic: c.topic,
+              position: i,
+              overrides: {
+                create: c.overrides
+                  .filter((o) => roleIds.has(o.roleKey))
+                  .map((o) => ({
+                    subjectType: 'role' as const,
+                    subjectId: roleIds.get(o.roleKey)!,
+                    allow: o.allow,
+                    deny: o.deny,
+                  })),
+              },
+            },
+          });
+        }
+        return server;
+      },
+      { timeout: 30_000 },
+    );
+    await this.audit.log(userId, server.id, 'server.import', server.id, {
+      source,
+      roles: plan.roles.length,
+      categories: plan.categories.length,
+      channels: plan.channels.length,
+      skipped: plan.skipped,
+    });
+    return this.announceNew(server, userId);
   }
 
   async detail(serverId: string, userId: string): Promise<ServerDetail> {
