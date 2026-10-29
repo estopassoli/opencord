@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '22:05',
+    kind: 'correção',
+    icon: 'screen',
+    title: 'Live mais estável com jogo pesado',
+    body: 'Com um jogo em tela cheia por cima, o Windows deixava o OpenCord em segundo plano e a live engasgava. Agora a captura e a codificação mantêm prioridade enquanto você transmite.',
+  },
+  {
+    date: '2026-10-29',
     time: '21:55',
     kind: 'melhoria',
     icon: 'users',

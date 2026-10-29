@@ -43,3 +43,13 @@ Monitorar ICE candidate failures, RTT, jitter, packet loss, bitrate, encode FPS,
 - 2 streams simultâneas e espectadores alternando.
 - Alt-tab, minimizar, desconectar Wi-Fi, trocar dispositivos e sair da sala.
 - Registrar codec, FPS real, perda de pacotes e limitações.
+
+## Live com jogo pesado (2026-10-29)
+- Relato: com um jogo pesado rodando liso, a live engasgava.
+- Causa provável: o jogo em tela cheia cobre a janela do OpenCord, o Windows a marca como ocluída e o Chromium rebaixava a prioridade do renderer, que captura e codifica a live. Com CPU/GPU disputados, ele perdia quadros.
+- Mitigação no desktop:
+  - switches `disable-backgrounding-occluded-windows` e `disable-features=CalculateNativeWinOcclusion`;
+  - ao iniciar uma live, os processos GPU e renderer sobem para prioridade *acima do normal* (`os.setPriority`).
+- Validado: E2E `golive-real.spec.ts` passa com as mudanças.
+- **Não validado:** o efeito com jogo pesado real em Windows. Status: BLOQUEADO PARA VALIDAÇÃO.
+- Limite conhecido: se a GPU estiver 100% ocupada pelo jogo, a cópia de quadros da captura ainda disputa tempo de GPU. Nesse caso, limitar o FPS do jogo ajuda.
