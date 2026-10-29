@@ -26,6 +26,7 @@ test.beforeAll(async () => {
     .then(() => true)
     .catch(() => false);
   test.skip(!ok, `servidor web indisponível em ${URL}`);
+  await page.getByRole('button', { name: 'Utilizar apenas apelido (dados ficam neste navegador)' }).click();
   await page.getByLabel('Apelido').fill(uniqueNick('Mob'));
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Abrir menu de servidores e canais' })).toBeVisible({

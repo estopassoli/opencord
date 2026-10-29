@@ -6,6 +6,7 @@ import { useData } from '../../store/data';
 import { api, describeError, markTargetRead } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
+import { ProfileButton } from './ProfileButton';
 
 export function ChannelSidebar({ serverId }: { serverId: string }) {
   const detail = useData((s) => s.details[serverId]);
@@ -151,20 +152,22 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                           const m = memberName(v.userId);
                           const name = m?.nickname ?? m?.user.displayName ?? 'Alguém';
                           return (
-                            <li key={v.userId} className="voice-member">
-                              <Avatar id={v.userId} name={name} size={22} speaking={speakingIds.has(v.userId)} />
-                              <span className="truncate">{name}</span>
-                              {v.streaming && <span className="live-pill">AO VIVO</span>}
-                              {v.video && <Icon name="camera" size={14} label="Câmera ligada" />}
-                              {(v.selfMute || v.serverMute) && (
-                                <Icon
-                                  name="microphone"
-                                  size={14}
-                                  slashed
-                                  label={v.serverMute ? 'Silenciado pelo servidor' : 'Microfone desligado'}
-                                />
-                              )}
-                              {v.selfDeaf && <Icon name="speaker-off" size={14} label="Áudio desligado" />}
+                            <li key={v.userId}>
+                              <ProfileButton userId={v.userId} serverId={serverId} className="voice-member">
+                                <Avatar id={v.userId} name={name} size={22} speaking={speakingIds.has(v.userId)} />
+                                <span className="truncate">{name}</span>
+                                {v.streaming && <span className="live-pill">AO VIVO</span>}
+                                {v.video && <Icon name="camera" size={14} label="Câmera ligada" />}
+                                {(v.selfMute || v.serverMute) && (
+                                  <Icon
+                                    name="microphone"
+                                    size={14}
+                                    slashed
+                                    label={v.serverMute ? 'Silenciado pelo servidor' : 'Microfone desligado'}
+                                  />
+                                )}
+                                {v.selfDeaf && <Icon name="speaker-off" size={14} label="Áudio desligado" />}
+                              </ProfileButton>
                             </li>
                           );
                         })}

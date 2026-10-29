@@ -74,15 +74,19 @@ test('IPC rejeita argumentos inválidos', async () => {
 });
 
 test('entrar só com apelido → servidor padrão → canal → enviar mensagem', async () => {
+  // tela padrão: login e senha, sem endereço do servidor; link para entrar só com apelido embaixo
   await expect(page.getByRole('heading', { name: /^Entrar no / })).toBeVisible();
-  // sem conta e sem endereço: só o apelido
-  await expect(page.getByLabel('E-mail')).toHaveCount(0);
+  await expect(page.getByLabel('Apelido ou e-mail')).toBeVisible();
+  await expect(page.getByLabel('Senha')).toBeVisible();
   await expect(page.getByLabel('Endereço do servidor')).toHaveCount(0);
-  await expect(page.getByRole('textbox')).toHaveCount(1);
-  // conta é opcional: links visíveis; nada de convite
-  await expect(page.getByRole('button', { name: 'Já tenho conta' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Criar conta' })).toBeVisible();
   await expect(page.getByText(/convite/i)).toHaveCount(0);
+  await page.screenshot({ path: shots('01-entrar-login') });
+  await page.getByRole('button', { name: 'Utilizar apenas apelido (dados ficam neste computador)' }).click();
+  // só o apelido, sem senha
+  await expect(page.getByRole('heading', { name: 'Entrar só com apelido' })).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Já tenho conta' })).toBeVisible();
   await page.screenshot({ path: shots('01-entrar-apelido') });
   await page.getByLabel('Apelido').fill(NICK);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();

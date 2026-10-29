@@ -98,6 +98,8 @@ export class VoiceEngine {
   private speakingSet = new Set<string>();
   private watching = new Set<string>();
   private volumes = new Map<string, number>();
+  /** silenciados só para mim (não afeta os outros participantes) */
+  private mutedUsers = new Set<string>();
   private deafened = false;
   private selfMuted = false;
   private gateOpen = true;
@@ -349,9 +351,19 @@ export class VoiceEngine {
   }
 
   private applyVolume(p: RemoteParticipant) {
-    const v = this.deafened ? 0 : (this.volumes.get(p.identity) ?? 1) * this.prefs.outputVolume;
+    const v =
+      this.deafened || this.mutedUsers.has(p.identity)
+        ? 0
+        : (this.volumes.get(p.identity) ?? 1) * this.prefs.outputVolume;
     p.setVolume(v, Track.Source.Microphone);
     p.setVolume(this.deafened ? 0 : this.prefs.outputVolume, Track.Source.ScreenShareAudio);
+  }
+
+  setUserMuted(identity: string, muted: boolean) {
+    if (muted) this.mutedUsers.add(identity);
+    else this.mutedUsers.delete(identity);
+    const p = this.room?.remoteParticipants.get(identity);
+    if (p) this.applyVolume(p);
   }
 
   setUserVolume(identity: string, v: number) {

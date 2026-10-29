@@ -1,5 +1,7 @@
 import type { IconType } from 'react-icons';
 import {
+  HiAtSymbol,
+  HiOutlineAtSymbol,
   HiArrowDownTray,
   HiArrowUpTray,
   HiBars3,
@@ -175,6 +177,7 @@ const ICONS = {
   download: [HiOutlineArrowDownTray, HiArrowDownTray],
   upload: [HiOutlineArrowUpTray, HiArrowUpTray],
   menu: [HiOutlineBars3, HiBars3],
+  'at-symbol': [HiOutlineAtSymbol, HiAtSymbol],
 } as const satisfies Record<string, readonly [IconType, IconType]>;
 
 export type IconName = keyof typeof ICONS;
