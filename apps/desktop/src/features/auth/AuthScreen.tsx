@@ -2,24 +2,26 @@ import type { InstanceInfo } from '@opencord/contracts';
 import { Button, Icon, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiClient, normalizeServerUrl } from '../../lib/api';
-import { secrets } from '../../lib/bridge';
+import { isDesktop, secrets } from '../../lib/bridge';
 import { DEFAULT_SERVER_URL } from '../../lib/config';
 import { describeError, useSession } from '../../store/session';
 
 type Mode = 'nickname' | 'login' | 'register';
 
+const WHERE = isDesktop ? 'neste computador' : 'neste navegador';
+
 const TITLES: Record<Mode, [string, string]> = {
-  nickname: ['', 'Escolha um apelido e entre. Criar conta é opcional.'],
-  login: ['Entrar com conta', 'Use seu apelido (ou e-mail) e senha.'],
+  nickname: ['Entrar só com apelido', `Sem senha: seus dados ficam salvos só ${WHERE}.`],
+  login: ['', 'Use seu apelido (ou e-mail) e senha.'],
   register: ['Criar conta', 'Com conta você entra de qualquer computador com o mesmo apelido.'],
 };
 
 /**
- * Entrada (ADR-0007): o padrão é só o apelido, sem conta e sem endereço do servidor
- * (vem do build ou do último usado). Conta é opcional: "Já tenho conta" e "Criar conta".
+ * Entrada (ADR-0007): pede apelido/e-mail e senha; sem endereço do servidor (vem do build ou do último usado).
+ * Conta continua opcional: o link "Utilizar apenas apelido" entra sem senha, com os dados só neste dispositivo.
  */
 export function AuthScreen() {
-  const [mode, setMode] = useState<Mode>('nickname');
+  const [mode, setMode] = useState<Mode>('login');
   const [serverUrl, setServerUrl] = useState('');
   const [nickname, setNickname] = useState('');
   const [login, setLogin] = useState('');
@@ -105,7 +107,7 @@ export function AuthScreen() {
         ) : (
           <TextField
             label="Apelido"
-            hint={effective === 'nickname' ? 'Fica salvo neste computador.' : undefined}
+            hint={effective === 'nickname' ? `Fica salvo ${WHERE}.` : undefined}
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             required
@@ -164,11 +166,6 @@ export function AuthScreen() {
         </Button>
 
         <p className="auth-switch auth-links">
-          {effective !== 'nickname' && !guestDisabled && (
-            <button type="button" className="link-btn" onClick={() => go('nickname')}>
-              Entrar só com apelido
-            </button>
-          )}
           {effective !== 'login' && (
             <button type="button" className="link-btn" onClick={() => go('login')}>
               Já tenho conta
@@ -180,6 +177,13 @@ export function AuthScreen() {
             </button>
           )}
         </p>
+        {effective !== 'nickname' && !guestDisabled && (
+          <p className="auth-switch auth-links">
+            <button type="button" className="link-btn" onClick={() => go('nickname')}>
+              Utilizar apenas apelido (dados ficam {WHERE})
+            </button>
+          </p>
+        )}
       </form>
     </main>
   );

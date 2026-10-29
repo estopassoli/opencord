@@ -37,6 +37,9 @@ interface VoiceStore {
   toggleCamera(): Promise<void>;
   setPtt(down: boolean): void;
   setUserVolume(userId: string, v: number): void;
+  /** silenciados só para mim nesta sessão do app */
+  localMuted: Record<string, boolean>;
+  setUserMuted(userId: string, muted: boolean): void;
   openStreamPicker(): void;
   cancelStreamPicker(): void;
   startStream(sourceId: string | null, withAudio: boolean, profile: StreamProfileId): Promise<void>;
@@ -100,6 +103,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       },
       prefsFrom(useData.getState().settings),
     );
+    for (const [id, m] of Object.entries(s.localMuted)) engine.setUserMuted(id, m);
     await engine.connect(j.url, j.token, { canSpeak: j.canSpeak, selfMute: s.selfMute, selfDeaf: s.selfDeaf });
     dispatch({ type: 'CONNECTED', generation });
   }
@@ -237,6 +241,12 @@ export const useVoice = create<VoiceStore>()((set, get) => {
 
     setUserVolume(userId, v) {
       engine?.setUserVolume(userId, v);
+    },
+
+    localMuted: {},
+    setUserMuted(userId, muted) {
+      set((s) => ({ localMuted: { ...s.localMuted, [userId]: muted } }));
+      engine?.setUserMuted(userId, muted);
     },
 
     openStreamPicker() {

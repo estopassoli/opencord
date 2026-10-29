@@ -3,14 +3,25 @@ import { Avatar, Button, Icon, portalTarget, Slider, STATUS_LABEL } from '@openc
 import { useEffect, useId, useRef, useState, type ReactNode, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
-import { useData } from '../../store/data';
+import { keyOf, useData, type TargetKey } from '../../store/data';
 import { updateSettings } from '../../store/settings';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 
-/** Itens do menu de contexto de um membro (botão direito na lista de membros/avatar). */
-function memberMenu(userId: string, serverId: string | undefined, openProfile: () => void): MenuEntry[] {
+/** Conversa aberta agora (canal de texto ou DM), onde "Mencionar" insere a menção. */
+function currentChatKey(): TargetKey | null {
+  const v = useUi.getState().view;
+  if (v.kind === 'dm') return keyOf({ conversationId: v.conversationId });
+  if (v.kind !== 'server' || !v.channelId) return null;
+  const ch = useData.getState().details[v.serverId]?.channels.find((c) => c.id === v.channelId);
+  return ch?.kind === 'text' ? keyOf({ channelId: ch.id }) : null;
+}
+
+const apiError = (e: unknown) => useUi.getState().toast('error', describeError(e));
+
+/** Itens do menu de contexto de um membro (botão direito na lista de membros, avatar ou pessoa na voz). */
+export function memberMenu(userId: string, serverId: string | undefined, openProfile: () => void): MenuEntry[] {
   const d = useData.getState();
   const me = d.me?.id;
   const detail = serverId ? d.details[serverId] : undefined;
@@ -18,10 +29,30 @@ function memberMenu(userId: string, serverId: string | undefined, openProfile: (
     detail?.members.find((m) => m.user.id === userId)?.user ?? d.friends.find((f) => f.user.id === userId)?.user;
   if (!user) return [];
   const isMe = userId === me;
+  const perms = detail?.myPermissions;
   const canKick = Boolean(
-    detail && hasPermission(detail.myPermissions, Permission.KICK_MEMBERS) && !isMe && detail.ownerId !== userId,
+    detail && perms && hasPermission(perms, Permission.KICK_MEMBERS) && !isMe && detail.ownerId !== userId,
   );
+  const voice = d.voiceStates[userId];
+  const v = useVoice.getState();
+  // volume/silenciar local só fazem sentido com os dois na mesma chamada
+  const sameCall = Boolean(
+    voice && !isMe && v.machine.status !== 'disconnected' && v.machine.channelId === voice.channelId,
+  );
+  const chatKey = currentChatKey();
+
   const items: MenuEntry[] = [{ label: 'Perfil', icon: 'users', onSelect: openProfile }];
+  if (chatKey) {
+    items.push({
+      label: 'Mencionar',
+      icon: 'at-symbol',
+      onSelect: () => {
+        const ui = useUi.getState();
+        const cur = ui.drafts[chatKey] ?? '';
+        ui.setDraft(chatKey, `${cur}${cur && !cur.endsWith(' ') ? ' ' : ''}<@${userId}> `);
+      },
+    });
+  }
   if (!isMe) {
     items.push({
       label: 'Mensagem',
@@ -33,7 +64,7 @@ function memberMenu(userId: string, serverId: string | undefined, openProfile: (
             useData.getState().upsertConversation(c);
             useUi.getState().go({ kind: 'dm', conversationId: c.id });
           })
-          .catch((e: unknown) => useUi.getState().toast('error', describeError(e))),
+          .catch(apiError),
     });
     if (!d.friends.some((f) => f.user.id === userId)) {
       items.push({
@@ -43,25 +74,62 @@ function memberMenu(userId: string, serverId: string | undefined, openProfile: (
           void api()
             .request('POST', '/friends/requests', { username: user.username })
             .then(() => useUi.getState().toast('success', 'Pedido de amizade enviado.'))
-            .catch((e: unknown) => useUi.getState().toast('error', describeError(e))),
+            .catch(apiError),
       });
     }
   }
-  if (canKick && serverId) {
-    items.push('separator', {
+  if (sameCall) {
+    items.push(
+      'separator',
+      {
+        kind: 'slider',
+        label: 'Volume do usuário',
+        value: d.settings?.perUserVolume[userId] ?? 1,
+        min: 0,
+        max: 2,
+        step: 0.05,
+        format: (x) => `${Math.round(x * 100)}%`,
+        onChange: (x) => {
+          useVoice.getState().setUserVolume(userId, x);
+          updateSettings((s) => ({ ...s, perUserVolume: { ...s.perUserVolume, [userId]: x } }));
+        },
+      },
+      {
+        label: 'Silenciar',
+        hint: 'Só para você',
+        checked: Boolean(v.localMuted[userId]),
+        onSelect: () => useVoice.getState().setUserMuted(userId, !v.localMuted[userId]),
+      },
+    );
+  }
+  const mod: MenuEntry[] = [];
+  if (voice && !isMe && perms && hasPermission(perms, Permission.MUTE_MEMBERS))
+    mod.push({
+      label: 'Silenciar voz no servidor',
+      danger: true,
+      checked: voice.serverMute,
+      onSelect: () =>
+        void api().request('PUT', `/voice/members/${userId}/server-mute`, { muted: !voice.serverMute }).catch(apiError),
+    });
+  if (voice && !isMe && perms && hasPermission(perms, Permission.MOVE_MEMBERS))
+    mod.push({
+      label: 'Desconectar',
+      danger: true,
+      onSelect: () => void api().request('DELETE', `/voice/members/${userId}`).catch(apiError),
+    });
+  if (canKick && serverId)
+    mod.push({
       label: `Expulsar ${user.displayName}`,
       icon: 'user-minus',
       danger: true,
       onSelect: () => {
         if (confirm(`Expulsar ${user.displayName} do servidor?`))
-          void api()
-            .request('DELETE', `/servers/${serverId}/members/${userId}`)
-            .catch((e: unknown) => useUi.getState().toast('error', describeError(e)));
+          void api().request('DELETE', `/servers/${serverId}/members/${userId}`).catch(apiError);
       },
     });
-  }
+  if (mod.length) items.push('separator', ...mod);
   items.push('separator', {
-    label: 'Copiar ID',
+    label: 'Copiar ID do usuário',
     icon: 'copy',
     onSelect: () => void navigator.clipboard.writeText(userId),
   });
@@ -191,6 +259,8 @@ function ProfileCard({
   const canKick =
     detail && hasPermission(detail.myPermissions, Permission.KICK_MEMBERS) && !isMe && detail.ownerId !== userId;
   const canMute = detail && hasPermission(detail.myPermissions, Permission.MUTE_MEMBERS) && voiceState && !isMe;
+  const voiceChannel = voiceState ? detail?.channels.find((c) => c.id === voiceState.channelId) : undefined;
+  const myCall = useVoice((s) => (s.machine.status === 'disconnected' ? null : s.machine.channelId));
   if (!user) return null;
 
   const run = (fn: () => Promise<unknown>, ok?: string) =>
@@ -229,6 +299,25 @@ function ProfileCard({
               </span>
             ) : null;
           })}
+        </div>
+      )}
+      {voiceChannel && serverId && (
+        <div className="profile-voice">
+          <span className="muted small">Em voz</span>
+          <div className="profile-voice-name">
+            <Icon name="speaker" size={16} />
+            <strong className="truncate">{voiceChannel.name}</strong>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              useUi.getState().go({ kind: 'server', serverId, channelId: voiceChannel.id });
+              if (myCall !== voiceChannel.id) void useVoice.getState().join(voiceChannel.id, serverId);
+              onClose();
+            }}
+          >
+            {myCall === voiceChannel.id ? 'Abrir chamada de voz' : 'Entrar na chamada'}
+          </Button>
         </div>
       )}
       {!isMe && (

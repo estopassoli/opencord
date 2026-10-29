@@ -105,6 +105,31 @@ test('dois usuários entram na mesma sala e se veem; indicador de fala acende', 
   await A.page.screenshot({ path: shot('10-voice-two-users') });
   // regressão: participante novo aparece com o apelido na sidebar (não "Alguém")
   await expect(A.page.locator('.voice-member').filter({ hasText: B_NICK })).toBeVisible({ timeout: 10_000 });
+  // pessoa na voz é clicável: clique abre o perfil (com "Em voz"); botão direito abre o menu de ações
+  const bob = A.page.locator('.voice-member').filter({ hasText: B_NICK });
+  await bob.click();
+  const card = A.page.getByRole('dialog', { name: `Perfil de ${B_NICK}` });
+  await expect(card).toBeVisible();
+  await expect(card.getByText('Em voz')).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Abrir chamada de voz' })).toBeVisible();
+  await A.page.keyboard.press('Escape');
+  await expect(card).toHaveCount(0);
+  await bob.click({ button: 'right' });
+  const menu = A.page.getByRole('menu', { name: 'Ações do membro' });
+  await expect(menu.getByRole('menuitem', { name: 'Perfil' })).toBeVisible();
+  await expect(menu.getByRole('slider')).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Desconectar' })).toBeVisible();
+  await expect(menu.getByRole('menuitemcheckbox', { name: /Silenciar voz no servidor/ })).toBeVisible();
+  await A.page.screenshot({ path: shot('11-menu-pessoa-voz') });
+  const mute = menu.getByRole('menuitemcheckbox', { name: /^Silenciar Só para você/ });
+  await expect(mute).toHaveAttribute('aria-checked', 'false');
+  await mute.click();
+  await bob.click({ button: 'right' });
+  await expect(menu.getByRole('menuitemcheckbox', { name: /^Silenciar Só para você/ })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await menu.getByRole('menuitemcheckbox', { name: /^Silenciar Só para você/ }).click();
   // regressão: o botão de tela cheia não pode ficar por cima do botão de sair (relato do usuário)
   const hang = await A.page.locator('.call-hangup').boundingBox();
   const full = await A.page.locator('.call-fullscreen').boundingBox();
