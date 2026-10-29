@@ -1,0 +1,1 @@
+Leia `CLAUDE.md`, `START_HERE.md` e `docs/IMPLEMENTATION_PLAN.md`. Execute a primeira tarefa desbloqueada ainda não concluída do plano, respeitando gates e atualizando evidências. Não pule testes. Continue com tarefas independentes caso exista bloqueio externo.

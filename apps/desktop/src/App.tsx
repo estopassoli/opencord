@@ -1,0 +1,51 @@
+import { useEffect } from 'react';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Toasts } from './components/Toasts';
+import { AuthScreen } from './features/auth/AuthScreen';
+import { AppShell } from './features/shell/AppShell';
+import { bridge } from './lib/bridge';
+import { openRoute } from './store/notify';
+import { useSession } from './store/session';
+import { useVoice } from './store/voice';
+
+export function App() {
+  const status = useSession((s) => s.status);
+
+  useEffect(() => {
+    void useSession.getState().restore();
+    if (!bridge) return;
+    const offs = [
+      bridge.on('shortcut', (a) => {
+        const v = useVoice.getState();
+        if (a === 'toggleMute') void v.toggleMute();
+        else if (a === 'toggleDeafen') void v.toggleDeafen();
+        else if (a === 'pushToTalkToggle') v.setPtt(!v.pttActive);
+      }),
+      bridge.on('tray-action', (a) => {
+        const v = useVoice.getState();
+        if (a === 'toggleMute') void v.toggleMute();
+        else if (a === 'toggleDeafen') void v.toggleDeafen();
+        else if (a === 'disconnect') void v.leave();
+      }),
+      bridge.on('notification-click', (route) => openRoute(route)),
+      bridge.on('power-resume', () => useSession.getState().realtime?.reconnectNow()),
+    ];
+    return () => offs.forEach((o) => o());
+  }, []);
+
+  return (
+    <ErrorBoundary>
+      {status === 'loading' ? (
+        <div className="splash" role="status" aria-live="polite">
+          <span className="splash-mark" aria-hidden />
+          Carregando…
+        </div>
+      ) : status === 'anonymous' ? (
+        <AuthScreen />
+      ) : (
+        <AppShell />
+      )}
+      <Toasts />
+    </ErrorBoundary>
+  );
+}

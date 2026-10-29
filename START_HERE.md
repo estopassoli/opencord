@@ -1,0 +1,5 @@
+# Prompt de início para Claude Code
+
+Leia `CLAUDE.md` e os documentos em `docs/` como especificação canônica do OpenCord. Inspecione o repositório antes de alterar qualquer arquivo. Se estiver vazio, inicialize o monorepo conforme `docs/ARCHITECTURE.md`. Use `docs/IMPLEMENTATION_PLAN.md` como backlog executável, começando pela primeira tarefa não concluída. Para cada tarefa, implemente, teste, registre evidências e atualize o checklist. Priorize o gate técnico de Go Live Windows com áudio do sistema antes de polir toda a UI. Não entregue só documentação, não invente resultados de testes e não publique/deploy sem aprovação. Ao terminar cada fase, forneça resumo do que foi feito, comandos de teste, bloqueios e próxima tarefa. Continue enquanto houver trabalho desbloqueado.
+
+Antes de iniciar a implementação visual, leia `docs/REVERSE_ENGINEERING.md` e considere a Fase F-1 de pesquisa com REA, respeitando seus limites.

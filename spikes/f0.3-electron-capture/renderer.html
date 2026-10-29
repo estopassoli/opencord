@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; media-src 'self' blob: mediastream:; style-src 'self' 'unsafe-inline'" />
+    <title>OpenCord Capture PoC</title>
+    <style>
+      body { background: #1e1f26; color: #f2f3f5; font: 13px system-ui, sans-serif; margin: 16px; }
+      video { width: 480px; background: #000; display: block; margin-bottom: 8px; }
+      pre { white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <video id="preview" muted playsinline></video>
+    <pre id="log"></pre>
+    <script src="renderer.js"></script>
+  </body>
+</html>

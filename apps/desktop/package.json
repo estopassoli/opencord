@@ -1,0 +1,47 @@
+{
+  "name": "@opencord/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenCord desktop (Electron, Windows-first)",
+  "author": "OpenCord contributors",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "build": "vite build && node scripts/build-electron.mjs",
+    "build:renderer": "vite build",
+    "build:electron": "node scripts/build-electron.mjs",
+    "dev:renderer": "vite",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "lint": "eslint src electron test e2e",
+    "test": "vitest run",
+    "stage:win": "node scripts/stage-windows.mjs",
+    "dev:win": "node scripts/build-electron.mjs && node scripts/dev-windows.mjs"
+  },
+  "dependencies": {
+    "@opencord/contracts": "workspace:*",
+    "@opencord/media": "workspace:*",
+    "@opencord/ui": "workspace:*",
+    "livekit-client": "2.22.4",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
+    "react-icons": "5.7.0",
+    "socket.io-client": "4.8.3",
+    "zod": "4.6.7",
+    "zustand": "5.0.15",
+    "@fontsource-variable/inter": "5.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "44.7.1",
+    "esbuild": "0.28.2",
+    "jsdom": "27.4.0",
+    "typescript": "6.0.3",
+    "vite": "7.3.7",
+    "vitest": "3.2.7"
+  }
+}

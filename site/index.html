@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenCord — chat, voz e Go Live para o seu grupo</title>
+    <meta
+      name="description"
+      content="OpenCord é um app gratuito e self-hosted de chat, voz e transmissão de tela com áudio do sistema para grupos de amigos. Entre só com um apelido."
+    />
+    <meta name="theme-color" content="#4d56fd" />
+    <meta property="og:title" content="OpenCord" />
+    <meta
+      property="og:description"
+      content="Chat, voz e Go Live com áudio do sistema. Gratuito, sem anúncios e hospedado por você."
+    />
+    <meta property="og:image" content="assets/opencord-logo.png" />
+    <link rel="icon" type="image/png" href="assets/opencord-logo.png" />
+    <link rel="preload" href="assets/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      document.documentElement.classList.add('js');
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="#" aria-label="OpenCord, início">
+          <img src="assets/opencord-logo.png" alt="" width="32" height="32" />
+          <span>OpenCord</span>
+        </a>
+        <nav aria-label="Seções">
+          <a href="#recursos">Recursos</a>
+          <a href="#como-funciona">Como funciona</a>
+          <a href="#perguntas">Perguntas</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/estopassoli/opencord" rel="noopener">
+            <span class="ic" aria-hidden="true"
+              ><svg
+                class="o"
+                stroke="currentColor"
+                fill="none"
+                stroke-width="1.5"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"
+                ></path></svg
+              ><svg
+                class="s"
+                stroke="currentColor"
+                fill="currentColor"
+                stroke-width="0"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M14.447 3.026a.75.75 0 0 1 .527.921l-4.5 16.5a.75.75 0 0 1-1.448-.394l4.5-16.5a.75.75 0 0 1 .921-.527ZM16.72 6.22a.75.75 0 0 1 1.06 0l5.25 5.25a.75.75 0 0 1 0 1.06l-5.25 5.25a.75.75 0 1 1-1.06-1.06L21.44 12l-4.72-4.72a.75.75 0 0 1 0-1.06Zm-9.44 0a.75.75 0 0 1 0 1.06L2.56 12l4.72 4.72a.75.75 0 0 1-1.06 1.06L.97 12.53a.75.75 0 0 1 0-1.06l5.25-5.25a.75.75 0 0 1 1.06 0Z"
+                  clip-rule="evenodd"
+                ></path></svg></span
+            ><span>GitHub</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <section class="hero">
+        <div class="wrap hero-inner">
+          <div class="hero-copy reveal">
+            <p class="pill"><span class="dot" aria-hidden="true"></span> Prévia aberta · gratuito</p>
+            <h1>Seu grupo, sua voz, <span class="accent">seu servidor.</span></h1>
+            <p class="lead">
+              Chat, canais de voz e transmissão de tela <strong>com o áudio do jogo</strong> para você e seus amigos.
+              Sem anúncios, sem assinatura e sem entregar suas conversas para ninguém: o servidor é seu.
+            </p>
+            <div class="cta">
+              <a
+                class="btn btn-primary"
+                id="download"
+                href="https://github.com/estopassoli/opencord/releases/latest"
+                rel="noopener"
+              >
+                <span class="ic" aria-hidden="true"
+                  ><svg
+                    class="o"
+                    stroke="currentColor"
+                    fill="none"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+                    ></path></svg
+                  ><svg
+                    class="s"
+                    stroke="currentColor"
+                    fill="currentColor"
+                    stroke-width="0"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z"
+                      clip-rule="evenodd"
+                    ></path></svg></span
+                ><span id="download-label">Baixar para Windows</span>
+              </a>
+              <a class="btn btn-ghost" href="#como-funciona"
+                ><span class="ic" aria-hidden="true"
+                  ><svg
+                    class="o"
+                    stroke="currentColor"
+                    fill="none"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z"
+                    ></path></svg
+                  ><svg
+                    class="s"
+                    stroke="currentColor"
+                    fill="currentColor"
+                    stroke-width="0"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M5.507 4.048A3 3 0 0 1 7.785 3h8.43a3 3 0 0 1 2.278 1.048l1.722 2.008A4.533 4.533 0 0 0 19.5 6h-15c-.243 0-.482.02-.715.056l1.722-2.008Z"
+                    ></path>
+                    <path
+                      fill-rule="evenodd"
+                      d="M1.5 10.5a3 3 0 0 1 3-3h15a3 3 0 1 1 0 6h-15a3 3 0 0 1-3-3Zm15 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm2.25.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM4.5 15a3 3 0 1 0 0 6h15a3 3 0 1 0 0-6h-15Zm11.25 3.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM19.5 18a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+                      clip-rule="evenodd"
+                    ></path></svg></span
+                ><span>Hospedar um servidor</span></a
+              >
+            </div>
+            <p class="fine" id="download-meta">Windows 11 (64 bits) · código público no GitHub</p>
+          </div>
+
+          <div
+            class="mock reveal"
+            role="img"
+            aria-label="Ilustração da interface do OpenCord: canais à esquerda, conversa no centro e um canal de voz com transmissão ao vivo"
+          >
+            <div class="mock-bar"><span></span><span></span><span></span></div>
+            <div class="mock-body">
+              <div class="mock-rail">
+                <i class="logo"></i><i class="sep"></i><i class="srv a"></i><i class="srv b"></i><i class="srv c"></i>
+              </div>
+              <div class="mock-side">
+                <b>Turma do sábado</b>
+                <small>CANAIS DE TEXTO</small>
+                <span class="ch on"
+                  ><span class="ic" aria-hidden="true"
+                    ><svg
+                      class="o"
+                      stroke="currentColor"
+                      fill="none"
+                      stroke-width="1.5"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5-3.9 19.5m-2.1-19.5-3.9 19.5"
+                      ></path></svg
+                    ><svg
+                      class="s"
+                      stroke="currentColor"
+                      fill="currentColor"
+                      stroke-width="0"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M11.097 1.515a.75.75 0 0 1 .589.882L10.666 7.5h4.47l1.079-5.397a.75.75 0 1 1 1.47.294L16.665 7.5h3.585a.75.75 0 0 1 0 1.5h-3.885l-1.2 6h3.585a.75.75 0 0 1 0 1.5h-3.885l-1.08 5.397a.75.75 0 1 1-1.47-.294l1.02-5.103h-4.47l-1.08 5.397a.75.75 0 1 1-1.47-.294l1.02-5.103H3.75a.75.75 0 0 1 0-1.5h3.885l1.2-6H5.25a.75.75 0 0 1 0-1.5h3.885l1.08-5.397a.75.75 0 0 1 .882-.588ZM10.365 9l-1.2 6h4.47l1.2-6h-4.47Z"
+                        clip-rule="evenodd"
+                      ></path></svg></span
+                  >geral</span
+                >
+                <span class="ch"
+                  ><span class="ic" aria-hidden="true"
+                    ><svg
+                      class="o"
+                      stroke="currentColor"
+                      fill="none"
+                      stroke-width="1.5"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5-3.9 19.5m-2.1-19.5-3.9 19.5"
+                      ></path></svg
+                    ><svg
+                      class="s"
+                      stroke="currentColor"
+                      fill="currentColor"
+                      stroke-width="0"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M11.097 1.515a.75.75 0 0 1 .589.882L10.666 7.5h4.47l1.079-5.397a.75.75 0 1 1 1.47.294L16.665 7.5h3.585a.75.75 0 0 1 0 1.5h-3.885l-1.2 6h3.585a.75.75 0 0 1 0 1.5h-3.885l-1.08 5.397a.75.75 0 1 1-1.47-.294l1.02-5.103h-4.47l-1.08 5.397a.75.75 0 1 1-1.47-.294l1.02-5.103H3.75a.75.75 0 0 1 0-1.5h3.885l1.2-6H5.25a.75.75 0 0 1 0-1.5h3.885l1.08-5.397a.75.75 0 0 1 .882-.588ZM10.365 9l-1.2 6h4.47l1.2-6h-4.47Z"
+                        clip-rule="evenodd"
+                      ></path></svg></span
+                  >clipes</span
+                >
+                <small>CANAIS DE VOZ</small>
+                <span class="ch"
+                  ><span class="ic" aria-hidden="true"
+                    ><svg
+                      class="o"
+                      stroke="currentColor"
+                      fill="none"
+                      stroke-width="1.5"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"
+                      ></path></svg
+                    ><svg
+                      class="s"
+                      stroke="currentColor"
+                      fill="currentColor"
+                      stroke-width="0"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z"
+                      ></path>
+                      <path
+                        d="M15.932 7.757a.75.75 0 0 1 1.061 0 6 6 0 0 1 0 8.486.75.75 0 0 1-1.06-1.061 4.5 4.5 0 0 0 0-6.364.75.75 0 0 1 0-1.06Z"
+                      ></path></svg></span
+                  >Sala do jogo</span
+                >
+                <span class="who"><i class="av c1"></i>Lia <em class="live">AO VIVO</em></span>
+                <span class="who"><i class="av c2 talk"></i>Davi</span>
+                <span class="who"><i class="av c3"></i>Rafa</span>
+              </div>
+              <div class="mock-main">
+                <div class="stream">
+                  <div class="stream-art" aria-hidden="true"></div>
+                  <span class="stream-tag"
+                    ><span class="ic" aria-hidden="true"
+                      ><svg
+                        class="o"
+                        stroke="currentColor"
+                        fill="none"
+                        stroke-width="1.5"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25"
+                        ></path></svg
+                      ><svg
+                        class="s"
+                        stroke="currentColor"
+                        fill="currentColor"
+                        stroke-width="0"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M2.25 5.25a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3V15a3 3 0 0 1-3 3h-3v.257c0 .597.237 1.17.659 1.591l.621.622a.75.75 0 0 1-.53 1.28h-9a.75.75 0 0 1-.53-1.28l.621-.622a2.25 2.25 0 0 0 .659-1.59V18h-3a3 3 0 0 1-3-3V5.25Zm1.5 0v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5Z"
+                          clip-rule="evenodd"
+                        ></path></svg></span
+                    >Lia · 1080p 60 · com áudio</span
+                  >
+                </div>
+                <div class="msg">
+                  <i class="av c2"></i>
+                  <p><b>Davi</b> bora mais uma partida?</p>
+                </div>
+                <div class="msg">
+                  <i class="av c3"></i>
+                  <p><b>Rafa</b> só se a Lia continuar transmitindo 😄</p>
+                </div>
+                <div class="composer">Conversar em #geral</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="recursos" class="section">
+        <div class="wrap">
+          <h2 class="reveal">Tudo o que o seu grupo usa no dia a dia</h2>
+          <p class="sub reveal">Feito primeiro para Windows, com interface escura, compacta e personalizável.</p>
+          <ul class="grid">
+            <li class="card reveal">
+              <span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M18.685 19.097A9.723 9.723 0 0 0 21.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 0 0 3.065 7.097A9.716 9.716 0 0 0 12 21.75a9.716 9.716 0 0 0 6.685-2.653Zm-12.54-1.285A7.486 7.486 0 0 1 12 15a7.486 7.486 0 0 1 5.855 2.812A8.224 8.224 0 0 1 12 20.25a8.224 8.224 0 0 1-5.855-2.438ZM15.75 9a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"
+                    clip-rule="evenodd"
+                  ></path></svg
+              ></span>
+              <h3>Entre só com um apelido</h3>
+              <p>Sem e-mail e sem convite. Criar conta é opcional, só para usar o mesmo apelido em outro PC.</p>
+            </li>
+            <li class="card reveal">
+              <span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v8.25a3.75 3.75 0 1 1-7.5 0V4.5Z"></path>
+                  <path
+                    d="M6 10.5a.75.75 0 0 1 .75.75v1.5a5.25 5.25 0 1 0 10.5 0v-1.5a.75.75 0 0 1 1.5 0v1.5a6.751 6.751 0 0 1-6 6.709v2.291h3a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1 0-1.5h3v-2.291a6.751 6.751 0 0 1-6-6.709v-1.5A.75.75 0 0 1 6 10.5Z"
+                  ></path></svg
+              ></span>
+              <h3>Voz com um clique</h3>
+              <p>Detecção de voz ou push-to-talk, supressão de ruído, volume por pessoa e reconexão automática.</p>
+            </li>
+            <li class="card reveal">
+              <span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M2.25 5.25a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3V15a3 3 0 0 1-3 3h-3v.257c0 .597.237 1.17.659 1.591l.621.622a.75.75 0 0 1-.53 1.28h-9a.75.75 0 0 1-.53-1.28l.621-.622a2.25 2.25 0 0 0 .659-1.59V18h-3a3 3 0 0 1-3-3V5.25Zm1.5 0v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5Z"
+                    clip-rule="evenodd"
+                  ></path></svg
+              ></span>
+              <h3>Go Live com áudio do sistema</h3>
+              <p>Transmita um monitor ou uma janela com o som do jogo. Quem quiser assistir clica e entra.</p>
+            </li>
+            <li class="card reveal">
+              <span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M4.913 2.658c2.075-.27 4.19-.408 6.337-.408 2.147 0 4.262.139 6.337.408 1.922.25 3.291 1.861 3.405 3.727a4.403 4.403 0 0 0-1.032-.211 50.89 50.89 0 0 0-8.42 0c-2.358.196-4.04 2.19-4.04 4.434v4.286a4.47 4.47 0 0 0 2.433 3.984L7.28 21.53A.75.75 0 0 1 6 21v-4.03a48.527 48.527 0 0 1-1.087-.128C2.905 16.58 1.5 14.833 1.5 12.862V6.638c0-1.97 1.405-3.718 3.413-3.979Z"
+                  ></path>
+                  <path
+                    d="M15.75 7.5c-1.376 0-2.739.057-4.086.169C10.124 7.797 9 9.103 9 10.609v4.285c0 1.507 1.128 2.814 2.67 2.94 1.243.102 2.5.157 3.768.165l2.782 2.781a.75.75 0 0 0 1.28-.53v-2.39l.33-.026c1.542-.125 2.67-1.433 2.67-2.94v-4.286c0-1.505-1.125-2.811-2.664-2.94A49.392 49.392 0 0 0 15.75 7.5Z"
+                  ></path></svg
+              ></span>
+              <h3>Chat completo</h3>
+              <p>Respostas, reações, menções, anexos, edição e mensagens diretas e em grupo.</p>
+            </li>
+            <li class="card reveal">
+              <span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M8.25 6.75a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0ZM15.75 9.75a3 3 0 1 1 6 0 3 3 0 0 1-6 0ZM2.25 9.75a3 3 0 1 1 6 0 3 3 0 0 1-6 0ZM6.31 15.117A6.745 6.745 0 0 1 12 12a6.745 6.745 0 0 1 6.709 7.498.75.75 0 0 1-.372.568A12.696 12.696 0 0 1 12 21.75c-2.305 0-4.47-.612-6.337-1.684a.75.75 0 0 1-.372-.568 6.787 6.787 0 0 1 1.019-4.38Z"
+                    clip-rule="evenodd"
+                  ></path>
+                  <path
+                    d="M5.082 14.254a8.287 8.287 0 0 0-1.308 5.135 9.687 9.687 0 0 1-1.764-.44l-.115-.04a.563.563 0 0 1-.373-.487l-.01-.121a3.75 3.75 0 0 1 3.57-4.047ZM20.226 19.389a8.287 8.287 0 0 0-1.308-5.135 3.75 3.75 0 0 1 3.57 4.047l-.01.121a.563.563 0 0 1-.373.486l-.115.04c-.567.2-1.156.349-1.764.441Z"
+                  ></path></svg
+              ></span>
+              <h3>Servidores abertos</h3>
+              <p>Canais de texto e voz, categorias e cargos com permissões. Todo mundo da instância pode entrar.</p>
+            </li>
+            <li class="card reveal">
+              <span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M4.098 19.902a3.75 3.75 0 0 0 5.304 0l6.401-6.402M6.75 21A3.75 3.75 0 0 1 3 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 0 0 3.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008Z"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M2.25 4.125c0-1.036.84-1.875 1.875-1.875h5.25c1.036 0 1.875.84 1.875 1.875V17.25a4.5 4.5 0 1 1-9 0V4.125Zm4.5 14.25a1.125 1.125 0 1 0 0-2.25 1.125 1.125 0 0 0 0 2.25Z"
+                    clip-rule="evenodd"
+                  ></path>
+                  <path
+                    d="M10.719 21.75h9.156c1.036 0 1.875-.84 1.875-1.875v-5.25c0-1.036-.84-1.875-1.875-1.875h-.14l-8.742 8.743c-.09.089-.18.175-.274.257ZM12.738 17.625l6.474-6.474a1.875 1.875 0 0 0 0-2.651L15.5 4.787a1.875 1.875 0 0 0-2.651 0l-.1.099V17.25c0 .126-.003.251-.01.375Z"
+                  ></path></svg
+              ></span>
+              <h3>Do seu jeito</h3>
+              <p>Cor de destaque, tons de fundo, cantos, fonte e tamanho do texto, salvos na sua conta.</p>
+            </li>
+            <li class="card reveal">
+              <span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h8.25a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3H4.5ZM19.94 18.75l-2.69-2.69V7.94l2.69-2.69c.944-.945 2.56-.276 2.56 1.06v11.38c0 1.336-1.616 2.005-2.56 1.06Z"
+                  ></path></svg
+              ></span>
+              <h3>Webcam</h3>
+              <p>Ligue a câmera na sala de voz e destaque quem você quiser ver em tela cheia.</p>
+            </li>
+            <li class="card reveal">
+              <span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
+                    clip-rule="evenodd"
+                  ></path></svg
+              ></span>
+              <h3>Seus dados ficam com você</h3>
+              <p>Tudo roda no seu servidor. Sessão protegida pelo Windows e app com isolamento de segurança.</p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="como-funciona" class="section section-alt">
+        <div class="wrap">
+          <h2 class="reveal">Como funciona</h2>
+          <p class="sub reveal">
+            O OpenCord é self-hosted: alguém do grupo roda o servidor e todo mundo usa o app. É gratuito do começo ao
+            fim.
+          </p>
+          <ol class="steps">
+            <li class="step reveal">
+              <span class="num">1</span>
+              <div>
+                <h3>Suba o servidor</h3>
+                <p>Um PC ligado ou uma VPS com Docker. O pacote inclui API, banco, servidor de mídia e TURN.</p>
+                <a
+                  class="link"
+                  href="https://github.com/estopassoli/opencord/blob/main/docs/SELF_HOSTING.md"
+                  rel="noopener"
+                  >Guia de self-hosting
+                  <span class="ic" aria-hidden="true"
+                    ><svg
+                      class="o"
+                      stroke="currentColor"
+                      fill="none"
+                      stroke-width="1.5"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"
+                      ></path></svg
+                    ><svg
+                      class="s"
+                      stroke="currentColor"
+                      fill="currentColor"
+                      stroke-width="0"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M12.97 3.97a.75.75 0 0 1 1.06 0l7.5 7.5a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 1 1-1.06-1.06l6.22-6.22H3a.75.75 0 0 1 0-1.5h16.19l-6.22-6.22a.75.75 0 0 1 0-1.06Z"
+                        clip-rule="evenodd"
+                      ></path></svg></span
+                ></a>
+              </div>
+            </li>
+            <li class="step reveal">
+              <span class="num">2</span>
+              <div>
+                <h3>Gere o app do seu grupo</h3>
+                <p>Um comando cria o instalador já apontando para o endereço do seu servidor.</p>
+                <pre><code>VITE_OPENCORD_SERVER_URL=https://chat.seudominio.com \
+pnpm --filter @opencord/desktop build</code></pre>
+              </div>
+            </li>
+            <li class="step reveal">
+              <span class="num">3</span>
+              <div>
+                <h3>Mande para os amigos</h3>
+                <p>Eles instalam, escolhem um apelido e já caem no servidor. Sem cadastro.</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap status reveal">
+          <span class="ic" aria-hidden="true"
+            ><svg
+              class="o"
+              stroke="currentColor"
+              fill="none"
+              stroke-width="1.5"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+              ></path></svg
+            ><svg
+              class="s"
+              stroke="currentColor"
+              fill="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"
+                clip-rule="evenodd"
+              ></path></svg
+          ></span>
+          <div>
+            <h2>Transparência: o que já está pronto</h2>
+            <ul class="checks">
+              <li>
+                <span class="ic" aria-hidden="true"
+                  ><svg
+                    class="o"
+                    stroke="currentColor"
+                    fill="none"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                    ></path></svg
+                  ><svg
+                    class="s"
+                    stroke="currentColor"
+                    fill="currentColor"
+                    stroke-width="0"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-1.814a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.75-5.25Z"
+                      clip-rule="evenodd"
+                    ></path></svg
+                ></span>
+                Chat, voz, webcam e Go Live com áudio do sistema funcionando e testados automaticamente.
+              </li>
+              <li>
+                <span class="ic" aria-hidden="true"
+                  ><svg
+                    class="o"
+                    stroke="currentColor"
+                    fill="none"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                    ></path></svg
+                  ><svg
+                    class="s"
+                    stroke="currentColor"
+                    fill="currentColor"
+                    stroke-width="0"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-1.814a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.75-5.25Z"
+                      clip-rule="evenodd"
+                    ></path></svg
+                ></span>
+                Instalador para Windows (ainda sem assinatura digital, então o Windows pode exibir um aviso).
+              </li>
+              <li class="pending">
+                <span class="ic" aria-hidden="true"
+                  ><svg
+                    class="o"
+                    stroke="currentColor"
+                    fill="none"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+                    ></path></svg
+                  ><svg
+                    class="s"
+                    stroke="currentColor"
+                    fill="currentColor"
+                    stroke-width="0"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"
+                      clip-rule="evenodd"
+                    ></path></svg
+                ></span>
+                Voz e Go Live ainda em validação entre PCs em redes diferentes.
+              </li>
+              <li class="pending">
+                <span class="ic" aria-hidden="true"
+                  ><svg
+                    class="o"
+                    stroke="currentColor"
+                    fill="none"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+                    ></path></svg
+                  ><svg
+                    class="s"
+                    stroke="currentColor"
+                    fill="currentColor"
+                    stroke-width="0"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"
+                      clip-rule="evenodd"
+                    ></path></svg
+                ></span>
+                O pacote Docker do servidor ainda não foi validado de ponta a ponta; hoje o caminho testado é a
+                instalação nativa do guia.
+              </li>
+              <li class="pending">
+                <span class="ic" aria-hidden="true"
+                  ><svg
+                    class="o"
+                    stroke="currentColor"
+                    fill="none"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+                    ></path></svg
+                  ><svg
+                    class="s"
+                    stroke="currentColor"
+                    fill="currentColor"
+                    stroke-width="0"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"
+                      clip-rule="evenodd"
+                    ></path></svg
+                ></span>
+                A criptografia protege os dados em trânsito, mas não é ponta a ponta contra o próprio servidor.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="perguntas" class="section section-alt">
+        <div class="wrap faq">
+          <h2 class="reveal">Perguntas frequentes</h2>
+          <details class="reveal">
+            <summary>É grátis mesmo?</summary>
+            <p>
+              Sim. Sem plano pago, sem anúncios e sem limites artificiais. O único custo é o do servidor que você
+              escolher usar, e um PC de casa já serve.
+            </p>
+          </details>
+          <details class="reveal">
+            <summary>Preciso criar conta?</summary>
+            <p>
+              Não. Basta escolher um apelido. Se quiser usar o mesmo apelido em outro computador, crie uma senha depois,
+              nas configurações.
+            </p>
+          </details>
+          <details class="reveal">
+            <summary>Funciona no navegador, Mac ou celular?</summary>
+            <p>
+              O foco hoje é o app para Windows. A versão no navegador funciona parcialmente; Linux, macOS e celular
+              estão no plano futuro.
+            </p>
+          </details>
+          <details class="reveal">
+            <summary>Quanta gente aguenta numa sala de voz?</summary>
+            <p>
+              Depende do servidor e da internet dele. A mídia passa por um SFU (LiveKit), então quem transmite envia o
+              vídeo para o servidor, e não uma cópia para cada pessoa que assiste.
+            </p>
+          </details>
+          <details class="reveal">
+            <summary>O OpenCord tem relação com o Discord?</summary>
+            <p>Não. É um projeto independente, com marca, logotipo, interface e código próprios.</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="section final">
+        <div class="wrap final-inner reveal">
+          <img src="assets/opencord-logo.png" alt="" width="64" height="64" />
+          <h2>Pronto para chamar a turma?</h2>
+          <div class="cta">
+            <a class="btn btn-primary" href="https://github.com/estopassoli/opencord/releases/latest" rel="noopener"
+              ><span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z"
+                    clip-rule="evenodd"
+                  ></path></svg></span
+              ><span>Baixar para Windows</span></a
+            >
+            <a class="btn btn-ghost" href="https://github.com/estopassoli/opencord" rel="noopener"
+              ><span class="ic" aria-hidden="true"
+                ><svg
+                  class="o"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="1.5"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"
+                  ></path></svg
+                ><svg
+                  class="s"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M14.447 3.026a.75.75 0 0 1 .527.921l-4.5 16.5a.75.75 0 0 1-1.448-.394l4.5-16.5a.75.75 0 0 1 .921-.527ZM16.72 6.22a.75.75 0 0 1 1.06 0l5.25 5.25a.75.75 0 0 1 0 1.06l-5.25 5.25a.75.75 0 1 1-1.06-1.06L21.44 12l-4.72-4.72a.75.75 0 0 1 0-1.06Zm-9.44 0a.75.75 0 0 1 0 1.06L2.56 12l4.72 4.72a.75.75 0 0 1-1.06 1.06L.97 12.53a.75.75 0 0 1 0-1.06l5.25-5.25a.75.75 0 0 1 1.06 0Z"
+                    clip-rule="evenodd"
+                  ></path></svg></span
+              ><span>Ver o código</span></a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-inner">
+        <span>© 2026 OpenCord · projeto independente</span>
+        <span>Ícones <a href="https://heroicons.com" rel="noopener">Heroicons</a> (MIT) · fonte Inter (OFL)</span>
+      </div>
+    </footer>
+    <script src="main.js" defer></script>
+  </body>
+</html>

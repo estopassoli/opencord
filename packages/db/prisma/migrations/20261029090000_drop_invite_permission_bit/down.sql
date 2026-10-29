@@ -1,0 +1,1 @@
+-- Irreversível sem perda: o bit removido não tem mais significado. Nada a desfazer.

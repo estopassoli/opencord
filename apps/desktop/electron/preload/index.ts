@@ -1,0 +1,43 @@
+/**
+ * Preload com sandbox: expõe apenas `window.opencord` com métodos fixos.
+ * Nenhum objeto do Electron/Node (ipcRenderer, event) chega ao renderer.
+ */
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { IPC } from '../shared/channels';
+import type { OpenCordBridge } from '../shared/ipc';
+
+const EVENT_CHANNELS = {
+  shortcut: IPC.evShortcut,
+  'notification-click': IPC.evNotificationClick,
+  'power-resume': IPC.evPowerResume,
+  'tray-action': IPC.evTrayAction,
+} as const;
+
+const bridge: OpenCordBridge = {
+  capture: {
+    listSources: () => ipcRenderer.invoke(IPC.captureListSources),
+    select: (args) => ipcRenderer.invoke(IPC.captureSelect, args),
+  },
+  secure: {
+    get: (key) => ipcRenderer.invoke(IPC.secureGet, key),
+    set: (key, value) => ipcRenderer.invoke(IPC.secureSet, key, value),
+    delete: (key) => ipcRenderer.invoke(IPC.secureDelete, key),
+  },
+  notify: (args) => ipcRenderer.invoke(IPC.notify, args),
+  setShortcuts: (args) => ipcRenderer.invoke(IPC.shortcutsSet, args),
+  flashFrame: () => ipcRenderer.invoke(IPC.windowFlash),
+  focusWindow: () => ipcRenderer.invoke(IPC.windowFocus),
+  setBadge: (count) => ipcRenderer.invoke(IPC.badgeSet, count),
+  setTrayVoiceState: (state) => ipcRenderer.invoke(IPC.trayVoiceState, state),
+  appInfo: () => ipcRenderer.invoke(IPC.appInfo),
+  openExternal: (url) => ipcRenderer.invoke(IPC.openExternal, url),
+  on: ((event: keyof typeof EVENT_CHANNELS, cb: (arg: unknown) => void) => {
+    const channel = EVENT_CHANNELS[event];
+    if (!channel) throw new Error('evento desconhecido');
+    const listener = (_e: IpcRendererEvent, arg: unknown) => cb(arg);
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
+  }) as OpenCordBridge['on'],
+};
+
+contextBridge.exposeInMainWorld('opencord', bridge);

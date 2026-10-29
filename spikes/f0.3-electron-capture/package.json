@@ -1,0 +1,8 @@
+{
+  "name": "@opencord/spike-electron-capture",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": { "start": "electron .", "selftest": "electron . --selftest=result.json",
+    "selftest:tone": "electron . --selftest=result.json --with-tone" },
+  "devDependencies": { "electron": "44.7.1" }
+}

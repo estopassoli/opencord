@@ -1,0 +1,235 @@
+{
+  "startedAt": "2026-10-29T04:47:11.763Z",
+  "platform": "win32",
+  "osRelease": "10.0.26200",
+  "versions": {
+    "electron": "44.7.1",
+    "chrome": "152.0.7977.149"
+  },
+  "sources": {
+    "screens": 3,
+    "windows": 9,
+    "screenThumbnails": [
+      {
+        "width": 320,
+        "height": 180
+      },
+      {
+        "width": 320,
+        "height": 180
+      },
+      {
+        "width": 101,
+        "height": 180
+      }
+    ],
+    "nonEmptyThumbnails": 12
+  },
+  "tests": [
+    {
+      "name": "webrtc codec capabilities",
+      "ok": true,
+      "sendCodecs": [
+        "video/VP8",
+        "video/H264",
+        "video/AV1",
+        "video/VP9",
+        "video/H265"
+      ],
+      "encodingInfo": {
+        "H264 720p30": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "H264 1080p60": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "H264 1440p60": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "VP8 720p30": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "VP8 1080p60": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "VP8 1440p60": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "VP9 720p30": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "VP9 1080p60": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "VP9 1440p60": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "AV1 720p30": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "AV1 1080p60": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        },
+        "AV1 1440p60": {
+          "supported": true,
+          "smooth": true,
+          "powerEfficient": false
+        }
+      }
+    },
+    {
+      "name": "screen+systemAudio",
+      "ok": true,
+      "acquireMs": 142,
+      "videoTracks": 1,
+      "audioTracks": 1,
+      "video": {
+        "kind": "video",
+        "readyState": "live",
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "frameRate": 60,
+          "displaySurface": "monitor"
+        },
+        "fps": 45.1,
+        "videoWidth": 1920,
+        "videoHeight": 1080
+      },
+      "audio": {
+        "kind": "audio",
+        "readyState": "live",
+        "settings": {
+          "sampleRate": 48000,
+          "channelCount": 1
+        },
+        "loopback": {
+          "skipped": "tom desativado (use --with-tone)"
+        }
+      },
+      "stop": {
+        "stopMs": 1,
+        "allEnded": true,
+        "streamActive": false
+      }
+    },
+    {
+      "name": "screen recapture after stop (30fps)",
+      "ok": true,
+      "acquireMs": 98,
+      "audioTracks": 1,
+      "video": {
+        "kind": "video",
+        "readyState": "live",
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "frameRate": 30,
+          "displaySurface": "monitor"
+        },
+        "fps": 21.5,
+        "videoWidth": 1920,
+        "videoHeight": 1080
+      },
+      "externalLoopback": {
+        "skipped": "tom desativado (use --with-tone)"
+      },
+      "stop": {
+        "stopMs": 0,
+        "allEnded": true,
+        "streamActive": false
+      }
+    },
+    {
+      "name": "screen+systemAudio restrictOwnAudio",
+      "ok": true,
+      "acquireMs": 112,
+      "supported": true,
+      "appliedRestrictOwnAudio": true,
+      "sameProcess": {
+        "skipped": "tom desativado (use --with-tone)"
+      },
+      "externalProcess": {
+        "skipped": "tom desativado (use --with-tone)"
+      },
+      "stop": {
+        "stopMs": 0,
+        "allEnded": true,
+        "streamActive": false
+      }
+    },
+    {
+      "name": "own window video + source closed ends track",
+      "ok": true,
+      "acquireMs": 45,
+      "video": {
+        "kind": "video",
+        "readyState": "live",
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "frameRate": 60,
+          "displaySurface": "window"
+        },
+        "fps": 0,
+        "videoWidth": 624,
+        "videoHeight": 320
+      },
+      "endedOnClose": true,
+      "endMs": 4,
+      "readyStateAfterClose": "ended",
+      "stop": {
+        "stopMs": 0,
+        "allEnded": true,
+        "streamActive": false
+      }
+    },
+    {
+      "name": "third-party window video (informativo)",
+      "ok": true,
+      "acquireMs": 94,
+      "video": {
+        "kind": "video",
+        "readyState": "live",
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "frameRate": 60,
+          "displaySurface": "window"
+        },
+        "fps": 3,
+        "videoWidth": 1920,
+        "videoHeight": 1044
+      },
+      "stop": {
+        "stopMs": 0,
+        "allEnded": true,
+        "streamActive": false
+      }
+    }
+  ],
+  "handlerErrors": [],
+  "finishedAt": "2026-10-29T04:47:21.066Z"
+}

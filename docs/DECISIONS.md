@@ -1,0 +1,39 @@
+# Registro de decisões e pendências
+
+## Definidas
+- Nome: OpenCord; código aberto e self-hosted.
+- Público: amigos, instância privada, desktop-first Windows 11.
+- Visual: experiência familiar ao Discord, dark e compacta, com marca/assets próprios; descartar tema Órbita.
+- Stack: Electron/React/Vite; NestJS/PostgreSQL/Prisma/Redis/Socket.IO; LiveKit/coturn.
+- Sem gravação por padrão; sem federação no MVP.
+
+## Registro
+- 2026-10-29 | Áudio do sistema na V1 via loopback do Chromium + `restrictOwnAudio` (ADR-0003, Proposed) | módulo nativo WASAPI process loopback | caminho comprovado no spike F0.4 sem código nativo | sem áudio por aplicativo; revalidar a cada upgrade do Electron | agente (aguarda aprovação do mantenedor)
+- 2026-10-29 | Preferir H.264 (encoder de hardware) para Go Live, VP8 como fallback | VP9/AV1 | F0.5: H.264/HEVC via NVENC; VP9/AV1 só software no Chromium 152 | perfis devem medir `encoderImplementation` | agente
+- 2026-10-29 | Pesquisa REA restrita a observação black-box; sem análise estática/CDP do Discord | análise de ASAR/binário | termos do Discord restringem engenharia reversa | RE-0.3+ depende do usuário | agente (aguarda revisão do mantenedor)
+
+- 2026-10-29 | Toolchain em majors estáveis (ADR-0004) | majors mais novos | risco de API | upgrades planejados | agente
+- 2026-10-29 | PTT global em alternância, sem hook nativo (ADR-0005) | uiohook | privacidade/anti-cheat | sem "segurar" com jogo em foco | agente
+- 2026-10-29 | Identidade visual própria: teal #127a73 e logotipo original (ADR-0006) | #5865f2 do pack | evitar marca de terceiros | DESIGN_SYSTEM atualizado | agente
+- 2026-10-29 | Cor de marca passa a #4d56fd (fundo da logo fornecida pelo mantenedor; ADR-0006 atualizado) | manter teal | pedido do mantenedor; texto branco 5,2:1 (AA) | tokens/Avatar | mantenedor
+- 2026-10-29 | Aparência personalizável salva na conta (destaque, fundo, cantos, fonte instalada, tamanho) | só tema claro/escuro | pedido do mantenedor | `UserSettingsV1.appearance` (defaults retrocompatíveis) | mantenedor
+- 2026-10-29 | Fontes/ícones proprietários de terceiros (ex.: gg sans) não são embutidos nem versionados; `public/fonts/` no .gitignore. Usuário pode escolher uma fonte instalada ou **importar arquivos de fonte** (Aparência → Importar fonte), guardados só no IndexedDB daquele PC; a conta sincroniza apenas o nome da família | embutir | licença proíbe uso/redistribuição; responsabilidade pela licença fica com quem importa | `lib/fonts.ts` | agente
+- 2026-10-29 | `AUTH_RATE_PER_MINUTE` (padrão 10) configurável; dev usa 500 para E2E | fixo em 10 | suíte E2E excedia o limite | só dev | agente
+- 2026-10-29 | Refresh serializado entre abas/janelas (Web Locks) e restore single-flight; reuso no servidor continua revogando a família | período de graça no servidor | manter detecção de roubo estrita | sessão persiste ao reabrir | agente
+- 2026-10-29 | Dev sem Docker: Postgres/Redis nativos do WSL, bancos `opencord_dev`/`opencord_test`, Redis db 10/11 com prefixo `oc:` | instalar Docker Desktop | mudança grande no host | Compose não validado | agente
+- 2026-10-29 | Go Live com simulcast (H.264 em software no Chromium 152) | camada única com NVENC | camada única ficou em 480×270 no teste | revisitar | agente
+
+- 2026-10-29 | Conta opcional (entrar só com apelido), sem endereço do servidor e servidores abertos sem convites (ADR-0007) | convite + login | pedido do mantenedor | instância aberta por padrão; código de acesso opcional; sem ban | mantenedor
+
+## Pendentes de decisão do mantenedor
+- Licença (MIT, Apache-2.0 ou AGPL-3.0); não inventar licença. **Ainda pendente; nenhum arquivo LICENSE foi criado.**
+- Nome do domínio, infraestrutura e política de retenção.
+- ~~Política de contas~~: decidido, entrada por apelido (ADR-0007). Pendente: exigir ou não `INSTANCE_ACCESS_CODE` em produção.
+- Política de atualização desktop e certificados de assinatura.
+- Limites máximos de upload, stream e usuários.
+- Exigir `INSTANCE_ACCESS_CODE` em produção? Implementar ban (kick hoje permite voltar pelo diretório)?
+- Upgrade do REA 6.5.0 → 6.8.0 e escopo da pesquisa (black-box vs CDP).
+- Docker: instalar Docker Desktop (WSL integration) ou rodar Postgres/Redis/LiveKit nativos no dev.
+
+## Modelo de registro
+`YYYY-MM-DD | decisão | alternativas | motivo | impacto | responsável`

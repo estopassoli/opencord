@@ -1,0 +1,208 @@
+import type { IconType } from 'react-icons';
+import {
+  HiArrowDownTray,
+  HiArrowUpTray,
+  HiArrowPath,
+  HiArrowRightStartOnRectangle,
+  HiArrowsPointingIn,
+  HiArrowsPointingOut,
+  HiArrowUturnLeft,
+  HiBell,
+  HiBellSlash,
+  HiChatBubbleLeft,
+  HiChatBubbleLeftRight,
+  HiCheck,
+  HiChevronDown,
+  HiChevronRight,
+  HiClipboard,
+  HiCog6Tooth,
+  HiComputerDesktop,
+  HiEllipsisHorizontal,
+  HiEnvelope,
+  HiExclamationTriangle,
+  HiEye,
+  HiEyeSlash,
+  HiFaceSmile,
+  HiFolder,
+  HiHashtag,
+  HiHome,
+  HiInbox,
+  HiLink,
+  HiLockClosed,
+  HiMagnifyingGlass,
+  HiMicrophone,
+  HiMoon,
+  HiNoSymbol,
+  HiOutlineArrowDownTray,
+  HiOutlineArrowUpTray,
+  HiOutlineArrowPath,
+  HiOutlineArrowRightStartOnRectangle,
+  HiOutlineArrowsPointingIn,
+  HiOutlineArrowsPointingOut,
+  HiOutlineArrowUturnLeft,
+  HiOutlineBell,
+  HiOutlineBellSlash,
+  HiOutlineChatBubbleLeft,
+  HiOutlineChatBubbleLeftRight,
+  HiOutlineCheck,
+  HiOutlineChevronDown,
+  HiOutlineChevronRight,
+  HiOutlineClipboard,
+  HiOutlineCog6Tooth,
+  HiOutlineComputerDesktop,
+  HiOutlineEllipsisHorizontal,
+  HiOutlineEnvelope,
+  HiOutlineExclamationTriangle,
+  HiOutlineEye,
+  HiOutlineEyeSlash,
+  HiOutlineFaceSmile,
+  HiOutlineFolder,
+  HiOutlineHashtag,
+  HiOutlineHome,
+  HiOutlineInbox,
+  HiOutlineLink,
+  HiOutlineLockClosed,
+  HiOutlineMagnifyingGlass,
+  HiOutlineMicrophone,
+  HiOutlineMoon,
+  HiOutlineNoSymbol,
+  HiOutlinePaperAirplane,
+  HiOutlinePaperClip,
+  HiOutlinePencil,
+  HiOutlinePhoneXMark,
+  HiOutlinePlay,
+  HiOutlinePlus,
+  HiOutlinePlusCircle,
+  HiOutlineServer,
+  HiOutlineShieldCheck,
+  HiOutlineSignal,
+  HiOutlineSpeakerWave,
+  HiOutlineSpeakerXMark,
+  HiOutlineStop,
+  HiOutlineSun,
+  HiOutlineTrash,
+  HiOutlineUserGroup,
+  HiOutlineUserMinus,
+  HiOutlineUserPlus,
+  HiOutlineUsers,
+  HiOutlineVideoCamera,
+  HiOutlineVideoCameraSlash,
+  HiOutlineWifi,
+  HiOutlineXMark,
+  HiPaperAirplane,
+  HiPaperClip,
+  HiPencil,
+  HiPhoneXMark,
+  HiPlay,
+  HiPlus,
+  HiPlusCircle,
+  HiServer,
+  HiShieldCheck,
+  HiSignal,
+  HiSpeakerWave,
+  HiSpeakerXMark,
+  HiStop,
+  HiSun,
+  HiTrash,
+  HiUserGroup,
+  HiUserMinus,
+  HiUserPlus,
+  HiUsers,
+  HiVideoCamera,
+  HiVideoCameraSlash,
+  HiWifi,
+  HiXMark,
+} from 'react-icons/hi2';
+
+/** Pares [outline, solid] de Heroicons 2. Adicionar aqui em vez de importar ícones direto nas telas. */
+const ICONS = {
+  hashtag: [HiOutlineHashtag, HiHashtag],
+  speaker: [HiOutlineSpeakerWave, HiSpeakerWave],
+  'speaker-off': [HiOutlineSpeakerXMark, HiSpeakerXMark],
+  microphone: [HiOutlineMicrophone, HiMicrophone],
+  camera: [HiOutlineVideoCamera, HiVideoCamera],
+  'camera-off': [HiOutlineVideoCameraSlash, HiVideoCameraSlash],
+  screen: [HiOutlineComputerDesktop, HiComputerDesktop],
+  settings: [HiOutlineCog6Tooth, HiCog6Tooth],
+  users: [HiOutlineUsers, HiUsers],
+  group: [HiOutlineUserGroup, HiUserGroup],
+  plus: [HiOutlinePlus, HiPlus],
+  'plus-circle': [HiOutlinePlusCircle, HiPlusCircle],
+  hangup: [HiOutlinePhoneXMark, HiPhoneXMark],
+  emoji: [HiOutlineFaceSmile, HiFaceSmile],
+  attach: [HiOutlinePaperClip, HiPaperClip],
+  reply: [HiOutlineArrowUturnLeft, HiArrowUturnLeft],
+  edit: [HiOutlinePencil, HiPencil],
+  trash: [HiOutlineTrash, HiTrash],
+  close: [HiOutlineXMark, HiXMark],
+  bell: [HiOutlineBell, HiBell],
+  'bell-off': [HiOutlineBellSlash, HiBellSlash],
+  chats: [HiOutlineChatBubbleLeftRight, HiChatBubbleLeftRight],
+  chat: [HiOutlineChatBubbleLeft, HiChatBubbleLeft],
+  signal: [HiOutlineSignal, HiSignal],
+  maximize: [HiOutlineArrowsPointingOut, HiArrowsPointingOut],
+  minimize: [HiOutlineArrowsPointingIn, HiArrowsPointingIn],
+  lock: [HiOutlineLockClosed, HiLockClosed],
+  'chevron-down': [HiOutlineChevronDown, HiChevronDown],
+  'chevron-right': [HiOutlineChevronRight, HiChevronRight],
+  mail: [HiOutlineEnvelope, HiEnvelope],
+  logout: [HiOutlineArrowRightStartOnRectangle, HiArrowRightStartOnRectangle],
+  shield: [HiOutlineShieldCheck, HiShieldCheck],
+  link: [HiOutlineLink, HiLink],
+  more: [HiOutlineEllipsisHorizontal, HiEllipsisHorizontal],
+  search: [HiOutlineMagnifyingGlass, HiMagnifyingGlass],
+  eye: [HiOutlineEye, HiEye],
+  'eye-off': [HiOutlineEyeSlash, HiEyeSlash],
+  block: [HiOutlineNoSymbol, HiNoSymbol],
+  'user-plus': [HiOutlineUserPlus, HiUserPlus],
+  'user-minus': [HiOutlineUserMinus, HiUserMinus],
+  check: [HiOutlineCheck, HiCheck],
+  warning: [HiOutlineExclamationTriangle, HiExclamationTriangle],
+  inbox: [HiOutlineInbox, HiInbox],
+  wifi: [HiOutlineWifi, HiWifi],
+  home: [HiOutlineHome, HiHome],
+  send: [HiOutlinePaperAirplane, HiPaperAirplane],
+  refresh: [HiOutlineArrowPath, HiArrowPath],
+  stop: [HiOutlineStop, HiStop],
+  play: [HiOutlinePlay, HiPlay],
+  copy: [HiOutlineClipboard, HiClipboard],
+  moon: [HiOutlineMoon, HiMoon],
+  sun: [HiOutlineSun, HiSun],
+  folder: [HiOutlineFolder, HiFolder],
+  server: [HiOutlineServer, HiServer],
+  download: [HiOutlineArrowDownTray, HiArrowDownTray],
+  upload: [HiOutlineArrowUpTray, HiArrowUpTray],
+} as const satisfies Record<string, readonly [IconType, IconType]>;
+
+export type IconName = keyof typeof ICONS;
+export const ICON_NAMES = Object.keys(ICONS) as IconName[];
+
+export interface IconProps {
+  name: IconName;
+  size?: number;
+  /** Força a variante sólida (estado ativo fora de um elemento interativo). */
+  active?: boolean;
+  /** Traço diagonal: estado "desligado" (ex.: microfone mutado). */
+  slashed?: boolean;
+  /** Rótulo acessível; sem ele o ícone é decorativo (aria-hidden). */
+  label?: string;
+  className?: string;
+}
+
+export function Icon({ name, size = 20, active, slashed, label, className }: IconProps) {
+  const [Outline, Solid] = ICONS[name];
+  return (
+    <span
+      className={className ? `oc-icon ${className}` : 'oc-icon'}
+      style={{ ['--oc-icon-size' as string]: `${size}px` }}
+      data-active={active ? 'true' : undefined}
+      data-slashed={slashed ? 'true' : undefined}
+      role={label ? 'img' : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+    >
+      <Outline className="oc-icon-outline" aria-hidden focusable={false} />
+      <Solid className="oc-icon-solid" aria-hidden focusable={false} />
+    </span>
+  );
+}

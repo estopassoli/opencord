@@ -1,0 +1,199 @@
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import {
+  CreateCategoryRequest,
+  CreateChannelRequest,
+  CreateRoleRequest,
+  CreateServerRequest,
+  SetMemberRolesRequest,
+  UpdateCategoryRequest,
+  UpdateChannelRequest,
+  UpdateRoleRequest,
+  UpdateServerRequest,
+} from '@opencord/contracts';
+import { z } from 'zod';
+import { CurrentUser, type AuthUser } from '../common/auth.js';
+import { zodPipe } from '../common/zod.pipe.js';
+import { AuditService } from '../audit/audit.service.js';
+import { PresenceService } from '../realtime/presence.service.js';
+import { PermissionsService } from './permissions.service.js';
+import { ServersService } from './servers.service.js';
+
+const anyUuid = new ParseUUIDPipe();
+const uuid = anyUuid;
+const Nickname = z.object({ nickname: z.string().trim().max(64).nullable() });
+const KickBody = z.object({ reason: z.string().max(512).optional() }).default({});
+
+@Controller()
+export class ServersController {
+  constructor(
+    private readonly servers: ServersService,
+    private readonly audit: AuditService,
+    private readonly presence: PresenceService,
+    private readonly perms: PermissionsService,
+  ) {}
+
+  @Get('servers')
+  list(@CurrentUser() u: AuthUser) {
+    return this.servers.listMine(u.userId);
+  }
+
+  @Post('servers')
+  create(@CurrentUser() u: AuthUser, @Body(zodPipe(CreateServerRequest)) dto: z.infer<typeof CreateServerRequest>) {
+    return this.servers.create(u.userId, dto.name);
+  }
+
+  /** Diretório: todos os servidores (abertos a todos, sem convite). */
+  @Get('servers/directory')
+  directory(@CurrentUser() u: AuthUser) {
+    return this.servers.directory(u.userId);
+  }
+
+  /** Entrar num servidor aberto (ex.: depois de ter saído). */
+  @Post('servers/:id/join')
+  join(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    return this.servers.join(id, u.userId);
+  }
+
+  @Get('servers/:id')
+  detail(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    return this.servers.detail(id, u.userId);
+  }
+
+  @Patch('servers/:id')
+  update(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(UpdateServerRequest)) dto: z.infer<typeof UpdateServerRequest>,
+  ) {
+    return this.servers.update(id, u.userId, dto);
+  }
+
+  @Delete('servers/:id')
+  @HttpCode(204)
+  async remove(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.servers.remove(id, u.userId);
+  }
+
+  @Post('servers/:id/leave')
+  @HttpCode(204)
+  async leave(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.servers.leave(id, u.userId);
+  }
+
+  @Get('servers/:id/presence')
+  async serverPresence(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.perms.server(id, u.userId);
+    return this.presence.visibleMany(await this.servers.listMemberIds(id));
+  }
+
+  @Get('servers/:id/audit-log')
+  auditLog(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string, @Query('limit') limit?: string) {
+    return this.audit.list(id, u.userId, limit ? Number(limit) || 100 : 100);
+  }
+
+  // ----- membros -----
+  @Delete('servers/:id/members/:userId')
+  @HttpCode(204)
+  async kick(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Param('userId', anyUuid) userId: string,
+    @Body(zodPipe(KickBody)) body: z.infer<typeof KickBody>,
+  ) {
+    await this.servers.kick(id, u.userId, userId, body?.reason);
+  }
+
+  @Put('servers/:id/members/:userId/roles')
+  setRoles(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Param('userId', anyUuid) userId: string,
+    @Body(zodPipe(SetMemberRolesRequest)) dto: z.infer<typeof SetMemberRolesRequest>,
+  ) {
+    return this.servers.setMemberRoles(id, u.userId, userId, dto.roleIds);
+  }
+
+  @Patch('servers/:id/members/me')
+  nickname(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(Nickname)) dto: z.infer<typeof Nickname>,
+  ) {
+    return this.servers.setNickname(id, u.userId, dto.nickname);
+  }
+
+  // ----- cargos -----
+  @Post('servers/:id/roles')
+  createRole(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(CreateRoleRequest)) dto: z.infer<typeof CreateRoleRequest>,
+  ) {
+    return this.servers.createRole(id, u.userId, dto);
+  }
+
+  @Patch('roles/:id')
+  updateRole(
+    @CurrentUser() u: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body(zodPipe(UpdateRoleRequest)) dto: z.infer<typeof UpdateRoleRequest>,
+  ) {
+    return this.servers.updateRole(id, u.userId, dto);
+  }
+
+  @Delete('roles/:id')
+  @HttpCode(204)
+  async deleteRole(@CurrentUser() u: AuthUser, @Param('id', uuid) id: string) {
+    await this.servers.deleteRole(id, u.userId);
+  }
+
+  // ----- categorias -----
+  @Post('servers/:id/categories')
+  createCategory(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(CreateCategoryRequest)) dto: z.infer<typeof CreateCategoryRequest>,
+  ) {
+    return this.servers.createCategory(id, u.userId, dto.name);
+  }
+
+  @Patch('categories/:id')
+  updateCategory(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(UpdateCategoryRequest)) dto: z.infer<typeof UpdateCategoryRequest>,
+  ) {
+    return this.servers.updateCategory(id, u.userId, dto);
+  }
+
+  @Delete('categories/:id')
+  @HttpCode(204)
+  async deleteCategory(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.servers.deleteCategory(id, u.userId);
+  }
+
+  // ----- canais -----
+  @Post('servers/:id/channels')
+  createChannel(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(CreateChannelRequest)) dto: z.infer<typeof CreateChannelRequest>,
+  ) {
+    return this.servers.createChannel(id, u.userId, dto);
+  }
+
+  @Patch('channels/:id')
+  updateChannel(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(UpdateChannelRequest)) dto: z.infer<typeof UpdateChannelRequest>,
+  ) {
+    return this.servers.updateChannel(id, u.userId, dto);
+  }
+
+  @Delete('channels/:id')
+  @HttpCode(204)
+  async deleteChannel(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.servers.deleteChannel(id, u.userId);
+  }
+}

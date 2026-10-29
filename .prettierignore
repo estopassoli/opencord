@@ -1,0 +1,9 @@
+node_modules
+dist
+out
+.tools
+spikes
+pnpm-lock.yaml
+**/migrations/**
+docs
+*.md

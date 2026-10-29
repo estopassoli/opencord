@@ -1,0 +1,321 @@
+// OpenCord — modelo persistente. Ver docs/DATABASE.md.
+// IDs UUIDv7 (ordenáveis por tempo); paginação de mensagens por cursor composto (createdAt, id).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  /** null para usuários que entram só com apelido (ADR-0007). */
+  email        String?   @unique
+  username     String    @unique
+  /** null para usuários só com apelido: não há login por senha. */
+  passwordHash String?
+  displayName  String
+  /** Apelido normalizado (minúsculas, sem acento) — único entre todos os usuários. */
+  nickKey      String?   @unique
+  avatarKey    String?
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  disabledAt   DateTime? @db.Timestamptz(3)
+
+  sessions          Session[]
+  ownedServers      Server[]             @relation("ServerOwner")
+  memberships       ServerMember[]
+  messages          Message[]
+  reactions         Reaction[]
+  readStates        ReadState[]
+  settings          UserSettings?
+  friendshipsOut    Friendship[]         @relation("FriendRequester")
+  friendshipsIn     Friendship[]         @relation("FriendAddressee")
+  blocksMade        Block[]              @relation("Blocker")
+  blocksReceived    Block[]              @relation("Blocked")
+  conversations     ConversationMember[]
+  auditLogs         AuditLog[]
+  attachments       Attachment[]
+}
+
+model Session {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  userId           String    @db.Uuid
+  /** SHA-256 do refresh token; o token em claro nunca é persistido. */
+  refreshTokenHash String    @unique
+  /** Família de rotação: reuso de token já rotacionado revoga a família inteira. */
+  familyId         String    @db.Uuid
+  deviceId         String?
+  userAgent        String?
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt        DateTime  @db.Timestamptz(3)
+  rotatedAt        DateTime? @db.Timestamptz(3)
+  revokedAt        DateTime? @db.Timestamptz(3)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+enum FriendshipStatus {
+  pending
+  accepted
+}
+
+model Friendship {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  requesterId String           @db.Uuid
+  addresseeId String           @db.Uuid
+  /** Par canônico (menor id, maior id) para unicidade independente da direção. */
+  userLowId   String           @db.Uuid
+  userHighId  String           @db.Uuid
+  status      FriendshipStatus @default(pending)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  acceptedAt  DateTime?        @db.Timestamptz(3)
+  requester   User             @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee   User             @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([userLowId, userHighId])
+  @@index([addresseeId])
+}
+
+model Block {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  blockerId String   @db.Uuid
+  blockedId String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+}
+
+model Server {
+  id         String         @id @default(uuid(7)) @db.Uuid
+  name       String
+  ownerId    String         @db.Uuid
+  iconKey    String?
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  owner      User           @relation("ServerOwner", fields: [ownerId], references: [id])
+  members    ServerMember[]
+  roles      Role[]
+  categories Category[]
+  channels   Channel[]
+  auditLogs  AuditLog[]
+}
+
+model ServerMember {
+  serverId String       @db.Uuid
+  userId   String       @db.Uuid
+  nickname String?
+  joinedAt DateTime     @default(now()) @db.Timestamptz(3)
+  server   Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roles    MemberRole[]
+
+  @@id([serverId, userId])
+  @@index([userId])
+}
+
+model Role {
+  id              String       @id @default(uuid(7)) @db.Uuid
+  serverId        String       @db.Uuid
+  name            String
+  /** 0 = @everyone; maior = mais alto na hierarquia. */
+  position        Int
+  permissions     Int
+  color           String?
+  isEveryone      Boolean      @default(false)
+  server          Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  members         MemberRole[]
+
+  @@index([serverId])
+}
+
+model MemberRole {
+  serverId String       @db.Uuid
+  userId   String       @db.Uuid
+  roleId   String       @db.Uuid
+  member   ServerMember @relation(fields: [serverId, userId], references: [serverId, userId], onDelete: Cascade)
+  role     Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([serverId, userId, roleId])
+  @@index([roleId])
+}
+
+model Category {
+  id       String    @id @default(uuid(7)) @db.Uuid
+  serverId String    @db.Uuid
+  name     String
+  position Int
+  server   Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  channels Channel[]
+
+  @@index([serverId])
+}
+
+enum ChannelKind {
+  text
+  voice
+}
+
+model Channel {
+  id         String                      @id @default(uuid(7)) @db.Uuid
+  serverId   String                      @db.Uuid
+  categoryId String?                     @db.Uuid
+  kind       ChannelKind
+  name       String
+  topic      String?
+  position   Int
+  createdAt  DateTime                    @default(now()) @db.Timestamptz(3)
+  server     Server                      @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  category   Category?                   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  overrides  ChannelPermissionOverride[]
+  messages   Message[]
+  readStates ReadState[]
+
+  @@index([serverId])
+}
+
+enum OverrideSubject {
+  role
+  member
+}
+
+model ChannelPermissionOverride {
+  channelId   String          @db.Uuid
+  subjectType OverrideSubject
+  subjectId   String          @db.Uuid
+  allow       Int             @default(0)
+  deny        Int             @default(0)
+  channel     Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, subjectType, subjectId])
+}
+
+enum ConversationKind {
+  dm
+  group
+}
+
+model Conversation {
+  id         String               @id @default(uuid(7)) @db.Uuid
+  kind       ConversationKind
+  name       String?
+  /** Para DMs: par canônico "lowId:highId", garante uma DM por par. */
+  dmKey      String?              @unique
+  createdAt  DateTime             @default(now()) @db.Timestamptz(3)
+  members    ConversationMember[]
+  messages   Message[]
+  readStates ReadState[]
+}
+
+model ConversationMember {
+  conversationId String       @db.Uuid
+  userId         String       @db.Uuid
+  joinedAt       DateTime     @default(now()) @db.Timestamptz(3)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  authorId       String        @db.Uuid
+  /** XOR com conversationId (constraint CHECK na migração). */
+  channelId      String?       @db.Uuid
+  conversationId String?       @db.Uuid
+  /** Idempotência: o mesmo requestId do mesmo autor não cria segunda mensagem. */
+  requestId      String        @db.Uuid
+  body           String
+  mentions       String[]      @db.Uuid
+  mentionEveryone Boolean      @default(false)
+  replyToId      String?       @db.Uuid
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  editedAt       DateTime?     @db.Timestamptz(3)
+  deletedAt      DateTime?     @db.Timestamptz(3)
+  author         User          @relation(fields: [authorId], references: [id])
+  channel        Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo        Message?      @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[]     @relation("Replies")
+  attachments    Attachment[]
+  reactions      Reaction[]
+
+  @@unique([authorId, requestId])
+  @@index([channelId, createdAt, id])
+  @@index([conversationId, createdAt, id])
+}
+
+model Attachment {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  uploaderId   String   @db.Uuid
+  /** null até ser vinculado a uma mensagem; órfãos expiram (limpeza periódica). */
+  messageId    String?  @db.Uuid
+  storageKey   String   @unique
+  mime         String
+  sizeBytes    Int
+  originalName String
+  sha256       String
+  width        Int?
+  height       Int?
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  uploader     User     @relation(fields: [uploaderId], references: [id])
+  message      Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([uploaderId, createdAt])
+}
+
+model Reaction {
+  messageId String   @db.Uuid
+  userId    String   @db.Uuid
+  emoji     String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId, emoji])
+}
+
+model ReadState {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  userId            String        @db.Uuid
+  channelId         String?       @db.Uuid
+  conversationId    String?       @db.Uuid
+  lastReadMessageId String?       @db.Uuid
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel           Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  conversation      Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId])
+  @@unique([userId, conversationId])
+  @@index([userId, updatedAt])
+}
+
+model UserSettings {
+  userId    String   @id @db.Uuid
+  version   Int
+  json      Json
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  actorId   String   @db.Uuid
+  serverId  String?  @db.Uuid
+  action    String
+  targetId  String?
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  actor     User     @relation(fields: [actorId], references: [id])
+  server    Server?  @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId, createdAt])
+}
