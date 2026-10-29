@@ -24,6 +24,8 @@ import { ServersController } from './servers/servers.controller.js';
 import { ServersService } from './servers/servers.service.js';
 import { DiscordImportService } from './servers/discord-import.service.js';
 import { ActivitiesService } from './voice/activities.service.js';
+import { AvatarService } from './users/avatar.service.js';
+import { AvatarsController } from './users/avatars.controller.js';
 import { SocialController } from './social/social.controller.js';
 import { SocialService } from './social/social.service.js';
 import { UsersController } from './users/users.controller.js';
@@ -41,6 +43,7 @@ export class AppModule {
         AuthController,
         UsersController,
         ServersController,
+        AvatarsController,
         MessagesController,
         AttachmentsController,
         SocialController,
@@ -59,6 +62,7 @@ export class AppModule {
         ServersService,
         DiscordImportService,
         ActivitiesService,
+        AvatarService,
         RealtimeService,
         PresenceService,
         RealtimeGateway,

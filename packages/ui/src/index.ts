@@ -1,5 +1,5 @@
 export { Icon, ICON_NAMES, type IconName, type IconProps } from './Icon.js';
-export { Avatar, avatarColor, initials, STATUS_LABEL, type AvatarProps } from './Avatar.js';
+export { Avatar, AvatarSource, avatarColor, initials, STATUS_LABEL, type AvatarProps } from './Avatar.js';
 export {
   Button,
   Checkbox,

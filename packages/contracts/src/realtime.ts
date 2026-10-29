@@ -13,6 +13,7 @@ import {
   Friend,
   Conversation,
   VoiceMemberState,
+  UserPublic,
 } from './api.js';
 import { ActivityControl, type ActivityState, YouTubeVideoId } from './activities.js';
 
@@ -138,6 +139,8 @@ export interface ServerEvents {
   /** atividade da chamada começou ou mudou (vídeo, play/pausa/posição) */
   'activity:state': ActivityState;
   'activity:ended': { channelId: string; serverId: string };
+  /** perfil público mudou (foto, apelido): enviado a quem compartilha servidor com a pessoa */
+  'user:updated': z.infer<typeof UserPublic>;
 }
 export type ServerEventName = keyof ServerEvents;
 

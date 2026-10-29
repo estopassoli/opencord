@@ -166,6 +166,9 @@ test('dois usuários entram na mesma sala e se veem; indicador de fala acende', 
   await A.app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]!.setBounds({ x: 0, y: 0, width: 1280, height: 800 }),
   );
+  // o evento de resize chega depois; menus abertos fecham com resize: espera estabilizar
+  await expect.poll(() => A.page.evaluate(() => window.outerWidth)).toBeLessThan(1400);
+  await A.page.waitForTimeout(400);
   test.info().annotations.push({ type: 'join-ms', description: String(joinMs) });
 });
 

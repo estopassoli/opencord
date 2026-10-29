@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { AvatarProvider } from './components/AvatarProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Toasts } from './components/Toasts';
 import { AuthScreen } from './features/auth/AuthScreen';
@@ -43,7 +44,9 @@ export function App() {
       ) : status === 'anonymous' ? (
         <AuthScreen />
       ) : (
-        <AppShell />
+        <AvatarProvider>
+          <AppShell />
+        </AvatarProvider>
       )}
       <Toasts />
     </ErrorBoundary>
