@@ -1,121 +1,168 @@
-import { availableProfiles, type StreamProfileId } from '@opencord/media';
-import { Button, Icon, Select } from '@opencord/ui';
+import { availableProfiles, STREAM_PROFILES, type StreamProfileId } from '@opencord/media';
+import { Button, Icon } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import type { CaptureSourceDto } from '../../../electron/shared/ipc';
+import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Dialog } from '../../components/Dialog';
 import { bridge } from '../../lib/bridge';
 import { useData } from '../../store/data';
+import { updateSettings } from '../../store/settings';
 import { useVoice } from '../../store/voice';
 
-/** Seletor de fonte do Go Live com miniaturas reais (desktopCapturer), perfil e opção de áudio do sistema. */
+type Tab = 'window' | 'screen';
+
+const QUALITY_HINT: Record<StreamProfileId, string> = {
+  '720p30': 'leve, para internet fraca',
+  '1080p60': 'recomendado',
+  '1440p60': 'máxima, exige upload alto',
+};
+
+const label = (id: StreamProfileId) => {
+  const p = STREAM_PROFILES[id];
+  return `${p.height}p · ${p.fps} fps`;
+};
+
+/**
+ * Seletor do Go Live: aplicativos (janelas) ou tela inteira, em miniaturas grandes; um clique já transmite.
+ * Rodapé com o resumo (qualidade, áudio) e engrenagem para trocar a qualidade ou transmitir sem som.
+ * Pronto para jogos: sem escolha de modo (ver DECISIONS); o áudio do sistema vai junto por padrão.
+ */
 export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
   const [sources, setSources] = useState<CaptureSourceDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'screen' | 'window'>('screen');
-  const [selected, setSelected] = useState<string | null>(null);
-  const defaultProfile = useData((s) => s.settings?.video.streamProfile ?? '1080p60');
-  const [profile, setProfile] = useState<StreamProfileId>(defaultProfile);
+  const [tab, setTab] = useState<Tab>('window');
+  const profile = useData((s) => s.settings?.video.streamProfile ?? '1080p60');
+  const [muted, setMuted] = useState(false);
   const isWindows = navigator.userAgent.includes('Windows');
+  const audioPossible = isWindows || !bridge;
 
   const refresh = () => {
     if (!bridge) return;
-    bridge.capture.listSources().then(
-      (s) => {
-        setSources(s);
-        setSelected((cur) => cur ?? s.find((x) => x.kind === 'screen')?.id ?? null);
-      },
-      (e: unknown) => setError(e instanceof Error ? e.message : 'Falha ao listar fontes'),
-    );
+    bridge.capture
+      .listSources()
+      .then(setSources, (e: unknown) => setError(e instanceof Error ? e.message : 'Falha ao listar fontes'));
   };
   useEffect(refresh, []);
-  // hardware só é confirmado após a primeira transmissão; 1440p60 aparece mas é limitado (effectiveProfile)
-  const profiles = availableProfiles({ hardware: true });
 
-  const start = () =>
-    // áudio do sistema sempre junto (Windows no app; no navegador, depende da opção marcada no seletor dele)
-    void useVoice.getState().startStream(bridge ? selected : null, isWindows || !bridge, profile);
+  const start = (s: CaptureSourceDto | null) =>
+    void useVoice.getState().startStream(s?.id ?? null, audioPossible && !muted, profile, s?.name ?? null);
+
+  const settingsMenu = (e: React.MouseEvent | React.KeyboardEvent) => {
+    const items: MenuEntry[] = availableProfiles({ hardware: true }).map((p) => ({
+      label: label(p.id),
+      hint: QUALITY_HINT[p.id],
+      checked: p.id === profile,
+      onSelect: () => updateSettings((s) => ({ ...s, video: { ...s.video, streamProfile: p.id } })),
+    }));
+    items.push('separator', {
+      label: 'Transmitir sem som',
+      hint: audioPossible ? 'o áudio do PC não vai junto' : 'áudio do sistema só no Windows',
+      checked: muted || !audioPossible,
+      disabled: !audioPossible,
+      onSelect: () => setMuted((m) => !m),
+    });
+    openContextMenu(e, items, 'Opções da transmissão');
+  };
 
   const visible = (sources ?? []).filter((s) => s.kind === tab);
 
   return (
-    <Dialog
-      title="Transmitir (Go Live)"
-      onClose={onClose}
-      wide
-      actions={
-        <>
-          {bridge && !isWindows && <span className="muted small">Áudio do sistema só no Windows</span>}
-          <Select<StreamProfileId>
-            aria-label="Qualidade"
-            className="picker-quality"
-            value={profile}
-            onChange={setProfile}
-            options={profiles.map((p) => ({
-              value: p.id,
-              label: p.id,
-              ...(p.requiresHardware ? { description: 'requer encoder por hardware' } : {}),
-            }))}
-          />
-          <span className="spacer" />
-          <Button variant="ghost" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button icon="screen" disabled={Boolean(bridge) && !selected} onClick={start}>
-            Transmitir
-          </Button>
-        </>
-      }
-    >
-      {!bridge ? (
-        <p>
-          No navegador, o seletor do próprio navegador será aberto ao iniciar. Para incluir o som, escolha{' '}
-          <strong>Tela inteira</strong> (ou uma aba) e deixe marcado <strong>Compartilhar áudio do sistema</strong>:
-          janelas avulsas não enviam áudio no navegador. O app para Windows captura o som de qualquer fonte.
-        </p>
-      ) : (
-        <>
-          <div className="tabs" role="tablist" aria-label="Tipo de fonte">
-            <button role="tab" className="tab" aria-selected={tab === 'screen'} onClick={() => setTab('screen')}>
-              Telas
+    <Dialog title="Transmitir" onClose={onClose} wide bare>
+      <div className="golive">
+        {bridge && (
+          <div className="golive-tabs" role="tablist" aria-label="O que transmitir">
+            <button role="tab" className="golive-tab" aria-selected={tab === 'window'} onClick={() => setTab('window')}>
+              <Icon name="window" size={18} /> Aplicativos
             </button>
-            <button role="tab" className="tab" aria-selected={tab === 'window'} onClick={() => setTab('window')}>
-              Janelas
+            <button role="tab" className="golive-tab" aria-selected={tab === 'screen'} onClick={() => setTab('screen')}>
+              <Icon name="screen" size={18} /> Tela inteira
             </button>
-            <span className="spacer" />
-            <button className="icon-btn" aria-label="Atualizar fontes" title="Atualizar" onClick={refresh}>
+            <button
+              className="icon-btn golive-refresh"
+              aria-label="Atualizar lista"
+              title="Atualizar lista"
+              onClick={refresh}
+            >
               <Icon name="refresh" />
             </button>
           </div>
-          {error && <p className="form-error">{error}</p>}
-          {!sources && <p className="muted">Carregando fontes…</p>}
-          <ul className="source-grid" role="listbox" aria-label={tab === 'screen' ? 'Telas' : 'Janelas'}>
-            {visible.map((s) => (
-              <li
-                key={s.id}
-                role="option"
-                aria-selected={selected === s.id}
-                tabIndex={0}
-                className="source"
-                onClick={() => setSelected(s.id)}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelected(s.id)}
-                onDoubleClick={start}
-              >
-                <img src={s.thumbnail} alt="" />
-                <span className="source-name">
-                  {s.appIcon && <img src={s.appIcon} alt="" className="source-icon" />}
-                  <span className="truncate">{s.name}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          {tab === 'window' && (
-            <p className="muted small">
-              Jogos em tela cheia exclusiva podem aparecer pretos; prefira janela sem bordas ou capture a tela inteira.
-              Conteúdo protegido (DRM) não é capturado.
+        )}
+
+        {!bridge ? (
+          <div className="golive-browser">
+            <Icon name="screen" size={40} />
+            <p>
+              O navegador abre o seletor dele. Para levar o som, escolha <strong>Tela inteira</strong> (ou uma aba) e
+              deixe marcado <strong>Compartilhar áudio do sistema</strong>; janelas avulsas não enviam áudio no
+              navegador. O app para Windows transmite o som de qualquer fonte.
             </p>
-          )}
-        </>
-      )}
+            <Button size="lg" icon="screen" onClick={() => start(null)}>
+              Escolher o que transmitir
+            </Button>
+          </div>
+        ) : (
+          <>
+            {error && <p className="form-error">{error}</p>}
+            {!sources && <p className="muted golive-loading">Carregando…</p>}
+            <ul className="golive-grid" role="listbox" aria-label={tab === 'screen' ? 'Telas' : 'Aplicativos'}>
+              {visible.map((s) => (
+                <li
+                  key={s.id}
+                  role="option"
+                  aria-selected={false}
+                  aria-label={`Transmitir ${s.name}`}
+                  tabIndex={0}
+                  className="golive-card"
+                  onClick={() => start(s)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    start(s);
+                  }}
+                >
+                  <span className="golive-thumb">
+                    <img src={s.thumbnail} alt="" />
+                    <span className="golive-go" aria-hidden="true">
+                      Transmitir
+                    </span>
+                  </span>
+                  <span className="golive-name">
+                    {s.appIcon ? (
+                      <img src={s.appIcon} alt="" />
+                    ) : (
+                      <Icon name={s.kind === 'screen' ? 'screen' : 'window'} size={16} />
+                    )}
+                    <span className="truncate">{s.name}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {sources && !visible.length && <p className="muted golive-loading">Nada para mostrar aqui.</p>}
+            {tab === 'window' && (
+              <p className="muted small golive-note">
+                Jogo em tela cheia exclusiva pode aparecer preto: use janela sem bordas ou transmita a tela inteira.
+              </p>
+            )}
+          </>
+        )}
+
+        <footer className="golive-foot">
+          <div className="golive-summary">
+            <strong>Pronto para jogos</strong>
+            <span className="muted small">
+              {label(profile)} · {audioPossible && !muted ? 'com áudio do sistema' : 'sem som'}
+            </span>
+          </div>
+          <button
+            className="icon-btn golive-gear"
+            aria-label="Opções da transmissão"
+            aria-haspopup="menu"
+            onClick={settingsMenu}
+          >
+            <Icon name="settings" />
+          </button>
+        </footer>
+      </div>
     </Dialog>
   );
 }

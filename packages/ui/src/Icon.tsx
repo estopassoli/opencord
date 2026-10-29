@@ -1,5 +1,13 @@
 import type { IconType } from 'react-icons';
 import {
+  HiArrowDownOnSquare,
+  HiArrowTopRightOnSquare,
+  HiChevronUp,
+  HiOutlineArrowDownOnSquare,
+  HiOutlineArrowTopRightOnSquare,
+  HiOutlineChevronUp,
+  HiOutlineWindow,
+  HiWindow,
   HiOutlineRectangleGroup,
   HiOutlineSquares2X2,
   HiRectangleGroup,
@@ -156,6 +164,13 @@ const ICONS = {
   spotlight: [HiOutlineRectangleGroup, HiRectangleGroup],
   lock: [HiOutlineLockClosed, HiLockClosed],
   'chevron-down': [HiOutlineChevronDown, HiChevronDown],
+  'chevron-up': [HiOutlineChevronUp, HiChevronUp],
+  /** abrir em janela separada */
+  popout: [HiOutlineArrowTopRightOnSquare, HiArrowTopRightOnSquare],
+  /** devolver da janela separada */
+  popin: [HiOutlineArrowDownOnSquare, HiArrowDownOnSquare],
+  /** janela de aplicativo */
+  window: [HiOutlineWindow, HiWindow],
   'chevron-right': [HiOutlineChevronRight, HiChevronRight],
   mail: [HiOutlineEnvelope, HiEnvelope],
   logout: [HiOutlineArrowRightStartOnRectangle, HiArrowRightStartOnRectangle],

@@ -24,7 +24,9 @@ import { Icon, type IconName } from './Icon.js';
  * Popovers abertos a partir de um diálogo precisam ser renderizados DENTRO dele, senão ficam por trás e sem clique.
  */
 export function portalTarget(anchor?: Element | null): Element {
-  return anchor?.closest('dialog[open]') ?? document.querySelector('dialog[open]') ?? document.body;
+  // elementos em outra janela (transmissão desanexada) abrem tooltips/menus na própria janela
+  const doc = anchor?.ownerDocument ?? document;
+  return anchor?.closest('dialog[open]') ?? doc.querySelector('dialog[open]') ?? doc.body;
 }
 
 const cx = (...c: unknown[]) => c.filter((x): x is string => typeof x === 'string' && x.length > 0).join(' ');

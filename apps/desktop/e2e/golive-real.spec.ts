@@ -56,12 +56,12 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   await joinVoice(A.page);
   await joinVoice(B.page);
   await A.page.locator('.dock').getByRole('button', { name: 'Transmitir', exact: true }).click();
-  const dialog = A.page.getByRole('dialog', { name: 'Transmitir (Go Live)' });
+  const dialog = A.page.getByRole('dialog', { name: 'Transmitir' });
+  // qualidade fica na engrenagem do rodapé; um clique no card já transmite
+  await dialog.getByRole('button', { name: 'Opções da transmissão' }).click();
+  await A.page.getByRole('menuitemcheckbox', { name: /^1080p · 60 fps/ }).click();
+  await dialog.getByRole('tab', { name: 'Tela inteira' }).click();
   await dialog.getByRole('listbox').getByRole('option').first().click();
-  // seletor próprio (combobox + listbox), não <select> nativo
-  await dialog.getByRole('combobox', { name: 'Qualidade' }).click();
-  await A.page.getByRole('option', { name: /^1080p60/ }).click();
-  await dialog.getByRole('button', { name: 'Transmitir' }).click();
   await expect(A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true })).toBeVisible({
     timeout: 20_000,
   });
@@ -74,8 +74,8 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
     await A.page.waitForTimeout(2500);
     const w = await v.evaluate((el: HTMLVideoElement) => `${el.videoWidth}x${el.videoHeight}`).catch(() => '?');
     const st = await A.page
-      .getByText(/Transmitindo \d+×\d+/)
-      .innerText()
+      .locator('.stream-stats')
+      .getAttribute('title')
       .catch(() => '?');
     const enc = await A.page
       .locator('.stream-stats')
@@ -100,9 +100,8 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   });
   console.warn('GOLIVE_FIT', JSON.stringify(fit));
   // prévia de quem transmite, com a live em destaque (caso do relato)
+  // a própria transmissão já abre em destaque
   const own = A.page.locator('.tile-stream video');
-  await A.page.locator('.tile-stream').hover();
-  await A.page.getByRole('button', { name: 'Destacar transmissão' }).click();
   await expect(A.page.locator('.tile-stream[data-large="true"]')).toBeVisible();
   const ownFit = await own.evaluate((el: HTMLVideoElement) => {
     const r = el.getBoundingClientRect();
@@ -125,7 +124,7 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
 
   // métricas reais do encoder no publisher após alguns segundos
   await A.page.waitForTimeout(6000);
-  const stats = await A.page.getByText(/Transmitindo \d+×\d+/).innerText();
+  const stats = (await A.page.locator('.stream-stats').getAttribute('title')) ?? '';
   console.warn('GOLIVE_REAL', JSON.stringify({ viewerVideo: dims, publisher: stats }));
   expect(stats).toMatch(/Transmitindo \d+×\d+/);
   // H.264 nunca negocia Constrained Baseline (42e0xx), que o Chromium só codifica em software (preferHardwareH264)
@@ -138,10 +137,46 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   await B.page.getByRole('button', { name: 'Parar de assistir' }).click();
   await expect(A.page.getByText('ninguém assistindo', { exact: false })).toBeVisible({ timeout: 20_000 });
   await B.page.getByRole('button', { name: 'Assistir' }).click();
-  await expect(A.page.getByText(/Transmitindo \d+×\d+/)).toBeVisible({ timeout: 20_000 });
+  await expect(A.page.locator('.stream-stats')).toHaveAttribute('title', /Transmitindo \d+×\d+/, { timeout: 20_000 });
   await expect
     .poll(async () => v.evaluate((el: HTMLVideoElement) => el.videoWidth), { timeout: 20_000 })
     .toBeGreaterThan(640);
+
+  // "Ocultar membros" deixa só a transmissão
+  await B.page.locator('.stage-focus').hover();
+  await B.page.getByRole('button', { name: 'Ocultar membros' }).click();
+  await expect(B.page.locator('.stage-strip')).toHaveCount(0);
+  await B.page.screenshot({ path: 'e2e/results/42-golive-sem-membros.png' });
+  await B.page.getByRole('button', { name: 'Mostrar membros' }).click();
+  await expect(B.page.locator('.stage-strip')).toBeVisible();
+
+  // "Abrir em nova janela": a live segue tocando na janela separada mesmo com o app em outro canal
+  await B.page.locator('.tile-stream').hover();
+  const popupP = B.app.waitForEvent('window');
+  await B.page.getByRole('button', { name: 'Abrir em nova janela' }).click();
+  const popup = await popupP;
+  const pv = popup.locator('.tile-stream video');
+  await expect
+    .poll(async () => pv.evaluate((el: HTMLVideoElement) => el.videoWidth), { timeout: 20_000 })
+    .toBeGreaterThan(640);
+  await expect(B.page.getByText('Transmissão aberta em outra janela')).toBeVisible();
+  await B.page
+    .getByRole('button', { name: /^geral/ })
+    .first()
+    .click();
+  const t0 = await pv.evaluate((el: HTMLVideoElement) => el.currentTime);
+  await popup.waitForTimeout(3000);
+  const t1 = await pv.evaluate((el: HTMLVideoElement) => el.currentTime);
+  console.warn(
+    'GOLIVE_POPOUT',
+    JSON.stringify({ t0, t1, w: await pv.evaluate((el: HTMLVideoElement) => el.videoWidth) }),
+  );
+  expect(t1 - t0).toBeGreaterThan(1.5);
+  await popup.screenshot({ path: 'e2e/results/43-golive-janela.png' });
+  await popup.locator('.tile-stream').hover();
+  await popup.getByRole('button', { name: 'Voltar para o app' }).click();
+  await expect.poll(() => popup.isClosed(), { timeout: 10_000 }).toBe(true);
+
   await A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
   await expect(B.page.locator('.tile-stream')).toHaveCount(0, { timeout: 15_000 });
   await A.page.locator('.dock').getByRole('button', { name: 'Sair da chamada', exact: true }).click();

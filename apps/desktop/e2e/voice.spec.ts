@@ -189,11 +189,13 @@ test('câmera: B liga e A recebe vídeo', async () => {
 
 test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerra para B', async () => {
   await A.page.locator('.dock').getByRole('button', { name: 'Transmitir', exact: true }).click();
-  const dialog = A.page.getByRole('dialog', { name: 'Transmitir (Go Live)' });
+  const dialog = A.page.getByRole('dialog', { name: 'Transmitir' });
   await expect(dialog.getByRole('listbox').getByRole('option').first()).toBeVisible({ timeout: 10_000 });
+  await dialog.getByRole('listbox').getByRole('option').first().hover();
   await A.page.screenshot({ path: shot('11-golive-picker') });
+  await dialog.getByRole('tab', { name: 'Tela inteira' }).click();
+  // um clique no card já inicia a transmissão
   await dialog.getByRole('listbox').getByRole('option').first().click();
-  await dialog.getByRole('button', { name: 'Transmitir' }).click();
   // `live` só após confirmação da SFU
   await expect(A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true })).toBeVisible({
     timeout: 20_000,
@@ -227,8 +229,8 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   }));
   expect(flicker).toEqual({ emptied: 0, sameSource: true });
   // métricas do publisher (encoder/fps) visíveis em A
-  await expect(A.page.getByText(/Transmitindo \d+×\d+/)).toBeVisible({ timeout: 10_000 });
-  const stats = await A.page.getByText(/Transmitindo \d+×\d+/).innerText();
+  await expect(A.page.locator('.stream-stats')).toHaveAttribute('title', /Transmitindo \d+×\d+/, { timeout: 10_000 });
+  const stats = (await A.page.locator('.stream-stats').getAttribute('title')) ?? '';
   test.info().annotations.push({ type: 'publisher-stats', description: stats });
   await A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
   await expect(B.page.locator('.tile-stream')).toHaveCount(0, { timeout: 15_000 });
