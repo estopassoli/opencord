@@ -306,7 +306,13 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   expect(layout.widths.length).toBeLessThanOrEqual(1);
   expect(layout.thumbHeights.length).toBeLessThanOrEqual(1);
   expect(layout.overflow).toBe(false);
+  // regressão: clique logo após trocar de aba (cards surgindo embaixo do cursor) não transmite nada
   await dialog.getByRole('tab', { name: 'Tela inteira' }).click();
+  await dialog.getByRole('listbox').getByRole('option').first().click();
+  await A.page.waitForTimeout(800);
+  await expect(dialog).toBeVisible();
+  await expect(A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true })).toHaveCount(0);
+  // depois de a lista assentar, o clique vale
   // um clique no card já inicia a transmissão
   await dialog.getByRole('listbox').getByRole('option').first().click();
   // `live` só após confirmação da SFU
@@ -334,6 +340,7 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   const muteBtn = A.page.locator('.dock').getByRole('button', { name: /^(Silenciar|Ativar) microfone$/ });
   for (let i = 0; i < 4; i++) {
     await muteBtn.click();
+    await expect(A.page.locator('.golive-grid[aria-busy]')).toHaveCount(0, { timeout: 15_000 });
     await A.page.waitForTimeout(600);
   }
   const flicker = await v.evaluate((el: HTMLVideoElement & { __emptied?: number; __src?: MediaProvider | null }) => ({
@@ -350,6 +357,9 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   await B.page.locator('.dock').getByRole('button', { name: 'Transmitir', exact: true }).click();
   const bDialog = B.page.getByRole('dialog', { name: 'Transmitir' });
   await bDialog.getByRole('tab', { name: 'Tela inteira' }).click();
+  // trava contra clique acidental: cards só aceitam clique 0,5 s depois de aparecer/trocar de aba
+  await expect(B.page.locator('.golive-grid[aria-busy]')).toHaveCount(0, { timeout: 15_000 });
+  await B.page.waitForTimeout(600);
   await bDialog.getByRole('listbox').getByRole('option').first().click();
   await expect(B.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true })).toBeVisible({
     timeout: 20_000,

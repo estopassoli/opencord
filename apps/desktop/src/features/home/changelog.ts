@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '21:15',
+    kind: 'correção',
+    icon: 'screen',
+    title: 'Seletor de transmissão sem clique acidental',
+    body: 'Enquanto a lista carrega aparecem cards de espera, e um clique dado enquanto os cards surgiam ou trocavam de aba não inicia mais a transmissão errada.',
+  },
+  {
+    date: '2026-10-29',
     time: '21:05',
     kind: 'novo',
     icon: 'server',

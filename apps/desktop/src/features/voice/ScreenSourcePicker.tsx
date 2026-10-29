@@ -1,6 +1,6 @@
 import { availableProfiles, STREAM_PROFILES, type StreamProfileId } from '@opencord/media';
 import { Button, Icon } from '@opencord/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CaptureSourceDto } from '../../../electron/shared/ipc';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Dialog } from '../../components/Dialog';
@@ -10,6 +10,8 @@ import { updateSettings } from '../../store/settings';
 import { useVoice } from '../../store/voice';
 
 type Tab = 'window' | 'screen';
+
+const ARM_MS = 500;
 
 const QUALITY_HINT: Record<StreamProfileId, string> = {
   '720p30': 'leve, para internet fraca',
@@ -43,6 +45,16 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
       .then(setSources, (e: unknown) => setError(e instanceof Error ? e.message : 'Falha ao listar fontes'));
   };
   useEffect(refresh, []);
+
+  // Trava contra clique acidental: a lista demora ~2 s; um clique dado enquanto ela aparece/troca de aba
+  // caía num card que surgiu embaixo do cursor (relato: transmitiu a janela errada). Só vale o clique que
+  // COMEÇOU no card, depois de ele estar na tela há pelo menos ARM_MS.
+  const shownAt = useRef(0);
+  const pressed = useRef<string | null>(null);
+  useEffect(() => {
+    shownAt.current = performance.now();
+  }, [tab, sources]);
+  const armed = () => performance.now() - shownAt.current >= ARM_MS;
 
   const start = (s: CaptureSourceDto | null) =>
     void useVoice.getState().startStream(s?.id ?? null, audioPossible && !muted, profile, s?.name ?? null);
@@ -103,8 +115,22 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             {error && <p className="form-error">{error}</p>}
-            {!sources && <p className="muted golive-loading">Carregando…</p>}
-            <ul className="golive-grid" role="listbox" aria-label={tab === 'screen' ? 'Telas' : 'Aplicativos'}>
+            <ul
+              className="golive-grid"
+              role="listbox"
+              aria-label={tab === 'screen' ? 'Telas' : 'Aplicativos'}
+              aria-busy={!sources || undefined}
+            >
+              {/* carregando: cards fantasmas no lugar dos reais (layout não pula quando chegam) */}
+              {!sources &&
+                Array.from({ length: tab === 'screen' ? 2 : 4 }, (_, i) => (
+                  <li key={`sk-${i}`} className="golive-card golive-skeleton" aria-hidden="true">
+                    <span className="golive-thumb" />
+                    <span className="golive-name">
+                      <span className="golive-skeleton-text" />
+                    </span>
+                  </li>
+                ))}
               {visible.map((s) => (
                 <li
                   key={s.id}
@@ -113,7 +139,15 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
                   aria-label={`Transmitir ${s.name}`}
                   tabIndex={0}
                   className="golive-card"
-                  onClick={() => start(s)}
+                  onPointerDown={() => {
+                    pressed.current = armed() ? s.id : null;
+                  }}
+                  onClick={(e) => {
+                    // teclado (Enter/Espaço vira click sem pointerdown: detail 0) segue valendo
+                    if (e.detail !== 0 && pressed.current !== s.id) return;
+                    pressed.current = null;
+                    start(s);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter' && e.key !== ' ') return;
                     e.preventDefault();
