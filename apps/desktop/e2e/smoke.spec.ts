@@ -221,3 +221,12 @@ test('configurações abrem e trocam de aba por teclado', async () => {
   await page.screenshot({ path: shots('04-settings') });
   await page.keyboard.press('Escape');
 });
+
+test('barra de título: só os botões voltar/avançar ficam fora da área de arrastar', async () => {
+  // relato real: à esquerda do título não arrastava (o contêiner "no-drag" ocupava toda a 1ª coluna)
+  const nav = await page.locator('.titlebar-nav').boundingBox();
+  const bar = await page.locator('.titlebar').boundingBox();
+  expect(nav && bar).toBeTruthy();
+  expect(nav!.width).toBeLessThan(80);
+  expect(nav!.width).toBeLessThan(bar!.width / 10);
+});
