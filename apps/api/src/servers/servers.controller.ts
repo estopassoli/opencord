@@ -1,4 +1,22 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+} from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
+import { Permission } from '@opencord/contracts';
+import { serverSummary } from '../common/serialize.js';
+import { AvatarService } from '../users/avatar.service.js';
 import {
   CreateCategoryRequest,
   CreateChannelRequest,
@@ -33,6 +51,7 @@ export class ServersController {
     private readonly presence: PresenceService,
     private readonly perms: PermissionsService,
     private readonly discord: DiscordImportService,
+    private readonly avatars: AvatarService,
   ) {}
 
   @Get('servers')
@@ -59,6 +78,22 @@ export class ServersController {
     @Body(zodPipe(DiscordImportRequest)) dto: z.infer<typeof DiscordImportRequest>,
   ) {
     return this.discord.import(u.userId, dto.link);
+  }
+
+  /** Imagem do servidor (multipart "file"; mesmas regras da foto de perfil). Exige gerenciar o servidor. */
+  @Post('servers/:id/icon')
+  async setIcon(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string, @Req() req: FastifyRequest) {
+    await this.perms.requireServer(id, u.userId, Permission.MANAGE_SERVER);
+    if (!req.isMultipart()) throw new BadRequestException('multipart/form-data esperado');
+    const file = await req.file();
+    if (!file) throw new BadRequestException('campo "file" ausente');
+    return serverSummary(await this.avatars.setServerIcon(id, file.file));
+  }
+
+  @Delete('servers/:id/icon')
+  async clearIcon(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.perms.requireServer(id, u.userId, Permission.MANAGE_SERVER);
+    return serverSummary(await this.avatars.clearServerIcon(id));
   }
 
   /** Diretório: todos os servidores (abertos a todos, sem convite). */

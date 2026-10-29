@@ -1,4 +1,5 @@
-import { Icon, initials } from '@opencord/ui';
+import { Icon } from '@opencord/ui';
+import { ServerIcon } from '../../components/ServerIcon';
 import type { ReactNode } from 'react';
 import { openContextMenu } from '../../components/ContextMenu';
 import { DownloadAppRailItem } from '../../components/DownloadApp';
@@ -131,7 +132,7 @@ export function ServerRail() {
                 )
               }
             >
-              <span aria-hidden>{initials(s.name)}</span>
+              <ServerIcon name={s.name} iconKey={s.iconKey} />
             </RailItem>
           );
         })}

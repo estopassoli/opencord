@@ -5,7 +5,7 @@ import { rooms } from '@opencord/contracts';
 import { imageSize } from '../attachments/attachments.service.js';
 import { StorageService } from '../attachments/storage.service.js';
 import { PrismaService } from '../common/prisma.service.js';
-import { userPublic } from '../common/serialize.js';
+import { serverSummary, userPublic } from '../common/serialize.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
 /** O app já recorta e reduz para 256×256; o limite é folgado para quem envia direto pela API. */
@@ -29,6 +29,29 @@ export class AvatarService {
   ) {}
 
   async set(userId: string, file: AsyncIterable<Buffer> & { truncated?: boolean }) {
+    return this.apply(userId, await this.storeImage(file, 'avatars'));
+  }
+
+  /** Imagem do servidor (mesmas regras da foto de perfil); o nome vai para servers.iconKey. */
+  async setServerIcon(serverId: string, file: AsyncIterable<Buffer> & { truncated?: boolean }) {
+    return this.applyServer(serverId, await this.storeImage(file, 'server-icons'));
+  }
+
+  async clearServerIcon(serverId: string) {
+    return this.applyServer(serverId, null);
+  }
+
+  private async applyServer(serverId: string, name: string | null) {
+    const before = await this.prisma.server.findUniqueOrThrow({ where: { id: serverId }, select: { iconKey: true } });
+    const server = await this.prisma.server.update({ where: { id: serverId }, data: { iconKey: name } });
+    if (before.iconKey && AVATAR_NAME.test(before.iconKey))
+      await this.storage.remove(`server-icons/${before.iconKey}`).catch(() => undefined);
+    this.realtime.emit(rooms.server(serverId), 'server:updated', serverSummary(server));
+    return server;
+  }
+
+  /** Valida (tipo pelos bytes, tamanho, dimensões) e grava em `<pasta>/<nome aleatório>`; devolve o nome. */
+  private async storeImage(file: AsyncIterable<Buffer> & { truncated?: boolean }, folder: string) {
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const c of file) {
@@ -48,8 +71,8 @@ export class AvatarService {
     if (!dims || dims.width < 16 || dims.height < 16 || dims.width > MAX_SIDE || dims.height > MAX_SIDE)
       throw new BadRequestException(`a foto precisa ter entre 16 e ${MAX_SIDE} pixels de lado`);
     const name = `${randomUUID()}-${ext}`;
-    await this.storage.write(`avatars/${name}`, Readable.from(buf));
-    return this.apply(userId, name);
+    await this.storage.write(`${folder}/${name}`, Readable.from(buf));
+    return name;
   }
 
   async clear(userId: string) {
@@ -76,11 +99,11 @@ export class AvatarService {
     );
   }
 
-  /** Para GET /avatars/:name. */
-  open(name: string) {
+  /** Para GET /avatars/:name e GET /server-icons/:name. */
+  open(name: string, folder: 'avatars' | 'server-icons' = 'avatars') {
     const m = AVATAR_NAME.exec(name);
     if (!m) return null;
     const mime = Object.entries(TYPES).find(([, e]) => e === m[1])![0];
-    return { mime, key: `avatars/${name}` };
+    return { mime, key: `${folder}/${name}` };
   }
 }

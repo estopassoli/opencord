@@ -3649,3 +3649,28 @@ a.rail-item {
   height: 10px;
   border-radius: 50%;
 }
+
+/* imagem do servidor (barra de servidores, cards, configurações) */
+.server-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+.now-server {
+  overflow: hidden;
+}
+.server-icon-preview {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 80px;
+  height: 80px;
+  border-radius: calc(20px * var(--radius-scale, 1));
+  overflow: hidden;
+  background: var(--brand);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 800;
+}

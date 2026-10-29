@@ -4,26 +4,7 @@ import { useRef, useState } from 'react';
 import { useData } from '../../store/data';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
-
-const SIDE = 256;
-
-/** Recorta o centro em quadrado e reduz para 256×256 (WebP, com PNG de reserva): envio pequeno e rápido. */
-async function squareAvatar(file: File): Promise<File> {
-  const bmp = await createImageBitmap(file);
-  const s = Math.min(bmp.width, bmp.height);
-  const canvas = document.createElement('canvas');
-  canvas.width = SIDE;
-  canvas.height = SIDE;
-  const ctx = canvas.getContext('2d')!;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, SIDE, SIDE);
-  bmp.close();
-  const blob =
-    (await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/webp', 0.9))) ??
-    (await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png')));
-  if (!blob) throw new Error('não foi possível preparar a imagem');
-  return new File([blob], blob.type === 'image/webp' ? 'avatar.webp' : 'avatar.png', { type: blob.type });
-}
+import { squareImage } from '../../lib/images';
 
 /** Foto de perfil em Configurações → Minha conta. */
 export function AvatarPicker({ me }: { me: Me }) {
@@ -39,7 +20,7 @@ export function AvatarPicker({ me }: { me: Me }) {
     if (!file.type.startsWith('image/')) return setError('Escolha uma imagem (PNG, JPEG, WebP ou GIF).');
     setBusy(true);
     try {
-      apply(await api().upload<Me>('/me/avatar', await squareAvatar(file)));
+      apply(await api().upload<Me>('/me/avatar', await squareImage(file, 256, 'avatar')));
       useUi.getState().toast('success', 'Foto de perfil atualizada.');
     } catch (e) {
       setError(describeError(e));

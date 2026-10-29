@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '21:05',
+    kind: 'novo',
+    icon: 'server',
+    title: 'Imagem do servidor',
+    body: 'Em Configurações do servidor → Visão geral, quem gerencia o servidor envia uma imagem (recortada em quadrado); ela aparece na barra de servidores de todos na hora.',
+  },
+  {
+    date: '2026-10-29',
     time: '20:55',
     kind: 'correção',
     icon: 'download',

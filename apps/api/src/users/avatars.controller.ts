@@ -4,8 +4,8 @@ import { StorageService } from '../attachments/storage.service.js';
 import { Public } from '../common/auth.js';
 import { AvatarService } from './avatar.service.js';
 
-/** Fotos de perfil são públicas como num chat qualquer; o nome é aleatório e muda a cada troca (cache eterno). */
-@Controller('avatars')
+/** Fotos de perfil e imagens de servidor são públicas como num chat qualquer; o nome é aleatório e muda a cada troca (cache eterno). */
+@Controller()
 export class AvatarsController {
   constructor(
     private readonly avatars: AvatarService,
@@ -13,9 +13,18 @@ export class AvatarsController {
   ) {}
 
   @Public()
-  @Get(':name')
-  async get(@Param('name') name: string, @Res() reply: FastifyReply) {
-    const f = this.avatars.open(name);
+  @Get('avatars/:name')
+  get(@Param('name') name: string, @Res() reply: FastifyReply) {
+    return this.serve(this.avatars.open(name), reply);
+  }
+
+  @Public()
+  @Get('server-icons/:name')
+  getServerIcon(@Param('name') name: string, @Res() reply: FastifyReply) {
+    return this.serve(this.avatars.open(name, 'server-icons'), reply);
+  }
+
+  private async serve(f: { mime: string; key: string } | null, reply: FastifyReply) {
     if (!f) throw new NotFoundException();
     const size = await this.storage.size(f.key).catch(() => null);
     if (size === null) throw new NotFoundException();

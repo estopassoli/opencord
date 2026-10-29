@@ -4,6 +4,7 @@
  * Limitação: mesma máquina e mesma rede (não substitui o teste manual em dois PCs/redes distintas).
  */
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import path from 'node:path';
 import { joinVoice, joinWithNickname, json, launch, login, OWNER, shot, uniqueNick, writeTone, TONE } from './helpers';
 
 let A: { app: ElectronApplication; page: Page };
@@ -220,6 +221,24 @@ test('dono: botão direito no espaço livre da lista oferece criar canal e categ
   await expect(dialog.getByLabel('Nome da categoria')).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancelar' }).click();
   await expect(dialog).toHaveCount(0);
+});
+
+test('imagem do servidor: dono envia e a barra de servidores dos dois mostra na hora', async () => {
+  await A.page.locator('.server-name').click();
+  const dialog = A.page.locator('dialog[open]');
+  await dialog
+    .getByLabel('Escolher imagem do servidor')
+    .setInputFiles(path.join(__dirname, 'fixtures', 'avatar-azul.png'));
+  await expect(dialog.getByRole('button', { name: 'Trocar imagem' })).toBeVisible({ timeout: 10_000 });
+  const railA = A.page.getByRole('navigation', { name: 'Servidores' }).getByRole('button', { name: /^OpenCord/ });
+  const railB = B.page.getByRole('navigation', { name: 'Servidores' }).getByRole('button', { name: /^OpenCord/ });
+  await expect(railA.locator('img.server-icon-img')).toHaveAttribute('src', /\/server-icons\//);
+  await expect(railB.locator('img.server-icon-img')).toHaveAttribute('src', /\/server-icons\//, { timeout: 10_000 });
+  await expect.poll(() => railB.locator('img').evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(256);
+  await A.page.screenshot({ path: shot('19-imagem-servidor') });
+  await dialog.getByRole('button', { name: 'Remover' }).click();
+  await expect(railB.locator('img')).toHaveCount(0, { timeout: 10_000 });
+  await A.page.keyboard.press('Escape');
 });
 
 test('cartão de voz: status, 4 ações e atalhos funcionam', async () => {

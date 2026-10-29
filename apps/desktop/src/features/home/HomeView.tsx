@@ -7,6 +7,7 @@ import { api, describeError, loadFriends } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useActivity } from '../../store/activity';
 import { useVoice } from '../../store/voice';
+import { ServerIcon } from '../../components/ServerIcon';
 
 type Tab = 'online' | 'all' | 'pending' | 'blocked' | 'add';
 const TABS: [Tab, string][] = [
@@ -271,7 +272,7 @@ function ActivityColumn() {
             >
               <div className="now-head">
                 <span className="now-server" aria-hidden="true">
-                  {(server?.name ?? '?').slice(0, 2).toUpperCase()}
+                  <ServerIcon name={server?.name ?? '?'} iconKey={server?.iconKey} />
                 </span>
                 <span className="truncate">{server?.name}</span>
                 {streaming.length > 0 && <span className="live-pill">AO VIVO</span>}
