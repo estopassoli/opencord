@@ -153,6 +153,18 @@ test('dois usuários entram na mesma sala e se veem; indicador de fala acende', 
   test.info().annotations.push({ type: 'join-ms', description: String(joinMs) });
 });
 
+test('dono: botão direito no espaço livre da lista oferece criar canal e categoria', async () => {
+  const last = (await A.page.locator('.sidebar-scroll .cat').last().boundingBox())!;
+  await A.page.mouse.click(last.x + last.width / 2, last.y + last.height + 24, { button: 'right' });
+  const menu = A.page.getByRole('menu', { name: 'Opções da lista de canais' });
+  await expect(menu.getByRole('menuitem', { name: 'Criar canal' })).toBeVisible();
+  await menu.getByRole('menuitem', { name: 'Criar categoria' }).click();
+  const dialog = A.page.getByRole('dialog', { name: 'Criar categoria' });
+  await expect(dialog.getByLabel('Nome da categoria')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(dialog).toHaveCount(0);
+});
+
 test('cartão de voz: status, 4 ações e atalhos funcionam', async () => {
   const dock = A.page.locator('.voice-dock');
   await expect(dock.getByText('Voz conectada')).toBeVisible();

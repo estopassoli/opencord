@@ -243,3 +243,20 @@ test('categoria recolhida esconde os canais (inclusive de voz) e expande de novo
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(sala).toBeVisible();
 });
+
+test('botão direito no espaço livre da lista de canais abre o menu da lista', async () => {
+  // espaço livre logo abaixo da última categoria (o rodapé da lista fica sob o painel do usuário)
+  const last = (await page.locator('.sidebar-scroll .cat').last().boundingBox())!;
+  const box = { x: last.x, width: last.width, y: last.y + last.height + 24, height: 0 };
+  await page.mouse.click(box.x + box.width / 2, box.y, { button: 'right' });
+  const menu = page.getByRole('menu', { name: 'Opções da lista de canais' });
+  await expect(menu).toBeVisible();
+  // convidado (sem gerenciar canais) não vê "Criar canal"
+  await expect(menu.getByRole('menuitem', { name: 'Criar canal' })).toHaveCount(0);
+  await menu.getByRole('menuitem', { name: 'Recolher todas as categorias' }).click();
+  await expect(page.locator('.channel-row').filter({ hasText: 'Sala' })).toHaveCount(0);
+  const lastCollapsed = (await page.locator('.sidebar-scroll .cat').last().boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, lastCollapsed.y + lastCollapsed.height + 24, { button: 'right' });
+  await menu.getByRole('menuitem', { name: 'Expandir todas as categorias' }).click();
+  await expect(page.locator('.channel-row').filter({ hasText: 'Sala' })).toBeVisible();
+});

@@ -1,7 +1,7 @@
 import { hasPermission, Permission, type Channel } from '@opencord/contracts';
 import { Avatar, Icon } from '@opencord/ui';
 import { useMemo, useState } from 'react';
-import { openContextMenu } from '../../components/ContextMenu';
+import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { useData } from '../../store/data';
 import { api, describeError, markTargetRead } from '../../store/session';
 import { useUi } from '../../store/ui';
@@ -73,7 +73,38 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
           <Icon name="chevron-down" size={16} />
         </button>
       </header>
-      <div className="sidebar-scroll">
+      <div
+        className="sidebar-scroll"
+        // botão direito no espaço livre da lista (fora de canais/categorias): criar canal ou categoria
+        onContextMenu={(e) => {
+          if ((e.target as HTMLElement).closest('.channel-row, .cat-header, .voice-member')) return;
+          const items: MenuEntry[] = [];
+          if (canManage)
+            items.push(
+              {
+                label: 'Criar canal',
+                icon: 'hashtag',
+                onSelect: () => open({ kind: 'create-channel', serverId, channelKind: 'text', categoryId: null }),
+              },
+              { label: 'Criar categoria', icon: 'folder', onSelect: () => open({ kind: 'create-category', serverId }) },
+              'separator',
+            );
+          items.push(
+            {
+              label: 'Expandir todas as categorias',
+              icon: 'chevron-down',
+              onSelect: () => setCollapsed(() => ({})),
+            },
+            {
+              label: 'Recolher todas as categorias',
+              icon: 'chevron-right',
+              onSelect: () =>
+                setCollapsed(() => Object.fromEntries(groups.filter((g) => g.id).map((g) => [g.id as string, true]))),
+            },
+          );
+          openContextMenu(e, items, 'Opções da lista de canais');
+        }}
+      >
         {groups.map((g) => (
           <section key={g.id ?? 'none'} className="cat">
             {g.name && (

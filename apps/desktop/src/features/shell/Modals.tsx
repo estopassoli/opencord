@@ -1,4 +1,4 @@
-import type { Channel, ServerDetail, ServerDirectoryEntry } from '@opencord/contracts';
+import type { Category, Channel, ServerDetail, ServerDirectoryEntry } from '@opencord/contracts';
 import { Button, RadioGroup, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
@@ -22,6 +22,8 @@ export function Modals() {
       return <ExploreServers onClose={close} />;
     case 'create-channel':
       return <CreateChannel modal={modal} onClose={close} />;
+    case 'create-category':
+      return <CreateCategory serverId={modal.serverId} onClose={close} />;
     case 'settings':
       return <SettingsModal onClose={close} />;
     case 'server-settings':
@@ -151,6 +153,42 @@ function ExploreServers({ onClose }: { onClose: () => void }) {
           </li>
         ))}
       </ul>
+    </Dialog>
+  );
+}
+
+function CreateCategory({ serverId, onClose }: { serverId: string; onClose: () => void }) {
+  const [name, setName] = useState('');
+  const { busy, error, submit } = useSubmit(async () => {
+    const c = await api().request<Category>('POST', `/servers/${serverId}/categories`, { name });
+    useData.getState().upsertCategory(c);
+    onClose();
+  });
+  return (
+    <Dialog title="Criar categoria" onClose={onClose}>
+      <form onSubmit={submit} className="form">
+        <TextField
+          label="Nome da categoria"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          maxLength={64}
+          autoFocus
+        />
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="form-actions">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={busy}>
+            Criar categoria
+          </Button>
+        </div>
+      </form>
     </Dialog>
   );
 }

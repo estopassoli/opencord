@@ -18,6 +18,7 @@ export type Modal =
   | { kind: 'create-server' }
   | { kind: 'explore-servers' }
   | { kind: 'create-channel'; serverId: string; channelKind: 'text' | 'voice'; categoryId: string | null }
+  | { kind: 'create-category'; serverId: string }
   | { kind: 'screen-picker' }
   | { kind: 'quick-switcher' }
   | null;
