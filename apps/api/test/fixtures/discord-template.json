@@ -1,0 +1,53 @@
+{
+  "code": "ocFicticio1",
+  "name": "Modelo de teste",
+  "description": "Servidor fictício para testes do importador",
+  "serialized_source_guild": {
+    "name": "Guilda Fictícia",
+    "roles": [
+      { "id": 0, "name": "@everyone", "color": 0, "permissions": "3263553" },
+      { "id": 1, "name": "Moderação", "color": 15158332, "permissions": "8" },
+      { "id": 2, "name": "Membros antigos", "color": 3447003, "permissions": "37080128" }
+    ],
+    "channels": [
+      { "id": 10, "type": 4, "name": "Informações", "position": 0, "parent_id": null, "permission_overwrites": [] },
+      {
+        "id": 11,
+        "type": 0,
+        "name": "regras",
+        "position": 0,
+        "topic": "Leia antes de postar",
+        "parent_id": 10,
+        "permission_overwrites": [{ "id": 0, "type": 0, "allow": "0", "deny": "2048" }]
+      },
+      { "id": 12, "type": 5, "name": "avisos", "position": 1, "parent_id": 10, "permission_overwrites": [] },
+      { "id": 20, "type": 4, "name": "Bate-papo", "position": 1, "parent_id": null, "permission_overwrites": [] },
+      { "id": 22, "type": 2, "name": "Sala geral", "position": 0, "parent_id": 20, "permission_overwrites": [] },
+      { "id": 21, "type": 0, "name": "geral", "position": 1, "parent_id": 20, "permission_overwrites": [] },
+      {
+        "id": 23,
+        "type": 13,
+        "name": "Palco",
+        "position": 2,
+        "parent_id": 20,
+        "permission_overwrites": [{ "id": 1, "type": 0, "allow": "4194304", "deny": "0" }]
+      },
+      {
+        "id": 30,
+        "type": 0,
+        "name": "fora-de-categoria",
+        "position": 5,
+        "parent_id": null,
+        "permission_overwrites": [{ "id": 999, "type": 1, "allow": "1024", "deny": "0" }]
+      },
+      {
+        "id": 31,
+        "type": 99,
+        "name": "tipo-desconhecido",
+        "position": 6,
+        "parent_id": null,
+        "permission_overwrites": []
+      }
+    ]
+  }
+}

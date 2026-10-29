@@ -22,6 +22,7 @@ import { RealtimeService } from './realtime/realtime.service.js';
 import { PermissionsService } from './servers/permissions.service.js';
 import { ServersController } from './servers/servers.controller.js';
 import { ServersService } from './servers/servers.service.js';
+import { DiscordImportService } from './servers/discord-import.service.js';
 import { SocialController } from './social/social.controller.js';
 import { SocialService } from './social/social.service.js';
 import { UsersController } from './users/users.controller.js';
@@ -55,6 +56,7 @@ export class AppModule {
         PermissionsService,
         AuditService,
         ServersService,
+        DiscordImportService,
         RealtimeService,
         PresenceService,
         RealtimeGateway,

@@ -1,5 +1,5 @@
-import type { Category, Channel, ServerDetail, ServerDirectoryEntry } from '@opencord/contracts';
-import { Button, RadioGroup, TextField } from '@opencord/ui';
+import type { Category, Channel, DiscordImportPreview, ServerDetail, ServerDirectoryEntry } from '@opencord/contracts';
+import { Button, Icon, RadioGroup, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { loadServer, api, describeError } from '../../store/session';
@@ -56,6 +56,7 @@ function useSubmit(fn: () => Promise<void>) {
 }
 
 function CreateServer({ onClose }: { onClose: () => void }) {
+  const [mode, setMode] = useState<'new' | 'discord'>('new');
   const [name, setName] = useState('');
   const { busy, error, submit } = useSubmit(async () => {
     const d = await api().request<ServerDetail>('POST', '/servers', { name });
@@ -65,30 +66,153 @@ function CreateServer({ onClose }: { onClose: () => void }) {
   });
   return (
     <Dialog title="Criar servidor" onClose={onClose}>
-      <form onSubmit={submit} className="form">
+      <div className="seg-tabs" role="tablist" aria-label="Como criar">
+        <button role="tab" className="seg-tab" aria-selected={mode === 'new'} onClick={() => setMode('new')}>
+          <Icon name="plus" size={16} /> Do zero
+        </button>
+        <button role="tab" className="seg-tab" aria-selected={mode === 'discord'} onClick={() => setMode('discord')}>
+          <Icon name="upload" size={16} /> Importar do Discord
+        </button>
+      </div>
+      {mode === 'discord' ? (
+        <ImportDiscord onClose={onClose} />
+      ) : (
+        <form onSubmit={submit} className="form">
+          <TextField
+            label="Nome do servidor"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            maxLength={100}
+            autoFocus
+          />
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="form-actions">
+            <Button variant="ghost" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={busy}>
+              Criar
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
+  );
+}
+
+/**
+ * Importa a estrutura de um servidor do Discord pelo link de modelo oficial (discord.new/…): categorias, canais,
+ * cargos e permissões. Mensagens, membros e emojis não fazem parte do modelo (ver docs/DECISIONS.md).
+ */
+function ImportDiscord({ onClose }: { onClose: () => void }) {
+  const [link, setLink] = useState('');
+  const [preview, setPreview] = useState<DiscordImportPreview | null>(null);
+  const load = useSubmit(async () => {
+    setPreview(await api().request<DiscordImportPreview>('POST', '/servers/import/discord/preview', { link }));
+  });
+  const run = useSubmit(async () => {
+    const d = await api().request<ServerDetail>('POST', '/servers/import/discord', { link });
+    useData.getState().setServerDetail(d);
+    useUi.getState().go({ kind: 'server', serverId: d.id, channelId: null });
+    useUi.getState().toast('success', `Servidor "${d.name}" importado.`);
+    onClose();
+  });
+
+  if (!preview) {
+    return (
+      <form onSubmit={load.submit} className="form">
         <TextField
-          label="Nome do servidor"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          label="Link do modelo do servidor"
+          placeholder="https://discord.new/…"
+          hint="No Discord: Configurações do servidor → Modelo de servidor → gerar e copiar o link."
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
           required
-          maxLength={100}
+          maxLength={200}
           autoFocus
         />
-        {error && (
+        <p className="muted small import-note">
+          Vêm categorias, canais de texto e voz, cargos (com cores) e permissões. Mensagens, membros, emojis e arquivos
+          não fazem parte do modelo e não são importados.
+        </p>
+        {load.error && (
           <p className="form-error" role="alert">
-            {error}
+            {load.error}
           </p>
         )}
         <div className="form-actions">
           <Button variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={busy}>
-            Criar
+          <Button type="submit" disabled={load.busy}>
+            {load.busy ? 'Buscando…' : 'Ver prévia'}
           </Button>
         </div>
       </form>
-    </Dialog>
+    );
+  }
+
+  return (
+    <form onSubmit={run.submit} className="form">
+      <div className="import-head">
+        <strong>{preview.name}</strong>
+        <span className="muted small">
+          {preview.categories.filter((c) => c.name).length} categorias · {preview.textChannels} canais de texto ·{' '}
+          {preview.voiceChannels} de voz · {preview.roles.length} cargos
+        </span>
+      </div>
+      <div className="import-preview" aria-label="Prévia da estrutura">
+        {preview.categories.map((c, i) => (
+          <section key={`${c.name ?? '-'}-${i}`}>
+            {c.name && <h4>{c.name}</h4>}
+            <ul>
+              {c.channels.map((ch, j) => (
+                <li key={`${ch.name}-${j}`}>
+                  <Icon name={ch.kind === 'voice' ? 'speaker' : 'hashtag'} size={16} />
+                  <span className="truncate">{ch.name}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+        {preview.roles.length > 0 && (
+          <section>
+            <h4>Cargos</h4>
+            <ul className="import-roles">
+              {preview.roles.map((r, i) => (
+                <li key={`${r.name}-${i}`} className="role-chip" style={{ borderColor: r.color ?? undefined }}>
+                  {r.name}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+      {preview.skipped > 0 && (
+        <p className="muted small">
+          {preview.skipped} item(ns) sem equivalente no OpenCord ficam de fora (permissões por pessoa, tipos de canal
+          que não existem aqui ou excesso sobre os limites).
+        </p>
+      )}
+      {run.error && (
+        <p className="form-error" role="alert">
+          {run.error}
+        </p>
+      )}
+      <div className="form-actions">
+        <Button variant="ghost" onClick={() => setPreview(null)}>
+          Voltar
+        </Button>
+        <Button type="submit" disabled={run.busy}>
+          {run.busy ? 'Importando…' : 'Importar servidor'}
+        </Button>
+      </div>
+    </form>
   );
 }
 

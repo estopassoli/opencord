@@ -2,14 +2,20 @@ import { DEFAULT_EVERYONE_PERMISSIONS } from '@opencord/contracts';
 import type { Prisma } from '@prisma/client';
 
 /** Cria servidor com @everyone, categorias e canais iniciais; todos os usuários entram como membros. */
-export async function createServerWithDefaults(tx: Prisma.TransactionClient, ownerId: string, name: string) {
+/** Servidor sem canais: dono, cargo @everyone e membros (servidores abertos, ADR-0007). */
+export async function createServerShell(
+  tx: Prisma.TransactionClient,
+  ownerId: string,
+  name: string,
+  everyonePermissions: number = DEFAULT_EVERYONE_PERMISSIONS,
+) {
   const server = await tx.server.create({ data: { name, ownerId } });
-  await tx.role.create({
+  const everyone = await tx.role.create({
     data: {
       serverId: server.id,
       name: '@everyone',
       position: 0,
-      permissions: DEFAULT_EVERYONE_PERMISSIONS,
+      permissions: everyonePermissions,
       isEveryone: true,
     },
   });
@@ -20,6 +26,11 @@ export async function createServerWithDefaults(tx: Prisma.TransactionClient, own
     data: [...ids].map((userId) => ({ serverId: server.id, userId })),
     skipDuplicates: true,
   });
+  return { server, everyone };
+}
+
+export async function createServerWithDefaults(tx: Prisma.TransactionClient, ownerId: string, name: string) {
+  const { server } = await createServerShell(tx, ownerId, name);
   const text = await tx.category.create({ data: { serverId: server.id, name: 'Canais de texto', position: 0 } });
   const voice = await tx.category.create({ data: { serverId: server.id, name: 'Canais de voz', position: 1 } });
   await tx.channel.create({

@@ -4,6 +4,7 @@ import {
   CreateChannelRequest,
   CreateRoleRequest,
   CreateServerRequest,
+  DiscordImportRequest,
   SetMemberRolesRequest,
   UpdateCategoryRequest,
   UpdateChannelRequest,
@@ -17,6 +18,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { PresenceService } from '../realtime/presence.service.js';
 import { PermissionsService } from './permissions.service.js';
 import { ServersService } from './servers.service.js';
+import { DiscordImportService } from './discord-import.service.js';
 
 const anyUuid = new ParseUUIDPipe();
 const uuid = anyUuid;
@@ -30,6 +32,7 @@ export class ServersController {
     private readonly audit: AuditService,
     private readonly presence: PresenceService,
     private readonly perms: PermissionsService,
+    private readonly discord: DiscordImportService,
   ) {}
 
   @Get('servers')
@@ -40,6 +43,22 @@ export class ServersController {
   @Post('servers')
   create(@CurrentUser() u: AuthUser, @Body(zodPipe(CreateServerRequest)) dto: z.infer<typeof CreateServerRequest>) {
     return this.servers.create(u.userId, dto.name);
+  }
+
+  /** Prévia da importação de um modelo de servidor do Discord (não cria nada). */
+  @Post('servers/import/discord/preview')
+  @HttpCode(200)
+  previewDiscord(@Body(zodPipe(DiscordImportRequest)) dto: z.infer<typeof DiscordImportRequest>) {
+    return this.discord.preview(dto.link);
+  }
+
+  /** Cria um servidor com a estrutura (categorias, canais, cargos, permissões) de um modelo do Discord. */
+  @Post('servers/import/discord')
+  importDiscord(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(DiscordImportRequest)) dto: z.infer<typeof DiscordImportRequest>,
+  ) {
+    return this.discord.import(u.userId, dto.link);
   }
 
   /** Diretório: todos os servidores (abertos a todos, sem convite). */
