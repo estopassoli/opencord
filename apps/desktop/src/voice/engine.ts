@@ -96,6 +96,9 @@ export class VoiceEngine {
   private intentional = false;
   private speaking = new Map<string, SpeakingDebouncer>();
   private speakingSet = new Set<string>();
+  /** fala local medida aqui mesmo (40 ms): o indicador da SFU chega com ~0,5 s de atraso */
+  private localLoud = false;
+  private vadClone: MediaStreamTrack | null = null;
   private watching = new Set<string>();
   private volumes = new Map<string, number>();
   /** silenciados só para mim (não afeta os outros participantes) */
@@ -292,15 +295,16 @@ export class VoiceEngine {
     }
   }
 
+  /** Mede o nível do microfone: abre o gate no modo VAD e acende o próprio indicador de fala sem esperar a SFU. */
   private startVad() {
     this.stopVad();
-    if (this.prefs.inputMode !== 'vad') return;
     const t = this.micTrack;
     if (!t) return;
     const ctx = new AudioContext();
     this.vadCtx = ctx;
     // analisa uma cópia: o gate desabilita a trilha publicada, não a análise
-    const src = ctx.createMediaStreamSource(new MediaStream([t.mediaStreamTrack.clone()]));
+    this.vadClone = t.mediaStreamTrack.clone();
+    const src = ctx.createMediaStreamSource(new MediaStream([this.vadClone]));
     const an = ctx.createAnalyser();
     an.fftSize = 1024;
     src.connect(an);
@@ -313,10 +317,14 @@ export class VoiceEngine {
       const db = 20 * Math.log10(Math.sqrt(sum / buf.length) + 1e-12);
       const now = performance.now();
       if (db >= this.prefs.vadThresholdDb) lastLoud = now;
-      const open = now - lastLoud < 400;
-      if (open !== this.gateOpen) {
-        this.gateOpen = open;
+      const loud = now - lastLoud < 400;
+      if (this.prefs.inputMode === 'vad' && loud !== this.gateOpen) {
+        this.gateOpen = loud;
+        this.localLoud = loud;
         void this.applyMic();
+      } else if (loud !== this.localLoud) {
+        this.localLoud = loud;
+        this.emit();
       }
     }, 40);
   }
@@ -326,7 +334,10 @@ export class VoiceEngine {
     this.vadTimer = null;
     void this.vadCtx?.close().catch(() => undefined);
     this.vadCtx = null;
+    this.vadClone?.stop();
+    this.vadClone = null;
     this.gateOpen = true;
+    this.localLoud = false;
   }
 
   setPtt(open: boolean) {
@@ -386,7 +397,8 @@ export class VoiceEngine {
       prefs.autoGainControl !== prev.autoGainControl;
     if (procChanged) await this.micTrack?.restartTrack(this.captureOpts()).catch(() => undefined);
     if (prefs.noiseSuppression !== prev.noiseSuppression) await this.applyNoiseFilter();
-    if (prefs.inputMode !== prev.inputMode || procChanged) {
+    // trocar microfone também troca a trilha medida pelo VAD
+    if (prefs.inputMode !== prev.inputMode || procChanged || prefs.inputDeviceId !== prev.inputDeviceId) {
       this.pttOpen = false;
       this.startVad();
     }
@@ -411,6 +423,7 @@ export class VoiceEngine {
     withAudio: boolean,
     profileId: StreamProfileId,
     codec: VideoCodec,
+    mode: StreamMode = 'motion',
   ): Promise<{ audioPublished: boolean }> {
     if (!this.room) throw new Error('não conectado');
     const profile = effectiveProfile(profileId, { hardware: codec === 'h264' ? null : false });
@@ -435,8 +448,9 @@ export class VoiceEngine {
     } as DisplayMediaStreamOptions);
     const [v] = stream.getVideoTracks();
     if (!v) throw new Error('nenhuma trilha de vídeo capturada');
-    // 'detail': o encoder preserva nitidez (texto, interface) e sacrifica fps sob pressão; 'motion' borrava a tela
-    v.contentHint = 'detail';
+    // 'motion' (jogos/vídeo): fps alto; 'detail' (texto/telas paradas): o WebRTC entra em modo de tela e limita o fps
+    // (medido: jogo a 16 fps), mas mantém a nitidez
+    v.contentHint = mode;
     const [a] = stream.getAudioTracks();
     const video = new LocalVideoTrack(v, undefined, false);
     const audio = a ? new LocalAudioTrack(a, undefined, false) : null;
@@ -454,7 +468,7 @@ export class VoiceEngine {
         // espectadores com download fraco (aceitável para grupos pequenos).
         simulcast: false,
         screenShareEncoding: { maxBitrate: profile.maxBitrate, maxFramerate: profile.fps, priority: 'medium' },
-        // sob falta de banda/CPU reduz fps, não resolução: texto continua legível
+        // sob pressão cai o fps, não a resolução ("balanced" derrubava 1080p para 540p no espectador — E2E golive-real)
         degradationPreference: 'maintain-resolution',
       });
       if (audio) {
@@ -535,6 +549,14 @@ export class VoiceEngine {
     return () => track.detach(el);
   }
 
+  /** Falando e de fato transmitindo (gate/PTT abertos, sem mute). */
+  private localSpeaking() {
+    const t = this.micTrack;
+    return Boolean(
+      this.localLoud && t && !t.isMuted && t.mediaStreamTrack.enabled && !this.selfMuted && !this.deafened,
+    );
+  }
+
   private emit() {
     const room = this.room;
     if (!room) return this.cb.onParticipants([]);
@@ -546,7 +568,7 @@ export class VoiceEngine {
         identity: p.identity,
         name: p.name || p.identity,
         isLocal,
-        speaking: this.speakingSet.has(p.identity),
+        speaking: isLocal ? this.localSpeaking() : this.speakingSet.has(p.identity),
         micMuted: !mic || mic.isMuted || (isLocal && (this.selfMuted || this.deafened)),
         hasCamera: Boolean(
           p.getTrackPublication(Track.Source.Camera) && !p.getTrackPublication(Track.Source.Camera)?.isMuted,
@@ -663,6 +685,9 @@ export class VoiceEngine {
     this.cb.onStats(s);
   }
 }
+
+/** Para que a transmissão é otimizada: jogos/vídeo (fluidez) ou texto/telas paradas (nitidez). */
+export type StreamMode = 'motion' | 'detail';
 
 export const RECONNECT = {
   maxAttempts: MAX_RECONNECT_ATTEMPTS,

@@ -37,6 +37,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # tag v1.2.3 → versão 1.2.3 no app: é por ela que o app instalado detecta a atualização (electron/main/updater.ts)
+      - name: Versão pelo tag
+        if: github.ref_type == 'tag'
+        shell: bash
+        working-directory: apps/desktop
+        run: npm pkg set version="${GITHUB_REF_NAME#v}"
       # Dependências pelo turbo; o app fora dele, porque o turbo não repassa VITE_OPENCORD_SERVER_URL ao vite.
       - run: pnpm turbo run build --filter "@opencord/desktop^..."
       - run: pnpm --filter @opencord/desktop build

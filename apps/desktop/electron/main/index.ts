@@ -34,6 +34,7 @@ import {
 import { installDisplayMediaHandler, listSources, selectSource } from './capture';
 import { secureAvailable, secureDelete, secureGet, secureSet } from './secure-store';
 import { appIcon, badgeIcon, trayIcon } from './icons';
+import { checkForUpdate, installUpdate, startUpdater, updateStatus } from './updater';
 
 const DEV_URL = process.env.OPENCORD_DEV_URL; // ex.: http://localhost:5173 (apenas desenvolvimento)
 const RENDERER_INDEX = path.join(__dirname, '../dist/index.html');
@@ -224,6 +225,14 @@ function registerIpc() {
     secureStorage: secureAvailable(),
   }));
   handle(IPC.openExternal, [ExternalUrl], (url) => shell.openExternal(url));
+  handle(IPC.updateStatus, [], () => updateStatus());
+  handle(IPC.updateCheck, [], () => checkForUpdate());
+  handle(IPC.updateInstall, [], () =>
+    installUpdate(() => {
+      quitting = true;
+      app.quit();
+    }),
+  );
 }
 
 app.whenReady().then(() => {
@@ -238,6 +247,7 @@ app.whenReady().then(() => {
   tray.on('click', () => showWindow());
   buildTrayMenu();
   powerMonitor.on('resume', () => send(IPC.evPowerResume));
+  startUpdater((s) => send(IPC.evUpdate, s));
 });
 
 app.on('before-quit', () => {

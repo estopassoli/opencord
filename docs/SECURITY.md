@@ -45,6 +45,6 @@ Testar IDOR, permissões por canal, tokens expirados, reuso de convites, rate li
 | IPC | allowlist + Zod + verificação do remetente; E2E prova sem `require`/`process` no renderer e rejeição de argumento inválido |
 | Electron fuses | REA `inspect_electron_fuses` no build empacotado: RunAsNode, NODE_OPTIONS e inspect desativados; ASAR integrity e onlyLoadAppFromAsar ativados |
 | Revogação de mídia | `voice.int.test.ts` + E2E: kick ou perda de CONNECT remove da SFU em < 5 s |
-| Atualização | auto-update desativado (sem assinatura); instalador não assinado (SmartScreen avisará) |
+| Atualização | sem auto-update silencioso: o app baixa o instalador novo do próprio servidor (mesma origem, https, nome validado) e só executa no clique "Atualização pronta"; instalador não assinado (SmartScreen avisará) |
 
 Pendências: auditoria por terceiros, teste de abuso de banda com clientes reais, assinatura de código, política de retenção.

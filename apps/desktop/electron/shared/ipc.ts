@@ -64,6 +64,13 @@ export interface CaptureSourceDto {
 export type ShortcutAction = 'toggleMute' | 'toggleDeafen' | 'pushToTalkToggle';
 export type TrayAction = 'toggleMute' | 'toggleDeafen' | 'disconnect' | 'show';
 
+/** Atualização "avisar e baixar": Windows baixa e fica `ready`; macOS/Linux ficam `available` (abre o download). */
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'downloading'; version: string; progress: number }
+  | { state: 'ready'; version: string }
+  | { state: 'available'; version: string; url: string };
+
 export interface AppInfo {
   version: string;
   electron: string;
@@ -93,8 +100,15 @@ export interface OpenCordBridge {
   setTrayVoiceState(state: TrayVoiceState): Promise<void>;
   appInfo(): Promise<AppInfo>;
   openExternal(url: string): Promise<void>;
+  updates: {
+    status(): Promise<UpdateStatus>;
+    check(): Promise<UpdateStatus>;
+    /** Abre o instalador baixado e fecha o app (ou abre o download, fora do Windows). */
+    install(): Promise<void>;
+  };
   on(event: 'shortcut', cb: (action: ShortcutAction) => void): () => void;
   on(event: 'notification-click', cb: (route: string) => void): () => void;
   on(event: 'power-resume', cb: () => void): () => void;
   on(event: 'tray-action', cb: (action: TrayAction) => void): () => void;
+  on(event: 'update', cb: (status: UpdateStatus) => void): () => void;
 }

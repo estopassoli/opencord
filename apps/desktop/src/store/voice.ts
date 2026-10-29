@@ -13,7 +13,14 @@ import {
 } from '@opencord/media';
 import { create } from 'zustand';
 import { bridge } from '../lib/bridge';
-import { RECONNECT, VoiceEngine, type AudioPrefs, type MediaStats, type ParticipantView } from '../voice/engine';
+import {
+  RECONNECT,
+  VoiceEngine,
+  type AudioPrefs,
+  type MediaStats,
+  type ParticipantView,
+  type StreamMode,
+} from '../voice/engine';
 import { useData } from './data';
 import { api, describeError } from './session';
 import { useUi } from './ui';
@@ -42,7 +49,7 @@ interface VoiceStore {
   setUserMuted(userId: string, muted: boolean): void;
   openStreamPicker(): void;
   cancelStreamPicker(): void;
-  startStream(sourceId: string | null, withAudio: boolean, profile: StreamProfileId): Promise<void>;
+  startStream(sourceId: string | null, withAudio: boolean, profile: StreamProfileId, mode?: StreamMode): Promise<void>;
   stopStream(): Promise<void>;
   watch(identity: string, on: boolean): void;
   applySettings(s: UserSettings): void;
@@ -263,7 +270,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       useUi.getState().openModal(null);
     },
 
-    async startStream(sourceId, withAudio, profile) {
+    async startStream(sourceId, withAudio, profile, mode = 'motion') {
       sdispatch({
         type: 'START',
         sourceId: sourceId ?? 'browser',
@@ -273,7 +280,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       useUi.getState().openModal(null);
       try {
         const codec = useData.getState().settings?.video.preferredCodec ?? 'h264';
-        const r = await (engine as VoiceEngine).startStream(sourceId, withAudio, profile, codec);
+        const r = await (engine as VoiceEngine).startStream(sourceId, withAudio, profile, codec, mode);
         // `live` só após a publicação ser confirmada pela SFU
         sdispatch({ type: 'PUBLISHED', audioPublished: r.audioPublished });
         if (withAudio && !r.audioPublished)
