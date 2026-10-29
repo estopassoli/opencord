@@ -9,6 +9,14 @@ export const ConfigSchema = z.object({
   PUBLIC_API_URL: z.url().default('http://localhost:3000'),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
   TRUST_PROXY: bool.default(false),
+  /** Cabeçalho com o IP real do cliente, posto pelo proxy de borda (ex.: `cf-connecting-ip`). Ver common/client-ip.ts. */
+  CLIENT_IP_HEADER: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim().toLowerCase() : undefined),
+    z
+      .string()
+      .regex(/^[a-z0-9-]+$/, 'CLIENT_IP_HEADER deve ser um nome de cabeçalho')
+      .optional(),
+  ),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET precisa de ao menos 32 caracteres'),

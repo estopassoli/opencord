@@ -9,6 +9,7 @@ import { Redis } from 'ioredis';
 import { AppModule } from './app.module.js';
 import type { AppConfig } from './config/config.js';
 import { REDIS_PREFIX } from './common/redis.service.js';
+import { clientIp } from './common/client-ip.js';
 
 export async function createApp(cfg: AppConfig, opts: { logger?: boolean } = {}): Promise<NestFastifyApplication> {
   const adapter = new FastifyAdapter({
@@ -28,11 +29,24 @@ export async function createApp(cfg: AppConfig, opts: { logger?: boolean } = {})
     done(null, body),
   );
 
+  // Antes do rate limit: os limites por IP e o registro de sessão usam req.clientIp.
+  fastify.decorateRequest('clientIp', '');
+  fastify.addHook('onRequest', async (req) => {
+    req.clientIp = clientIp(req, cfg.CLIENT_IP_HEADER);
+  });
+
   await app.register(helmet, { contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } });
   await app.register(multipart, { limits: { fileSize: cfg.UPLOAD_MAX_BYTES, files: 1, fields: 5 } });
   if (!cfg.RATE_LIMIT_DISABLED) {
     const redis = new Redis(cfg.REDIS_URL, { keyPrefix: `${REDIS_PREFIX}rl:`, maxRetriesPerRequest: 1 });
-    await app.register(rateLimit, { global: true, max: 300, timeWindow: '1 minute', redis, nameSpace: '' });
+    await app.register(rateLimit, {
+      global: true,
+      max: 300,
+      timeWindow: '1 minute',
+      redis,
+      nameSpace: '',
+      keyGenerator: (req) => clientIp(req, cfg.CLIENT_IP_HEADER),
+    });
     fastify.addHook('onClose', async () => {
       await redis.quit().catch(() => undefined);
     });
