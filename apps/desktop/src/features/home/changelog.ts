@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '20:45',
+    kind: 'novo',
+    icon: 'shield',
+    title: 'Dar e tirar cargos pelo botão direito',
+    body: 'No menu de uma pessoa, "Cargos ›" lista os cargos do servidor com a cor de cada um; marque ou desmarque vários sem fechar o menu.',
+  },
+  {
+    date: '2026-10-29',
     time: '20:30',
     kind: 'novo',
     icon: 'upload',

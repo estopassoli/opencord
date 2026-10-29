@@ -12,7 +12,18 @@ export interface MenuItem {
   checked?: boolean;
   /** linha secundária abaixo do rótulo */
   hint?: string;
+  /** bolinha de cor antes do rótulo (ex.: cor do cargo) */
+  color?: string | null;
+  /** não fecha o menu ao selecionar (marcar vários itens seguidos); a caixa reflete o clique na hora */
+  keepOpen?: boolean;
   onSelect: () => void;
+}
+/** item que abre um submenu ao lado (mouse, Enter ou →; ← volta) */
+export interface MenuSub {
+  kind: 'submenu';
+  label: string;
+  icon?: IconName;
+  items: MenuEntry[];
 }
 /** controle deslizante dentro do menu (ex.: volume do usuário); não fecha o menu ao mudar */
 export interface MenuSlider {
@@ -25,7 +36,7 @@ export interface MenuSlider {
   format: (v: number) => string;
   onChange: (v: number) => void;
 }
-export type MenuEntry = MenuItem | MenuSlider | 'separator';
+export type MenuEntry = MenuItem | MenuSlider | MenuSub | 'separator';
 
 const NAV = '[role^="menuitem"]:not([disabled]), [role="slider"]';
 
@@ -45,6 +56,119 @@ function SliderEntry({ item }: { item: MenuSlider }) {
           item.onChange(n);
         }}
       />
+    </div>
+  );
+}
+
+function ItemButton({ it, close }: { it: MenuItem; close: () => void }) {
+  // itens que não fecham o menu mostram a marcação nova na hora (o menu é um retrato do estado ao abrir)
+  const [checked, setChecked] = useState(it.checked);
+  return (
+    <button
+      role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+      aria-checked={checked}
+      className={it.danger ? 'context-item context-danger' : 'context-item'}
+      disabled={it.disabled}
+      onClick={() => {
+        if (it.keepOpen) {
+          if (checked !== undefined) setChecked(!checked);
+        } else close();
+        it.onSelect();
+      }}
+    >
+      <span className="context-label">
+        <span className="context-label-row">
+          {it.color !== undefined && (
+            <span className="context-dot" style={{ background: it.color ?? 'var(--text-muted)' }} aria-hidden="true" />
+          )}
+          {it.label}
+        </span>
+        {it.hint && <small>{it.hint}</small>}
+      </span>
+      {checked !== undefined ? (
+        <span className="context-check" aria-hidden="true">
+          {checked && <Icon name="check" size={14} />}
+        </span>
+      ) : (
+        it.icon && <Icon name={it.icon} size={18} />
+      )}
+    </button>
+  );
+}
+
+function Entries({ items, close }: { items: MenuEntry[]; close: () => void }) {
+  return (
+    <>
+      {items.map((it, idx) =>
+        it === 'separator' ? (
+          <div key={`sep-${idx}`} role="separator" className="context-sep" />
+        ) : 'kind' in it ? (
+          it.kind === 'slider' ? (
+            <SliderEntry key={it.label} item={it} />
+          ) : (
+            <SubEntry key={it.label} sub={it} close={close} />
+          )
+        ) : (
+          <ItemButton key={it.label} it={it} close={close} />
+        ),
+      )}
+    </>
+  );
+}
+
+function SubEntry({ sub, close }: { sub: MenuSub; close: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [side, setSide] = useState<'right' | 'left'>('right');
+  const wrap = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!open || !panel.current || !wrap.current) return;
+    const w = panel.current.offsetWidth;
+    setSide(wrap.current.getBoundingClientRect().right + w + 8 > window.innerWidth ? 'left' : 'right');
+  }, [open]);
+  const openAndFocus = () => {
+    setOpen(true);
+    requestAnimationFrame(() => panel.current?.querySelector<HTMLElement>(NAV)?.focus());
+  };
+  return (
+    <div
+      className="context-sub"
+      ref={wrap}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft' && open) {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(false);
+          trigger.current?.focus();
+        }
+      }}
+    >
+      <button
+        ref={trigger}
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="context-item"
+        onClick={openAndFocus}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            openAndFocus();
+          }
+        }}
+      >
+        <span className="context-label">{sub.label}</span>
+        <Icon name="chevron-right" size={16} />
+      </button>
+      {open && (
+        <div ref={panel} className="context-menu context-submenu" data-side={side} role="menu" aria-label={sub.label}>
+          <Entries items={sub.items} close={close} />
+        </div>
+      )}
     </div>
   );
 }
@@ -124,8 +248,12 @@ export function ContextMenuHost() {
   if (!open) return null;
 
   const onKey = (e: React.KeyboardEvent) => {
-    // captura: setas verticais navegam mesmo com o foco no controle deslizante (que fica com ←/→)
-    const items = [...(ref.current?.querySelectorAll<HTMLElement>(NAV) ?? [])];
+    // captura: setas verticais navegam mesmo com o foco no controle deslizante (que fica com ←/→);
+    // dentro de um submenu, só entre os itens dele
+    const scope = (document.activeElement as HTMLElement | null)?.closest('[role="menu"]') ?? ref.current;
+    const items = [...(scope?.querySelectorAll<HTMLElement>(NAV) ?? [])].filter(
+      (el) => el.closest('[role="menu"]') === scope,
+    );
     const i = items.indexOf(document.activeElement as HTMLElement);
     if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) e.stopPropagation();
     if (e.key === 'Escape' || e.key === 'Tab') {
@@ -156,37 +284,7 @@ export function ContextMenuHost() {
       onKeyDownCapture={onKey}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {open.items.map((it, idx) =>
-        it === 'separator' ? (
-          <div key={`sep-${idx}`} role="separator" className="context-sep" />
-        ) : 'kind' in it ? (
-          <SliderEntry key={it.label} item={it} />
-        ) : (
-          <button
-            key={it.label}
-            role={it.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-            aria-checked={it.checked}
-            className={it.danger ? 'context-item context-danger' : 'context-item'}
-            disabled={it.disabled}
-            onClick={() => {
-              close();
-              it.onSelect();
-            }}
-          >
-            <span className="context-label">
-              {it.label}
-              {it.hint && <small>{it.hint}</small>}
-            </span>
-            {it.checked !== undefined ? (
-              <span className="context-check" aria-hidden="true">
-                {it.checked && <Icon name="check" size={14} />}
-              </span>
-            ) : (
-              it.icon && <Icon name={it.icon} size={18} />
-            )}
-          </button>
-        ),
-      )}
+      <Entries items={open.items} close={close} />
     </div>,
     portalTarget(),
   );

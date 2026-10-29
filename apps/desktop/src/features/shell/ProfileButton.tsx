@@ -103,6 +103,45 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
     );
   }
   const mod: MenuEntry[] = [];
+  // Cargos ›: marcar/desmarcar vários sem fechar; a API valida a hierarquia (só cargos abaixo do seu)
+  if (detail && perms && hasPermission(perms, Permission.MANAGE_ROLES)) {
+    const owner = detail.ownerId === me;
+    const mine = detail.members.find((m) => m.user.id === me)?.roleIds ?? [];
+    const myTop = owner
+      ? Infinity
+      : Math.max(0, ...detail.roles.filter((r) => mine.includes(r.id)).map((r) => r.position));
+    const roles = detail.roles.filter((r) => !r.isEveryone).sort((a, b) => b.position - a.position);
+    if (roles.length) {
+      mod.push({
+        kind: 'submenu',
+        label: 'Cargos',
+        items: roles.map((r) => ({
+          label: r.name,
+          color: r.color,
+          checked: detail.members.find((m) => m.user.id === userId)?.roleIds.includes(r.id) ?? false,
+          disabled: r.position >= myTop,
+          keepOpen: true,
+          onSelect: () => {
+            // estado mais recente (outro clique pode ter mudado a lista desde que o menu abriu)
+            const cur = useData.getState().details[serverId!]?.members.find((m) => m.user.id === userId)?.roleIds ?? [];
+            const next = cur.includes(r.id) ? cur.filter((x) => x !== r.id) : [...cur, r.id];
+            useData
+              .getState()
+              .upsertMember(serverId!, { ...detail.members.find((m) => m.user.id === userId)!, roleIds: next });
+            void api()
+              .request('PUT', `/servers/${serverId}/members/${userId}/roles`, { roleIds: next })
+              .catch((e: unknown) => {
+                useData.getState().upsertMember(serverId!, {
+                  ...detail.members.find((m) => m.user.id === userId)!,
+                  roleIds: cur,
+                });
+                apiError(e);
+              });
+          },
+        })),
+      });
+    }
+  }
   if (voice && !isMe && perms && hasPermission(perms, Permission.MUTE_MEMBERS))
     mod.push({
       label: 'Silenciar voz no servidor',
