@@ -67,11 +67,20 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
         {stream.status === 'live' && stats?.stream && (
           <span
             className="muted small stream-stats"
-            title={[stats.stream.encoder, stats.stream.fmtp].filter(Boolean).join(' · ')}
+            title={[
+              stats.stream.encoder,
+              stats.stream.availableKbps !== null
+                ? `banda de subida estimada: ${(stats.stream.availableKbps / 1000).toFixed(1)} Mb/s`
+                : null,
+              stats.stream.fmtp,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           >
             Transmitindo {stats.stream.width}×{stats.stream.height} · {stats.stream.fps ?? '–'} fps ·{' '}
             {stats.stream.codec?.replace('video/', '') ?? ''}
             {stats.stream.hardware ? ' (hardware)' : stats.stream.hardware === false ? ' (software)' : ''}
+            {stats.stream.kbps !== null ? ` · ${(stats.stream.kbps / 1000).toFixed(1)} Mb/s` : ''}
             {stats.stream.limitation && stats.stream.limitation !== 'none'
               ? ` · limitado por ${stats.stream.limitation === 'cpu' ? 'CPU' : 'banda'}`
               : ''}
