@@ -64,34 +64,41 @@ async function download(url: string, file: string, size: number | null, version:
 }
 
 export async function checkForUpdate(): Promise<UpdateStatus> {
-  if (busy || status.state === 'ready') return status;
+  if (busy) return status;
   lastCheck = Date.now();
   const server = serverUrl();
   const target = targetFor(process.platform, process.arch, Boolean(process.env.APPIMAGE));
   if (!server || !target) return status;
   busy = true;
+  // com uma versão já baixada/oferecida, só interessa uma ainda mais nova (saiu outra enquanto esperava o clique)
+  const prev = status;
+  const baseline = prev.state === 'ready' || prev.state === 'available' ? prev.version : app.getVersion();
   try {
     const res = await net.fetch(new URL('/downloads/desktop', server).toString(), { cache: 'no-store' });
     if (!res.ok) return status;
     const body = (await res.json()) as { files?: DesktopFileDto[] };
-    const upd = pickUpdate(body.files ?? [], target, app.getVersion(), server);
+    const upd = pickUpdate(body.files ?? [], target, baseline, server);
     if (!upd) return status;
     if (target.platform !== 'windows') {
       set({ state: 'available', version: upd.version, url: upd.url });
       return status;
     }
-    const dir = path.join(app.getPath('temp'), 'opencord-update');
+    const root = path.join(app.getPath('temp'), 'opencord-update');
+    // cada versão na própria pasta: a já baixada continua instalável se o download da nova falhar
+    const dir = path.join(root, upd.version);
     await rm(dir, { recursive: true, force: true });
     await mkdir(dir, { recursive: true });
     const file = path.join(dir, upd.fileName);
     set({ state: 'downloading', version: upd.version, progress: 0 });
     await download(upd.url, file, upd.sizeBytes, upd.version);
+    const old = installerPath;
     installerPath = file;
     set({ state: 'ready', version: upd.version });
+    if (old && path.dirname(old) !== dir) await rm(path.dirname(old), { recursive: true, force: true });
   } catch (e) {
     console.warn('verificação de atualização falhou', e);
-    // volta a idle: a próxima verificação tenta de novo
-    if (status.state === 'downloading') set({ state: 'idle' });
+    // volta ao que havia (versão anterior pronta, ou nada); a próxima verificação tenta de novo
+    if (status.state === 'downloading') set(prev.state === 'downloading' ? { state: 'idle' } : prev);
   } finally {
     busy = false;
   }
