@@ -65,6 +65,10 @@ app.setAppUserModelId('org.opencord.desktop');
 // Voz não pode ser estrangulada com a janela em segundo plano.
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
+// Jogo em tela cheia cobre a janela: o Windows a dá como "ocluída" e o Chromium rebaixava a prioridade do
+// renderer (que captura e codifica a live). Com o jogo disputando CPU/GPU, a live engasgava mesmo com o jogo liso.
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 function isTrustedSender(e: IpcMainInvokeEvent): boolean {
   const url = e.senderFrame?.url ?? '';
@@ -205,9 +209,28 @@ function buildTrayMenu() {
   tray.setToolTip(voice.inVoice ? `OpenCord — em chamada${voice.muted ? ' (mudo)' : ''}` : 'OpenCord');
 }
 
+/**
+ * Ao iniciar uma live: GPU (captura/NVENC) e renderer (WebRTC) acima do normal, para não perderem a disputa
+ * com um jogo pesado. Fica assim até o app fechar (voz também se beneficia); falha é ignorada.
+ */
+function boostMediaPriority() {
+  const rendererPid = win?.webContents.getOSProcessId();
+  for (const m of app.getAppMetrics()) {
+    if (m.type !== 'GPU' && m.pid !== rendererPid) continue;
+    try {
+      os.setPriority(m.pid, os.constants.priority.PRIORITY_ABOVE_NORMAL);
+    } catch {
+      /* sem permissão para mudar a prioridade: segue normal */
+    }
+  }
+}
+
 function registerIpc() {
   handle(IPC.captureListSources, [], () => listSources());
-  handle(IPC.captureSelect, [CaptureSelectArgs], (args) => selectSource(args));
+  handle(IPC.captureSelect, [CaptureSelectArgs], (args) => {
+    boostMediaPriority();
+    return selectSource(args);
+  });
   handle(IPC.secureGet, [SecureKey], (k) => secureGet(k));
   handle(IPC.secureSet, [SecureKey, z.string().max(8192)], (k, v) => secureSet(k, v));
   handle(IPC.secureDelete, [SecureKey], (k) => secureDelete(k));
