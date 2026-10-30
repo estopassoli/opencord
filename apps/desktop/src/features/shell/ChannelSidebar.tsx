@@ -9,6 +9,7 @@ import { useVoice } from '../../store/voice';
 import { ProfileButton } from './ProfileButton';
 import { ActivityHint } from '../voice/WatchTogether';
 import { Tooltip } from '../../components/Tooltip';
+import { moveToVoice } from './voiceMove';
 
 /** Categorias recolhidas (por id de categoria), lembradas neste dispositivo. */
 const COLLAPSED_KEY = 'oc:collapsed-categories';
@@ -43,6 +44,10 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
     });
   const speaking = useVoice((s) => s.participants);
   const voiceChannel = useVoice((s) => s.machine.channelId);
+  const me = useData((s) => s.me?.id);
+  // arrastar alguém da voz para outro canal de voz (MOVE_MEMBERS; a si mesmo, qualquer um)
+  const [drag, setDrag] = useState<{ userId: string; from: string } | null>(null);
+  const [dropOn, setDropOn] = useState<string | null>(null);
 
   const groups = useMemo(() => {
     if (!detail) return [];
@@ -62,6 +67,13 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   const canManage = hasPermission(detail.myPermissions, Permission.MANAGE_CHANNELS);
   const speakingIds = new Set(speaking.filter((p) => p.speaking).map((p) => p.identity));
   const memberName = (id: string) => detail.members.find((m) => m.user.id === id);
+  const canMove = hasPermission(detail.myPermissions, Permission.MOVE_MEMBERS);
+  const canDropOn = (c: Channel) =>
+    drag !== null &&
+    c.kind === 'voice' &&
+    c.id !== drag.from &&
+    hasPermission(c.myPermissions, Permission.CONNECT) &&
+    (drag.userId === me || canMove);
 
   return (
     <>
@@ -163,7 +175,25 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                 if (collapsed[g.id as string] && !keep) return null;
                 const inVoice = Object.values(voiceStates).filter((v) => v.channelId === c.id);
                 return (
-                  <li key={c.id}>
+                  <li
+                    key={c.id}
+                    data-drop-target={dropOn === c.id ? 'true' : undefined}
+                    onDragOver={(e) => {
+                      if (!canDropOn(c)) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dropOn !== c.id) setDropOn(c.id);
+                    }}
+                    onDragLeave={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropOn(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (drag && canDropOn(c)) moveToVoice(drag.userId, serverId, c.id);
+                      setDrag(null);
+                      setDropOn(null);
+                    }}
+                  >
                     <button
                       className="channel-row"
                       aria-current={active ? 'page' : undefined}
@@ -232,8 +262,23 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                         {inVoice.map((v) => {
                           const m = memberName(v.userId);
                           const name = m?.nickname ?? m?.user.displayName ?? 'Alguém';
+                          const draggable = v.userId === me || canMove;
                           return (
-                            <li key={v.userId}>
+                            <li
+                              key={v.userId}
+                              draggable={draggable || undefined}
+                              data-dragging={drag?.userId === v.userId ? 'true' : undefined}
+                              onDragStart={(e) => {
+                                if (!draggable) return;
+                                e.dataTransfer.effectAllowed = 'move';
+                                e.dataTransfer.setData('text/plain', name);
+                                setDrag({ userId: v.userId, from: c.id });
+                              }}
+                              onDragEnd={() => {
+                                setDrag(null);
+                                setDropOn(null);
+                              }}
+                            >
                               <ProfileButton userId={v.userId} serverId={serverId} className="voice-member">
                                 <Avatar id={v.userId} name={name} size={22} speaking={speakingIds.has(v.userId)} />
                                 <span className="truncate">{name}</span>

@@ -9,6 +9,7 @@ import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { StreamPreviewCard, watchStream } from '../../components/StreamPreview';
+import { moveTargets, moveToVoice } from './voiceMove';
 
 /** Conversa aberta agora (canal de texto ou DM), onde "Mencionar" insere a menção. */
 function currentChatKey(): TargetKey | null {
@@ -150,6 +151,18 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
       checked: voice.serverMute,
       onSelect: () =>
         void api().request('PUT', `/voice/members/${userId}/server-mute`, { muted: !voice.serverMute }).catch(apiError),
+    });
+  // Mover para ›: o mesmo que arrastar na lista de canais, pelo teclado
+  const targets = voice && !isMe && serverId ? moveTargets(serverId, voice.channelId) : [];
+  if (targets.length)
+    mod.push({
+      kind: 'submenu',
+      label: 'Mover para',
+      items: targets.map((c) => ({
+        label: c.name,
+        icon: 'speaker',
+        onSelect: () => moveToVoice(userId, serverId!, c.id),
+      })),
     });
   if (voice && !isMe && perms && hasPermission(perms, Permission.MOVE_MEMBERS))
     mod.push({

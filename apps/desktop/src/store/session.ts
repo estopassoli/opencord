@@ -359,6 +359,23 @@ function wireRealtime(rt: RealtimeClient) {
       const cur = d().voiceStates[e.userId];
       if (cur?.channelId === e.channelId) d().removeVoiceState(e.userId);
     });
+    rt.on('voice:force-move', (e) => {
+      void import('./voice').then(({ useVoice }) => {
+        // só se ainda estou em voz neste servidor (evento atrasado após eu sair não me coloca de volta)
+        const v = useVoice.getState();
+        if (!v.machine.channelId || v.serverId !== e.serverId) return;
+        const det = d().details[e.serverId];
+        const by = det?.members.find((m) => m.user.id === e.byUserId);
+        const ch = det?.channels.find((c) => c.id === e.channelId);
+        useUi
+          .getState()
+          .toast(
+            'info',
+            `${by?.nickname ?? by?.user.displayName ?? 'Um moderador'} moveu você para ${ch?.name ?? 'outro canal'}.`,
+          );
+        void v.join(e.channelId, e.serverId);
+      });
+    });
     rt.on('voice:force-disconnect', (e) => {
       void import('./voice').then(({ useVoice }) =>
         useVoice

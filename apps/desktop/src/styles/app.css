@@ -591,6 +591,15 @@ textarea:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
+/* arrastar alguém para outro canal de voz: quem está sendo arrastado esmaece; o destino acende */
+.voice-members li[data-dragging='true'] {
+  opacity: 0.4;
+}
+.channel-list > li[data-drop-target='true'] > .channel-row {
+  background: color-mix(in srgb, var(--brand) 22%, transparent);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 70%, transparent);
+}
 .live-pill {
   font-size: 0.625rem;
   font-weight: 800;
