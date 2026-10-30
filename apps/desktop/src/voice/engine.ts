@@ -68,6 +68,12 @@ export interface MediaStats {
     /** SFU pausou o envio (dynacast): ninguém está assistindo; volta sozinho quando alguém assiste */
     paused: boolean;
     availableKbps: number | null;
+    /** quadros por segundo que a captura entrega ao encoder (se < fps enviado esperado, o gargalo é a captura) */
+    captureFps: number | null;
+    /** caminho da mídia até a SFU: udp/tcp e tipo de candidato (host/srflx/relay) */
+    transport: string | null;
+    /** RTT até a SFU (ms) */
+    rttMs: number | null;
   };
   /** recepção da live em destaque (lado de quem assiste): diagnostica onde a qualidade cai */
   watching?: {
@@ -81,6 +87,10 @@ export interface MediaStats {
     freezes: number | null;
     decoder: string | null;
     codec: string | null;
+    /** quadros recebidos e descartados (decodificação atrasada) */
+    dropped: number | null;
+    transport: string | null;
+    rttMs: number | null;
   };
 }
 
@@ -240,6 +250,12 @@ export class VoiceEngine {
           el.hidden = true;
           document.body.append(el);
           this.applyVolume(p);
+        }
+        // live: buffer de 200 ms dá tempo ao reenvio (NACK) de um pacote perdido chegar. Sem isso, cada perda vira
+        // um congelamento de ~1 s até o próximo quadro-chave (relato real: "travadinhas de uns 20 quadros").
+        if (pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio) {
+          const rx = t.receiver as (RTCRtpReceiver & { jitterBufferTarget?: number | null }) | undefined;
+          if (rx && 'jitterBufferTarget' in rx) rx.jitterBufferTarget = LIVE_JITTER_BUFFER_MS;
         }
         emit();
       })
@@ -714,7 +730,18 @@ export class VoiceEngine {
       let best: Record<string, unknown> | null = null;
       let videoBytes = 0;
       let availableKbps: number | null = null;
+      let captureFps: number | null = null;
+      let transport: string | null = null;
+      let rttMs: number | null = null;
       vr?.forEach((r: Record<string, unknown>) => {
+        if (r.type === 'media-source' && r.kind === 'video' && typeof r.framesPerSecond === 'number')
+          captureFps = Math.round(r.framesPerSecond);
+        if (r.type === 'candidate-pair' && r.nominated) {
+          if (typeof r.currentRoundTripTime === 'number') rttMs = Math.round(r.currentRoundTripTime * 1000);
+          const local = typeof r.localCandidateId === 'string' ? vr.get(r.localCandidateId) : undefined;
+          const l = local as { protocol?: string; candidateType?: string } | undefined;
+          if (l?.protocol) transport = `${l.protocol.toUpperCase()}${l.candidateType ? ` ${l.candidateType}` : ''}`;
+        }
         if (r.type === 'outbound-rtp' && r.kind === 'video' && typeof r.bytesSent === 'number')
           videoBytes += r.bytesSent;
         if (r.type === 'candidate-pair' && r.nominated && typeof r.availableOutgoingBitrate === 'number')
@@ -754,6 +781,9 @@ export class VoiceEngine {
           kbps,
           availableKbps,
           paused,
+          captureFps,
+          transport,
+          rttMs,
         };
       }
     }
@@ -772,8 +802,16 @@ export class VoiceEngine {
     }
     const rep = await track.getRTCStatsReport().catch(() => undefined);
     let r: Record<string, unknown> | null = null;
+    let transport: string | null = null;
+    let rttMs: number | null = null;
     rep?.forEach((x: Record<string, unknown>) => {
       if (x.type === 'inbound-rtp' && x.kind === 'video') r = x;
+      if (x.type === 'candidate-pair' && x.nominated) {
+        if (typeof x.currentRoundTripTime === 'number') rttMs = Math.round(x.currentRoundTripTime * 1000);
+        const l = (typeof x.localCandidateId === 'string' ? rep.get(x.localCandidateId) : undefined) as
+          { protocol?: string; candidateType?: string } | undefined;
+        if (l?.protocol) transport = `${l.protocol.toUpperCase()}${l.candidateType ? ` ${l.candidateType}` : ''}`;
+      }
     });
     const v = r as Record<string, unknown> | null;
     if (!v) return;
@@ -797,6 +835,9 @@ export class VoiceEngine {
       freezes: num('freezeCount'),
       decoder: typeof v.decoderImplementation === 'string' ? v.decoderImplementation : null,
       codec: c?.mimeType?.replace('video/', '') ?? null,
+      dropped: num('framesDropped'),
+      transport,
+      rttMs,
     };
   }
 }
@@ -832,6 +873,9 @@ function preferHardwareH264() {
     return (createOffer as (...a: unknown[]) => Promise<RTCSessionDescriptionInit>).apply(this, args);
   } as typeof createOffer;
 }
+
+/** Folga do buffer de recepção das lives (ms): cobre o RTT do reenvio de pacotes perdidos. */
+export const LIVE_JITTER_BUFFER_MS = 200;
 
 export const RECONNECT = {
   maxAttempts: MAX_RECONNECT_ATTEMPTS,
