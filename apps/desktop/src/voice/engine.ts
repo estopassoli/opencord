@@ -12,6 +12,8 @@ import {
   isHardwareEncoder,
   MAX_RECONNECT_ATTEMPTS,
   SpeakingDebouncer,
+  streamBitrate,
+  type StreamBitrateLevel,
   type StreamProfileId,
 } from '@opencord/media';
 import {
@@ -500,9 +502,11 @@ export class VoiceEngine {
     withAudio: boolean,
     profileId: StreamProfileId,
     codec: VideoCodec,
+    bitrate: StreamBitrateLevel = 'high',
   ): Promise<{ audioPublished: boolean }> {
     if (!this.room) throw new Error('não conectado');
     const profile = effectiveProfile(profileId, { hardware: codec === 'h264' ? null : false });
+    const maxBitrate = streamBitrate(profile.id, bitrate);
     if (bridge && sourceId) await bridge.capture.select({ sourceId, systemAudio: withAudio });
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: {
@@ -544,7 +548,7 @@ export class VoiceEngine {
         // espectadores com download fraco (aceitável para grupos pequenos).
         simulcast: false,
         // prioridade alta: na disputa de banda, o vídeo da live vem antes das câmeras
-        screenShareEncoding: { maxBitrate: profile.maxBitrate, maxFramerate: profile.fps, priority: 'high' },
+        screenShareEncoding: { maxBitrate, maxFramerate: profile.fps, priority: 'high' },
         // sob pressão cai o fps, não a resolução ("balanced" derrubava 1080p para 540p no espectador — E2E golive-real)
         degradationPreference: 'maintain-resolution',
       });

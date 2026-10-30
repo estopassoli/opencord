@@ -336,8 +336,15 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       });
       useUi.getState().openModal(null);
       try {
-        const codec = useData.getState().settings?.video.preferredCodec ?? 'h264';
-        const r = await (engine as VoiceEngine).startStream(sourceId, withAudio, profile, codec);
+        const video = useData.getState().settings?.video;
+        const codec = video?.preferredCodec ?? 'h264';
+        const r = await (engine as VoiceEngine).startStream(
+          sourceId,
+          withAudio,
+          profile,
+          codec,
+          video?.streamBitrate ?? 'medium',
+        );
         // `live` só após a publicação ser confirmada pela SFU
         sdispatch({ type: 'PUBLISHED', audioPublished: r.audioPublished });
         playSound('streamStart');

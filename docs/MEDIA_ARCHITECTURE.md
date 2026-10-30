@@ -82,3 +82,8 @@ Monitorar ICE candidate failures, RTT, jitter, packet loss, bitrate, encode FPS,
   - tetos de 6, 20 e 30 Mbps.
 - **E2E golive-real:** o Chromium do Electron 44 aceita o modo (o selo mostra "fps e resolução fixos") e o fps enviado acompanha o capturado.
 - **Limite físico:** se a banda de subida de quem transmite não comporta o perfil, a imagem perde nitidez (QP maior), mas fps e resolução ficam.
+
+## Bitrate escolhido por quem transmite (2026-10-30)
+- Relato: lives engasgando com o teto de 20 Mbps. O LiveKit estimou 16,8 Mbps de subida para um dos streamers (congestionamento no transporte de publicação). Acima da subida real há perda de pacotes, e a live trava para todos que assistem.
+- O Go Live (engrenagem) e Configurações → Voz e vídeo têm o **bitrate**: leve, equilibrada (padrão) ou máxima. Os valores dependem do perfil: 720p30 com 3, 4,5 ou 6 Mbps; 1080p60 com 8, 12 ou 20 Mbps; 1440p60 com 12, 18 ou 30 Mbps. A máxima é o teto do perfil.
+- A configuração fica salva por usuário (`settings.video.streamBitrate`). fps e resolução continuam fixos (perfil exato).

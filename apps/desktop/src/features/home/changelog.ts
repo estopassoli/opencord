@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '04:45',
+    kind: 'melhoria',
+    icon: 'screen',
+    title: 'Escolha o bitrate da sua live',
+    body: 'Na engrenagem do Transmitir (ou em Configurações → Voz e vídeo) dá para escolher leve, equilibrada ou máxima: em 1080p60, 8, 12 ou 20 Mbps. Se a sua live engasga para quem assiste, a sua internet de envio não dá conta: escolha uma opção menor. O padrão agora é a equilibrada.',
+  },
+  {
+    date: '2026-10-30',
     time: '04:20',
     kind: 'novo',
     icon: 'screen',
