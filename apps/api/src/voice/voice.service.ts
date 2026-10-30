@@ -79,6 +79,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     this.webhooks = new WebhookReceiver(cfg.LIVEKIT_API_KEY, cfg.LIVEKIT_API_SECRET);
   }
 
+  /** Prazos do "mover" (ver moveMember); cancelados ao desligar, para não tocar no Redis já fechado. */
+  private readonly moveTimers = new Set<NodeJS.Timeout>();
+
   onModuleInit() {
     this.sub = this.events.stream.subscribe((e) => {
       const run = async () => {
@@ -99,6 +102,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleDestroy() {
+    for (const t of this.moveTimers) clearTimeout(t);
+    this.moveTimers.clear();
     this.sub?.unsubscribe();
     if (this.timer) clearInterval(this.timer);
   }
@@ -349,12 +354,17 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     if ((await this.r.scard(`voice:channel:${channelId}`)) >= MAX_PER_CHANNEL)
       throw new BadRequestException('canal de voz cheio');
     this.realtime.toUser(targetId, 'voice:force-move', { serverId: s.serverId, channelId, byUserId: actorId });
-    setTimeout(() => {
-      void this.stateOf(targetId).then(async (cur) => {
-        // ainda na chamada antiga (app fechado ou desatualizado): tira de lá
-        if (cur && cur.channelId === s.channelId && cur.joinedAt === s.joinedAt) await this.endSession(cur, 'moved');
-      });
-    }, MOVE_GRACE_MS).unref();
+    const t = setTimeout(() => {
+      this.moveTimers.delete(t);
+      void this.stateOf(targetId)
+        .then(async (cur) => {
+          // ainda na chamada antiga (app fechado ou desatualizado): tira de lá
+          if (cur && cur.channelId === s.channelId && cur.joinedAt === s.joinedAt) await this.endSession(cur, 'moved');
+        })
+        .catch((e: unknown) => this.log.warn(`moveMember: ${String(e)}`));
+    }, MOVE_GRACE_MS);
+    t.unref();
+    this.moveTimers.add(t);
   }
 
   async listServer(userId: string, serverId: string): Promise<VoiceMemberState[]> {
