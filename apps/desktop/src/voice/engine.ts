@@ -33,6 +33,8 @@ import {
 } from 'livekit-client';
 import { RNNOISE, RnnoiseProcessor } from './noise';
 import { PreviewReceiver, startPreviewSender } from './preview';
+import { SceneCompositor } from './compositor';
+import { screenLayer, type Scene } from '../lib/scenes';
 import { bridge } from '../lib/bridge';
 
 export interface ParticipantView {
@@ -157,6 +159,13 @@ export class VoiceEngine {
   private lastVideoBytes: { t: number; bytes: number } | null = null;
   private lastRecv: { id: string; t: number; bytes: number; lost: number; got: number } | null = null;
   private stopPreview: (() => void) | null = null;
+  private compositor: SceneCompositor | null = null;
+  /** eventos da sala (diagnóstico): reconexões e saídas de participantes */
+  private roomEvents: string[] = [];
+  private note(e: string) {
+    this.roomEvents.push(`${Math.round(performance.now() / 1000)}s ${e}`);
+    if (this.roomEvents.length > 40) this.roomEvents.shift();
+  }
   private previews = new PreviewReceiver(
     (id) => Boolean(this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.ScreenShare)),
     () => this.emit(),
@@ -239,7 +248,11 @@ export class VoiceEngine {
     const emit = () => this.emit();
     room
       .on(RoomEvent.ParticipantConnected, emit)
+      .on(RoomEvent.Reconnecting, () => this.note('reconnecting'))
+      .on(RoomEvent.SignalReconnecting, () => this.note('signal-reconnecting'))
+      .on(RoomEvent.Reconnected, () => this.note('reconnected'))
       .on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => {
+        this.note(`participant-left ${p.identity.slice(-4)}`);
         this.watching.delete(p.identity);
         this.previews.drop(p.identity);
         emit();
@@ -508,6 +521,7 @@ export class VoiceEngine {
     profileId: StreamProfileId,
     codec: VideoCodec,
     bitrate: StreamBitrateLevel = 'high',
+    scene: Scene | null = null,
   ): Promise<{ audioPublished: boolean }> {
     if (!this.room) throw new Error('não conectado');
     const profile = effectiveProfile(profileId, { hardware: codec === 'h264' ? null : false });
@@ -537,7 +551,14 @@ export class VoiceEngine {
     // a 16 fps); a nitidez vem de maintain-resolution + bitrate alto (abaixo).
     v.contentHint = 'motion';
     const [a] = stream.getAudioTracks();
-    const video = new LocalVideoTrack(v, undefined, false);
+    // com cena (ADR-0015): a live é a composição do canvas (tela + câmera + imagens + texto), não a captura crua
+    let published = v;
+    if (scene) {
+      this.compositor = new SceneCompositor(v, scene, profile.width, profile.height, profile.fps);
+      published = await this.compositor.start();
+      published.contentHint = 'motion';
+    }
+    const video = new LocalVideoTrack(published, undefined, false);
     const audio = a ? new LocalAudioTrack(a, undefined, false) : null;
     this.screen = { video, audio, stream };
     // fonte encerrada (janela fechada/monitor removido) → parar a publicação imediatamente
@@ -570,7 +591,7 @@ export class VoiceEngine {
       throw e;
     }
     await lockFramerateAndResolution(video);
-    this.stopPreview = startPreviewSender(this.room, v, (img) => this.cb.onStreamPreview?.(img));
+    this.stopPreview = startPreviewSender(this.room, published, (img) => this.cb.onStreamPreview?.(img));
     this.emit();
     return { audioPublished: Boolean(audio) };
   }
@@ -581,6 +602,8 @@ export class VoiceEngine {
     this.lastVideoBytes = null;
     this.stopPreview?.();
     this.stopPreview = null;
+    this.compositor?.stop();
+    this.compositor = null;
     if (!s) return;
     const lp = this.room?.localParticipant;
     if (lp) {
@@ -589,6 +612,22 @@ export class VoiceEngine {
     }
     for (const t of s.stream.getTracks()) t.stop();
     this.emit();
+  }
+
+  /** A live em andamento é uma composição de cena (dá para trocar de cena ao vivo). */
+  hasScene() {
+    return this.compositor !== null;
+  }
+
+  /** Trilha da tela capturada (crua, antes da cena): prévia do editor de cenas. */
+  screenTrack(): MediaStreamTrack | null {
+    return this.screen?.stream.getVideoTracks()[0] ?? null;
+  }
+
+  /** Troca a cena da live em andamento (sem cena volta a mostrar só a tela, inteira). */
+  async setScene(scene: Scene | null) {
+    if (!this.compositor) return;
+    await this.compositor.setScene(scene ?? { id: 'tela', name: 'Tela', layers: [screenLayer()] });
   }
 
   get streaming() {
@@ -718,6 +757,9 @@ export class VoiceEngine {
       },
       // saída de áudio em uso de fato (sinkId do AudioContext do webAudioMix; '' = padrão do sistema)
       outputSink: (room as unknown as { audioContext?: { sinkId?: unknown } }).audioContext?.sinkId ?? null,
+      // cena do Go Live: quadros que chegam da captura × enviados (onde a composição para, se parar)
+      compositor: this.compositor?.stats() ?? null,
+      roomEvents: this.roomEvents,
       remotes,
     };
   }

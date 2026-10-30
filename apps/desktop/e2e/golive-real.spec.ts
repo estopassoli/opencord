@@ -51,6 +51,8 @@ test.afterAll(async () => {
 });
 
 test('captura real do monitor com áudio do sistema chega ao espectador', async () => {
+  // captura, cenas, troca ao vivo, pausa sem espectador e popout: passa bem do limite padrão de 60 s
+  test.setTimeout(180_000);
   // microfone real do publisher entra mutado
   await A.page.locator('.dock').getByRole('button', { name: 'Silenciar microfone', exact: true }).click();
   await joinVoice(A.page);
@@ -60,6 +62,10 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   // qualidade fica na engrenagem do rodapé; um clique no card já transmite
   await dialog.getByRole('button', { name: 'Opções da transmissão' }).click();
   await A.page.getByRole('menuitemcheckbox', { name: /^1080p · 60 fps/ }).click();
+  // cena (ADR-0015): a live passa pelo compositor (canvas); "Só a tela" não abre a câmera
+  await dialog.getByRole('button', { name: /^Cena:/ }).click();
+  await A.page.getByRole('menuitemcheckbox', { name: /^Só a tela/ }).click();
+  await expect(dialog.getByRole('button', { name: 'Cena: Só a tela' })).toBeVisible();
   await dialog.getByRole('tab', { name: 'Tela inteira' }).click();
   // trava contra clique acidental: cards só aceitam clique 0,5 s depois de aparecer/trocar de aba
   await expect(A.page.locator('.golive-grid[aria-busy]')).toHaveCount(0, { timeout: 15_000 });
@@ -201,19 +207,38 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
 
   // fps com conteúdo em movimento (relato: "live não roda a 60 fps"): uma janela anima a 60 fps sobre o monitor
   // capturado; medimos o que a captura entrega, o que é enviado e o que o espectador recebe
-  await A.app.evaluate(({ BrowserWindow, screen }) => {
-    const d = screen.getPrimaryDisplay().workArea;
-    const w = new BrowserWindow({ x: d.x, y: d.y, width: d.width, height: d.height, alwaysOnTop: true, show: true });
-    void w.loadURL(
-      'data:text/html,' +
-        encodeURIComponent(
-          '<body style="margin:0;background:#111"><canvas id=c></canvas><script>' +
-            'const c=document.getElementById("c"),x=c.getContext("2d");c.width=innerWidth;c.height=innerHeight;' +
-            'let t=0;(function f(){t++;document.title=String(t);x.fillStyle=`hsl(${t*3%360} 70% 40%)`;x.fillRect(0,0,c.width,c.height);' +
-            'x.fillStyle="#fff";for(let i=0;i<40;i++)x.fillRect((t*7+i*97)%c.width,(i*53+t*3)%c.height,120,120);' +
-            'requestAnimationFrame(f)})()</script></body>',
-        ),
+  // contadores do compositor com a janela VISÍVEL (antes da animação cobrir tudo), para comparar com coberta
+  for (let k = 0; k < 2; k++) {
+    await A.page.waitForTimeout(1500);
+    console.warn(
+      'COMPOSITOR_VISIVEL',
+      k,
+      JSON.stringify(
+        await A.page.evaluate(async () => {
+          const d = await (
+            window as unknown as { __opencordDiag: () => Promise<{ media?: { compositor?: unknown } }> }
+          ).__opencordDiag();
+          return d?.media?.compositor ?? null;
+        }),
+      ),
     );
+  }
+  // uma janela animada em CADA monitor: a captura pega a "primeira tela", que nem sempre é a principal
+  await A.app.evaluate(({ BrowserWindow, screen }) => {
+    for (const disp of screen.getAllDisplays()) {
+      const d = disp.workArea;
+      const w = new BrowserWindow({ x: d.x, y: d.y, width: d.width, height: d.height, alwaysOnTop: true, show: true });
+      void w.loadURL(
+        'data:text/html,' +
+          encodeURIComponent(
+            '<body style="margin:0;background:#111"><canvas id=c></canvas><script>' +
+              'const c=document.getElementById("c"),x=c.getContext("2d");c.width=innerWidth;c.height=innerHeight;' +
+              'let t=0;(function f(){t++;document.title=String(t);x.fillStyle=`hsl(${t*3%360} 70% 40%)`;x.fillRect(0,0,c.width,c.height);' +
+              'x.fillStyle="#fff";for(let i=0;i<40;i++)x.fillRect((t*7+i*97)%c.width,(i*53+t*3)%c.height,120,120);' +
+              'requestAnimationFrame(f)})()</script></body>',
+          ),
+      );
+    }
   });
   const animFrames = () =>
     A.app.evaluate(({ BrowserWindow }) =>
@@ -224,25 +249,60 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
       ),
     );
   let captureFps = 0;
+  let animFps = 0;
   for (let i = 0; i < 3; i++) {
     const f0 = await animFrames();
     await A.page.waitForTimeout(3000);
+    animFps = Math.round(((await animFrames()) - f0) / 3);
     console.warn(
       'MOTION_FPS',
       i,
-      `animação ${Math.round(((await animFrames()) - f0) / 3)} fps`,
+      `animação ${animFps} fps`,
       (await A.page.locator('.stream-stats').getAttribute('data-tip')) ?? '',
       '|',
       (await B.page.locator('.stream-stats').first().getAttribute('aria-label')) ?? '',
     );
+    const comp = await A.page.evaluate(async () => {
+      const d = await (
+        window as unknown as { __opencordDiag: () => Promise<{ media?: { compositor?: unknown } }> }
+      ).__opencordDiag();
+      return { c: d?.media?.compositor ?? null, vis: document.visibilityState, focus: document.hasFocus() };
+    });
+    console.warn('COMPOSITOR', i, JSON.stringify(comp));
+    // ocupação da thread principal de A: atraso máximo de um timer de 50 ms ao longo de 2 s
+    const lag = await A.page.evaluate(
+      () =>
+        new Promise<{ maxLateMs: number; ticks: number }>((resolve) => {
+          let maxLate = 0;
+          let ticks = 0;
+          let expected = performance.now() + 50;
+          const id = setInterval(() => {
+            const late = performance.now() - expected;
+            maxLate = Math.max(maxLate, late);
+            ticks++;
+            expected = performance.now() + 50;
+          }, 50);
+          setTimeout(() => {
+            clearInterval(id);
+            resolve({ maxLateMs: Math.round(maxLate), ticks });
+          }, 2000);
+        }),
+    );
+    console.warn('A_MAIN_THREAD', i, JSON.stringify(lag));
     const t = (await A.page.locator('.stream-stats').getAttribute('data-tip')) ?? '';
     captureFps = Number(/captura (\d+) fps/.exec(t)?.[1] ?? 0);
   }
   await A.app.evaluate(({ BrowserWindow }) => {
     for (const w of BrowserWindow.getAllWindows()) if (w.webContents.getURL().startsWith('data:')) w.close();
   });
-  // regressão: com WebRtcAllowWgcUsingTexture a captura travava em ~12 fps com a tela a 47 fps
-  expect(captureFps).toBeGreaterThanOrEqual(20);
+  // regressões: com WebRtcAllowWgcUsingTexture a captura travava em ~12 fps com a tela a 47 fps; com cena via <video>
+  // fora da página, a composição caía para ~7 fps. A captura tem de acompanhar o conteúdo (≥ 80%, até 20 fps).
+  expect(captureFps).toBeGreaterThanOrEqual(Math.min(20, Math.floor(animFps * 0.8)));
+  // trocar de cena ao vivo (sem reiniciar a transmissão): volta para "Sem cena" e o espectador segue recebendo
+  await A.page.locator('.call-controls').getByRole('button', { name: 'Trocar de cena' }).click();
+  await A.page.getByRole('menuitemcheckbox', { name: /^Sem cena/ }).click();
+  await A.page.waitForTimeout(1500);
+  expect(await v.evaluate((el: HTMLVideoElement) => el.videoWidth)).toBeGreaterThan(640);
 
   // métricas reais do encoder no publisher após alguns segundos
   await A.page.waitForTimeout(6000);
@@ -257,7 +317,49 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   // ninguém assistindo → o SFU pausa o envio (dynacast) e o indicador explica; ao voltar a assistir, retoma
   await B.page.locator('.tile-stream').hover();
   await B.page.getByRole('button', { name: 'Parar de assistir' }).click();
-  await expect(A.page.getByText('ninguém assistindo', { exact: false })).toBeVisible({ timeout: 20_000 });
+  const dumpDiag = async (tag: string) => {
+    for (const [who, pg] of [
+      ['A', A.page],
+      ['B', B.page],
+    ] as const)
+      console.warn(
+        tag,
+        who,
+        await pg
+          .evaluate(async () => {
+            const d =
+              (await (
+                window as unknown as {
+                  __opencordDiag: () => Promise<{
+                    machine?: string;
+                    stream?: string;
+                    media?: { roomEvents?: unknown; remotes?: unknown; compositor?: unknown };
+                  }>;
+                }
+              ).__opencordDiag()) ?? {};
+            return JSON.stringify({
+              m: d.machine,
+              s: d.stream,
+              ev: d.media?.roomEvents,
+              remotes: d.media?.remotes,
+              comp: d.media?.compositor,
+            });
+          })
+          .catch((e: Error) => 'erro ' + e.message.slice(0, 80)),
+        tag === 'DIAG_FALHA' && who === 'A'
+          ? await A.page
+              .locator('.stream-stats')
+              .getAttribute('data-tip')
+              .catch(() => '?')
+          : '',
+      );
+  };
+  try {
+    await expect(A.page.getByText('ninguém assistindo', { exact: false })).toBeVisible({ timeout: 20_000 });
+  } catch (e) {
+    await dumpDiag('DIAG_FALHA');
+    throw e;
+  }
   await B.page.getByRole('button', { name: 'Assistir', exact: true }).click();
   await expect(A.page.locator('.stream-stats')).toHaveAttribute('data-tip', /Transmitindo \d+×\d+/, {
     timeout: 20_000,
@@ -278,6 +380,7 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
 
   // "Abrir em nova janela": a live segue tocando na janela separada mesmo com o app em outro canal
   await B.page.locator('.tile-stream').hover();
+  B.page.on('pageerror', (e) => console.warn('B_PAGEERROR', e.message));
   const popupP = B.app.waitForEvent('window');
   await B.page.getByRole('button', { name: 'Abrir em nova janela' }).click();
   const popup = await popupP;
@@ -291,6 +394,65 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
     .first()
     .click();
   const t0 = await pv.evaluate((el: HTMLVideoElement) => el.currentTime);
+  await B.page.screenshot({ path: 'e2e/results/43-b-apos-navegar.png' });
+  for (let k = 0; k < 2; k++) {
+    await B.page.waitForTimeout(500);
+    console.warn(
+      'POPOUT_CHECK',
+      k,
+      JSON.stringify({
+        popupClosed: popup.isClosed(),
+        bClosed: B.page.isClosed(),
+        aClosed: A.page.isClosed(),
+        aMachine: await A.page
+          .evaluate(async () => {
+            const d =
+              (await (
+                window as unknown as {
+                  __opencordDiag: () => Promise<{ machine?: string; stream?: string; media?: { state?: string } }>;
+                }
+              ).__opencordDiag()) ?? {};
+            return `${d.machine}/${d.stream}/${d.media?.state}`;
+          })
+          .catch((e: Error) => 'erro: ' + e.message.slice(0, 80)),
+        aEvents: await A.page
+          .evaluate(async () =>
+            JSON.stringify(
+              (
+                (await (
+                  window as unknown as { __opencordDiag: () => Promise<{ media?: { roomEvents?: unknown } }> }
+                ).__opencordDiag()) ?? {}
+              ).media?.roomEvents ?? null,
+            ),
+          )
+          .catch(() => 'erro'),
+        bEvents: await B.page
+          .evaluate(async () =>
+            JSON.stringify(
+              (
+                (await (
+                  window as unknown as { __opencordDiag: () => Promise<{ media?: { roomEvents?: unknown } }> }
+                ).__opencordDiag()) ?? {}
+              ).media?.roomEvents ?? null,
+            ),
+          )
+          .catch(() => 'erro'),
+        aMemMB: await A.page
+          .evaluate(() =>
+            Math.round(
+              ((performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? 0) / 1e6,
+            ),
+          )
+          .catch(() => -1),
+        aLive: await B.page
+          .evaluate(async () => {
+            const d = await (window as unknown as { __opencordDiag: () => Promise<unknown> }).__opencordDiag();
+            return JSON.stringify(d).includes('screen') ? 'diag-ok' : 'diag-sem-tela';
+          })
+          .catch((e: Error) => 'erro: ' + e.message.slice(0, 60)),
+      }),
+    );
+  }
   await popup.waitForTimeout(3000);
   const t1 = await pv.evaluate((el: HTMLVideoElement) => el.currentTime);
   console.warn(
