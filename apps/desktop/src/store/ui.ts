@@ -28,6 +28,15 @@ export type Modal =
 
 export type FriendsPanelMode = 'open' | 'compact' | 'hidden';
 const FRIENDS_PANEL_KEY = 'oc-friends-panel';
+const DM_PROFILE_KEY = 'oc-dm-profile';
+function readFlag(key: string, fallback: boolean): boolean {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : v === '1';
+  } catch {
+    return fallback;
+  }
+}
 function readFriendsPanel(): FriendsPanelMode {
   try {
     const v = localStorage.getItem(FRIENDS_PANEL_KEY);
@@ -65,6 +74,9 @@ interface UiState {
   showMembers: boolean;
   /** painel de amigos nas mensagens diretas: aberto, só avatares ou escondido (lembrado neste computador) */
   friendsPanel: FriendsPanelMode;
+  /** painel de perfil da outra pessoa nas DMs (lembrado neste computador) */
+  dmProfile: boolean;
+  setDmProfile(v: boolean): void;
   setFriendsPanel(m: FriendsPanelMode): void;
   /** celular: painel aberto por cima do conteúdo (gaveta de navegação ou de membros) */
   panel: 'none' | 'nav' | 'members';
@@ -112,6 +124,15 @@ export const useUi = create<UiState>()((set) => ({
   openMedia: (items, index) => set({ media: { items, index } }),
   closeMedia: () => set({ media: null }),
   showMembers: true,
+  dmProfile: readFlag(DM_PROFILE_KEY, true),
+  setDmProfile: (v) => {
+    try {
+      localStorage.setItem(DM_PROFILE_KEY, v ? '1' : '0');
+    } catch {
+      /* sem armazenamento: vale só nesta sessão */
+    }
+    set({ dmProfile: v });
+  },
   friendsPanel: readFriendsPanel(),
   setFriendsPanel: (m) => {
     try {

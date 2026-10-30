@@ -23,8 +23,9 @@ const byName = (a: FriendWithPresence, b: FriendWithPresence) =>
  * Painel de amigos ao lado das mensagens diretas: "Ativo agora" (em voz ou transmitindo) e "Disponível" (online).
  * Pode ficar aberto ou só com os avatares; um clique abre a conversa com a pessoa.
  */
-export function FriendsPanel() {
-  const mode = useUi((s) => s.friendsPanel);
+export function FriendsPanel({ forceCompact }: { forceCompact?: boolean }) {
+  const saved = useUi((s) => s.friendsPanel);
+  const mode = forceCompact && saved === 'open' ? 'compact' : saved;
   const friends = useData((s) => s.friends);
   const presence = useData((s) => s.presence);
   const voiceStates = useData((s) => s.voiceStates);

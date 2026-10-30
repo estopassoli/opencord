@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '10:30',
+    kind: 'novo',
+    icon: 'user',
+    title: 'Perfil ao lado da conversa direta',
+    body: 'Nas mensagens diretas, um painel mostra a pessoa: foto e status, onde ela está agora (em voz ou transmitindo; um clique leva ao canal), desde quando está no OpenCord e é sua amiga, e os servidores e amigos em comum. O botão de perfil no topo da conversa mostra ou esconde.',
+  },
+  {
+    date: '2026-10-30',
     time: '05:30',
     kind: 'novo',
     icon: 'settings',

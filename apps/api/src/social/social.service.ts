@@ -1,5 +1,12 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import { nickKeyOf, rooms, type Conversation, type Friend, type UserPublic } from '@opencord/contracts';
+import {
+  nickKeyOf,
+  rooms,
+  type Conversation,
+  type Friend,
+  type UserProfile,
+  type UserPublic,
+} from '@opencord/contracts';
 import { PrismaService } from '../common/prisma.service.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
@@ -44,6 +51,63 @@ export class SocialService {
     const status =
       f.status === 'accepted' ? 'accepted' : f.requesterId === me ? 'pending_outgoing' : 'pending_incoming';
     return { user: userPublic(other), status, since: (f.acceptedAt ?? f.createdAt).toISOString() };
+  }
+
+  /**
+   * Perfil de outra pessoa para o painel da DM. Só com vínculo (conversa, servidor ou amizade): sem vínculo é 404,
+   * para não servir de busca de usuários. Bloqueio em qualquer direção também é 404.
+   */
+  async profile(viewerId: string, userId: string): Promise<UserProfile> {
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { ...USER_PUBLIC_SELECT, createdAt: true, disabledAt: true },
+    });
+    if (!target || target.disabledAt) throw notFound('usuário');
+    const blocked = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: viewerId, blockedId: userId },
+          { blockerId: userId, blockedId: viewerId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (blocked) throw notFound('usuário');
+    const [low, high] = viewerId < userId ? [viewerId, userId] : [userId, viewerId];
+    const [friendship, servers, convo, myFriends, theirFriends] = await Promise.all([
+      this.prisma.friendship.findFirst({ where: { userLowId: low, userHighId: high, status: 'accepted' } }),
+      this.prisma.server.findMany({
+        where: { AND: [{ members: { some: { userId: viewerId } } }, { members: { some: { userId } } }] },
+        select: { id: true, name: true, iconKey: true, official: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.conversation.findFirst({
+        where: { AND: [{ members: { some: { userId: viewerId } } }, { members: { some: { userId } } }] },
+        select: { id: true },
+      }),
+      this.friendIds(viewerId),
+      this.friendIds(userId),
+    ]);
+    if (viewerId !== userId && !friendship && servers.length === 0 && !convo) throw notFound('usuário');
+    const mutualIds = [...myFriends].filter((x) => theirFriends.has(x) && x !== viewerId && x !== userId);
+    const mutual = mutualIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: mutualIds } }, select: USER_PUBLIC_SELECT })
+      : [];
+    return {
+      user: userPublic(target),
+      createdAt: target.createdAt.toISOString(),
+      friendSince: friendship ? (friendship.acceptedAt ?? friendship.createdAt).toISOString() : null,
+      mutualServers: servers,
+      mutualFriends: mutual.map(userPublic),
+    };
+  }
+
+  private async friendIds(userId: string): Promise<Set<string>> {
+    const rows = await this.prisma.friendship.findMany({
+      where: { status: 'accepted', OR: [{ userLowId: userId }, { userHighId: userId }] },
+      select: { userLowId: true, userHighId: true },
+    });
+    return new Set(rows.map((r) => (r.userLowId === userId ? r.userHighId : r.userLowId)));
   }
 
   async listFriends(userId: string): Promise<Friend[]> {
