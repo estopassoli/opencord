@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '15:30',
+    kind: 'melhoria',
+    icon: 'minimize',
+    title: 'Minimizar o player de música',
+    body: 'O player de música da chamada tem um botão para minimizar: fica só a capa, o nome e o tempo da música, sem parar de tocar. Um clique abre de novo.',
+  },
+  {
+    date: '2026-10-30',
     time: '15:10',
     kind: 'melhoria',
     icon: 'activities',

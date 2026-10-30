@@ -512,6 +512,19 @@ test('Música na chamada: A abre e cola um link do YouTube Music, B ouve, fila e
   await playerA.getByRole('button', { name: 'Adicionar' }).click();
   await expect(playerB.getByRole('button', { name: /Fila \(2\)/ })).toBeVisible({ timeout: 10_000 });
   await A.page.screenshot({ path: shot('14b-musica') });
+  // minimizar (só capa, nome e tempo): o player do YouTube é o MESMO elemento (a música não reinicia)
+  await playerA.locator('.music-video iframe').evaluate((el) => (el.dataset.mark = 'antes'));
+  await playerA.getByRole('button', { name: 'Minimizar o player' }).click();
+  const mini = playerA.locator('.music-mini');
+  await expect(mini).toBeVisible();
+  await expect(mini.locator('img')).toBeVisible();
+  await expect(mini).toContainText(/\d+:\d{2} \//);
+  await expect(playerA.getByLabel(/Adicionar música/)).toHaveCount(0);
+  expect(await playerA.locator('.music-video iframe').getAttribute('data-mark')).toBe('antes');
+  await A.page.screenshot({ path: shot('14c-musica-minimizada') });
+  await mini.click();
+  await expect(playerA.getByLabel(/Adicionar música/)).toBeVisible();
+  expect(await playerA.locator('.music-video iframe').getAttribute('data-mark')).toBe('antes');
   // B (não abriu a música) pausa para todos: A vê pausado
   await playerB.getByRole('button', { name: 'Pausar para todos' }).click();
   await expect(playerA.getByRole('button', { name: 'Tocar para todos' })).toBeVisible({ timeout: 10_000 });

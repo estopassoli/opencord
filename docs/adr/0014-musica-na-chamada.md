@@ -24,3 +24,10 @@ Status: Accepted (pedido do mantenedor, 2026-10-30)
 - **Evidência:**
   - integração `music.int.test.ts`: fila, controle por todos, `ended` idempotente, quem está fora da chamada é recusado, encerrar avisa todos;
   - E2E `voice.spec.ts`, "Música na chamada": link do YouTube Music, segunda pessoa ouve, fila e pausa sincronizam, encerrar some para os dois.
+
+## Revisão: player minimizado (2026-10-30)
+- O mantenedor pediu um modo minimizado com "somente a thumb, nome e tempo da música".
+- Foi informado de que os termos do YouTube exigem o player embutido visível (≥ 200×200 px) e de que escondê-lo pode levar ao bloqueio do player. Mesmo assim escolheu a opção "só capa, nome e tempo" (resposta: "2").
+- **Implementação:** minimizado, o iframe oficial continua na página e tocando, com 1×1 px, invisível e sem foco. O cartão mostra a miniatura, o título e "posição / duração".
+- **Risco aceito pelo mantenedor:** violação dos termos do YouTube nesse modo. O modo expandido continua dentro das regras.
+- **Evidência:** E2E `voice.spec.ts` ("Música na chamada"): ao minimizar e expandir, o iframe é o mesmo elemento (a música não reinicia), e o mini mostra a capa e o tempo.
