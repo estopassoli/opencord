@@ -20,6 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
 import {
+  AppPrefsSchema,
   CaptureSelectArgs,
   ExternalUrl,
   IPC,
@@ -28,12 +29,14 @@ import {
   ShortcutsArgs,
   TrayVoiceState,
   type AppInfo,
+  type AppPrefsState,
   type ShortcutAction,
   type TrayAction,
 } from '../shared/ipc';
 import { installDisplayMediaHandler, listSources, selectSource } from './capture';
 import { secureAvailable, secureDelete, secureGet, secureSet } from './secure-store';
 import { appIcon, badgeIcon, trayIcon } from './icons';
+import { readAppPrefs, writeAppPrefs } from './app-prefs';
 import { checkForUpdate, checkIfStale, installUpdate, startUpdater, updateStatus } from './updater';
 
 /** nome da janela da transmissão desanexada (src/features/voice/popout.tsx) */
@@ -59,6 +62,10 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', () => showWindow());
 }
+
+// Configurações → Sobre → "Aceleração de hardware" (só pode ser aplicado antes de o app ficar pronto).
+// Desligada, a GPU sai de cena: a live perde o encoder por hardware (NVENC/AMF/QSV) e a decodificação D3D11.
+if (!readAppPrefs().hardwareAcceleration) app.disableHardwareAcceleration();
 
 // Necessário para notificações nativas no Windows.
 app.setAppUserModelId('org.opencord.desktop');
@@ -280,6 +287,20 @@ function registerIpc() {
     secureStorage: secureAvailable(),
   }));
   handle(IPC.openExternal, [ExternalUrl], (url) => shell.openExternal(url));
+  const prefsState = (): AppPrefsState => ({
+    saved: readAppPrefs(),
+    hardwareAccelerationActive: app.isHardwareAccelerationEnabled(),
+  });
+  handle(IPC.prefsGet, [], prefsState);
+  handle(IPC.prefsSet, [AppPrefsSchema], (prefs) => {
+    writeAppPrefs(prefs);
+    return prefsState();
+  });
+  handle(IPC.appRelaunch, [], () => {
+    quitting = true;
+    app.relaunch();
+    app.quit();
+  });
   handle(IPC.updateStatus, [], () => updateStatus());
   handle(IPC.updateCheck, [], () => checkForUpdate());
   handle(IPC.updateInstall, [], () =>

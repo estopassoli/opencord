@@ -1,7 +1,7 @@
 import type { Me, UserSettings } from '@opencord/contracts';
 import { Button, ColorSwatches, RadioGroup, Select, Slider, Switch, TextField, type SelectOption } from '@opencord/ui';
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
-import type { AppInfo } from '../../../electron/shared/ipc';
+import type { AppInfo, AppPrefsState } from '../../../electron/shared/ipc';
 import { Dialog } from '../../components/Dialog';
 import { bridge } from '../../lib/bridge';
 import { playSound } from '../../lib/sounds';
@@ -146,7 +146,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {tab === 'keybinds' && <KeybindsTab settings={settings} />}
         {tab === 'appearance' && <AppearanceTab settings={settings} />}
         {tab === 'notifications' && <NotificationsTab settings={settings} />}
-        {tab === 'about' && <AboutTab />}
+        {tab === 'about' && (
+          <>
+            <AboutTab />
+            <HardwareAcceleration />
+          </>
+        )}
       </TabbedLayout>
     </Dialog>
   );
@@ -1386,6 +1391,48 @@ function AboutTab() {
         </dl>
       )}
       {bridge && <UpdateCheck />}
+    </Section>
+  );
+}
+
+/** Aceleração de hardware (GPU). Só no app: precisa ser aplicada antes de a janela abrir, então pede reinício. */
+function HardwareAcceleration() {
+  const [state, setState] = useState<AppPrefsState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!bridge) return;
+    let cancelled = false;
+    bridge.prefs.get().then(
+      (s) => !cancelled && setState(s),
+      () => !cancelled && setError('Não foi possível ler esta opção.'),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (!bridge || (!state && !error)) return null;
+  const pending = state && state.saved.hardwareAcceleration !== state.hardwareAccelerationActive;
+  return (
+    <Section title="Desempenho">
+      {error && <p className="form-error">{error}</p>}
+      {state && (
+        <Switch
+          label="Aceleração de hardware"
+          description="Usa a placa de vídeo para desenhar o app, decodificar as lives e codificar a sua. Desligue só se o app piscar, ficar com a tela preta ou travar; desligada, a sua live passa a ser codificada pelo processador (mais pesado e com menos fps)."
+          checked={state.saved.hardwareAcceleration}
+          onChange={(on) =>
+            bridge?.prefs.set({ hardwareAcceleration: on }).then(setState, () => setError('Não foi possível salvar.'))
+          }
+        />
+      )}
+      {pending && (
+        <div className="settings-restart">
+          <p className="muted small">Reinicie o OpenCord para aplicar. Se estiver em uma chamada, você sai dela.</p>
+          <Button variant="secondary" onClick={() => void bridge?.relaunch()}>
+            Reiniciar agora
+          </Button>
+        </div>
+      )}
     </Section>
   );
 }

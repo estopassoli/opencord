@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '05:30',
+    kind: 'novo',
+    icon: 'settings',
+    title: 'Aceleração de hardware',
+    body: 'Em Configurações → Sobre dá para desligar a aceleração de hardware, se o app piscar, ficar com a tela preta ou travar. Vale depois de reiniciar o app. Desligada, a sua live passa a ser codificada pelo processador.',
+  },
+  {
+    date: '2026-10-30',
     time: '05:10',
     kind: 'melhoria',
     icon: 'speaker',

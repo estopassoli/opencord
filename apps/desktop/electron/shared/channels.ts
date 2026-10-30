@@ -16,6 +16,9 @@ export const IPC = {
   updateStatus: 'update:status',
   updateCheck: 'update:check',
   updateInstall: 'update:install',
+  prefsGet: 'prefs:get',
+  prefsSet: 'prefs:set',
+  appRelaunch: 'app:relaunch',
   // eventos main → renderer
   evShortcut: 'ev:shortcut',
   evNotificationClick: 'ev:notification-click',

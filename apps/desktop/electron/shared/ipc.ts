@@ -71,6 +71,16 @@ export type UpdateStatus =
   | { state: 'ready'; version: string }
   | { state: 'available'; version: string; url: string };
 
+export const AppPrefsSchema = z.object({ hardwareAcceleration: z.boolean() }).strict();
+export type AppPrefs = z.infer<typeof AppPrefsSchema>;
+
+export interface AppPrefsState {
+  /** O que está salvo (vale a partir da próxima abertura). */
+  saved: AppPrefs;
+  /** Aceleração de hardware em uso AGORA (muda só ao reiniciar o app). */
+  hardwareAccelerationActive: boolean;
+}
+
 export interface AppInfo {
   version: string;
   electron: string;
@@ -100,6 +110,12 @@ export interface OpenCordBridge {
   setTrayVoiceState(state: TrayVoiceState): Promise<void>;
   appInfo(): Promise<AppInfo>;
   openExternal(url: string): Promise<void>;
+  prefs: {
+    get(): Promise<AppPrefsState>;
+    set(prefs: AppPrefs): Promise<AppPrefsState>;
+  };
+  /** Fecha e abre o app de novo (para aplicar preferências como a aceleração de hardware). */
+  relaunch(): Promise<void>;
   updates: {
     status(): Promise<UpdateStatus>;
     check(): Promise<UpdateStatus>;
