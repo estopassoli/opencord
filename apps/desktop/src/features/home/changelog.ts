@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '10:50',
+    kind: 'novo',
+    icon: 'server',
+    title: 'Cartão do servidor na barra lateral',
+    body: 'Passe o mouse num servidor para ver a imagem e o nome dele e quem está em voz agora (com as fotos, o canal e o selo AO VIVO se alguém estiver transmitindo).',
+  },
+  {
+    date: '2026-10-30',
     time: '10:30',
     kind: 'novo',
     icon: 'user',

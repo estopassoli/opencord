@@ -1,4 +1,6 @@
-import { Icon } from '@opencord/ui';
+import type { ServerSummary } from '@opencord/contracts';
+import { Avatar, Icon } from '@opencord/ui';
+import { useShallow } from 'zustand/react/shallow';
 import { ServerIcon } from '../../components/ServerIcon';
 import type { ReactNode } from 'react';
 import { openContextMenu } from '../../components/ContextMenu';
@@ -17,6 +19,7 @@ function RailItem({
   active,
   unread,
   badge,
+  card,
   variant,
   onClick,
   onContextMenu,
@@ -26,6 +29,8 @@ function RailItem({
   active?: boolean;
   unread?: boolean;
   badge?: number;
+  /** conteúdo rico do tooltip (cartão do servidor); sem ele, o tooltip é só o nome */
+  card?: ReactNode;
   variant?: 'home' | 'action';
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -38,7 +43,7 @@ function RailItem({
       data-unread={unread && !active ? 'true' : undefined}
     >
       <span className="rail-pill" aria-hidden />
-      <Tooltip label={label} side="right">
+      <Tooltip label={card ?? label} side="right">
         <button
           className={variant ? `rail-item rail-${variant}` : 'rail-item'}
           aria-current={active ? 'page' : undefined}
@@ -102,6 +107,7 @@ export function ServerRail() {
             <RailItem
               key={s.id}
               label={s.name}
+              card={<ServerHoverCard server={s} />}
               active={active}
               unread={b.any}
               badge={b.mentions}
@@ -150,5 +156,54 @@ export function ServerRail() {
         <DownloadAppRailItem />
       </ul>
     </nav>
+  );
+}
+
+/**
+ * Cartão ao passar o mouse num servidor: imagem, nome (com selo) e quem está em voz agora, com o canal e se há live.
+ * Os avatares vêm do estado de voz que o app já recebe em tempo real.
+ */
+function ServerHoverCard({ server }: { server: ServerSummary }) {
+  const inVoice = useData(useShallow((st) => Object.values(st.voiceStates).filter((v) => v.serverId === server.id)));
+  const detail = useData((st) => st.details[server.id]);
+  const nameOf = (id: string) => {
+    const m = detail?.members.find((x) => x.user.id === id);
+    return m?.nickname ?? m?.user.displayName ?? '?';
+  };
+  const channels = new Set(inVoice.map((v) => v.channelId));
+  const firstChannel = detail?.channels.find((c) => channels.has(c.id))?.name;
+  const live = inVoice.some((v) => v.streaming);
+  return (
+    <span className="server-card">
+      <span className="server-card-head">
+        <span className="server-card-icon" aria-hidden="true">
+          <ServerIcon name={server.name} iconKey={server.iconKey} official={server.official} />
+        </span>
+        <strong className="truncate">{server.name}</strong>
+        {(server.official || server.verified) && <Icon name="verified" size={14} active label="Verificado" />}
+      </span>
+      {inVoice.length > 0 && (
+        <span className="server-card-voice">
+          <Icon name="speaker" size={16} label="Em voz" />
+          <span className="server-card-avatars">
+            {inVoice.slice(0, 6).map((v) => (
+              <Avatar key={v.userId} id={v.userId} name={nameOf(v.userId)} size={24} />
+            ))}
+            {inVoice.length > 6 && <span className="server-card-more">+{inVoice.length - 6}</span>}
+          </span>
+          {live && <span className="live-pill">AO VIVO</span>}
+        </span>
+      )}
+      {inVoice.length > 0 && (
+        <span className="server-card-sub">
+          {inVoice.length} em voz
+          {channels.size === 1 && firstChannel
+            ? ` · ${firstChannel}`
+            : channels.size > 1
+              ? ` · ${channels.size} canais`
+              : ''}
+        </span>
+      )}
+    </span>
   );
 }
