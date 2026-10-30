@@ -23,6 +23,7 @@ import { ServerSettings } from '../admin/ServerSettings';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ScreenSourcePicker } from '../voice/ScreenSourcePicker';
 import { WatchTogetherDialog } from '../voice/WatchTogether';
+import { setFriendNickname } from '../../lib/names';
 import { QuickSwitcher } from './QuickSwitcher';
 
 export function Modals() {
@@ -40,6 +41,8 @@ export function Modals() {
       return <FullProfileDialog userId={modal.userId} onClose={close} />;
     case 'add-to-dm':
       return <AddToDmDialog peerId={modal.peerId} onClose={close} />;
+    case 'friend-nickname':
+      return <FriendNicknameDialog userId={modal.userId} onClose={close} />;
     case 'join-invite':
       return (
         <Dialog title="Convite para servidor" onClose={close}>
@@ -533,6 +536,54 @@ function AdminServers({ onClose }: { onClose: () => void }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Apelido que só eu vejo para alguém, em todo o app (inclusive acima do apelido nos servidores). */
+function FriendNicknameDialog({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const d = useData.getState();
+  const user =
+    d.friends.find((f) => f.user.id === userId)?.user ??
+    d.conversations.flatMap((c) => c.members).find((m) => m.id === userId) ??
+    Object.values(d.details)
+      .flatMap((x) => x.members)
+      .find((m) => m.user.id === userId)?.user;
+  const current = d.settings?.friendNicknames[userId] ?? '';
+  const [name, setName] = useState(current);
+  const save = (e: FormEvent) => {
+    e.preventDefault();
+    setFriendNickname(userId, name);
+    useUi.getState().toast('success', name.trim() ? 'Apelido salvo. Só você vê.' : 'Apelido removido.');
+    onClose();
+  };
+  return (
+    <Dialog title={current ? 'Editar apelido de amigo' : 'Adicionar apelido de amigo'} onClose={onClose}>
+      <form onSubmit={save} className="form">
+        <TextField
+          label={`Apelido para ${user?.displayName ?? 'esta pessoa'}`}
+          hint="Só você vê. Aparece no lugar do nome em todo o OpenCord, inclusive nos servidores."
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={32}
+          placeholder={user?.displayName}
+          autoFocus
+        />
+        <div className="form-actions">
+          {current && (
+            <Button variant="ghost" onClick={() => setName('')}>
+              Limpar
+            </Button>
+          )}
+          <span className="spacer" />
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={name.trim() === current}>
+            Salvar
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

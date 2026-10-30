@@ -11,6 +11,7 @@ import { useData } from '../../store/data';
 import { api, describeError, loadFriends } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { openDmWith } from '../shell/FriendsPanel';
+import { useNameAlias } from '../../lib/names';
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -41,6 +42,7 @@ export function FullProfileDialog({ userId, onClose }: { userId: string; onClose
   );
   const serverName = useData((s) => (voice ? s.servers.find((x) => x.id === voice.serverId)?.name : undefined));
   const friendship = useData((s) => s.friends.find((f) => f.user.id === userId && f.status === 'accepted'));
+  const alias = useNameAlias(userId);
 
   useEffect(() => {
     void api()
@@ -104,8 +106,10 @@ export function FullProfileDialog({ userId, onClose }: { userId: string; onClose
               <Avatar id={user.id} name={user.displayName} size={112} status={status} />
             </div>
             <div className="full-profile-body">
-              <h2>{user.displayName}</h2>
-              <p className="muted">@{user.username}</p>
+              <h2>{alias ?? user.displayName}</h2>
+              <p className="muted">
+                {alias && `${user.displayName} · `}@{user.username}
+              </p>
               <div className="full-profile-actions">
                 <Button icon="chat" onClick={() => void openDmWith(user.id).then(onClose)}>
                   Mensagem

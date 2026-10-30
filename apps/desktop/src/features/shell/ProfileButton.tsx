@@ -44,6 +44,13 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
   const chatKey = currentChatKey();
 
   const items: MenuEntry[] = [{ label: 'Perfil', icon: 'users', onSelect: openProfile }];
+  if (!isMe)
+    items.push({
+      label: d.settings?.friendNicknames[userId] ? 'Editar apelido de amigo' : 'Adicionar apelido de amigo',
+      icon: 'edit',
+      hint: 'Só você vê',
+      onSelect: () => useUi.getState().openModal({ kind: 'friend-nickname', userId }),
+    });
   if (chatKey) {
     items.push({
       label: 'Mencionar',
@@ -299,6 +306,8 @@ function ProfileCard({
     setPos({ left, top });
   }, [anchor, cardRef]);
   const me = useData((s) => s.me);
+  // apelido que eu dei (só eu vejo): vira o nome principal; o nome real fica embaixo
+  const alias = useData((s) => s.settings?.friendNicknames[userId]);
   const detail = useData((s) => (serverId ? s.details[serverId] : undefined));
   const friends = useData((s) => s.friends);
   const presence = useData((s) => s.presence[userId] ?? 'offline');
@@ -331,14 +340,16 @@ function ProfileCard({
       id={id}
       className="profile-card"
       role="dialog"
-      aria-label={`Perfil de ${user.displayName}`}
+      aria-label={`Perfil de ${alias ?? user.displayName}`}
       style={pos ? { left: pos.left, top: pos.top } : { left: -9999, top: 0, visibility: 'hidden' }}
     >
       <div className="profile-head">
         <Avatar id={user.id} name={user.displayName} size={56} status={isMe ? undefined : presence} />
         <div>
-          <strong>{member?.nickname ?? user.displayName}</strong>
-          <div className="muted">@{user.username}</div>
+          <strong>{alias ?? member?.nickname ?? user.displayName}</strong>
+          <div className="muted">
+            {alias && <span data-tip="Apelido que só você vê">{user.displayName} · </span>}@{user.username}
+          </div>
           {!isMe && <div className="muted small">{STATUS_LABEL[presence]}</div>}
         </div>
       </div>
@@ -365,7 +376,7 @@ function ProfileCard({
             <StreamPreviewCard
               userId={userId}
               previewAt={voiceState.previewAt ?? null}
-              name={member?.nickname ?? user.displayName}
+              name={alias ?? member?.nickname ?? user.displayName}
               showName={false}
               onWatch={() => {
                 void watchStream(serverId, voiceChannel.id, userId, myCall === voiceChannel.id);

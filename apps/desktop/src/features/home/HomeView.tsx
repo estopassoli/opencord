@@ -11,6 +11,7 @@ import { ServerIcon } from '../../components/ServerIcon';
 import { openContextMenu, useContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Tooltip } from '../../components/Tooltip';
 import { StreamPreviewCard, watchStream } from '../../components/StreamPreview';
+import { useNameFor } from '../../lib/names';
 
 type Tab = 'online' | 'all' | 'pending' | 'blocked' | 'add';
 const TABS: [Tab, string][] = [
@@ -182,10 +183,16 @@ function FriendRow({
     voice ? s.details[voice.serverId]?.channels.find((c) => c.id === voice.channelId)?.name : undefined,
   );
   const accepted = f.status === 'accepted';
-  const name = f.user.displayName;
+  const name = useNameFor(f.user.id, f.user.displayName);
   const menu: MenuEntry[] = accepted
     ? [
         { label: 'Enviar mensagem', icon: 'chat', onSelect: () => void openDm(f.user.id) },
+        {
+          label: name !== f.user.displayName ? 'Editar apelido de amigo' : 'Adicionar apelido de amigo',
+          icon: 'edit',
+          hint: 'Só você vê',
+          onSelect: () => useUi.getState().openModal({ kind: 'friend-nickname', userId: f.user.id }),
+        },
         'separator',
         {
           label: 'Remover amizade',
