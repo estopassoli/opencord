@@ -1,4 +1,4 @@
-/* Ícone com crossfade outline → solid. O estado vem do elemento interativo ancestral. */
+/* Ícone (Hugeicons). O destaque vem do elemento interativo ancestral. */
 .oc-icon {
   position: relative;
   display: inline-grid;
@@ -11,33 +11,11 @@
   grid-area: 1 / 1;
   width: 100%;
   height: 100%;
-  transition: opacity var(--dur, 150ms) var(--ease, ease);
 }
-.oc-icon > .oc-icon-solid {
-  opacity: 0;
-}
-:is(
-    button,
-    a,
-    summary,
-    [role='button'],
-    [role='tab'],
-    [role='menuitem'],
-    [role='option'],
-    [role='treeitem'],
-    .oc-interactive
-  ):not(:disabled, [aria-disabled='true']):is(
-    :hover,
-    :focus-visible,
-    [aria-current]:not([aria-current='false']),
-    [aria-selected='true'],
-    [aria-pressed='true'],
-    [aria-expanded='true']
-  )
-  .oc-icon
-  > .oc-icon-solid,
-.oc-icon[data-active='true'] > .oc-icon-solid {
-  opacity: 1;
+/* Hugeicons gratuito só tem contorno: o destaque (hover, foco, estados ativos) é o traço mais grosso */
+.oc-icon > svg :is(path, circle, rect, line, polyline, polygon, ellipse) {
+  stroke-width: 1.5;
+  transition: stroke-width var(--dur, 150ms) var(--ease, ease);
 }
 :is(
     button,
@@ -58,9 +36,10 @@
     [aria-expanded='true']
   )
   .oc-icon
-  > .oc-icon-outline,
-.oc-icon[data-active='true'] > .oc-icon-outline {
-  opacity: 0;
+  > svg
+  :is(path, circle, rect, line, polyline, polygon, ellipse),
+.oc-icon[data-active='true'] > svg :is(path, circle, rect, line, polyline, polygon, ellipse) {
+  stroke-width: 2.2;
 }
 /* traço diagonal para estados "desligado" sem ícone dedicado (ex.: microfone mutado) */
 .oc-icon[data-slashed='true']::after {
@@ -76,10 +55,10 @@
   box-shadow: 0 0 0 1.5px var(--oc-icon-slash-gap, var(--sidebar));
 }
 @media (prefers-reduced-motion: reduce) {
-  .oc-icon > svg {
+  .oc-icon > svg * {
     transition: none;
   }
 }
-:root[data-motion='reduced'] .oc-icon > svg {
+:root[data-motion='reduced'] .oc-icon > svg * {
   transition: none;
 }

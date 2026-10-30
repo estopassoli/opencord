@@ -1,5 +1,5 @@
 /**
- * Ícones Heroicons: outline por padrão, solid no hover (inclusive com o ícone aninhado em wrapper),
+ * Ícones (Hugeicons, só contorno): o traço engrossa no hover (inclusive com o ícone aninhado em wrapper),
  * e animações de diálogo zeradas quando "Reduzir movimento" está ligado.
  */
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
@@ -24,20 +24,16 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => app?.close());
 
-/** Opacidade final (após a transição) das camadas outline/solid do primeiro ícone do elemento. */
-async function layers(sel: string) {
+/** Espessura final (após a transição) do traço do primeiro ícone do elemento (Hugeicons: só contorno). */
+async function stroke(sel: string) {
   await page.waitForTimeout(400);
   return page
     .locator(sel)
     .first()
-    .evaluate((el) => {
-      const icon = el.querySelector('.oc-icon');
-      const o = (c: string) => Number(getComputedStyle(icon!.querySelector(c)!).opacity);
-      return { outline: o('.oc-icon-outline'), solid: o('.oc-icon-solid') };
-    });
+    .evaluate((el) => parseFloat(getComputedStyle(el.querySelector('.oc-icon svg path')!).strokeWidth));
 }
 
-test('ícones trocam outline → solid no hover', async () => {
+test('ícones engrossam o traço no hover', async () => {
   const targets = [
     'button[aria-label="Configurações do usuário"]',
     'button[aria-label="Criar um servidor"]',
@@ -46,12 +42,12 @@ test('ícones trocam outline → solid no hover', async () => {
   await page.mouse.move(1, 1);
   // a troca tem transição (~120 ms): espera o estado final em vez de medir no instante do hover
   for (const sel of targets) {
-    await expect.poll(() => layers(sel), { message: `${sel} em repouso` }).toEqual({ outline: 1, solid: 0 });
+    await expect.poll(() => stroke(sel), { message: `${sel} em repouso` }).toBe(1.5);
     await page.hover(sel);
-    await expect.poll(() => layers(sel), { message: `${sel} no hover` }).toEqual({ outline: 0, solid: 1 });
+    await expect.poll(() => stroke(sel), { message: `${sel} no hover` }).toBe(2.2);
     await page.mouse.move(1, 1);
   }
-  // ícone dentro de wrapper (span) dentro do botão também troca
+  // ícone dentro de wrapper (span) dentro do botão também engrossa
   const nested = await page.evaluate(() => {
     const b = document.querySelector('button[aria-label="Configurações do usuário"]')!;
     const icon = b.querySelector('.oc-icon')!;
@@ -66,9 +62,9 @@ test('ícones trocam outline → solid no hover', async () => {
     .poll(async () => {
       await page.mouse.move(1, 1);
       await page.hover('button[aria-label="Configurações do usuário"]');
-      return layers('button[aria-label="Configurações do usuário"]');
+      return stroke('button[aria-label="Configurações do usuário"]');
     })
-    .toEqual({ outline: 0, solid: 1 });
+    .toBe(2.2);
 });
 
 test('diálogo anima a entrada e respeita "Reduzir movimento"', async () => {

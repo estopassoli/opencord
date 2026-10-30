@@ -21,7 +21,8 @@
     "react": "19.1.10"
   },
   "dependencies": {
-    "react-icons": "5.7.0",
+    "@hugeicons/core-free-icons": "4.4.0",
+    "@hugeicons/react": "1.1.10",
     "@opencord/contracts": "workspace:*"
   },
   "devDependencies": {
