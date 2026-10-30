@@ -33,6 +33,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
   const typing = useData((s) => s.typing[key]);
   const members = useData((s) => (channel ? s.details[channel.serverId]?.members : undefined));
   const showMembers = useUi((s) => s.showMembers);
+  const friendsPanel = useUi((s) => s.friendsPanel);
   const membersPanel = useUi((s) => s.panel === 'members');
   const mobile = useIsMobile();
   const scroller = useRef<HTMLDivElement>(null);
@@ -136,6 +137,17 @@ export function ChatView({ target }: { target: ChatTarget }) {
         <h2 className="truncate">{title}</h2>
         {channel?.topic && <span className="chat-topic truncate">{channel.topic}</span>}
         <span className="spacer" />
+        {!channel && !mobile && (
+          <button
+            className="icon-btn"
+            aria-pressed={friendsPanel !== 'hidden'}
+            aria-label="Mostrar amigos"
+            title={friendsPanel === 'hidden' ? 'Mostrar amigos' : 'Ocultar amigos'}
+            onClick={() => useUi.getState().setFriendsPanel(friendsPanel === 'hidden' ? 'open' : 'hidden')}
+          >
+            <Icon name="users" />
+          </button>
+        )}
         {channel && (
           <button
             className="icon-btn"

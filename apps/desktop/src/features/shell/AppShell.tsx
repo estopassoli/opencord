@@ -18,6 +18,7 @@ import { UserDock } from './UserDock';
 import { PopoutStage, VoiceStage } from '../voice/VoiceStage';
 import { PopoutPortal } from '../voice/popout';
 import { MediaViewer } from '../chat/MediaViewer';
+import { FriendsPanel } from './FriendsPanel';
 import { ConnectionBanner } from './ConnectionBanner';
 
 /** Layout: rail de servidores | sidebar (canais/DMs + dock) | conteúdo | membros. Cada região rola de forma independente. */
@@ -168,6 +169,7 @@ export function AppShell() {
           </div>
         )}
       </main>
+      {view.kind === 'dm' && !mobile && <FriendsPanel />}
       {view.kind === 'server' && channel?.kind === 'text' && (mobile || showMembers) && (
         <div className="slot" inert={off('members')}>
           <MemberList serverId={view.serverId} />

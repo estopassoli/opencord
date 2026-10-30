@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '02:20',
+    kind: 'novo',
+    icon: 'users',
+    title: 'Amigos ao lado das mensagens diretas',
+    body: 'Nas conversas diretas, um painel à direita mostra quem está "Ativo agora" (em voz ou transmitindo) e quem está disponível; um clique abre a conversa. Dá para deixar só os avatares ou esconder pelo botão de pessoas no topo da conversa.',
+  },
+  {
+    date: '2026-10-30',
     time: '02:05',
     kind: 'novo',
     icon: 'eye',
