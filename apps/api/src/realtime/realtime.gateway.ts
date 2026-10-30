@@ -22,6 +22,7 @@ import { TokenService } from '../auth/token.service.js';
 import { RedisService } from '../common/redis.service.js';
 import { ActivitiesService } from '../voice/activities.service.js';
 import { MusicService } from '../voice/music.service.js';
+import { SoundsService } from '../sounds/sounds.service.js';
 import { MessagesService, type Target } from '../messages/messages.service.js';
 import { HEARTBEAT_INTERVAL_MS, PresenceService } from './presence.service.js';
 import { RealtimeService, type AppSocket } from './realtime.service.js';
@@ -66,6 +67,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     private readonly redis: RedisService,
     private readonly activities: ActivitiesService,
     private readonly music: MusicService,
+    private readonly sounds: SoundsService,
   ) {}
 
   afterInit(io: Server) {
@@ -215,6 +217,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       case 'music:stop': {
         const d = p as { channelId: string };
         return (await this.music.stop(userId, d.channelId)) as R;
+      }
+      case 'sound:play': {
+        const d = p as { channelId: string; soundId: string };
+        return (await this.sounds.play(userId, d.channelId, d.soundId)) as R;
       }
       case 'sync:resume': {
         const d = p as { channels: { channelId: string; lastMessageId: string | null }[] };

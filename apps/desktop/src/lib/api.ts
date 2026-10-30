@@ -148,8 +148,10 @@ export class ApiClient {
     return res.blob();
   }
 
-  async upload<T>(path: string, file: File): Promise<T> {
+  async upload<T>(path: string, file: File, fields: Record<string, string> = {}): Promise<T> {
     const form = new FormData();
+    // campos antes do arquivo: o servidor lê o multipart em ordem
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
     form.append('file', file, file.name);
     const send = async () => {
       const token = await this.freshToken();

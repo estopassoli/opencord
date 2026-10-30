@@ -260,10 +260,10 @@ test('imagem do servidor: dono envia e a barra de servidores dos dois mostra na 
   await A.page.keyboard.press('Escape');
 });
 
-test('cartão de voz: status, 4 ações e atalhos funcionam', async () => {
+test('cartão de voz: status, 5 ações (inclui efeitos sonoros) e atalhos funcionam', async () => {
   const dock = A.page.locator('.voice-dock');
   await expect(dock.getByText('Voz conectada')).toBeVisible();
-  await expect(dock.locator('.dock-action')).toHaveCount(4);
+  await expect(dock.locator('.dock-action')).toHaveCount(5);
   await dock.screenshot({ path: shot('13-cartao-voz') });
   const noise = dock.getByRole('button', { name: 'Supressão de ruído' });
   const before = await noise.getAttribute('aria-pressed');
@@ -424,6 +424,28 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
 
   await A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
   await expect(B.page.locator('.tile-stream')).toHaveCount(0, { timeout: 15_000 });
+});
+
+test('Efeitos sonoros: A envia um som pelo painel da chamada, toca e B ouve; aparece nas configurações do servidor', async () => {
+  await A.page.locator('.voice-dock').getByRole('button', { name: 'Efeitos sonoros' }).click();
+  const board = A.page.getByRole('dialog', { name: 'Efeitos sonoros' });
+  await board.getByRole('button', { name: 'Adicionar som' }).click();
+  const up = A.page.getByRole('dialog', { name: 'Enviar um som' });
+  await up.getByLabel('Escolher arquivo de áudio').setInputFiles(path.join(__dirname, 'fixtures', 'efeito-curto.wav'));
+  await expect(up.getByText('0.50 s')).toBeVisible();
+  await up.getByLabel('Nome do som').fill('Bip E2E');
+  await up.getByRole('button', { name: 'Enviar' }).click();
+  await expect(up).toHaveCount(0, { timeout: 10_000 });
+  const bip = board.getByRole('button', { name: 'Tocar Bip E2E' });
+  await expect(bip).toBeVisible();
+  await A.page.screenshot({ path: shot('14c-efeitos-sonoros') });
+  const heard = () =>
+    B.page.evaluate(() => (window as unknown as { __opencordSoundsHeard: () => number }).__opencordSoundsHeard());
+  const before = await heard();
+  await bip.click();
+  await expect.poll(heard, { timeout: 10_000 }).toBe(before + 1);
+  await A.page.keyboard.press('Escape');
+  await expect(board).toHaveCount(0);
 });
 
 test('Música na chamada: A abre e cola um link do YouTube Music, B ouve, fila e pausa valem para todos', async () => {

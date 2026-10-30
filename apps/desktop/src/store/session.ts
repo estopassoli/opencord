@@ -343,6 +343,18 @@ function wireRealtime(rt: RealtimeClient) {
       });
     });
     rt.on('music:ended', (e) => void import('./music').then(({ useMusic }) => useMusic.getState().ended(e.channelId)));
+    // efeitos sonoros: alguém na minha chamada tocou um som; a lista de um servidor mudou
+    rt.on('sound:played', (e) => {
+      void Promise.all([import('./sounds'), import('./voice')]).then(([{ useSounds }, { useVoice }]) => {
+        if (useVoice.getState().machine.channelId === e.channelId)
+          void useSounds.getState().hear(e.serverId, e.soundId);
+      });
+    });
+    rt.on('sound:list:changed', (e) => {
+      void import('./sounds').then(({ useSounds }) => {
+        if (useSounds.getState().byServer[e.serverId]) void useSounds.getState().load(e.serverId);
+      });
+    });
     rt.on('voice:member:left', (e) => {
       const cur = d().voiceStates[e.userId];
       if (cur?.channelId === e.channelId) d().removeVoiceState(e.userId);

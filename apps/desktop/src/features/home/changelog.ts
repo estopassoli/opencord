@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '14:00',
+    kind: 'novo',
+    icon: 'emoji',
+    title: 'Efeitos sonoros',
+    body: 'Na chamada, o botão de efeitos sonoros abre o painel do servidor: clique num som e todos na chamada ouvem. Qualquer pessoa envia sons (MP3, OGG ou WAV de até 10 s) pelo "Adicionar som" ou em Configurações do servidor → Efeitos sonoros. O volume e o silenciar dos efeitos são só seus.',
+  },
+  {
+    date: '2026-10-30',
     time: '12:30',
     kind: 'novo',
     icon: 'speaker',

@@ -12,12 +12,14 @@ import { App } from './App';
 import { loadImportedFonts } from './lib/fonts';
 import { soundLog } from './lib/sounds';
 import { useVoice } from './store/voice';
+import { useSounds } from './store/sounds';
 import { capturePendingInvite } from './lib/invite';
 
 // link de convite aberto no navegador: guarda o código antes da primeira tela (o login já o mostra)
 capturePendingInvite();
 
 // Diagnóstico somente leitura para suporte/E2E (não expõe tokens nem conteúdo).
+(window as unknown as { __opencordSoundsHeard: () => number }).__opencordSoundsHeard = () => useSounds.getState().heard;
 (window as unknown as { __opencordDiag: () => unknown }).__opencordDiag = () => {
   const v = useVoice.getState();
   return (
