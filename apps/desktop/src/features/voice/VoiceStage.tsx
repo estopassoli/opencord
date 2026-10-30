@@ -613,7 +613,9 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
   );
   const live = v.streamStatus === 'live';
   const activityOn = useActivity((s) => s.state !== null);
-  const [panel, setPanel] = useState(false);
+  const panel = useUi((s) => s.activitiesOpen);
+  const setPanel = (v: boolean | ((o: boolean) => boolean)) =>
+    useUi.getState().setActivitiesOpen(typeof v === 'function' ? v(useUi.getState().activitiesOpen) : v);
   const [soundAnchor, setSoundAnchor] = useState<DOMRect | null>(null);
   const menu = (e: React.MouseEvent, kind: 'audioinput' | 'audiooutput') => {
     const target = e.currentTarget as HTMLElement;
@@ -685,7 +687,7 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
                 setSoundAnchor(soundAnchor ? null : (e.currentTarget as HTMLElement).getBoundingClientRect())
               }
             >
-              <Icon name="emoji" />
+              <Icon name="soundboard" />
             </button>
           </Tooltip>
           <Tooltip label={live ? 'Parar transmissão' : 'Transmitir tela'}>

@@ -69,7 +69,17 @@ export function UserDock() {
       {(inCall || v.machine.status === 'failed') && (
         <section className="voice-dock" aria-label="Chamada de voz">
           <div className="voice-dock-row">
-            <span className="voice-dock-signal" data-status={v.machine.status} aria-hidden>
+            <span
+              className="voice-dock-signal"
+              data-status={v.machine.status}
+              {...(v.stats && v.machine.status === 'connected'
+                ? {
+                    'data-tip': `Ping ${v.stats.rttMs ?? '–'} ms · jitter ${v.stats.jitterMs ?? '–'} ms · perda ${v.stats.lossPct ?? '–'}%`,
+                    role: 'img',
+                    'aria-label': `Qualidade da conexão: ping ${v.stats.rttMs ?? 'desconhecido'} ms`,
+                  }
+                : { 'aria-hidden': true })}
+            >
               <Icon name="signal" size={20} />
             </span>
             <span className="voice-dock-texts">
@@ -86,15 +96,20 @@ export function UserDock() {
                 </button>
               )}
             </span>
-            {v.stats && v.machine.status === 'connected' && (
-              <Tooltip
-                label={`Ping ${v.stats.rttMs ?? '–'} ms · jitter ${v.stats.jitterMs ?? '–'} ms · perda ${v.stats.lossPct ?? '–'}%`}
-              >
+            {inCall && (
+              <Tooltip label={noise ? 'Supressão de ruído: ligada' : 'Supressão de ruído: desligada'}>
                 <button
                   className="icon-btn"
-                  aria-label={`Qualidade da conexão: ping ${v.stats.rttMs ?? 'desconhecido'} ms`}
+                  aria-pressed={noise}
+                  aria-label="Supressão de ruído"
+                  onClick={() =>
+                    updateSettings((st) => ({
+                      ...st,
+                      audio: { ...st.audio, noiseSuppression: !st.audio.noiseSuppression },
+                    }))
+                  }
                 >
-                  <Icon name="wifi" size={20} />
+                  <Icon name="noise" size={20} active={noise} />
                 </button>
               </Tooltip>
             )}
@@ -139,6 +154,21 @@ export function UserDock() {
                   <Icon name="screen" size={20} />
                 </button>
               </Tooltip>
+              <Tooltip label="Atividades">
+                <button
+                  className="dock-action"
+                  aria-label="Atividades"
+                  disabled={v.machine.status !== 'connected'}
+                  onClick={() => {
+                    // leva ao palco da chamada e abre o painel de atividades lá
+                    if (channel && server)
+                      useUi.getState().go({ kind: 'server', serverId: server.id, channelId: channel.id });
+                    useUi.getState().setActivitiesOpen(true);
+                  }}
+                >
+                  <Icon name="activities" size={20} />
+                </button>
+              </Tooltip>
               <Tooltip label="Efeitos sonoros">
                 <button
                   className="dock-action soundboard-btn"
@@ -150,31 +180,7 @@ export function UserDock() {
                     setSoundAnchor(soundAnchor ? null : (e.currentTarget as HTMLElement).getBoundingClientRect())
                   }
                 >
-                  <Icon name="emoji" size={20} />
-                </button>
-              </Tooltip>
-              <Tooltip label={noise ? 'Supressão de ruído: ligada' : 'Supressão de ruído: desligada'}>
-                <button
-                  className="dock-action"
-                  aria-pressed={noise}
-                  aria-label="Supressão de ruído"
-                  onClick={() =>
-                    updateSettings((st) => ({
-                      ...st,
-                      audio: { ...st.audio, noiseSuppression: !st.audio.noiseSuppression },
-                    }))
-                  }
-                >
-                  <Icon name="shield" size={20} />
-                </button>
-              </Tooltip>
-              <Tooltip label="Configurações de voz">
-                <button
-                  className="dock-action"
-                  aria-label="Configurações de voz"
-                  onClick={() => useUi.getState().openModal({ kind: 'settings', tab: 'voice' })}
-                >
-                  <Icon name="settings" size={20} />
+                  <Icon name="soundboard" size={20} />
                 </button>
               </Tooltip>
             </div>
