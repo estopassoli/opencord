@@ -19,6 +19,8 @@ export type Modal =
   | { kind: 'explore-servers' }
   | { kind: 'invite'; serverId: string }
   | { kind: 'join-invite'; code: string }
+  | { kind: 'profile'; userId: string }
+  | { kind: 'add-to-dm'; peerId: string }
   | { kind: 'create-channel'; serverId: string; channelKind: 'text' | 'voice'; categoryId: string | null }
   | { kind: 'create-category'; serverId: string }
   | { kind: 'watch-together' }

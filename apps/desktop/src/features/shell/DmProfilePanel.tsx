@@ -1,5 +1,5 @@
 import type { UserProfile, UserPublic } from '@opencord/contracts';
-import { Avatar, avatarColor, Icon, STATUS_LABEL } from '@opencord/ui';
+import { Avatar, avatarColor, Button, Icon, STATUS_LABEL } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import { ServerIcon } from '../../components/ServerIcon';
 import { useData } from '../../store/data';
@@ -109,6 +109,13 @@ export function DmProfilePanel({ conversationId }: { conversationId: string }) {
             </ul>
           </section>
         )}
+        <Button
+          variant="secondary"
+          className="dm-profile-full"
+          onClick={() => useUi.getState().openModal({ kind: 'profile', userId: peer.id })}
+        >
+          Ver perfil completo
+        </Button>
         {profile && profile.mutualFriends.length > 0 && (
           <section className="dm-profile-section">
             <h3>

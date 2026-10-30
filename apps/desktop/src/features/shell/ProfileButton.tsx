@@ -374,6 +374,9 @@ function ProfileCard({
       )}
       {!isMe && (
         <div className="profile-actions">
+          <Button variant="secondary" onClick={() => useUi.getState().openModal({ kind: 'profile', userId })}>
+            <Icon name="user" size={16} /> Perfil completo
+          </Button>
           <Button
             variant="secondary"
             onClick={() =>

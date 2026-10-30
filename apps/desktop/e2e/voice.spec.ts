@@ -318,6 +318,26 @@ test('dispositivo de saída escolhido continua valendo ao entrar de novo na cham
   await A.page.keyboard.press('Escape');
 });
 
+test('perfil completo e "adicionar amigos à conversa" a partir da pessoa na chamada', async () => {
+  await A.page.locator('.voice-member').filter({ hasText: B_NICK }).first().click();
+  await A.page.getByRole('button', { name: 'Perfil completo' }).click();
+  const prof = A.page.getByRole('dialog', { name: `Perfil de ${B_NICK}` });
+  await expect(prof.getByText('Membro desde')).toBeVisible({ timeout: 10_000 });
+  await prof.getByRole('tab', { name: /servidor(es)? em comum/ }).click();
+  await expect(prof.getByRole('button', { name: /OpenCord/ })).toBeVisible();
+  await A.page.screenshot({ path: shot('15a-perfil-completo') });
+  // Mensagem abre a DM; no topo, "adicionar amigos à conversa"
+  await prof.getByRole('button', { name: 'Mensagem' }).click();
+  await expect(prof).toHaveCount(0);
+  await A.page.getByRole('button', { name: 'Adicionar amigos à conversa' }).click();
+  const add = A.page.getByRole('dialog', { name: 'Adicionar amigos à conversa' });
+  await expect(add.getByLabel('Buscar amigos')).toBeVisible();
+  await add.getByRole('button', { name: 'Cancelar' }).click();
+  // volta à chamada para os próximos testes (pelo cartão "Voz conectada")
+  await A.page.locator('.voice-dock .voice-dock-where').click();
+  await expect(A.page.locator('.stage-grid')).toBeVisible();
+});
+
 test('mute é refletido para o outro participante', async () => {
   await B.page.locator('.dock').getByRole('button', { name: 'Silenciar microfone', exact: true }).click();
   await expect(

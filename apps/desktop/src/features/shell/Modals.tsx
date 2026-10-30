@@ -12,6 +12,7 @@ import { Button, Icon, RadioGroup, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { ServerIcon } from '../../components/ServerIcon';
+import { AddToDmDialog, FullProfileDialog } from '../chat/DmExtras';
 import { parseInviteCode } from '../../lib/invite';
 import { loadServer, api, describeError } from '../../store/session';
 import { useData } from '../../store/data';
@@ -34,6 +35,10 @@ export function Modals() {
       return <ExploreServers onClose={close} />;
     case 'invite':
       return <InviteDialog serverId={modal.serverId} onClose={close} />;
+    case 'profile':
+      return <FullProfileDialog userId={modal.userId} onClose={close} />;
+    case 'add-to-dm':
+      return <AddToDmDialog peerId={modal.peerId} onClose={close} />;
     case 'join-invite':
       return (
         <Dialog title="Convite para servidor" onClose={close}>

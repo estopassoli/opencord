@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '16:30',
+    kind: 'novo',
+    icon: 'user',
+    title: 'Perfil completo e grupo a partir da conversa',
+    body: 'Abra o perfil completo de alguém (pelo cartão da pessoa ou pelo painel da conversa direta): desde quando está no OpenCord e é seu amigo, uma nota que só você vê, o que a pessoa está fazendo agora e os amigos e servidores em comum. No topo da conversa direta, "Adicionar amigos à conversa" cria um grupo com quem você escolher.',
+  },
+  {
+    date: '2026-10-30',
     time: '15:30',
     kind: 'melhoria',
     icon: 'minimize',
