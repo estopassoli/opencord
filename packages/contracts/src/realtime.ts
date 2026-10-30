@@ -16,6 +16,7 @@ import {
   Conversation,
   VoiceMemberState,
   UserPublic,
+  InstanceInfo,
 } from './api.js';
 import {
   ActivityControl,
@@ -170,6 +171,8 @@ export interface ServerEvents {
     serverId?: string;
   };
   'session:revoked': { reason: string };
+  /** configuração da instância mudou (aviso, cadastro, limite de upload), para todos (ADR-0020) */
+  'instance:updated': z.infer<typeof InstanceInfo>;
   /** atividade da chamada começou ou mudou (vídeo, play/pausa/posição) */
   'activity:state': ActivityState;
   'activity:ended': { channelId: string; serverId: string };

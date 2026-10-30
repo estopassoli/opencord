@@ -22,6 +22,7 @@ import { joinAllServers, Prisma } from '@opencord/db';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { RedisService } from '../common/redis.service.js';
+import { InstanceService } from '../admin/instance.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { randomToken, sha256, TokenService } from './token.service.js';
 
@@ -48,6 +49,7 @@ export class AuthService {
     private readonly redis: RedisService,
     private readonly tokens: TokenService,
     private readonly realtime: RealtimeService,
+    private readonly instance: InstanceService,
   ) {}
 
   toMe(u: {
@@ -72,13 +74,14 @@ export class AuthService {
     };
   }
 
-  instanceInfo(): InstanceInfo {
-    return {
-      name: this.cfg.INSTANCE_NAME,
-      guestJoin: this.cfg.GUEST_JOIN_ENABLED,
-      requiresAccessCode: Boolean(this.cfg.INSTANCE_ACCESS_CODE),
-      youtubeSearch: Boolean(this.cfg.YOUTUBE_API_KEY),
-    };
+  instanceInfo(): Promise<InstanceInfo> {
+    return this.instance.info();
+  }
+
+  /** Cadastros fechados pelo super admin (ADR-0020): só quem já tem identidade entra. */
+  private async requireRegistrationOpen() {
+    if (!(await this.instance.registrationOpen()))
+      throw new ForbiddenException('novos cadastros estão fechados nesta instância');
   }
 
   private checkAccessCode(code: string | undefined) {
@@ -160,6 +163,7 @@ export class AuthService {
     if (!this.cfg.GUEST_JOIN_ENABLED)
       throw new ForbiddenException('entrada só com apelido está desativada nesta instância');
     this.checkAccessCode(dto.accessCode);
+    await this.requireRegistrationOpen();
     await this.limitNewIdentity(client.ip);
     return this.createIdentity(
       { nickname: dto.nickname, passwordHash: null, email: null, via: 'nickname' },
@@ -171,6 +175,7 @@ export class AuthService {
   /** Criar conta (opcional): apelido + senha, e-mail opcional. Sem convite. */
   async register(dto: RegisterRequest, client: ClientInfo): Promise<AuthResponse> {
     this.checkAccessCode(dto.accessCode);
+    await this.requireRegistrationOpen();
     await this.limitNewIdentity(client.ip);
     const passwordHash = await hash(dto.password, ARGON);
     const email = dto.email?.trim().toLowerCase() ?? null;

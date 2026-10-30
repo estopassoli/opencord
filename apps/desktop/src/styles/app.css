@@ -877,6 +877,39 @@ textarea:focus-visible {
   background: var(--danger);
   color: #fff;
 }
+/* aviso do super admin para todos (ADR-0020) */
+.instance-banner {
+  --tone: var(--brand);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+  background: color-mix(in srgb, var(--tone) 18%, var(--chat));
+  border-bottom: 1px solid color-mix(in srgb, var(--tone) 40%, transparent);
+}
+.instance-banner[data-tone='warning'] {
+  --tone: var(--warning);
+}
+.instance-banner[data-tone='success'] {
+  --tone: var(--success);
+}
+.instance-banner > svg {
+  flex: none;
+  color: var(--tone);
+}
+.instance-banner > span {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.instance-banner-preview {
+  border: 1px solid color-mix(in srgb, var(--tone) 40%, transparent);
+  border-radius: var(--radius-sm);
+}
 .chat-header {
   height: var(--header-height);
   flex: none;

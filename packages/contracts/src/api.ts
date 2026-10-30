@@ -40,12 +40,25 @@ export const Nickname = z
   .refine((s) => /[\p{L}\p{N}]/u.test(s), 'use ao menos uma letra ou número')
   .transform((s) => s.replace(/\s+/g, ' '));
 
+/** Aviso em faixa no topo do app, definido pelo super admin (ADR-0020). */
+export const ANNOUNCEMENT_TONES = ['info', 'warning', 'success'] as const;
+export const InstanceAnnouncement = z.object({
+  text: z.string().trim().min(1).max(280),
+  tone: z.enum(ANNOUNCEMENT_TONES),
+});
+export type InstanceAnnouncement = z.infer<typeof InstanceAnnouncement>;
+
 export const InstanceInfo = z.object({
   name: z.string(),
   guestJoin: z.boolean(),
   requiresAccessCode: z.boolean(),
   /** pesquisa do YouTube no "Assistir juntos" (servidor com YOUTUBE_API_KEY) */
   youtubeSearch: z.boolean().default(false),
+  /** false: novos cadastros fechados pelo super admin (quem já tem conta continua entrando) */
+  registrationOpen: z.boolean().default(true),
+  announcement: InstanceAnnouncement.nullable().default(null),
+  /** limite de upload em vigor (bytes) */
+  uploadMaxBytes: z.number().int().positive().optional(),
 });
 export type InstanceInfo = z.infer<typeof InstanceInfo>;
 
@@ -683,6 +696,85 @@ export const AuditEntry = z.object({
   createdAt: IsoDate,
 });
 export type AuditEntry = z.infer<typeof AuditEntry>;
+
+// ---------- Painel do super admin (ADR-0020) ----------
+export const AdminStats = z.object({
+  users: z.number().int(),
+  newUsers7d: z.number().int(),
+  suspended: z.number().int(),
+  admins: z.number().int(),
+  onlineNow: z.number().int(),
+  inVoice: z.number().int(),
+  servers: z.number().int(),
+  messages24h: z.number().int(),
+});
+export type AdminStats = z.infer<typeof AdminStats>;
+
+export const AdminUser = UserPublic.extend({
+  email: z.string().nullable(),
+  hasAccount: z.boolean(),
+  isInstanceAdmin: z.boolean(),
+  /** dono do servidor oficial: não pode ser suspenso nem perder o admin */
+  isCreator: z.boolean(),
+  createdAt: IsoDate,
+  disabledAt: IsoDate.nullable(),
+  serverCount: z.number().int(),
+  activeSessions: z.number().int(),
+  lastSeenAt: IsoDate.nullable(),
+  online: z.boolean(),
+});
+export type AdminUser = z.infer<typeof AdminUser>;
+
+export const ADMIN_USER_FILTERS = ['all', 'admins', 'suspended'] as const;
+export const AdminUsersQuery = z.object({
+  q: z.string().trim().max(64).optional(),
+  filter: z.enum(ADMIN_USER_FILTERS).default('all'),
+  cursor: Id.optional(),
+});
+export const AdminUserPage = z.object({ users: z.array(AdminUser), nextCursor: Id.nullable() });
+export type AdminUserPage = z.infer<typeof AdminUserPage>;
+
+export const SuspendUserRequest = z.object({ reason: z.string().trim().max(200).optional() });
+export const SetInstanceAdminRequest = z.object({ admin: z.boolean() });
+
+/** Só o que veio; `announcement: null` tira o aviso, `uploadMaxBytes: null` volta ao limite do ambiente. */
+export const UpdateInstanceConfigRequest = z
+  .object({
+    registrationOpen: z.boolean(),
+    announcement: InstanceAnnouncement.nullable(),
+    uploadMaxBytes: z
+      .number()
+      .int()
+      .min(1024 * 1024)
+      .nullable(),
+  })
+  .partial();
+export type UpdateInstanceConfigRequest = z.infer<typeof UpdateInstanceConfigRequest>;
+
+export const AdminInstanceConfig = InstanceInfo.extend({
+  uploadMaxBytes: z.number().int(),
+  /** teto do ambiente (UPLOAD_MAX_BYTES); o painel só reduz */
+  uploadEnvMaxBytes: z.number().int(),
+  /** override salvo (null = o do ambiente) */
+  uploadOverrideBytes: z.number().int().nullable(),
+  updatedAt: IsoDate.nullable(),
+});
+export type AdminInstanceConfig = z.infer<typeof AdminInstanceConfig>;
+
+export const ADMIN_AUDIT_SCOPES = ['admin', 'all'] as const;
+export const AdminAuditQuery = z.object({
+  scope: z.enum(ADMIN_AUDIT_SCOPES).default('admin'),
+  before: Id.optional(),
+});
+export const AdminAuditEntry = AuditEntry.extend({
+  actor: z.object({ id: Id, displayName: z.string() }),
+  server: z.object({ id: Id, name: z.string() }).nullable(),
+  /** nome do usuário-alvo quando a ação é sobre uma pessoa */
+  targetName: z.string().nullable(),
+});
+export type AdminAuditEntry = z.infer<typeof AdminAuditEntry>;
+export const AdminAuditPage = z.object({ entries: z.array(AdminAuditEntry), nextBefore: Id.nullable() });
+export type AdminAuditPage = z.infer<typeof AdminAuditPage>;
 
 // ---------- Uploads ----------
 export const UPLOAD_MAX_BYTES = 25 * 1024 * 1024;

@@ -1,3 +1,4 @@
+import { InstanceBanner } from '../../components/InstanceBanner';
 import { BoardView } from '../board/BoardView';
 import { useEffect } from 'react';
 import { bridge } from '../../lib/bridge';
@@ -160,6 +161,7 @@ export function AppShell() {
         <button className="mobile-scrim" aria-label="Fechar painel" onClick={() => useUi.getState().setPanel('none')} />
       )}
       <main id="main-content" className="content" tabIndex={-1} inert={mobile && panel !== 'none'}>
+        <InstanceBanner />
         <ConnectionBanner />
         {view.kind === 'home' && (view.tab === 'news' ? <NewsView /> : <HomeView />)}
         {view.kind === 'dm' && <ChatView key={view.conversationId} target={{ conversationId: view.conversationId }} />}

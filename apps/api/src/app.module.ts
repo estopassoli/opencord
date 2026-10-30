@@ -5,6 +5,9 @@ import { AuthGuard } from './common/auth.js';
 import { DomainEvents } from './common/domain-events.js';
 import { PrismaService } from './common/prisma.service.js';
 import { RedisService } from './common/redis.service.js';
+import { AdminController } from './admin/admin.controller.js';
+import { AdminService } from './admin/admin.service.js';
+import { InstanceService } from './admin/instance.service.js';
 import { AuthController } from './auth/auth.controller.js';
 import { AuthService } from './auth/auth.service.js';
 import { TokenService } from './auth/token.service.js';
@@ -43,6 +46,7 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
+        AdminController,
         SoundsController,
         BoardsController,
         HealthController,
@@ -58,6 +62,8 @@ export class AppModule {
       ],
       providers: [
         { provide: APP_CONFIG, useValue: cfg },
+        InstanceService,
+        AdminService,
         { provide: APP_GUARD, useClass: AuthGuard },
         PrismaService,
         RedisService,

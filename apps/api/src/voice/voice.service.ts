@@ -302,6 +302,19 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     if (s) await this.endSession(s, 'left');
   }
 
+  /** Conta suspensa pelo super admin (ADR-0020): sai da chamada na hora. */
+  async forceLeave(userId: string) {
+    const s = await this.stateOf(userId);
+    if (s) await this.endSession(s, 'kicked', 'revoked');
+  }
+
+  /** Quantas pessoas estão em chamada agora (painel do super admin). */
+  async countInVoice(): Promise<number> {
+    let n = 0;
+    for (const channelId of await this.r.smembers('voice:channels')) n += await this.r.scard(`voice:channel:${channelId}`);
+    return n;
+  }
+
   /** Remove da SFU (não apenas do banco/Redis) e notifica. */
   private async endSession(
     s: StoredState,
