@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '03:10',
+    kind: 'melhoria',
+    icon: 'upload',
+    title: 'Recortar a imagem antes de enviar',
+    body: 'Ao trocar a foto de perfil ou a imagem do servidor, escolha o enquadramento: arraste para posicionar e use o zoom (barra, roda do mouse ou +/−). GIF animado continua indo inteiro. A barra de título mostra a imagem do servidor aberto.',
+  },
+  {
+    date: '2026-10-30',
     time: '02:55',
     kind: 'correção',
     icon: 'screen',

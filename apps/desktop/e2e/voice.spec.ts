@@ -229,6 +229,10 @@ test('imagem do servidor: dono envia e a barra de servidores dos dois mostra na 
   await dialog
     .getByLabel('Escolher imagem do servidor')
     .setInputFiles(path.join(__dirname, 'fixtures', 'avatar-azul.png'));
+  await A.page
+    .getByRole('dialog', { name: 'Recortar imagem do servidor' })
+    .getByRole('button', { name: 'Aplicar' })
+    .click();
   await expect(dialog.getByRole('button', { name: 'Trocar imagem' })).toBeVisible({ timeout: 10_000 });
   const railA = A.page.getByRole('navigation', { name: 'Servidores' }).getByRole('button', { name: /^OpenCord/ });
   const railB = B.page.getByRole('navigation', { name: 'Servidores' }).getByRole('button', { name: /^OpenCord/ });
