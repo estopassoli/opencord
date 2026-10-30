@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '23:15',
+    kind: 'melhoria',
+    icon: 'screen',
+    title: 'Live em 1440p de verdade',
+    body: 'A qualidade 1440p 60 fps agora é usada quando a sua placa de vídeo codifica a live. Se o computador não tiver como codificar pela placa, a live desce sozinha para 1080p 60 fps em vez de travar.',
+  },
+  {
+    date: '2026-10-30',
     time: '23:00',
     kind: 'melhoria',
     icon: 'verified',

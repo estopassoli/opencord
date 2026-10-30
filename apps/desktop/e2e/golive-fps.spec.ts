@@ -208,11 +208,11 @@ async function uiLatency(label: string) {
   );
 }
 
-async function startLive(bitrate: string, scene: 'Sem cena' | 'Só a tela') {
+async function startLive(bitrate: string, scene: 'Sem cena' | 'Só a tela', fps: 60 | 120 = 60) {
   await A.page.locator('.dock').getByRole('button', { name: 'Transmitir', exact: true }).click();
   const dialog = A.page.getByRole('dialog', { name: 'Transmitir' });
   await dialog.getByRole('button', { name: 'Opções da transmissão' }).click();
-  await A.page.getByRole('menuitemcheckbox', { name: /^1080p · 60 fps/ }).click();
+  await A.page.getByRole('menuitemcheckbox', { name: new RegExp(`^1080p · ${fps} fps`) }).click();
   await dialog.getByRole('button', { name: 'Opções da transmissão' }).click();
   await A.page.getByRole('menuitemcheckbox', { name: new RegExp(`^${bitrate} Mbps`) }).click();
   await dialog.getByRole('button', { name: /^Cena:/ }).click();
@@ -349,16 +349,35 @@ test('1080p60: medição por etapa (direta e com cena, bitrates)', async () => {
   const rows = [];
   let patternOpen = false;
   // OC_FPS_PHASES="12:Sem cena,20:Só a tela" limita as fases (diagnóstico rápido)
-  const all = [
-    ['12', 'Sem cena'],
-    ['20', 'Sem cena'],
-    ['12', 'Só a tela'],
-  ] as const;
+  // [bitrate (Mb/s, como no menu), cena, fps do perfil]; OC_FPS_PHASES="12:Sem cena:60,20:Só a tela:60"
+  const all: [string, 'Sem cena' | 'Só a tela', 60 | 120][] = [
+    ['12', 'Sem cena', 60],
+    ['20', 'Sem cena', 60],
+    ['12', 'Só a tela', 60],
+  ];
   const phases = process.env.OC_FPS_PHASES
-    ? all.filter(([b, sc]) => process.env.OC_FPS_PHASES!.split(',').includes(`${b}:${sc}`))
+    ? all.filter(([b, sc, f]) => process.env.OC_FPS_PHASES!.split(',').includes(`${b}:${sc}:${f}`))
     : all;
-  for (const [bitrate, scene] of phases) {
-    await startLive(bitrate, scene);
+  for (const [bitrateMbps, scene, fps] of phases) {
+    const bitrate = `${bitrateMbps}`;
+    await startLive(bitrate, scene, fps);
+    // começo da live: taxa alvo do encoder, estimativa de subida e quadros codificados por segundo, a cada 1 s
+    {
+      const ramp: string[] = [];
+      let prev = await pipeline(A.page);
+      for (let i = 0; i < 6; i++) {
+        await A.page.waitForTimeout(1000);
+        const cur = await pipeline(A.page);
+        const dt = (num(cur, 't') - num(prev, 't')) / 1000;
+        ramp.push(
+          `${i + 1}s: ${Math.round((num(cur?.outbound, 'framesEncoded') - num(prev?.outbound, 'framesEncoded')) / dt)} fps, alvo ${
+            Math.round(num(cur?.outbound, 'targetBitrate') / 1e5) / 10
+          } Mb/s, subida ${Math.round(num(cur?.uplink, 'availableOutgoingBitrate') / 1e5) / 10} Mb/s`,
+        );
+        prev = cur;
+      }
+      console.warn('START_RAMP', `${scene} ${bitrate} Mbps ${fps}fps`, ramp.join(' | '));
+    }
     if (!patternOpen) {
       const disp = await displays();
       console.warn('DISPLAYS', JSON.stringify(disp));
@@ -377,8 +396,8 @@ test('1080p60: medição por etapa (direta e com cena, bitrates)', async () => {
       console.warn('CONTENT', JSON.stringify(c1.map((f, i) => Math.round((f - (c0[i] ?? 0)) / 3))));
     }
     await A.page.waitForTimeout(8000);
-    rows.push(await measure(`${scene} ${bitrate} Mbps`, 10));
-    rows.push(await measure(`${scene} ${bitrate} Mbps (2)`, 10));
+    rows.push(await measure(`${scene} ${bitrate} Mbps ${fps}fps`, 10));
+    rows.push(await measure(`${scene} ${bitrate} Mbps ${fps}fps (2)`, 10));
     await uiLatency(`live ${scene} ${bitrate} (vendo a própria live)`);
     if (rows.length === 2) {
       // mesma live, mas quem transmite olha um canal de texto (nenhum vídeo na tela)

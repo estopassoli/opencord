@@ -9,11 +9,13 @@
 import {
   backoffDelay,
   effectiveProfile,
+  fallbackFor,
   isHardwareEncoder,
   MAX_RECONNECT_ATTEMPTS,
   SpeakingDebouncer,
   streamBitrate,
   type StreamBitrateLevel,
+  type StreamProfile,
   type StreamProfileId,
 } from '@opencord/media';
 import {
@@ -597,9 +599,39 @@ export class VoiceEngine {
       throw e;
     }
     await lockFramerateAndResolution(video);
+    if (profile.requiresHardware) this.checkEncoderFallback(video, profile, bitrate);
     this.stopPreview = startPreviewSender(this.room, published, (img) => this.cb.onStreamPreview?.(img));
     this.emit();
     return { audioPublished: Boolean(audio) };
+  }
+
+  /**
+   * 1440p60 exige encoder por hardware, mas só dá para saber qual encoder o WebRTC escolheu depois de
+   * publicar. Se for por software (OpenH264/libvpx), a live desce para o perfil seguro (1080p60) no próprio envio,
+   * sem reiniciar: em software esse perfil derrubava o fps.
+   */
+  private checkEncoderFallback(video: LocalVideoTrack, profile: StreamProfile, bitrate: StreamBitrateLevel) {
+    setTimeout(() => {
+      void (async () => {
+        if (this.screen?.video !== video || !video.sender) return;
+        let impl: string | null = null;
+        const rep = await video.getRTCStatsReport().catch(() => undefined);
+        rep?.forEach((r: Record<string, unknown>) => {
+          if (r.type === 'outbound-rtp' && r.kind === 'video' && typeof r.encoderImplementation === 'string')
+            impl = r.encoderImplementation;
+        });
+        if (isHardwareEncoder(impl) !== false) return;
+        const fb = fallbackFor(profile.id);
+        const params = video.sender.getParameters();
+        for (const e of params.encodings) {
+          e.maxFramerate = fb.fps;
+          e.scaleResolutionDownBy = profile.height / fb.height;
+          e.maxBitrate = streamBitrate(fb.id, bitrate);
+        }
+        await video.sender.setParameters(params).catch(() => undefined);
+        this.note(`encoder ${impl ?? '?'} em software: ${profile.id} → ${fb.id}`);
+      })();
+    }, 4000);
   }
 
   async stopStream() {

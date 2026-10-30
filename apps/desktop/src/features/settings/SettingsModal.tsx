@@ -743,7 +743,8 @@ function VoiceTab({ settings }: { settings: UserSettings }) {
           />
         </div>
         <p className="muted small">
-          1440p60 só é usado quando houver encoder por hardware. H.264 usa encoder de hardware quando disponível.
+          1440p 60 fps precisa de encoder por hardware: sem ele, a live desce sozinha para 1080p 60 fps. H.264 usa o
+          encoder da placa de vídeo quando disponível.
         </p>
       </Section>
     </>

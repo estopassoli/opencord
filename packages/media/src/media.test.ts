@@ -3,6 +3,7 @@ import {
   availableProfiles,
   backoffDelay,
   effectiveProfile,
+  fallbackFor,
   initialStreamState,
   initialVoiceState,
   isHardwareEncoder,
@@ -106,10 +107,15 @@ describe('streamReducer', () => {
 });
 
 describe('perfis de stream', () => {
-  it('sem hardware confirmado, 1440p60 cai para 1080p60', () => {
-    expect(effectiveProfile('1440p60', { hardware: null }).id).toBe('1080p60');
+  it('sem hardware, 1440p60 cai para 1080p60; desconhecido tenta (o encoder é conferido depois)', () => {
+    expect(effectiveProfile('1440p60', { hardware: false }).id).toBe('1080p60');
+    expect(effectiveProfile('1440p60', { hardware: null }).id).toBe('1440p60');
     expect(effectiveProfile('1440p60', { hardware: true }).id).toBe('1440p60');
+    expect(fallbackFor('1440p60').id).toBe('1080p60');
     expect(availableProfiles({ hardware: false }).map((p) => p.id)).toEqual(['720p30', '1080p60']);
+  });
+  it('1440p60 numa tela 1080p cai para 1080p60', () => {
+    expect(effectiveProfile('1440p60', { hardware: true, sourceHeight: 1080 }).id).toBe('1080p60');
   });
   it('não excede a resolução da fonte', () => {
     expect(effectiveProfile('1440p60', { hardware: true, sourceHeight: 1080 }).id).toBe('1080p60');

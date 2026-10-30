@@ -50,17 +50,35 @@ export interface EncoderCapability {
 
 const ORDER: StreamProfileId[] = ['720p30', '1080p60', '1440p60'];
 
-/** Reduz o perfil pedido até um suportado. Sem hardware confirmado, 1440p60 não é oferecido. */
+/**
+ * Para onde cada perfil desce quando não é suportado. Não existe 1080p120: a captura de tela do Chromium entrega no
+ * máximo ~60 quadros/s (medido no E2E golive-fps com conteúdo a 120 fps, nos três caminhos de captura do Windows).
+ */
+const FALLBACK: Record<StreamProfileId, StreamProfileId | null> = {
+  '1440p60': '1080p60',
+  '1080p60': '720p30',
+  '720p30': null,
+};
+
+/**
+ * Reduz o perfil pedido até um suportado. Com `hardware: false`, 1440p60 não é usado; com `null`
+ * (desconhecido antes de publicar) eles são tentados, e quem publica confere o encoder depois (fallbackFor).
+ */
 export function effectiveProfile(requested: StreamProfileId, cap: EncoderCapability): StreamProfile {
-  let idx = ORDER.indexOf(requested);
-  while (idx > 0) {
-    const p = STREAM_PROFILES[ORDER[idx] as StreamProfileId];
-    const hwOk = !p.requiresHardware || cap.hardware === true;
+  let id: StreamProfileId = requested in STREAM_PROFILES ? requested : '1080p60';
+  for (;;) {
+    const p = STREAM_PROFILES[id];
+    const hwOk = !p.requiresHardware || cap.hardware !== false;
     const srcOk = !cap.sourceHeight || cap.sourceHeight >= p.height * 0.9;
-    if (hwOk && srcOk) break;
-    idx--;
+    const next = FALLBACK[id];
+    if ((hwOk && srcOk) || !next) return p;
+    id = next;
   }
-  return STREAM_PROFILES[ORDER[Math.max(0, idx)] as StreamProfileId];
+}
+
+/** Perfil para o qual a live desce se o encoder observado for por software. */
+export function fallbackFor(profile: StreamProfileId): StreamProfile {
+  return effectiveProfile(profile, { hardware: false });
 }
 
 export function availableProfiles(cap: EncoderCapability): StreamProfile[] {

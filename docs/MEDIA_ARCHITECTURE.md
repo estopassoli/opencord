@@ -156,3 +156,25 @@ Observações gerais:
 - **Decisão:** a captura passa a ser pedida no **dobro** do fps do perfil. O limite continua no envio (`maxFramerate`), que nunca passa do fps do perfil.
 - **Bateria completa depois da mudança** (textura pesada): 59,0–59,6 quadros distintos/s, sem e com cena, a 12 e a 20 Mb/s. Antes era 53,3–55,0.
 - **Carga:** a captura não passou de ~60 quadros por segundo, então não houve carga extra visível.
+
+## 1080p120, taxa inicial e "60 fps fixo" (2026-10-30)
+Medido no E2E `golive-fps` com conteúdo determinístico e quadros distintos lidos em quem assiste.
+
+**1080p120 não sai da captura do Chromium**
+- Pedindo captura a 240 (envio limitado a 120) com o conteúdo a 120 fps, a captura entregou **no máximo ~60** quadros por segundo: 59,2–59,7.
+- O resultado foi o mesmo nos três caminhos testados: padrão, sem WGC (`--disable-features=WebRtcAllowWgcScreenCapturer`) e WGC por textura.
+- O perfil não foi oferecido. Passar de 60 exigiria captura nativa própria (ver a conversa sobre "captura de jogo": injeção em jogos tem risco de anti-cheat).
+
+**Taxa inicial**
+- O `livekit-client` já aplica `x-google-start-bitrate`, mas uma única vez por conexão.
+- Uma live iniciada no meio da chamada herda a estimativa de banda da conexão, que só tinha áudio (~1,8 Mb/s). Reescrever a dica na resposta SDP não teve efeito, e a dica nem aparecia na negociação. A tentativa foi revertida.
+- Medido na primeira live da chamada: alvo de 1,4–1,6 Mb/s nos primeiros 6 s, com 11–60 fps conforme a carga do conteúdo.
+- Lives seguintes na mesma chamada já começam com 8–12 Mb/s e ~59 fps.
+
+**Frame dropper desligado** (`--force-fieldtrials=WebRTC-FrameDropper/Disabled/`)
+- Medido na primeira live: piorou (12, 8, 22 fps nos primeiros segundos). Descartado.
+
+**Perfis**
+- A queda entre perfis agora é explícita e mantém o fps: 1440p60 → 1080p60 → 720p30.
+- 1440p60 com H.264 passa a ser tentado (antes nunca era, porque o encoder é desconhecido antes de publicar).
+- Se o encoder observado 4 s depois for por software, a live desce para 1080p60 no próprio envio (`setParameters`), sem reiniciar.
