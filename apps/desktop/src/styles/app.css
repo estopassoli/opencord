@@ -208,7 +208,8 @@ h3 {
 }
 .field-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr): nomes longos (ex.: dispositivos de áudio) cortam com reticências em vez de alargar a coluna */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
 }
 input:not([type='checkbox'], [type='radio'], [type='range'], [type='color']),
@@ -244,7 +245,7 @@ textarea:focus-visible {
 }
 .radio-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
   border: 0;
   padding: 0;
@@ -1922,6 +1923,9 @@ body {
 .dialog-fullscreen .settings-layout > :not(.settings-nav) {
   padding: 60px 40px 80px;
   overflow-y: auto;
+  /* nada de rolagem lateral: o conteúdo encolhe (selects cortam com reticências) */
+  overflow-x: hidden;
+  min-width: 0;
 }
 .fullscreen-close {
   position: absolute;
