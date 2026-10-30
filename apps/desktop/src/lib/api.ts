@@ -136,6 +136,18 @@ export class ApiClient {
     return data as T;
   }
 
+  /** GET autenticado devolvendo o corpo como Blob (imagens protegidas, ex.: prévia de live). */
+  async blob(path: string): Promise<Blob> {
+    const send = async () => {
+      const token = await this.freshToken();
+      return this.fetchImpl(this.url(path), { headers: token ? { authorization: `Bearer ${token}` } : {} });
+    };
+    let res = await send();
+    if (res.status === 401 && (await this.refresh())) res = await send();
+    if (!res.ok) throw new ApiError(res.status, `erro ${res.status}`, undefined);
+    return res.blob();
+  }
+
   async upload<T>(path: string, file: File): Promise<T> {
     const form = new FormData();
     form.append('file', file, file.name);

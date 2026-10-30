@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '01:40',
+    kind: 'novo',
+    icon: 'screen',
+    title: 'Prévias das lives em "Em atividade"',
+    body: 'Na tela inicial, cada transmissão aparece com uma prévia da tela. Um clique entra na chamada e já abre a live em destaque.',
+  },
+  {
+    date: '2026-10-30',
     time: '01:20',
     kind: 'melhoria',
     icon: 'spotlight',

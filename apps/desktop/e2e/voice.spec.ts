@@ -388,6 +388,17 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
     'true',
   );
   await B.page.keyboard.press('Escape');
+  // "Em atividade": a prévia da live de A (publicada na API) aparece na tela inicial; um clique volta à live em destaque
+  await B.app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]!.setBounds({ x: 0, y: 0, width: 1700, height: 900 }),
+  );
+  await B.page.getByRole('button', { name: 'Mensagens diretas' }).first().click();
+  await B.page.getByRole('navigation', { name: 'Início' }).getByRole('button', { name: 'Amigos' }).click();
+  const nowStream = B.page.locator('.now-stream').filter({ hasText: 'Proprietário' });
+  await expect(nowStream.locator('img')).toBeVisible({ timeout: 15_000 });
+  await B.page.screenshot({ path: shot('16a-em-atividade-previa') });
+  await nowStream.click();
+  await expect(B.page.locator('.stage-header')).toContainText('Proprietário está transmitindo', { timeout: 10_000 });
   await B.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
 
   await A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();

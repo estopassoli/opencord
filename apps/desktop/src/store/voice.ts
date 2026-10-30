@@ -139,6 +139,11 @@ export const useVoice = create<VoiceStore>()((set, get) => {
           void get().stopStream();
         },
         onStats: (stats) => set({ stats }),
+        // prévia também na API, para o card "Em atividade" de quem está fora da chamada (falha não afeta a live)
+        onStreamPreview: (image) =>
+          void api()
+            .upload('/voice/stream-preview', new File([image], 'preview.jpg', { type: 'image/jpeg' }))
+            .catch(() => undefined),
       },
       prefsFrom(useData.getState().settings),
     );

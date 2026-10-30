@@ -33,3 +33,15 @@ Status: Accepted (pedido do mantenedor, 2026-10-29)
 - É enviada a cada 5 min, mais uma vez logo para quem entra na sala (`destinationIdentities`).
 - No card ela aparece com blur leve.
 - O tráfego cai para menos de 1 KB/s por live.
+
+## Revisão: prévia no "Em atividade" (2026-10-30)
+- Pedido do mantenedor: "aqui em atividade colocar a previa das lives… clicar na transmissao faz entrar no canal de voz e abre a transmissao em foco".
+- Quem está fora da chamada não recebe o byte stream da sala. Por isso, quem transmite também publica a mesma prévia na API:
+  - `POST /voice/stream-preview`, multipart, só JPEG pelos bytes, até 256 KB, só enquanto `streaming`;
+  - a cada 5 min, e a primeira 3 s após começar;
+  - a API guarda só a última no Redis (`voice:preview:<id>`, TTL 15 min) e marca `previewAt` no estado de voz (evento `voice:state:changed`);
+  - `GET /voice/members/:id/stream-preview` entrega a imagem a quem tem VIEW_CHANNEL no canal da live (404 para os demais), com `Cache-Control: private, no-store`;
+  - a imagem é apagada quando a live acaba.
+- No card, o clique abre o canal, entra na chamada (se preciso), assiste e põe a live em destaque.
+- É uma imagem estática por HTTP, não mídia contínua. Socket.IO continua sem mídia.
+- Evidência: integração `voice.int.test.ts` (recusa sem live e não JPEG; quem vê o canal baixa; quem não participa recebe 404) e E2E `voice.spec.ts` (B vê a prévia de A em "Em atividade" e o clique leva à live em destaque).

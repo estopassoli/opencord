@@ -421,6 +421,8 @@ export const VoiceMemberState = z.object({
   serverMute: z.boolean(),
   video: z.boolean(),
   streaming: z.boolean(),
+  /** quando a prévia da live foi atualizada (GET /voice/members/:userId/stream-preview); null sem prévia */
+  previewAt: IsoDate.nullable().optional(),
   joinedAt: IsoDate,
 });
 export type VoiceMemberState = z.infer<typeof VoiceMemberState>;
