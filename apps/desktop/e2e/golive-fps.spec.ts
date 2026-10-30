@@ -42,6 +42,8 @@ test.afterAll(async () => {
  * escala a cada quadro, perto de folhagem/grama de jogo; exige bem mais bitrate que as barras lisas.
  */
 const HEAVY = process.env.OC_FPS_HEAVY === '1';
+/** OC_FPS_CONTENT: quadros distintos por segundo do padrão (padrão 60; 120 simula jogo acima de 60 fps) */
+const CONTENT_FPS = Number(process.env.OC_FPS_CONTENT ?? 60);
 const PATTERN =
   '<body style="margin:0;overflow:hidden;background:#000"><canvas id=c></canvas><script>' +
   'const c=document.getElementById("c"),x=c.getContext("2d",{alpha:false});c.width=innerWidth;c.height=innerHeight;' +
@@ -51,7 +53,9 @@ const PATTERN =
   'let seed=7;const rnd=()=>(seed=(seed*1103515245+12345)%2147483648)/2147483648;' +
   'for(let yy=0;yy<512;yy+=2)for(let xx=0;xx<512;xx+=2){tx.fillStyle=`hsl(${80+rnd()*60} ${40+rnd()*40}% ${15+rnd()*45}%)`;tx.fillRect(xx,yy,2,2);}' +
   'tex=x.createPattern(tc,"repeat");}' +
-  '(function f(){const k=Math.floor((performance.now()-t0)/(1000/60));if(k!==n){n=k;document.title=String(n);' +
+  '(function f(){const k=Math.floor((performance.now()-t0)/(1000/' +
+  String(CONTENT_FPS) +
+  '));if(k!==n){n=k;document.title=String(n);' +
   'if(heavy){x.save();const sc=1+0.25*Math.sin(n/40);x.setTransform(sc,0,0,sc,-(n*7)%512,-(n*3)%512);x.fillStyle=tex;' +
   'x.fillRect(0,0,W/sc+1024,H/sc+1024);x.restore();}else{' +
   'for(let i=0;i<24;i++){x.fillStyle=`hsl(${(i*15+n*2)%360} 60% ${30+(i%3)*12}%)`;x.fillRect(((i*W/24+n*6)%W),0,W/24+1,H);}}' +

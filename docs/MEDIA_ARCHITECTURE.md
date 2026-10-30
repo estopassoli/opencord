@@ -140,3 +140,19 @@ Observações gerais:
 **Atualização (mesmo dia):**
 - O diagnóstico copiado agora inclui um histórico da live a cada 2 s (últimos 10 min). Ele mostra se a live demora a subir no começo, como no relato de "fps baixo nos primeiros ~5 min".
 - A cópia passou a ser iniciada no próprio clique. Antes, esperar os 5 s da medição para só então copiar fazia o Chromium recusar a área de transferência.
+
+## Captura no dobro do fps da live (2026-10-30)
+- **Relato:** o diagnóstico mostrava a captura ("srcFps") em ~57,5 numa live de 60.
+- **Causa:** a captura pedida a `max: 60` verifica a tela a cada 1/60 s. Com a variação de tempo, ela perde quadros novos.
+- **Medição** (E2E `golive-fps`, quadros distintos/s no espectador):
+
+| Captura pedida | Conteúdo 60 fps | Conteúdo 120 fps, sem cena | Conteúdo 120 fps, com cena |
+|---|---|---|---|
+| 60 | 57,7 | 57,6 | 57,7 |
+| 65 | 58,7 | – | – |
+| 60 sem teto, ou teto 90 | 57,7–57,9 | – | – |
+| 120 | 59,5 | 58,9–59,2 | 59,1–59,4 |
+
+- **Decisão:** a captura passa a ser pedida no **dobro** do fps do perfil. O limite continua no envio (`maxFramerate`), que nunca passa do fps do perfil.
+- **Bateria completa depois da mudança** (textura pesada): 59,0–59,6 quadros distintos/s, sem e com cena, a 12 e a 20 Mb/s. Antes era 53,3–55,0.
+- **Carga:** a captura não passou de ~60 quadros por segundo, então não houve carga extra visível.
