@@ -114,7 +114,7 @@ export class ActivitiesService {
   }
 
   /** Título/canal pelo oEmbed público do YouTube (sem chave). Falha = segue sem título. */
-  private async oembed(videoId: string): Promise<{ title: string; author: string } | null> {
+  async oembed(videoId: string): Promise<{ title: string; author: string } | null> {
     if (!this.cfg.YOUTUBE_OEMBED) return null;
     try {
       const url = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`;

@@ -426,6 +426,38 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   await expect(B.page.locator('.tile-stream')).toHaveCount(0, { timeout: 15_000 });
 });
 
+test('Música na chamada: A abre e cola um link do YouTube Music, B ouve, fila e pausa valem para todos', async () => {
+  // processo com --mute-audio: toca mudo
+  await A.page.getByRole('button', { name: 'Atividades' }).click();
+  await A.page
+    .getByRole('dialog', { name: 'Atividades' })
+    .getByRole('button', { name: /Música/ })
+    .click();
+  const playerA = A.page.getByRole('region', { name: 'Música da chamada' });
+  await playerA.getByLabel(/Adicionar música/).fill('https://music.youtube.com/watch?v=jNQXAC9IVRw&si=x');
+  await playerA.getByRole('button', { name: 'Adicionar' }).click();
+  // A já ouve: player oficial visível no cartão
+  await expect(playerA.locator('.music-video iframe')).toBeVisible({ timeout: 15_000 });
+  // B vê o convite e entra
+  const pillB = B.page.locator('.music-pill');
+  await expect(pillB).toBeVisible({ timeout: 10_000 });
+  await pillB.getByRole('button', { name: 'Ouvir' }).click();
+  const playerB = B.page.getByRole('region', { name: 'Música da chamada' });
+  await expect(playerB.locator('.music-video iframe')).toBeVisible();
+  // A adiciona outra: a fila de B mostra 2
+  await playerA.getByLabel(/Adicionar música/).fill('https://youtu.be/M7lc1UVf-VE');
+  await playerA.getByRole('button', { name: 'Adicionar' }).click();
+  await expect(playerB.getByRole('button', { name: /Fila \(2\)/ })).toBeVisible({ timeout: 10_000 });
+  await A.page.screenshot({ path: shot('14b-musica') });
+  // B (não abriu a música) pausa para todos: A vê pausado
+  await playerB.getByRole('button', { name: 'Pausar para todos' }).click();
+  await expect(playerA.getByRole('button', { name: 'Tocar para todos' })).toBeVisible({ timeout: 10_000 });
+  // encerrar some para os dois
+  await playerA.getByRole('button', { name: 'Encerrar a música para todos' }).click();
+  await expect(playerA).toHaveCount(0);
+  await expect(B.page.locator('.music-player, .music-pill')).toHaveCount(0, { timeout: 10_000 });
+});
+
 test('Assistir juntos: A abre um vídeo por link, B entra, pausa sincroniza e encerrar some para os dois', async () => {
   // processo com --mute-audio: o vídeo toca mudo
   // botão "Atividades" abre o painel; o YouTube é uma das atividades
@@ -433,7 +465,7 @@ test('Assistir juntos: A abre um vídeo por link, B entra, pausa sincroniza e en
   const panel = A.page.getByRole('dialog', { name: 'Atividades' });
   await expect(panel).toBeVisible();
   await A.page.screenshot({ path: shot('14-atividades') });
-  await panel.getByRole('button', { name: /YouTube/ }).click();
+  await panel.getByRole('button', { name: /^YouTube/ }).click();
   const dialog = A.page.getByRole('dialog', { name: 'Assistir juntos' });
   await dialog.getByLabel(/Link/).fill('https://youtu.be/jNQXAC9IVRw');
   await dialog.getByRole('button', { name: 'Assistir juntos' }).click();

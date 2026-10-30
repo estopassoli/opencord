@@ -14,12 +14,14 @@ import {
   type Ack,
   type ClientCommandName,
   type ClientCommandResults,
+  type MusicControl,
 } from '@opencord/contracts';
 import type { Server } from 'socket.io';
 import { randomUUID } from 'node:crypto';
 import { TokenService } from '../auth/token.service.js';
 import { RedisService } from '../common/redis.service.js';
 import { ActivitiesService } from '../voice/activities.service.js';
+import { MusicService } from '../voice/music.service.js';
 import { MessagesService, type Target } from '../messages/messages.service.js';
 import { HEARTBEAT_INTERVAL_MS, PresenceService } from './presence.service.js';
 import { RealtimeService, type AppSocket } from './realtime.service.js';
@@ -63,6 +65,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     private readonly messages: MessagesService,
     private readonly redis: RedisService,
     private readonly activities: ActivitiesService,
+    private readonly music: MusicService,
   ) {}
 
   afterInit(io: Server) {
@@ -196,6 +199,22 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       case 'activity:stop': {
         const d = p as { channelId: string };
         return (await this.activities.stop(userId, d.channelId)) as R;
+      }
+      case 'music:get': {
+        const d = p as { channelId: string };
+        return (await this.music.get(userId, d.channelId)) as R;
+      }
+      case 'music:add': {
+        const d = p as { channelId: string; videoId: string };
+        return (await this.music.add(userId, d.channelId, d.videoId)) as R;
+      }
+      case 'music:control': {
+        const d = p as MusicControl;
+        return (await this.music.control(userId, d.channelId, d.action, d.positionSec, d.trackId)) as R;
+      }
+      case 'music:stop': {
+        const d = p as { channelId: string };
+        return (await this.music.stop(userId, d.channelId)) as R;
       }
       case 'sync:resume': {
         const d = p as { channels: { channelId: string; lastMessageId: string | null }[] };

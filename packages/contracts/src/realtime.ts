@@ -15,7 +15,7 @@ import {
   VoiceMemberState,
   UserPublic,
 } from './api.js';
-import { ActivityControl, type ActivityState, YouTubeVideoId } from './activities.js';
+import { ActivityControl, type ActivityState, MusicControl, type MusicState, YouTubeVideoId } from './activities.js';
 
 /** Versão do protocolo realtime; incrementar ao quebrar compatibilidade. */
 export const REALTIME_SCHEMA_VERSION = 1 as const;
@@ -51,6 +51,10 @@ export const ClientCommands = {
   'activity:youtube:start': z.object({ channelId: Id, videoId: YouTubeVideoId }),
   'activity:youtube:control': ActivityControl,
   'activity:stop': z.object({ channelId: Id }),
+  'music:get': z.object({ channelId: Id }),
+  'music:add': z.object({ channelId: Id, videoId: YouTubeVideoId }),
+  'music:control': MusicControl,
+  'music:stop': z.object({ channelId: Id }),
   'sync:resume': z.object({
     /** último eventId/seq visto por canal, para ressincronização por cursor */
     channels: z.array(z.object({ channelId: Id, lastMessageId: Id.nullable() })).max(500),
@@ -75,6 +79,10 @@ export interface ClientCommandResults {
   'activity:youtube:start': ActivityState;
   'activity:youtube:control': ActivityState;
   'activity:stop': null;
+  'music:get': MusicState | null;
+  'music:add': MusicState;
+  'music:control': MusicState;
+  'music:stop': null;
 }
 
 // ---------- Eventos servidor → cliente ----------
@@ -139,6 +147,9 @@ export interface ServerEvents {
   /** atividade da chamada começou ou mudou (vídeo, play/pausa/posição) */
   'activity:state': ActivityState;
   'activity:ended': { channelId: string; serverId: string };
+  /** música da chamada: fila, faixa atual, tocando/pausado e posição */
+  'music:state': MusicState;
+  'music:ended': { channelId: string; serverId: string };
   /** perfil público mudou (foto, apelido): enviado a quem compartilha servidor com a pessoa */
   'user:updated': z.infer<typeof UserPublic>;
 }

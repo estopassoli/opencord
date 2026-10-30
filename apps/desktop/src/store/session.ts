@@ -335,6 +335,14 @@ function wireRealtime(rt: RealtimeClient) {
       'activity:ended',
       (e) => void import('./activity').then(({ useActivity }) => useActivity.getState().ended(e.channelId)),
     );
+    // música da chamada: estado da chamada em que estou; das outras, só o indicador
+    rt.on('music:state', (s) => {
+      void Promise.all([import('./music'), import('./voice')]).then(([{ useMusic }, { useVoice }]) => {
+        if (useVoice.getState().machine.channelId === s.channelId) useMusic.getState().apply(s);
+        else useMusic.getState().observe(s);
+      });
+    });
+    rt.on('music:ended', (e) => void import('./music').then(({ useMusic }) => useMusic.getState().ended(e.channelId)));
     rt.on('voice:member:left', (e) => {
       const cur = d().voiceStates[e.userId];
       if (cur?.channelId === e.channelId) d().removeVoiceState(e.userId);

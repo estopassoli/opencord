@@ -67,3 +67,45 @@ export const YouTubeSearchResult = z.object({
   thumbnail: z.string().nullable(),
 });
 export type YouTubeSearchResult = z.infer<typeof YouTubeSearchResult>;
+
+// ---------- Música na chamada (ADR-0014) ----------
+/** Faixa da fila: um vídeo do YouTube / YouTube Music tocado no player oficial de cada pessoa. */
+export const MusicTrack = z.object({
+  id: Id,
+  videoId: YouTubeVideoId,
+  title: z.string().nullable(),
+  author: z.string().nullable(),
+  addedBy: Id,
+});
+export type MusicTrack = z.infer<typeof MusicTrack>;
+
+export const MUSIC_QUEUE_MAX = 100;
+
+export const MusicState = z.object({
+  channelId: Id,
+  serverId: Id,
+  queue: z.array(MusicTrack).max(MUSIC_QUEUE_MAX),
+  /** faixa atual na fila (-1 = fila terminou) */
+  index: z.number().int().min(-1),
+  playing: z.boolean(),
+  /** posição (s) da faixa atual no instante `updatedAt` */
+  positionSec: z.number().min(0),
+  updatedAt: z.number(),
+  serverNow: z.number(),
+  updatedBy: Id,
+  revision: z.number().int(),
+});
+export type MusicState = z.infer<typeof MusicState>;
+
+export const MusicControl = z.object({
+  channelId: Id,
+  action: z.enum(['play', 'pause', 'seek', 'next', 'prev', 'jump', 'remove', 'ended']),
+  positionSec: z
+    .number()
+    .min(0)
+    .max(24 * 60 * 60)
+    .optional(),
+  /** faixa alvo (jump/remove) ou a que terminou (ended: só avança se ainda for a atual) */
+  trackId: Id.optional(),
+});
+export type MusicControl = z.infer<typeof MusicControl>;
