@@ -14,8 +14,10 @@ type Stored = Omit<MusicState, 'serverNow'>;
 
 /**
  * Música na chamada (ADR-0014): fila compartilhada de vídeos do YouTube/YouTube Music. Como no "Assistir juntos",
- * o áudio não passa pelo OpenCord: cada pessoa toca no player oficial e aqui só se sincroniza o estado. Qualquer
- * pessoa na chamada adiciona e controla (decisão do mantenedor); o volume é de cada um, no app.
+ * o áudio não passa pelo OpenCord: cada pessoa toca no player oficial e aqui só se sincroniza o estado.
+ * DJ (revisão do mantenedor): quem começa a música é o DJ e só ele mexe na fila (tocar/pausar, pular, adicionar,
+ * tirar, encerrar). Quem ouve controla só o próprio player (volume, pausar para si) no app. Se o DJ sai da chamada,
+ * quem está nela há mais tempo assume (VoiceService); se todos saem, a música acaba.
  */
 @Injectable()
 export class MusicService {
@@ -38,7 +40,10 @@ export class MusicService {
 
   private async load(channelId: string): Promise<Stored | null> {
     const raw = await this.r.get(key(channelId));
-    return raw ? (JSON.parse(raw) as Stored) : null;
+    if (!raw) return null;
+    const s = JSON.parse(raw) as Stored;
+    // fila de antes do DJ existir (deploy no meio de uma música): quem mexeu por último vira o DJ
+    return s.djId ? s : { ...s, djId: s.updatedBy };
   }
 
   private async publish(s: Stored): Promise<MusicState> {
@@ -59,32 +64,63 @@ export class MusicService {
     return s ? { ...s, serverNow: Date.now() } : null;
   }
 
-  /** Adiciona à fila; com a fila parada (vazia ou terminada), a faixa nova começa a tocar. */
-  async add(userId: string, channelId: string, videoId: string): Promise<MusicState> {
+  private requireDj(s: Stored, userId: string) {
+    if (s.djId !== userId) throw forbidden('só o DJ controla a música');
+  }
+
+  /**
+   * Adiciona um vídeo, uma playlist inteira ou um vídeo dentro de playlist (a fila começa por ele). Com a fila
+   * parada (sem música ou terminada), quem adiciona vira o DJ e a primeira faixa nova começa a tocar; tocando,
+   * só o DJ adiciona.
+   */
+  async add(userId: string, channelId: string, src: { videoId?: string; playlistId?: string }): Promise<MusicState> {
     const serverId = await this.requireInCall(userId, channelId);
     const prev = await this.load(channelId);
-    if (prev && prev.queue.length >= MUSIC_QUEUE_MAX) throw new BadRequestException('a fila está cheia');
-    const meta = await this.activities.oembed(videoId);
-    const track: MusicTrack = {
-      id: randomUUID(),
-      videoId,
-      title: meta?.title ?? null,
-      author: meta?.author ?? null,
-      addedBy: userId,
-    };
-    const now = Date.now();
-    const queue = [...(prev?.queue ?? []), track];
     const idle = !prev || prev.index < 0 || prev.index >= prev.queue.length;
+    if (prev && !idle) this.requireDj(prev, userId);
+    const room = MUSIC_QUEUE_MAX - (idle ? 0 : (prev?.queue.length ?? 0));
+    if (room <= 0) throw new BadRequestException('a fila está cheia');
+    let found: { videoId: string; title: string | null; author: string | null }[] = [];
+    if (src.playlistId) {
+      try {
+        found = await this.activities.playlist(src.playlistId, room);
+      } catch (e) {
+        // mix automático / privada / sem chave: com um vídeo no link, segue só com ele
+        if (!src.videoId) throw e;
+      }
+      if (src.videoId) {
+        const i = found.findIndex((t) => t.videoId === src.videoId);
+        if (i > 0) found = [...found.slice(i), ...found.slice(0, i)];
+        else if (i < 0) found = [];
+      }
+    }
+    if (!found.length && src.videoId) {
+      const meta = await this.activities.oembed(src.videoId);
+      found = [{ videoId: src.videoId, title: meta?.title ?? null, author: meta?.author ?? null }];
+    }
+    if (!found.length) throw new BadRequestException('a playlist está vazia');
+    const tracks: MusicTrack[] = found.slice(0, room).map((t) => ({
+      id: randomUUID(),
+      videoId: t.videoId,
+      title: t.title || null,
+      author: t.author || null,
+      addedBy: userId,
+    }));
+    const now = Date.now();
+    // fila terminada: recomeça do zero (a fila velha já tocou)
+    const base = idle ? [] : (prev?.queue ?? []);
+    const queue = [...base, ...tracks];
     return this.publish({
       channelId,
       serverId,
       queue,
-      index: idle ? queue.length - 1 : prev.index,
+      index: idle ? 0 : prev.index,
       playing: idle ? true : prev.playing,
       positionSec: idle ? 0 : this.positionNow(prev, now),
       updatedAt: now,
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
+      djId: idle ? userId : prev.djId,
     });
   }
 
@@ -98,6 +134,8 @@ export class MusicService {
     await this.requireInCall(userId, channelId);
     const s = await this.load(channelId);
     if (!s) throw forbidden('nenhuma música tocando');
+    // fim da faixa vem do player de quem estiver ouvindo; o resto é do DJ
+    if (action !== 'ended') this.requireDj(s, userId);
     const now = Date.now();
     const pos = this.positionNow(s, now);
     const current = s.queue[s.index];
@@ -155,6 +193,8 @@ export class MusicService {
 
   async stop(userId: string, channelId: string): Promise<null> {
     const serverId = await this.requireInCall(userId, channelId);
+    const s = await this.load(channelId);
+    if (s) this.requireDj(s, userId);
     await this.end(channelId, serverId);
     return null;
   }

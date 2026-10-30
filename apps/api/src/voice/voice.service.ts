@@ -13,6 +13,7 @@ import {
   Permission,
   rooms,
   type ActivityState,
+  type MusicState,
   type VoiceJoinResponse,
   type VoiceMemberState,
 } from '@opencord/contracts';
@@ -159,9 +160,36 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     this.realtime.emit(rooms.server(s.serverId), 'activity:state', out);
   }
 
+  /** DJ da música saiu: quem está na chamada há mais tempo assume a fila (decisão do mantenedor, ADR-0014). */
+  private async handOffMusic(s: StoredState) {
+    const raw = await this.r.get(`music:${s.channelId}`);
+    if (!raw) return;
+    const m = JSON.parse(raw) as Omit<MusicState, 'serverNow'>;
+    if (m.djId !== s.userId) return;
+    let next: { userId: string; joinedAt: string } | null = null;
+    for (const uid of await this.r.smembers(`voice:channel:${s.channelId}`)) {
+      const o = await this.stateOf(uid);
+      if (o && o.channelId === s.channelId && (!next || o.joinedAt < next.joinedAt))
+        next = { userId: uid, joinedAt: o.joinedAt };
+    }
+    if (!next) return; // ninguém ficou: a chamada vazia encerra a música logo abaixo
+    const now = Date.now();
+    const out = {
+      ...m,
+      djId: next.userId,
+      positionSec: m.playing ? m.positionSec + (now - m.updatedAt) / 1000 : m.positionSec,
+      updatedAt: now,
+      updatedBy: next.userId,
+      revision: m.revision + 1,
+    };
+    await this.r.set(`music:${s.channelId}`, JSON.stringify(out), 'KEEPTTL');
+    this.realtime.emit(rooms.server(s.serverId), 'music:state', { ...out, serverNow: now });
+  }
+
   private async clear(s: StoredState) {
     await this.r.multi().del(`voice:user:${s.userId}`).srem(`voice:channel:${s.channelId}`, s.userId).exec();
     await this.handOffActivity(s);
+    await this.handOffMusic(s);
     if ((await this.r.scard(`voice:channel:${s.channelId}`)) === 0) {
       await this.r.srem('voice:channels', s.channelId);
       // chamada vazia: as atividades (Assistir juntos e música) acabam junto

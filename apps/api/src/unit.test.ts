@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TrackSource } from 'livekit-server-sdk';
 import { DEFAULT_EVERYONE_PERMISSIONS, Permission } from '@opencord/contracts';
 import { imageSize, sanitizeFilename } from './attachments/attachments.service.js';
@@ -6,6 +6,7 @@ import type { FastifyRequest } from 'fastify';
 import { clientIp } from './common/client-ip.js';
 import { loadConfig } from './config/config.js';
 import { sourcesFor } from './voice/voice.service.js';
+import { ActivitiesService } from './voice/activities.service.js';
 
 const baseEnv = {
   DATABASE_URL: 'postgresql://x',
@@ -103,5 +104,49 @@ describe('clientIp', () => {
       loadConfig({ ...baseEnv, CLIENT_IP_HEADER: ' CF-Connecting-IP ' } as NodeJS.ProcessEnv).CLIENT_IP_HEADER,
     ).toBe('cf-connecting-ip');
     expect(() => loadConfig({ ...baseEnv, CLIENT_IP_HEADER: 'x y' } as NodeJS.ProcessEnv)).toThrow(/CLIENT_IP_HEADER/);
+  });
+});
+
+describe('ActivitiesService.playlist (Data API, fetch simulado)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const svc = () =>
+    new ActivitiesService(
+      loadConfig({ ...baseEnv, YOUTUBE_API_KEY: 'k'.repeat(20) }),
+      null as never,
+      null as never,
+      null as never,
+    );
+  const item = (id: string, title: string, privacy = 'public') => ({
+    status: { privacyStatus: privacy },
+    snippet: { title, videoOwnerChannelTitle: 'Banda - Topic', resourceId: { videoId: id } },
+  });
+
+  it('segue as páginas, pula privados e respeita o máximo', async () => {
+    const pages = [
+      { nextPageToken: 'p2', items: [item('aaaaaaaaaaa', 'Um &amp; Dois'), item('bbbbbbbbbbb', 'x', 'private')] },
+      { items: [item('ccccccccccc', 'Três'), item('ddddddddddd', 'Quatro')] },
+    ];
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (u: URL) => {
+        urls.push(String(u));
+        return new Response(JSON.stringify(pages[urls.length - 1]), { status: 200 });
+      }),
+    );
+    const out = await svc().playlist('PLabcdefghijklmnop', 2);
+    expect(out).toEqual([
+      { videoId: 'aaaaaaaaaaa', title: 'Um & Dois', author: 'Banda' },
+      { videoId: 'ccccccccccc', title: 'Três', author: 'Banda' },
+    ]);
+    expect(urls[1]).toContain('pageToken=p2');
+  });
+
+  it('mix automático (404) vira erro claro', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 404 })),
+    );
+    await expect(svc().playlist('RDabcdefghijklmnop', 10)).rejects.toThrow(/mixes automáticos/);
   });
 });

@@ -20,6 +20,9 @@ interface MusicStore {
   open: boolean;
   /** player minimizado: só capa, nome e tempo (lembrado neste computador) */
   minimized: boolean;
+  /** pausado só para mim (quem ouve não controla o grupo); ao voltar, pula para onde o DJ está */
+  localPaused: boolean;
+  setLocalPaused(on: boolean): void;
   setMinimized(on: boolean): void;
   setOpen(on: boolean): void;
   apply(s: MusicState): void;
@@ -29,7 +32,7 @@ interface MusicStore {
   join(on: boolean): void;
   setVolume(v: number): void;
   load(channelId: string): Promise<void>;
-  add(channelId: string, videoId: string): Promise<boolean>;
+  add(channelId: string, src: { videoId?: string; playlistId?: string }): Promise<boolean>;
   control(action: MusicControl['action'], extra?: { positionSec?: number; trackId?: string }): Promise<void>;
   stop(): Promise<void>;
   expectedPosition(): number;
@@ -76,6 +79,10 @@ export const useMusic = create<MusicStore>()((set, get) => ({
   setOpen(on) {
     set({ open: on });
   },
+  localPaused: false,
+  setLocalPaused(on) {
+    set({ localPaused: on });
+  },
   observe(s) {
     set((st) => ({ channels: { ...st.channels, [s.channelId]: true } }));
   },
@@ -91,10 +98,10 @@ export const useMusic = create<MusicStore>()((set, get) => ({
       const { [channelId]: _gone, ...channels } = st.channels;
       return { channels };
     });
-    if (get().state?.channelId === channelId) set({ state: null, joined: false, open: false });
+    if (get().state?.channelId === channelId) set({ state: null, joined: false, open: false, localPaused: false });
   },
   reset() {
-    set({ state: null, joined: false, open: false });
+    set({ state: null, joined: false, open: false, localPaused: false });
   },
   join(on) {
     set({ joined: on });
@@ -116,10 +123,10 @@ export const useMusic = create<MusicStore>()((set, get) => ({
       /* sem música ou sem conexão */
     }
   },
-  async add(channelId, videoId) {
+  async add(channelId, src) {
     try {
-      get().apply(await cmd((rt) => rt.command('music:add', { channelId, videoId })));
-      set({ joined: true, open: false });
+      get().apply(await cmd((rt) => rt.command('music:add', { channelId, ...src })));
+      set({ joined: true, open: false, localPaused: false });
       return true;
     } catch (e) {
       useUi.getState().toast('error', `Não foi possível adicionar: ${describeError(e)}`);

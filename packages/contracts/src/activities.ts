@@ -30,6 +30,21 @@ export function parseYouTubeId(input: string): string | null {
   return id && YouTubeVideoId.safeParse(id).success ? id : null;
 }
 
+export const YouTubePlaylistId = z.string().regex(/^[A-Za-z0-9_-]{10,64}$/);
+
+/** Playlist num link do YouTube / YouTube Music (`list=`) → id da playlist. */
+export function parseYouTubePlaylistId(input: string): string | null {
+  let u: URL;
+  try {
+    const s = input.trim();
+    u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
+  } catch {
+    return null;
+  }
+  const id = u.searchParams.get('list');
+  return id && YouTubePlaylistId.safeParse(id).success ? id : null;
+}
+
 export const ActivityState = z.object({
   kind: z.literal('youtube'),
   channelId: Id,
@@ -94,6 +109,8 @@ export const MusicState = z.object({
   serverNow: z.number(),
   updatedBy: Id,
   revision: z.number().int(),
+  /** quem controla a fila (play/pausa, pular, adicionar, tirar, encerrar); quem ouve só controla o próprio player */
+  djId: Id,
 });
 export type MusicState = z.infer<typeof MusicState>;
 

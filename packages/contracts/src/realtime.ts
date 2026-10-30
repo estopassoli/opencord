@@ -17,7 +17,14 @@ import {
   VoiceMemberState,
   UserPublic,
 } from './api.js';
-import { ActivityControl, type ActivityState, MusicControl, type MusicState, YouTubeVideoId } from './activities.js';
+import {
+  ActivityControl,
+  type ActivityState,
+  MusicControl,
+  type MusicState,
+  YouTubePlaylistId,
+  YouTubeVideoId,
+} from './activities.js';
 
 /** Versão do protocolo realtime; incrementar ao quebrar compatibilidade. */
 export const REALTIME_SCHEMA_VERSION = 1 as const;
@@ -54,7 +61,10 @@ export const ClientCommands = {
   'activity:youtube:control': ActivityControl,
   'activity:stop': z.object({ channelId: Id }),
   'music:get': z.object({ channelId: Id }),
-  'music:add': z.object({ channelId: Id, videoId: YouTubeVideoId }),
+  /** um vídeo, uma playlist inteira ou os dois (link de vídeo dentro de playlist: começa por ele) */
+  'music:add': z
+    .object({ channelId: Id, videoId: YouTubeVideoId.optional(), playlistId: YouTubePlaylistId.optional() })
+    .refine((d) => d.videoId || d.playlistId, 'informe um vídeo ou uma playlist'),
   'music:control': MusicControl,
   'music:stop': z.object({ channelId: Id }),
   'sound:play': z.object({ channelId: Id, soundId: Id }),

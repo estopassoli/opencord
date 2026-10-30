@@ -4836,6 +4836,22 @@ section:first-child > .friends-panel-sep {
   align-items: center;
   gap: 4px;
 }
+/* quem é o DJ da música (só ele controla a fila) */
+.music-dj {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.music-queue-item:disabled {
+  cursor: default;
+}
 .music-foot .icon-btn {
   display: inline-flex;
   align-items: center;

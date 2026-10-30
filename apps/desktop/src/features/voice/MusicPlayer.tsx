@@ -1,17 +1,30 @@
 /**
  * Música na chamada (ADR-0014): fila compartilhada de músicas do YouTube / YouTube Music. Cada pessoa ouve no
  * player oficial do YouTube (visível, como exigem os termos), dentro de um player do OpenCord: capa, título,
- * barra de progresso, anterior/tocar/próxima, fila e volume. Qualquer pessoa na chamada adiciona e controla.
+ * barra de progresso, anterior/tocar/próxima, fila e volume. Quem começa a música é o DJ: só ele mexe na fila e no
+ * que toca para todos. Quem ouve controla só o próprio player: volume, pausar para si e voltar ao vivo.
  */
-import { parseYouTubeId, type MusicTrack } from '@opencord/contracts';
+import { parseYouTubeId, parseYouTubePlaylistId, type MusicTrack } from '@opencord/contracts';
 import { Avatar, Button, Icon, Slider, TextField } from '@opencord/ui';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useData } from '../../store/data';
 import { useMusic } from '../../store/music';
 import { useVoice } from '../../store/voice';
 import { fmt, thumb, useYouTubeFrame } from './WatchTogether';
 
 /** diferença tolerada entre o meu player e o grupo antes de pular para o ponto certo */
 const DRIFT_S = 2;
+
+/** sou o DJ da música desta chamada? */
+const useIsDj = () => {
+  const dj = useMusic((m) => m.state?.djId);
+  const me = useData((d) => d.me?.id);
+  return Boolean(dj && dj === me);
+};
+const useDjName = () => {
+  const dj = useMusic((m) => m.state?.djId);
+  return useVoice((v) => v.participants.find((p) => p.identity === dj)?.name ?? 'alguém');
+};
 
 /** Cartão flutuante no palco da chamada. */
 export function MusicPlayer() {
@@ -28,7 +41,9 @@ export function MusicPlayer() {
           <p className="small">
             <strong>Música na chamada</strong>
             <br />
-            <span className="muted">Cole um link do YouTube ou do YouTube Music; todos na chamada ouvem juntos.</span>
+            <span className="muted">
+              Cole o link de uma música ou de uma playlist do YouTube ou do YouTube Music. Quem começa vira o DJ.
+            </span>
           </p>
         </div>
         <AddTrack channelId={myCall} />
@@ -61,7 +76,11 @@ function MusicCard() {
   const s = useMusic((m) => m.state)!;
   const [showQueue, setShowQueue] = useState(false);
   const minimized = useMusic((m) => m.minimized);
+  const isDj = useIsDj();
+  const djName = useDjName();
   const track = s.queue[s.index];
+  // fila terminada: qualquer pessoa pode recomeçar (e vira o DJ)
+  const canAdd = isDj || !track;
   return (
     <section
       className="music-player"
@@ -73,10 +92,10 @@ function MusicCard() {
       ) : (
         <div className="music-empty">
           <Icon name="speaker" size={22} />
-          <p className="muted small">A fila acabou. Adicione uma música para continuar.</p>
+          <p className="muted small">A fila acabou. Adicione uma música ou playlist para continuar.</p>
         </div>
       )}
-      {!(minimized && track) && <AddTrack channelId={s.channelId} />}
+      {!(minimized && track) && canAdd && <AddTrack channelId={s.channelId} />}
       {!(minimized && track) && (
         <div className="music-foot">
           <button
@@ -97,6 +116,10 @@ function MusicCard() {
             <Icon name="menu" size={18} />
             <span className="small">{s.queue.length}</span>
           </button>
+          <span className="music-dj small" data-tip={isDj ? 'Você controla a fila' : `${djName} controla a fila`}>
+            <Icon name="crown" size={14} />
+            {isDj ? 'Você é o DJ' : `DJ: ${djName}`}
+          </span>
           <span className="spacer" />
           <button
             className="icon-btn"
@@ -106,14 +129,16 @@ function MusicCard() {
           >
             <Icon name="speaker-off" size={18} />
           </button>
-          <button
-            className="icon-btn"
-            aria-label="Encerrar a música para todos"
-            data-tip="Encerrar para todos"
-            onClick={() => void useMusic.getState().stop()}
-          >
-            <Icon name="close" size={18} />
-          </button>
+          {isDj && (
+            <button
+              className="icon-btn"
+              aria-label="Encerrar a música para todos"
+              data-tip="Encerrar para todos"
+              onClick={() => void useMusic.getState().stop()}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          )}
         </div>
       )}
       {showQueue && !(minimized && track) && <Queue />}
@@ -124,6 +149,8 @@ function MusicCard() {
 function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boolean }) {
   const s = useMusic((m) => m.state)!;
   const volume = useMusic((m) => m.volume);
+  const localPaused = useMusic((m) => m.localPaused);
+  const isDj = useIsDj();
   const { frame, src, info, ready, send } = useYouTubeFrame(track.videoId);
   const [scrub, setScrub] = useState<number | null>(null);
   const lastSeek = useRef(0);
@@ -142,6 +169,11 @@ function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boole
     const sync = () => {
       const cur = useMusic.getState().state;
       if (!cur) return;
+      // pausado só para mim: fica parado; ao voltar, o próprio laço pula para onde o grupo está
+      if (useMusic.getState().localPaused) {
+        if (info.state === 1) send('pauseVideo');
+        return;
+      }
       const want = useMusic.getState().expectedPosition();
       if (cur.playing && info.state !== 1 && info.state !== 3 && info.state !== 0) send('playVideo');
       if (!cur.playing && info.state === 1) send('pauseVideo');
@@ -155,7 +187,7 @@ function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boole
     sync();
     const t = setInterval(sync, 1000);
     return () => clearInterval(t);
-  }, [ready, info.state, info.currentTime, s.revision, send]);
+  }, [ready, info.state, info.currentTime, s.revision, localPaused, send]);
 
   useEffect(() => {
     if (ready) send('setVolume', [volume]);
@@ -197,7 +229,7 @@ function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boole
             <strong className="truncate">{track.title ?? 'Música do YouTube'}</strong>
             <span className="muted small">
               {fmt(position)} / {duration ? fmt(duration) : '–:––'}
-              {!playing && ' · pausada'}
+              {!playing ? ' · pausada' : localPaused ? ' · pausada só para você' : ''}
             </span>
           </span>
           <Icon name="maximize" size={16} />
@@ -227,7 +259,7 @@ function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boole
           max={Math.max(1, Math.floor(duration))}
           step={1}
           value={Math.floor(position)}
-          disabled={!duration}
+          disabled={!duration || !isDj}
           format={fmt}
           onChange={(v) => {
             // arrastar só envia o pulo ao grupo quando a pessoa para de mexer
@@ -242,25 +274,40 @@ function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boole
         <span className="small muted">{duration ? fmt(duration) : '–:––'}</span>
       </div>
       <div className="music-controls">
-        <button
-          className="icon-btn"
-          aria-label="Anterior"
-          data-tip="Anterior"
-          onClick={() => void control('prev', { positionSec: position })}
-        >
-          <Icon name="chevron-right" size={20} className="music-prev" />
-        </button>
-        <button
-          className="music-play"
-          aria-label={playing ? 'Pausar para todos' : 'Tocar para todos'}
-          data-tip={playing ? 'Pausar para todos' : 'Tocar para todos'}
-          onClick={() => void control(playing ? 'pause' : 'play', { positionSec: position })}
-        >
-          <Icon name={playing ? 'pause' : 'play'} size={22} active />
-        </button>
-        <button className="icon-btn" aria-label="Próxima" data-tip="Próxima" onClick={() => void control('next')}>
-          <Icon name="chevron-right" size={20} />
-        </button>
+        {isDj ? (
+          <>
+            <button
+              className="icon-btn"
+              aria-label="Anterior"
+              data-tip="Anterior"
+              onClick={() => void control('prev', { positionSec: position })}
+            >
+              <Icon name="chevron-right" size={20} className="music-prev" />
+            </button>
+            <button
+              className="music-play"
+              aria-label={playing ? 'Pausar para todos' : 'Tocar para todos'}
+              data-tip={playing ? 'Pausar para todos' : 'Tocar para todos'}
+              onClick={() => void control(playing ? 'pause' : 'play', { positionSec: position })}
+            >
+              <Icon name={playing ? 'pause' : 'play'} size={22} active />
+            </button>
+            <button className="icon-btn" aria-label="Próxima" data-tip="Próxima" onClick={() => void control('next')}>
+              <Icon name="chevron-right" size={20} />
+            </button>
+          </>
+        ) : (
+          // quem ouve: pausa só o próprio player; ao voltar, entra onde o DJ está
+          <button
+            className="music-play"
+            aria-label={localPaused ? 'Voltar ao vivo' : 'Pausar só para mim'}
+            data-tip={localPaused ? 'Voltar ao vivo (onde o DJ está)' : 'Pausar só para mim'}
+            disabled={!playing}
+            onClick={() => useMusic.getState().setLocalPaused(!localPaused)}
+          >
+            <Icon name={localPaused ? 'play' : 'pause'} size={22} active />
+          </button>
+        )}
         <div className="music-volume">
           <Slider
             label="Volume (só para você)"
@@ -283,11 +330,13 @@ function AddTrack({ channelId }: { channelId: string }) {
   const [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const id = parseYouTubeId(text);
-    if (!id) return setError('Cole um link do YouTube ou do YouTube Music.');
+    const videoId = parseYouTubeId(text);
+    const playlistId = parseYouTubePlaylistId(text);
+    if (!videoId && !playlistId) return setError('Cole um link do YouTube ou do YouTube Music.');
     setError(null);
     setBusy(true);
-    if (await useMusic.getState().add(channelId, id)) setText('');
+    const src = { ...(videoId ? { videoId } : {}), ...(playlistId ? { playlistId } : {}) };
+    if (await useMusic.getState().add(channelId, src)) setText('');
     setBusy(false);
   };
   return (
@@ -296,8 +345,8 @@ function AddTrack({ channelId }: { channelId: string }) {
         fieldClassName="music-add-field"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Link do YouTube ou YouTube Music"
-        aria-label="Adicionar música à fila (link do YouTube ou YouTube Music)"
+        placeholder="Link de música ou playlist do YouTube"
+        aria-label="Adicionar música ou playlist à fila (link do YouTube ou YouTube Music)"
         aria-invalid={error ? true : undefined}
       />
       <Button type="submit" size="sm" icon="plus" disabled={busy || !text.trim()}>
@@ -314,6 +363,7 @@ function AddTrack({ channelId }: { channelId: string }) {
 
 function Queue() {
   const s = useMusic((m) => m.state)!;
+  const isDj = useIsDj();
   const names = useVoice((v) => v.participants);
   const nameOf = (id: string) => names.find((p) => p.identity === id)?.name ?? 'alguém';
   return (
@@ -323,7 +373,8 @@ function Queue() {
           <button
             className="music-queue-item"
             aria-current={i === s.index ? 'true' : undefined}
-            aria-label={`Tocar ${t.title ?? 'música'}`}
+            aria-label={isDj ? `Tocar ${t.title ?? 'música'}` : (t.title ?? 'música')}
+            disabled={!isDj}
             onClick={() => void useMusic.getState().control('jump', { trackId: t.id })}
           >
             <img src={thumb(t.videoId)} alt="" draggable={false} />
@@ -334,14 +385,16 @@ function Queue() {
               </span>
             </span>
           </button>
-          <button
-            className="icon-btn"
-            aria-label={`Tirar ${t.title ?? 'música'} da fila`}
-            data-tip="Tirar da fila"
-            onClick={() => void useMusic.getState().control('remove', { trackId: t.id })}
-          >
-            <Icon name="trash" size={16} />
-          </button>
+          {isDj && (
+            <button
+              className="icon-btn"
+              aria-label={`Tirar ${t.title ?? 'música'} da fila`}
+              data-tip="Tirar da fila"
+              onClick={() => void useMusic.getState().control('remove', { trackId: t.id })}
+            >
+              <Icon name="trash" size={16} />
+            </button>
+          )}
         </li>
       ))}
     </ol>
