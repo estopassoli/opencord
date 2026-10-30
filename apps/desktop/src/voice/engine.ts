@@ -478,6 +478,14 @@ export class VoiceEngine {
   // ---------- câmera ----------
   async setCamera(on: boolean, deviceId: string | null) {
     if (!this.room) return;
+    if (!on) {
+      // setCameraEnabled(false) só silencia a trilha (continua publicada) e o webhook do LiveKit não avisa
+      // silêncio: a API seguia mostrando "câmera ligada". Despublicar gera track_unpublished e solta a câmera.
+      const track = this.room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+      if (track) await this.room.localParticipant.unpublishTrack(track, true);
+      this.emit();
+      return;
+    }
     await this.room.localParticipant.setCameraEnabled(
       on,
       on ? { ...(deviceId ? { deviceId } : {}), resolution: { width: 1280, height: 720, frameRate: 30 } } : undefined,

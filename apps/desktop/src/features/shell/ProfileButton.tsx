@@ -8,6 +8,7 @@ import { updateSettings } from '../../store/settings';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
+import { StreamPreviewCard, watchStream } from '../../components/StreamPreview';
 
 /** Conversa aberta agora (canal de texto ou DM), onde "Mencionar" insere a menção. */
 function currentChatKey(): TargetKey | null {
@@ -347,6 +348,18 @@ function ProfileCard({
             <Icon name="speaker" size={16} />
             <strong className="truncate">{voiceChannel.name}</strong>
           </div>
+          {voiceState?.streaming && !isMe && (
+            <StreamPreviewCard
+              userId={userId}
+              previewAt={voiceState.previewAt ?? null}
+              name={member?.nickname ?? user.displayName}
+              showName={false}
+              onWatch={() => {
+                void watchStream(serverId, voiceChannel.id, userId, myCall === voiceChannel.id);
+                onClose();
+              }}
+            />
+          )}
           <Button
             variant="secondary"
             onClick={() => {
