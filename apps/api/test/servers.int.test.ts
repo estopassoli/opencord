@@ -158,11 +158,18 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     expect(log?.actorId).toBe(alice.id);
   });
 
-  it('owner não pode sair; membro sai e perde acesso', async () => {
+  it('ninguém sai do servidor oficial; em privado o owner não sai e o membro sai e perde acesso', async () => {
     const { serverId, alice, owner } = await setup();
     expect((await http.req('POST', `/servers/${serverId}/leave`, { token: owner.token })).status).toBe(400);
-    expect((await http.req('POST', `/servers/${serverId}/leave`, { token: alice.token })).status).toBe(204);
-    expect((await http.req('GET', `/servers/${serverId}`, { token: alice.token })).status).toBe(404);
+    expect((await http.req('POST', `/servers/${serverId}/leave`, { token: alice.token })).status).toBe(400);
+    expect((await http.req('GET', `/servers/${serverId}`, { token: alice.token })).status).toBe(200);
+    const created = await http.req<ServerDetail>('POST', '/servers', { token: owner.token, body: { name: 'Amigos' } });
+    const sid = created.body.id;
+    const inv = await http.req<Invite>('POST', `/servers/${sid}/invites`, { token: owner.token });
+    expect((await http.req('POST', `/invites/${inv.body.code}`, { token: alice.token })).status).toBe(201);
+    expect((await http.req('POST', `/servers/${sid}/leave`, { token: owner.token })).status).toBe(400);
+    expect((await http.req('POST', `/servers/${sid}/leave`, { token: alice.token })).status).toBe(204);
+    expect((await http.req('GET', `/servers/${sid}`, { token: alice.token })).status).toBe(404);
   });
 
   it('servidores abertos: diretório lista todos e entrar não exige convite', async () => {

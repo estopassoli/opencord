@@ -78,8 +78,9 @@ describe('Socket.IO: autenticação e chat em tempo real (F2.4)', () => {
     const bad = await command(sa, 'chat:message:create', { requestId: 'x', channelId, body: 'a' });
     expect(bad).toMatchObject({ ok: false, error: { code: 'invalid' } });
     const other = await bootstrapOwner(http);
-    // servidores são abertos: alice sai do outro servidor para que o canal seja de fato alheio
-    await http.req('POST', `/servers/${other.serverId}/leave`, { token: alice.token });
+    // o outro servidor também é oficial (alice entrou nele ao se cadastrar) e do oficial não se sai pela API:
+    // remove direto no banco para que o canal seja de fato alheio
+    await prisma.serverMember.deleteMany({ where: { serverId: other.serverId, userId: alice.id } });
     const foreign = await prisma.channel.findFirstOrThrow({ where: { serverId: other.serverId, kind: 'text' } });
     const denied = await command(sa, 'chat:message:create', { requestId: rid(), channelId: foreign.id, body: 'a' });
     expect(denied).toMatchObject({ ok: false, error: { code: '404' } });
