@@ -17,8 +17,14 @@ export function roleColorOf(detail: ServerDetail, m: Member | undefined): string
 /** Servidor oficial: quem criou o OpenCord (o dono do oficial) ganha o selo de verificado. */
 export const isCreator = (detail: ServerDetail, userId: string) => detail.official && detail.ownerId === userId;
 
-/** Selo "criador" com o ícone de verificado (lista de membros e voz). */
-export function CreatorTag() {
+/** Selo "criador" com o ícone de verificado; `iconOnly` (voz) mostra só o ícone. */
+export function CreatorTag({ iconOnly }: { iconOnly?: boolean }) {
+  if (iconOnly)
+    return (
+      <span className="creator-badge" data-tip="Criador do OpenCord">
+        <Icon name="verified" size={16} active label="Criador do OpenCord (verificado)" />
+      </span>
+    );
   return (
     <span className="creator-tag" data-tip="Criador do OpenCord">
       <Icon name="verified" size={14} active label="Verificado" />
