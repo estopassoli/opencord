@@ -18,6 +18,7 @@ import { sceneMenu } from './sceneMenu';
 import { useActivity } from '../../store/activity';
 import { useIsMobile } from '../../lib/media';
 import { bestTileWidth } from './tileLayout';
+import { memberMenu } from '../shell/ProfileButton';
 
 const NO_MEMBERS: Member[] = [];
 
@@ -403,9 +404,18 @@ function Video({ identity, source, mirrored }: { identity: string; source: 'came
 }
 
 function ParticipantTile({ p, compact }: { p: ParticipantView; compact?: boolean }) {
+  // botão direito no card: o mesmo menu da pessoa na lista do canal (perfil, volume, silenciar, moderação)
+  const menu = (e: React.MouseEvent) => {
+    const serverId = useVoice.getState().serverId ?? undefined;
+    const items = memberMenu(p.identity, serverId, () =>
+      useUi.getState().openModal({ kind: 'profile', userId: p.identity }),
+    );
+    if (items.length) openContextMenu(e, items, p.name);
+  };
   return (
     <div
       className="tile"
+      onContextMenu={menu}
       data-speaking={p.speaking ? 'true' : undefined}
       data-compact={compact ? 'true' : undefined}
       style={p.hasCamera ? undefined : ({ '--tile-bg': avatarColor(p.identity) } as React.CSSProperties)}

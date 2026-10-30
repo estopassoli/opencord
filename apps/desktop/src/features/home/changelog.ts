@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '19:00',
+    kind: 'novo',
+    icon: 'speaker',
+    title: 'Arraste pessoas para outra chamada',
+    body: 'Quem tem a permissão "Mover membros" pode arrastar alguém da lista de um canal de voz e soltar em outro: a pessoa troca de chamada na hora e recebe um aviso de quem a moveu. Também dá para fazer pelo botão direito, em "Mover para". Você também pode se arrastar para outro canal.',
+  },
+  {
+    date: '2026-10-30',
+    time: '18:30',
+    kind: 'melhoria',
+    icon: 'users',
+    title: 'Menu da pessoa direto no card da chamada',
+    body: 'Clique com o botão direito no card de alguém na chamada para abrir o mesmo menu da lista do canal: perfil, mensagem, volume e silenciar só para você, cargos e as opções de moderação.',
+  },
+  {
+    date: '2026-10-30',
     time: '18:00',
     kind: 'novo',
     icon: 'spotlight',
