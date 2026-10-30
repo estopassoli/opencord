@@ -18,6 +18,9 @@ interface MusicStore {
   volume: number;
   /** player aberto sem fila ainda (aberto pelo card "Música" em Atividades) */
   open: boolean;
+  /** player minimizado: só capa, nome e tempo (lembrado neste computador) */
+  minimized: boolean;
+  setMinimized(on: boolean): void;
   setOpen(on: boolean): void;
   apply(s: MusicState): void;
   observe(s: MusicState): void;
@@ -55,6 +58,21 @@ export const useMusic = create<MusicStore>()((set, get) => ({
   joined: false,
   volume: readVolume(),
   open: false,
+  minimized: (() => {
+    try {
+      return localStorage.getItem('oc-music-min') === '1';
+    } catch {
+      return false;
+    }
+  })(),
+  setMinimized(on) {
+    try {
+      localStorage.setItem('oc-music-min', on ? '1' : '0');
+    } catch {
+      /* vale só nesta sessão */
+    }
+    set({ minimized: on });
+  },
   setOpen(on) {
     set({ open: on });
   },

@@ -5017,3 +5017,47 @@ section:first-child > .friends-panel-sep {
     transition: none;
   }
 }
+
+/* player de música minimizado: só capa, nome e tempo; o player oficial continua tocando fora de vista */
+.music-player[data-minimized='true'] {
+  width: min(320px, calc(100% - 32px));
+  padding: 6px;
+}
+.music-video[data-hidden='true'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.music-mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  text-align: left;
+  min-width: 0;
+}
+.music-mini:hover,
+.music-mini:focus-visible {
+  background: var(--interactive);
+}
+.music-mini > img {
+  width: 64px;
+  height: 36px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.music-mini-names {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}

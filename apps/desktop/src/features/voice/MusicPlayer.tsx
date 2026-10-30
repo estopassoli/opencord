@@ -60,53 +60,68 @@ export function MusicPlayer() {
 function MusicCard() {
   const s = useMusic((m) => m.state)!;
   const [showQueue, setShowQueue] = useState(false);
+  const minimized = useMusic((m) => m.minimized);
   const track = s.queue[s.index];
   return (
-    <section className="music-player" aria-label="Música da chamada">
+    <section
+      className="music-player"
+      data-minimized={minimized && track ? 'true' : undefined}
+      aria-label="Música da chamada"
+    >
       {track ? (
-        <SyncedTrack key={track.id} track={track} />
+        <SyncedTrack key={track.id} track={track} minimized={minimized} />
       ) : (
         <div className="music-empty">
           <Icon name="speaker" size={22} />
           <p className="muted small">A fila acabou. Adicione uma música para continuar.</p>
         </div>
       )}
-      <AddTrack channelId={s.channelId} />
-      <div className="music-foot">
-        <button
-          className="icon-btn"
-          aria-expanded={showQueue}
-          aria-label={`Fila (${s.queue.length})`}
-          data-tip="Fila"
-          onClick={() => setShowQueue((v) => !v)}
-        >
-          <Icon name="menu" size={18} />
-          <span className="small">{s.queue.length}</span>
-        </button>
-        <span className="spacer" />
-        <button
-          className="icon-btn"
-          aria-label="Parar de ouvir (só você)"
-          data-tip="Parar de ouvir (só você)"
-          onClick={() => useMusic.getState().join(false)}
-        >
-          <Icon name="speaker-off" size={18} />
-        </button>
-        <button
-          className="icon-btn"
-          aria-label="Encerrar a música para todos"
-          data-tip="Encerrar para todos"
-          onClick={() => void useMusic.getState().stop()}
-        >
-          <Icon name="close" size={18} />
-        </button>
-      </div>
-      {showQueue && <Queue />}
+      {!(minimized && track) && <AddTrack channelId={s.channelId} />}
+      {!(minimized && track) && (
+        <div className="music-foot">
+          <button
+            className="icon-btn"
+            aria-label="Minimizar o player"
+            data-tip="Minimizar"
+            onClick={() => useMusic.getState().setMinimized(true)}
+          >
+            <Icon name="minimize" size={18} />
+          </button>
+          <button
+            className="icon-btn"
+            aria-expanded={showQueue}
+            aria-label={`Fila (${s.queue.length})`}
+            data-tip="Fila"
+            onClick={() => setShowQueue((v) => !v)}
+          >
+            <Icon name="menu" size={18} />
+            <span className="small">{s.queue.length}</span>
+          </button>
+          <span className="spacer" />
+          <button
+            className="icon-btn"
+            aria-label="Parar de ouvir (só você)"
+            data-tip="Parar de ouvir (só você)"
+            onClick={() => useMusic.getState().join(false)}
+          >
+            <Icon name="speaker-off" size={18} />
+          </button>
+          <button
+            className="icon-btn"
+            aria-label="Encerrar a música para todos"
+            data-tip="Encerrar para todos"
+            onClick={() => void useMusic.getState().stop()}
+          >
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+      )}
+      {showQueue && !(minimized && track) && <Queue />}
     </section>
   );
 }
 
-function SyncedTrack({ track }: { track: MusicTrack }) {
+function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boolean }) {
   const s = useMusic((m) => m.state)!;
   const volume = useMusic((m) => m.volume);
   const { frame, src, info, ready, send } = useYouTubeFrame(track.videoId);
@@ -158,6 +173,37 @@ function SyncedTrack({ track }: { track: MusicTrack }) {
   const position = scrub ?? Math.min(duration || Infinity, useMusic.getState().expectedPosition());
   const playing = s.playing;
   const control = useMusic.getState().control;
+  // minimizado (decisão do mantenedor, ADR-0014): o player oficial segue tocando fora de vista; só capa, nome e tempo
+  if (minimized)
+    return (
+      <>
+        <div className="music-video" data-hidden="true" aria-hidden="true">
+          <iframe
+            ref={frame}
+            src={src}
+            title={track.title ?? 'Música do YouTube'}
+            allow="autoplay; encrypted-media"
+            referrerPolicy="strict-origin-when-cross-origin"
+            tabIndex={-1}
+          />
+        </div>
+        <button
+          className="music-mini"
+          aria-label={`Expandir o player: ${track.title ?? 'música'}, ${fmt(position)} de ${duration ? fmt(duration) : '–'}`}
+          onClick={() => useMusic.getState().setMinimized(false)}
+        >
+          <img src={thumb(track.videoId)} alt="" draggable={false} />
+          <span className="music-mini-names">
+            <strong className="truncate">{track.title ?? 'Música do YouTube'}</strong>
+            <span className="muted small">
+              {fmt(position)} / {duration ? fmt(duration) : '–:––'}
+              {!playing && ' · pausada'}
+            </span>
+          </span>
+          <Icon name="maximize" size={16} />
+        </button>
+      </>
+    );
   return (
     <>
       <div className="music-video">
