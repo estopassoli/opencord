@@ -102,14 +102,14 @@ export function SoundboardPanel({ anchor, onClose }: { anchor: DOMRect; onClose:
       )}
       <div className="soundboard-body">
         {!q && frequent.length > 0 && (
-          <section aria-label="Utilizados com frequência">
+          <section role="region" aria-label="Utilizados com frequência">
             <h3 className="soundboard-title">
               <Icon name="refresh" size={14} /> Utilizados com frequência
             </h3>
             <SoundGrid sounds={frequent} onPlay={play} />
           </section>
         )}
-        <section aria-label={server?.name ?? 'Servidor'}>
+        <section role="region" aria-label={server?.name ?? 'Servidor'}>
           <h3 className="soundboard-title">{server?.name ?? 'Servidor'}</h3>
           <SoundGrid sounds={filtered} onPlay={play} onAdd={q ? undefined : () => setAdding(true)} />
           {q && filtered.length === 0 && <p className="muted small">Nenhum som com esse nome.</p>}
