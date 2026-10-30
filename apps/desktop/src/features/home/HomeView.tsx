@@ -2,12 +2,14 @@ import { MobileNavButton } from '../../components/MobileNavButton';
 import type { Conversation, UserPublic } from '@opencord/contracts';
 import { Avatar, Button, Icon, STATUS_LABEL, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
-import { useData } from '../../store/data';
+import { useData, type FriendWithPresence as Friend } from '../../store/data';
 import { api, describeError, loadFriends } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useActivity } from '../../store/activity';
 import { useVoice } from '../../store/voice';
 import { ServerIcon } from '../../components/ServerIcon';
+import { openContextMenu, useContextMenu, type MenuEntry } from '../../components/ContextMenu';
+import { Tooltip } from '../../components/Tooltip';
 
 type Tab = 'online' | 'all' | 'pending' | 'blocked' | 'add';
 const TABS: [Tab, string][] = [
@@ -60,9 +62,9 @@ export function HomeView() {
           ? friends.filter((f) => f.status !== 'accepted')
           : [];
   const q = query.trim().toLowerCase();
-  const list = q
-    ? base.filter((f) => f.user.displayName.toLowerCase().includes(q) || f.user.username.includes(q))
-    : base;
+  const list = (
+    q ? base.filter((f) => f.user.displayName.toLowerCase().includes(q) || f.user.username.includes(q)) : base
+  ).toSorted((a, b) => a.user.displayName.localeCompare(b.user.displayName, 'pt-BR', { sensitivity: 'base' }));
   const titles: Record<Exclude<Tab, 'add' | 'blocked'>, string> = {
     online: 'Online',
     all: 'Todos os amigos',
@@ -149,76 +151,9 @@ export function HomeView() {
                           : 'Adicione amigos pelo apelido.'}
                     </li>
                   )}
-                  {list.map((f) => {
-                    const st = presence[f.user.id] ?? f.presence ?? 'offline';
-                    return (
-                      <li key={f.user.id} className="friend-row" tabIndex={-1}>
-                        <Avatar
-                          id={f.user.id}
-                          name={f.user.displayName}
-                          size={32}
-                          status={f.status === 'accepted' ? st : undefined}
-                        />
-                        <div className="friend-names">
-                          <strong>{f.user.displayName}</strong>
-                          <span className="muted small">
-                            {f.status === 'accepted'
-                              ? STATUS_LABEL[st]
-                              : f.status === 'pending_incoming'
-                                ? 'Pedido de amizade recebido'
-                                : 'Pedido de amizade enviado'}
-                          </span>
-                        </div>
-                        <div className="friend-actions">
-                          {f.status === 'accepted' && (
-                            <button
-                              className="round-btn"
-                              aria-label={`Mensagem para ${f.user.displayName}`}
-                              title="Mensagem"
-                              onClick={() => void openDm(f.user.id)}
-                            >
-                              <Icon name="chat" size={18} />
-                            </button>
-                          )}
-                          {f.status === 'pending_incoming' && (
-                            <button
-                              className="round-btn round-ok"
-                              aria-label={`Aceitar ${f.user.displayName}`}
-                              title="Aceitar"
-                              onClick={() =>
-                                act(api().request('POST', `/friends/${f.user.id}/accept`), 'Pedido aceito.')
-                              }
-                            >
-                              <Icon name="check" size={18} />
-                            </button>
-                          )}
-                          <button
-                            className="round-btn round-danger"
-                            aria-label={
-                              f.status === 'accepted' ? `Remover ${f.user.displayName}` : 'Recusar ou cancelar pedido'
-                            }
-                            title={f.status === 'accepted' ? 'Remover amizade' : 'Recusar'}
-                            onClick={() => act(api().request('DELETE', `/friends/${f.user.id}`))}
-                          >
-                            <Icon name="close" size={18} />
-                          </button>
-                          <button
-                            className="round-btn round-danger"
-                            aria-label={`Bloquear ${f.user.displayName}`}
-                            title="Bloquear"
-                            onClick={() => {
-                              if (
-                                confirm(`Bloquear ${f.user.displayName}? Vocês não poderão trocar mensagens diretas.`)
-                              )
-                                act(api().request('PUT', `/blocks/${f.user.id}`), 'Usuário bloqueado.');
-                            }}
-                          >
-                            <Icon name="block" size={18} />
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
+                  {list.map((f) => (
+                    <FriendRow key={f.user.id} f={f} act={act} openDm={openDm} />
+                  ))}
                 </ul>
               )}
             </>
@@ -227,6 +162,128 @@ export function HomeView() {
       </section>
       <ActivityColumn />
     </div>
+  );
+}
+
+/** Linha de amigo: clique abre a conversa; status em texto (ou o canal de voz); ações em Mensagem e "⋮". */
+function FriendRow({
+  f,
+  act,
+  openDm,
+}: {
+  f: Friend;
+  act: (p: Promise<unknown>, ok?: string) => void;
+  openDm: (userId: string) => Promise<void>;
+}) {
+  const st = useData((s) => s.presence[f.user.id] ?? f.presence ?? 'offline');
+  const voice = useData((s) => s.voiceStates[f.user.id]);
+  const channel = useData((s) =>
+    voice ? s.details[voice.serverId]?.channels.find((c) => c.id === voice.channelId)?.name : undefined,
+  );
+  const accepted = f.status === 'accepted';
+  const name = f.user.displayName;
+  const menu: MenuEntry[] = accepted
+    ? [
+        { label: 'Enviar mensagem', icon: 'chat', onSelect: () => void openDm(f.user.id) },
+        'separator',
+        {
+          label: 'Remover amizade',
+          icon: 'user-minus',
+          danger: true,
+          onSelect: () => {
+            if (confirm(`Remover ${name} dos seus amigos?`))
+              act(api().request('DELETE', `/friends/${f.user.id}`), 'Amizade removida.');
+          },
+        },
+        {
+          label: 'Bloquear',
+          icon: 'block',
+          danger: true,
+          onSelect: () => {
+            if (confirm(`Bloquear ${name}? Vocês não poderão trocar mensagens diretas.`))
+              act(api().request('PUT', `/blocks/${f.user.id}`), 'Usuário bloqueado.');
+          },
+        },
+      ]
+    : [];
+  const sub = !accepted ? (
+    f.status === 'pending_incoming' ? (
+      'Pedido de amizade recebido'
+    ) : (
+      'Pedido de amizade enviado'
+    )
+  ) : voice ? (
+    <span className="friend-voice">
+      <Icon name={voice.streaming ? 'screen' : 'speaker'} size={14} />
+      {voice.streaming ? 'Transmitindo' : 'Em voz'}
+      {channel ? ` · ${channel}` : ''}
+    </span>
+  ) : (
+    STATUS_LABEL[st]
+  );
+  return (
+    <li
+      className="friend-row"
+      data-clickable={accepted ? 'true' : undefined}
+      onClick={accepted ? () => void openDm(f.user.id) : undefined}
+      onContextMenu={accepted ? (e) => openContextMenu(e, menu, `Opções de ${name}`) : undefined}
+    >
+      <Avatar id={f.user.id} name={name} size={36} status={accepted ? st : undefined} />
+      <div className="friend-names">
+        <span className="friend-title">
+          <strong className="truncate">{name}</strong>
+          <span className="friend-username truncate">@{f.user.username}</span>
+        </span>
+        <span className="friend-sub truncate">{sub}</span>
+      </div>
+      {/* as ações não disparam o clique da linha */}
+      <div className="friend-actions" onClick={(e) => e.stopPropagation()}>
+        {accepted && (
+          <Tooltip label="Mensagem">
+            <button className="round-btn" aria-label={`Mensagem para ${name}`} onClick={() => void openDm(f.user.id)}>
+              <Icon name="chat" size={18} />
+            </button>
+          </Tooltip>
+        )}
+        {accepted && (
+          <Tooltip label="Mais">
+            <button
+              className="round-btn"
+              aria-label={`Mais opções de ${name}`}
+              aria-haspopup="menu"
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                useContextMenu.getState().show(r.right - 200, r.bottom + 4, menu, `Opções de ${name}`);
+              }}
+            >
+              <Icon name="more" size={18} />
+            </button>
+          </Tooltip>
+        )}
+        {f.status === 'pending_incoming' && (
+          <Tooltip label="Aceitar">
+            <button
+              className="round-btn round-ok"
+              aria-label={`Aceitar ${name}`}
+              onClick={() => act(api().request('POST', `/friends/${f.user.id}/accept`), 'Pedido aceito.')}
+            >
+              <Icon name="check" size={18} />
+            </button>
+          </Tooltip>
+        )}
+        {!accepted && (
+          <Tooltip label={f.status === 'pending_incoming' ? 'Recusar' : 'Cancelar pedido'}>
+            <button
+              className="round-btn round-danger"
+              aria-label="Recusar ou cancelar pedido"
+              onClick={() => act(api().request('DELETE', `/friends/${f.user.id}`))}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          </Tooltip>
+        )}
+      </div>
+    </li>
   );
 }
 

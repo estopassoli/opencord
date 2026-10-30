@@ -326,7 +326,7 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   // prévia (ADR-0012): antes de assistir, B vê a miniatura enviada por A pela sala do LiveKit
   const preview = B.page.locator('.tile-stream .stream-preview');
   await expect(preview).toBeVisible({ timeout: 15_000 });
-  expect(await preview.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(320);
+  expect(await preview.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(640);
   await B.page.screenshot({ path: shot('12a-golive-preview') });
   await B.page.getByRole('button', { name: 'Assistir', exact: true }).click();
   const v = B.page.locator('.tile-stream video');
