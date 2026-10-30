@@ -2,6 +2,7 @@ import { Icon } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import type { UpdateStatus } from '../../../electron/shared/ipc';
 import { Tooltip } from '../../components/Tooltip';
+import { ServerIcon } from '../../components/ServerIcon';
 import { bridge } from '../../lib/bridge';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
@@ -77,6 +78,8 @@ export function TitleBar() {
     return s.details[view.serverId]?.name ?? 'OpenCord';
   });
   const icon = view.kind === 'home' ? (view.tab === 'news' ? 'bell' : 'users') : view.kind === 'dm' ? 'chat' : 'server';
+  // no servidor, a imagem dele (ou a marca do oficial / iniciais) no lugar do ícone genérico
+  const server = useData((s) => (view.kind === 'server' ? s.servers.find((x) => x.id === view.serverId) : undefined));
   return (
     <header className="titlebar">
       <div className="titlebar-nav">
@@ -98,7 +101,13 @@ export function TitleBar() {
         </button>
       </div>
       <div className="titlebar-title">
-        <Icon name={icon} size={14} />
+        {server ? (
+          <span className="titlebar-server" aria-hidden="true">
+            <ServerIcon name={server.name} iconKey={server.iconKey} official={server.official} />
+          </span>
+        ) : (
+          <Icon name={icon} size={14} />
+        )}
         <span className="truncate">{text}</span>
       </div>
       <div className="titlebar-actions">

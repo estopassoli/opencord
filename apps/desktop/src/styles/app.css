@@ -4261,3 +4261,71 @@ section:first-child > .friends-panel-sep {
     transition: none;
   }
 }
+.titlebar-server {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 30%;
+  overflow: hidden;
+  background: var(--brand);
+  color: var(--text-on-brand);
+  font-size: 0.5rem;
+  font-weight: 700;
+}
+.titlebar-server .server-icon-img,
+.titlebar-server .brand-mark-sm {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+/* recorte de imagem (foto de perfil / servidor) */
+.cropper {
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+}
+.cropper > .oc-field,
+.cropper > * :where(.oc-slider) {
+  width: 320px;
+}
+.cropper-view {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: #000;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.cropper-view:active {
+  cursor: grabbing;
+}
+.cropper-view:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.cropper-view > img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  pointer-events: none;
+}
+/* escurece o que fica fora da forma final */
+.cropper-mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: 0 0 0 999px rgb(0 0 0 / 0.55);
+  border: 2px solid rgb(255 255 255 / 0.85);
+}
+.cropper-view[data-shape='circle'] .cropper-mask {
+  inset: 0;
+  border-radius: 50%;
+}
+.cropper-view[data-shape='rounded'] .cropper-mask {
+  border-radius: 28%;
+}

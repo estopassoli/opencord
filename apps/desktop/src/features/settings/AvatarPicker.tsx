@@ -4,7 +4,8 @@ import { useRef, useState } from 'react';
 import { useData } from '../../store/data';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
-import { squareImage } from '../../lib/images';
+import { keepsAnimation, squareImage } from '../../lib/images';
+import { ImageCropDialog } from '../../components/ImageCropDialog';
 
 /** Foto de perfil em Configurações → Minha conta. */
 export function AvatarPicker({ me }: { me: Me }) {
@@ -14,20 +15,28 @@ export function AvatarPicker({ me }: { me: Me }) {
 
   const apply = (updated: Me) => useData.getState().patchUser(updated);
 
-  const pick = async (file: File | undefined) => {
-    if (!file) return;
-    setError(null);
-    if (!file.type.startsWith('image/')) return setError('Escolha uma imagem (PNG, JPEG, WebP ou GIF).');
+  const [cropping, setCropping] = useState<File | null>(null);
+
+  const send = async (file: File) => {
     setBusy(true);
     try {
-      apply(await api().upload<Me>('/me/avatar', await squareImage(file, 256, 'avatar')));
+      apply(await api().upload<Me>('/me/avatar', file));
       useUi.getState().toast('success', 'Foto de perfil atualizada.');
     } catch (e) {
       setError(describeError(e));
     } finally {
       setBusy(false);
-      if (input.current) input.current.value = '';
     }
+  };
+
+  const pick = async (file: File | undefined) => {
+    if (input.current) input.current.value = '';
+    if (!file) return;
+    setError(null);
+    if (!file.type.startsWith('image/')) return setError('Escolha uma imagem (PNG, JPEG, WebP ou GIF).');
+    // GIF animado pequeno vai como está (recortar perderia a animação); o resto passa pelo recorte
+    if (await keepsAnimation(file)) return void send(file);
+    setCropping(file);
   };
 
   const remove = async () => {
@@ -71,6 +80,19 @@ export function AvatarPicker({ me }: { me: Me }) {
         aria-label="Escolher foto de perfil"
         onChange={(e) => void pick(e.target.files?.[0])}
       />
+      {cropping && (
+        <ImageCropDialog
+          file={cropping}
+          title="Recortar foto de perfil"
+          shape="circle"
+          onCancel={() => setCropping(null)}
+          onConfirm={(crop) => {
+            const f = cropping;
+            setCropping(null);
+            void squareImage(f, 256, 'avatar', crop).then(send, (e: unknown) => setError(describeError(e)));
+          }}
+        />
+      )}
     </div>
   );
 }

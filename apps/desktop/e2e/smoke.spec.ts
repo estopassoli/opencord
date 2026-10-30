@@ -293,6 +293,10 @@ test('foto de perfil: envia em Minha conta, aparece no painel do usuário e pode
   const dialog = page.locator('dialog[open]');
   await dialog.getByRole('tab', { name: 'Minha conta' }).click();
   await dialog.getByLabel('Escolher foto de perfil').setInputFiles(path.join(__dirname, 'fixtures', 'avatar-azul.png'));
+  // recorte antes de enviar: arrasta um pouco, aplica
+  const crop = page.getByRole('dialog', { name: 'Recortar foto de perfil' });
+  await expect(crop.locator('.cropper-view img')).toBeVisible();
+  await crop.getByRole('button', { name: 'Aplicar' }).click();
   await expect(dialog.getByRole('button', { name: 'Trocar foto' })).toBeVisible({ timeout: 10_000 });
   const img = dialog.locator('.avatar-picker .oc-avatar-img');
   await expect(img).toHaveAttribute('src', /\/avatars\/[0-9a-f-]{36}-(webp|png)$/);

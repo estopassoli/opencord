@@ -2,7 +2,8 @@ import type { ServerDetail, ServerSummary } from '@opencord/contracts';
 import { Button } from '@opencord/ui';
 import { useRef, useState } from 'react';
 import { ServerIcon } from '../../components/ServerIcon';
-import { squareImage } from '../../lib/images';
+import { keepsAnimation, squareImage } from '../../lib/images';
+import { ImageCropDialog } from '../../components/ImageCropDialog';
 import { useData } from '../../store/data';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
@@ -18,20 +19,28 @@ export function ServerIconPicker({ detail }: { detail: ServerDetail }) {
       details: st.details[s.id] ? { ...st.details, [s.id]: { ...st.details[s.id]!, ...s } } : st.details,
     }));
 
-  const pick = async (file: File | undefined) => {
-    if (!file) return;
-    setError(null);
-    if (!file.type.startsWith('image/')) return setError('Escolha uma imagem (PNG, JPEG, WebP ou GIF).');
+  const [cropping, setCropping] = useState<File | null>(null);
+
+  const send = async (file: File) => {
     setBusy(true);
     try {
-      apply(await api().upload<ServerSummary>(`/servers/${detail.id}/icon`, await squareImage(file, 256, 'servidor')));
+      apply(await api().upload<ServerSummary>(`/servers/${detail.id}/icon`, file));
       useUi.getState().toast('success', 'Imagem do servidor atualizada.');
     } catch (e) {
       setError(describeError(e));
     } finally {
       setBusy(false);
-      if (input.current) input.current.value = '';
     }
+  };
+
+  const pick = async (file: File | undefined) => {
+    if (input.current) input.current.value = '';
+    if (!file) return;
+    setError(null);
+    if (!file.type.startsWith('image/')) return setError('Escolha uma imagem (PNG, JPEG, WebP ou GIF).');
+    // GIF animado pequeno vai como está (recortar perderia a animação); o resto passa pelo recorte
+    if (await keepsAnimation(file)) return void send(file);
+    setCropping(file);
   };
 
   const remove = async () => {
@@ -77,6 +86,19 @@ export function ServerIconPicker({ detail }: { detail: ServerDetail }) {
         aria-label="Escolher imagem do servidor"
         onChange={(e) => void pick(e.target.files?.[0])}
       />
+      {cropping && (
+        <ImageCropDialog
+          file={cropping}
+          title="Recortar imagem do servidor"
+          shape="rounded"
+          onCancel={() => setCropping(null)}
+          onConfirm={(crop) => {
+            const f = cropping;
+            setCropping(null);
+            void squareImage(f, 256, 'servidor', crop).then(send, (e: unknown) => setError(describeError(e)));
+          }}
+        />
+      )}
     </div>
   );
 }
