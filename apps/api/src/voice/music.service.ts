@@ -83,7 +83,10 @@ export class MusicService {
     let found: { videoId: string; title: string | null; author: string | null }[] = [];
     if (src.playlistId) {
       try {
-        found = await this.activities.playlist(src.playlistId, room);
+        // mix automático ("RD…") não existe na Data API: lido da página (não oficial, ADR-0014)
+        found = src.playlistId.startsWith('RD')
+          ? await this.activities.mix(src.playlistId, src.videoId, room)
+          : await this.activities.playlist(src.playlistId, room);
       } catch (e) {
         // mix automático / privada / sem chave: com um vídeo no link, segue só com ele
         if (!src.videoId) throw e;

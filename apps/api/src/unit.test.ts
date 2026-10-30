@@ -6,7 +6,7 @@ import type { FastifyRequest } from 'fastify';
 import { clientIp } from './common/client-ip.js';
 import { loadConfig } from './config/config.js';
 import { sourcesFor } from './voice/voice.service.js';
-import { ActivitiesService } from './voice/activities.service.js';
+import { ActivitiesService, parseMix } from './voice/activities.service.js';
 
 const baseEnv = {
   DATABASE_URL: 'postgresql://x',
@@ -148,5 +148,30 @@ describe('ActivitiesService.playlist (Data API, fetch simulado)', () => {
       vi.fn(async () => new Response('{}', { status: 404 })),
     );
     await expect(svc().playlist('RDabcdefghijklmnop', 10)).rejects.toThrow(/mixes automáticos/);
+  });
+});
+
+describe('parseMix (mix automático lido da página, não oficial)', () => {
+  const page = (data: unknown) => `<html><script>var ytInitialData = ${JSON.stringify(data)};</script></html>`;
+  const r = (videoId: string, title: string, by: string) => ({
+    playlistPanelVideoRenderer: {
+      videoId,
+      title: { simpleText: title },
+      shortBylineText: { runs: [{ text: by }] },
+    },
+  });
+  it('tira as faixas em ordem, sem repetir, até o máximo', () => {
+    const html = page({
+      contents: { panel: { contents: [r('aaaaaaaaaaa', 'Um', 'Banda - Topic'), r('aaaaaaaaaaa', 'Um', 'x')] } },
+      other: [r('bbbbbbbbbbb', 'Dois', 'Outra'), r('ccccccccccc', 'Três', 'Outra')],
+    });
+    expect(parseMix(html, 2)).toEqual([
+      { videoId: 'aaaaaaaaaaa', title: 'Um', author: 'Banda' },
+      { videoId: 'bbbbbbbbbbb', title: 'Dois', author: 'Outra' },
+    ]);
+  });
+  it('página diferente do esperado vira erro claro', () => {
+    expect(() => parseMix('<html>nada</html>', 10)).toThrow(/mudou a página/);
+    expect(() => parseMix(page({ contents: {} }), 10)).toThrow(/mudou a página/);
   });
 });

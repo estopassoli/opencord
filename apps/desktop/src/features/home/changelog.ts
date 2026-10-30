@@ -32,7 +32,7 @@ export const CHANGELOG: ChangeEntry[] = [
     kind: 'melhoria',
     icon: 'crown',
     title: 'Música com DJ e playlists inteiras',
-    body: 'Quem começa a música na chamada vira o DJ, e só ele adiciona, pula, pausa ou encerra para todos. Quem ouve controla só o próprio player: volume, pausar só para si e voltar ao vivo. Se o DJ sai, quem está há mais tempo na chamada assume; se todos saem, a música para. Links de playlist do YouTube e do YouTube Music agora trazem a playlist inteira (até 100 músicas). Os mixes automáticos do YouTube ainda não podem ser importados.',
+    body: 'Quem começa a música na chamada vira o DJ, e só ele adiciona, pula, pausa ou encerra para todos. Quem ouve controla só o próprio player: volume, pausar só para si e voltar ao vivo. Se o DJ sai, quem está há mais tempo na chamada assume; se todos saem, a música para. Links de playlist do YouTube e do YouTube Music agora trazem a playlist inteira (até 100 músicas). Os mixes automáticos do YouTube (Mix e Rádio) também entram, com cerca de 25 músicas.',
   },
   {
     date: '2026-10-30',

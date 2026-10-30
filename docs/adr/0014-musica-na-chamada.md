@@ -43,6 +43,10 @@ Pedido do mantenedor: "quando EU coloco a musica EU sou o DJ, entao o correto é
 - **Música tocando no deploy:** um estado sem `djId` considera DJ quem mexeu por último (`updatedBy`).
 - **Playlists:** `music:add` aceita `playlistId` (o `list=` do link). As faixas vêm da Data API v3 (`playlistItems`, 1 unidade de cota por página de 50), com título e artista, até o limite da fila (100).
   - Num link de vídeo dentro de playlist, a fila começa por aquele vídeo.
-  - Mixes automáticos ("RD…", "Rádio" do YouTube Music) e playlists privadas não existem na API. Sem a chave do YouTube, também não dá para importar. Nesses casos entra só o vídeo do link; um link só de playlist é recusado com a explicação.
+  - **Mixes automáticos ("RD…", Mix/Rádio do YouTube e YouTube Music)** não existem na Data API. Por decisão do mantenedor ("Import mixes by reading the page"), o servidor lê a página do vídeo no mix e tira a lista do `ytInitialData` (`playlistPanelVideoRenderer`, cerca de 25 faixas).
+    - **Não é oficial:** os termos do YouTube desencorajam acesso automatizado, e uma mudança na página quebra a leitura sem aviso.
+    - Usa só os cabeçalhos de um navegador comum e o aceite de cookies, sem login.
+    - Falhou: entra só o vídeo do link. Playlists normais continuam pela API oficial.
+  - Playlists privadas e servidores sem a chave do YouTube: entra só o vídeo do link; um link só de playlist é recusado com a explicação.
 - Sem migração: o estado da música vive no Redis.
 
