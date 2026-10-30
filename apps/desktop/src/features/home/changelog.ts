@@ -28,6 +28,14 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
+    time: '04:00',
+    kind: 'novo',
+    icon: 'shield',
+    title: 'Super admin e servidores verificados',
+    body: 'Quem administra o OpenCord vê todos os servidores em Explorar servidores e pode entrar em qualquer um para moderar (a entrada fica registrada e aparece para os membros). Servidores também podem ganhar o selo de verificado sem deixar de ser privados.',
+  },
+  {
+    date: '2026-10-30',
     time: '03:50',
     kind: 'correção',
     icon: 'server',

@@ -63,7 +63,9 @@ export function InviteEmbed({ code }: { code: string }) {
         <span className="invite-embed-kicker">Convite para um servidor</span>
         <strong className="truncate">
           {p.server.name}
-          {p.server.official && <Icon name="verified" size={14} active label="Servidor oficial verificado" />}
+          {(p.server.official || p.server.verified) && (
+            <Icon name="verified" size={14} active label="Servidor verificado" />
+          )}
         </strong>
         <span className="muted small">
           {p.memberCount} {p.memberCount === 1 ? 'membro' : 'membros'}

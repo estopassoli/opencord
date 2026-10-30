@@ -44,6 +44,8 @@ const uuid = anyUuid;
 const Nickname = z.object({ nickname: z.string().trim().max(64).nullable() });
 const KickBody = z.object({ reason: z.string().max(512).optional() }).default({});
 
+const VerifiedBody = z.object({ verified: z.boolean() });
+
 @Controller()
 export class ServersController {
   constructor(
@@ -107,6 +109,26 @@ export class ServersController {
   @Post('servers/:id/join')
   join(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
     return this.servers.join(id, u.userId);
+  }
+
+  /** Super admin (ADR-0013): todos os servidores da instância; 404 para quem não é admin. */
+  @Get('admin/servers')
+  adminServers(@CurrentUser() u: AuthUser) {
+    return this.servers.adminServers(u.userId);
+  }
+
+  @Post('admin/servers/:id/join')
+  adminJoin(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    return this.servers.adminJoin(id, u.userId);
+  }
+
+  @Put('admin/servers/:id/verified')
+  adminSetVerified(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(VerifiedBody)) body: z.infer<typeof VerifiedBody>,
+  ) {
+    return this.servers.adminSetVerified(id, u.userId, body.verified);
   }
 
   /** Convite para o servidor (qualquer membro); devolve o mesmo código a cada pedido da mesma pessoa. */

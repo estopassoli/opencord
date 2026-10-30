@@ -11,6 +11,7 @@ import {
   type Role,
   type ServerDetail,
   type ServerDirectoryEntry,
+  type AdminServerEntry,
   type Invite,
   type InvitePreview,
   type ServerSummary,
@@ -232,6 +233,59 @@ export class ServersService {
     return this.detail(serverId, userId);
   }
 
+  // ---------- Super admin da instância (ADR-0013) ----------
+  private async requireInstanceAdmin(userId: string) {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { isInstanceAdmin: true } });
+    if (!u?.isInstanceAdmin) throw notFound('recurso');
+  }
+
+  /** Todos os servidores da instância, com dono, membros e se o admin já participa. */
+  async adminServers(userId: string): Promise<AdminServerEntry[]> {
+    await this.requireInstanceAdmin(userId);
+    const rows = await this.prisma.server.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        iconKey: true,
+        official: true,
+        verified: true,
+        owner: { select: { id: true, displayName: true } },
+        _count: { select: { members: true } },
+        members: { where: { userId }, select: { userId: true } },
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      iconKey: r.iconKey,
+      official: r.official,
+      verified: r.verified,
+      owner: r.owner,
+      memberCount: r._count.members,
+      joined: r.members.length > 0,
+    }));
+  }
+
+  /** O admin entra em qualquer servidor; fica registrado na auditoria e todos veem a entrada. */
+  async adminJoin(serverId: string, userId: string): Promise<ServerDetail> {
+    await this.requireInstanceAdmin(userId);
+    const server = await this.prisma.server.findUnique({ where: { id: serverId }, select: { id: true } });
+    if (!server) throw notFound('servidor');
+    return this.addMember(serverId, userId, { via: 'instance-admin' });
+  }
+
+  /** Selo de verificado (só o selo; privacidade e entrada não mudam). Avisa os membros na hora. */
+  async adminSetVerified(serverId: string, userId: string, verified: boolean): Promise<ServerSummary> {
+    await this.requireInstanceAdmin(userId);
+    const exists = await this.prisma.server.findUnique({ where: { id: serverId }, select: { id: true } });
+    if (!exists) throw notFound('servidor');
+    const server = await this.prisma.server.update({ where: { id: serverId }, data: { verified } });
+    await this.audit.log(userId, serverId, 'server.verified', serverId, { verified });
+    this.realtime.emit(rooms.server(serverId), 'server:updated', serverSummary(server));
+    return serverSummary(server);
+  }
+
   // ---------- Convites ----------
   /** Convite do membro para o servidor: reaproveita o que ele já criou (um link por pessoa e servidor). */
   async createInvite(serverId: string, userId: string): Promise<Invite> {
@@ -257,7 +311,7 @@ export class ServersService {
     const s = inv.server;
     return {
       code: inv.code,
-      server: { id: s.id, name: s.name, iconKey: s.iconKey, official: s.official },
+      server: { id: s.id, name: s.name, iconKey: s.iconKey, official: s.official, verified: s.verified },
       memberCount,
       joined: Boolean(me),
     };

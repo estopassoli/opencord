@@ -58,6 +58,7 @@ export class AuthService {
     avatarKey: string | null;
     passwordHash: string | null;
     createdAt: Date;
+    isInstanceAdmin?: boolean;
   }): Me {
     return {
       id: u.id,
@@ -67,6 +68,7 @@ export class AuthService {
       avatarKey: u.avatarKey,
       hasAccount: u.passwordHash !== null,
       createdAt: u.createdAt.toISOString(),
+      isInstanceAdmin: u.isInstanceAdmin ?? false,
     };
   }
 

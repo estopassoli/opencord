@@ -103,7 +103,13 @@ export type UserPublic = z.infer<typeof UserPublic>;
 
 /** `email` é null para quem entrou só com apelido (sem login por senha). */
 /** `hasAccount=false`: entrou só com apelido (identidade presa ao dispositivo). */
-export const Me = UserPublic.extend({ email: z.email().nullable(), hasAccount: z.boolean(), createdAt: IsoDate });
+export const Me = UserPublic.extend({
+  email: z.email().nullable(),
+  hasAccount: z.boolean(),
+  createdAt: IsoDate,
+  /** super admin da instância (ADR-0013) */
+  isInstanceAdmin: z.boolean().optional(),
+});
 export type Me = z.infer<typeof Me>;
 
 export const AuthResponse = z.object({ user: Me, tokens: TokenPair });
@@ -167,6 +173,8 @@ export const ServerSummary = z.object({
   ownerId: Id,
   /** Servidor oficial da instância: aberto a todos e com selo de verificado. */
   official: z.boolean(),
+  /** Selo de verificado marcado pelo super admin (o servidor continua privado). */
+  verified: z.boolean().optional(),
 });
 export type ServerSummary = z.infer<typeof ServerSummary>;
 
@@ -266,6 +274,14 @@ export const ServerDirectoryEntry = z.object({
 });
 export type ServerDirectoryEntry = z.infer<typeof ServerDirectoryEntry>;
 
+/** Lista do super admin (ADR-0013): todos os servidores da instância. */
+export const AdminServerEntry = ServerDirectoryEntry.extend({
+  official: z.boolean(),
+  verified: z.boolean(),
+  owner: z.object({ id: Id, displayName: z.string() }),
+});
+export type AdminServerEntry = z.infer<typeof AdminServerEntry>;
+
 /** Código de convite: 10 caracteres alfanuméricos. Aceita também o link inteiro (o código é o final). */
 export const INVITE_CODE = /^[A-Za-z0-9]{10}$/;
 export const Invite = z.object({
@@ -277,7 +293,13 @@ export const Invite = z.object({
 export type Invite = z.infer<typeof Invite>;
 export const InvitePreview = z.object({
   code: z.string(),
-  server: z.object({ id: Id, name: z.string(), iconKey: z.string().nullable(), official: z.boolean() }),
+  server: z.object({
+    id: Id,
+    name: z.string(),
+    iconKey: z.string().nullable(),
+    official: z.boolean(),
+    verified: z.boolean().optional(),
+  }),
   memberCount: z.number().int(),
   joined: z.boolean(),
 });

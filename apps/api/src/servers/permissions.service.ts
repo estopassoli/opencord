@@ -45,7 +45,10 @@ export class PermissionsService {
         id: true,
         ownerId: true,
         roles: { select: { id: true, permissions: true, position: true, isEveryone: true } },
-        members: { where: { userId }, select: { roles: { select: { roleId: true } } } },
+        members: {
+          where: { userId },
+          select: { roles: { select: { roleId: true } }, user: { select: { isInstanceAdmin: true } } },
+        },
       },
     });
     const member = server?.members[0];
@@ -53,9 +56,12 @@ export class PermissionsService {
     const everyone = server.roles.find((r) => r.isEveryone);
     if (!everyone) throw new Error(`servidor ${serverId} sem cargo @everyone`);
     const memberRoleIds = member.roles.map((r) => r.roleId);
+    // super admin da instância (ADR-0013): depois de entrar (auditado), permissões e hierarquia de dono.
+    // Ações exclusivas do dono real (excluir/transferir) continuam checando `ownerId`.
+    const admin = member.user.isInstanceAdmin;
     const ctx: PermissionContext = {
       userId,
-      ownerId: server.ownerId,
+      ownerId: admin ? userId : server.ownerId,
       everyoneRoleId: everyone.id,
       rolePermissions: new Map(server.roles.map((r) => [r.id, r.permissions])),
       memberRoleIds,
@@ -66,7 +72,7 @@ export class PermissionsService {
       ownerId: server.ownerId,
       ctx,
       base: computeBasePermissions(ctx),
-      topPosition: userId === server.ownerId ? Number.POSITIVE_INFINITY : Math.max(0, ...positions),
+      topPosition: userId === server.ownerId || admin ? Number.POSITIVE_INFINITY : Math.max(0, ...positions),
     };
   }
 

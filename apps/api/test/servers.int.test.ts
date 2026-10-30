@@ -2,6 +2,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
   Permission,
   type Channel,
+  type AdminServerEntry,
   type Invite,
   type InvitePreview,
   type Role,
@@ -268,5 +269,51 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     const r = await http.req<unknown[]>('GET', `/servers/${serverId}/audit-log`, { token: owner.token });
     expect(r.status).toBe(200);
     expect(r.body.length).toBeGreaterThan(0);
+  });
+
+  it('super admin: vê todos os servidores, entra (auditado) e tem permissões de dono; quem não é admin recebe 404', async () => {
+    const { alice } = await setup();
+    const priv = await http.req<ServerDetail>('POST', '/servers', { token: alice.token, body: { name: 'Secreto' } });
+    const boss = await register(http);
+    expect((await http.req('GET', '/admin/servers', { token: boss.token })).status).toBe(404);
+    expect((await http.req('POST', `/admin/servers/${priv.body.id}/join`, { token: boss.token })).status).toBe(404);
+    await prisma.user.update({ where: { id: boss.id }, data: { isInstanceAdmin: true } });
+    const list = await http.req<AdminServerEntry[]>('GET', '/admin/servers', { token: boss.token });
+    expect(list.body.find((x) => x.id === priv.body.id)).toMatchObject({ joined: false, owner: { id: alice.id } });
+    // antes de entrar, nada de acesso escondido
+    expect((await http.req('GET', `/servers/${priv.body.id}`, { token: boss.token })).status).toBe(404);
+    const joined = await http.req<ServerDetail>('POST', `/admin/servers/${priv.body.id}/join`, { token: boss.token });
+    expect(joined.status).toBe(201);
+    const log = await prisma.auditLog.findFirst({
+      where: { serverId: priv.body.id, action: 'member.join', actorId: boss.id },
+    });
+    expect(log?.metadata).toMatchObject({ via: 'instance-admin' });
+    // permissões de dono dentro do servidor (ex.: criar canal), mas excluir continua só com o dono real
+    const ch = await http.req('POST', `/servers/${priv.body.id}/channels`, {
+      token: boss.token,
+      body: { name: 'moderacao', kind: 'text' },
+    });
+    expect(ch.status).toBe(201);
+    expect((await http.req('DELETE', `/servers/${priv.body.id}`, { token: boss.token })).status).toBe(403);
+    // selo de verificado: só o selo; o servidor continua privado e fora do diretório
+    expect(
+      (
+        await http.req('PUT', `/admin/servers/${priv.body.id}/verified`, {
+          token: alice.token,
+          body: { verified: true },
+        })
+      ).status,
+    ).toBe(404);
+    const v = await http.req<{ verified: boolean; official: boolean }>(
+      'PUT',
+      `/admin/servers/${priv.body.id}/verified`,
+      {
+        token: boss.token,
+        body: { verified: true },
+      },
+    );
+    expect(v.body).toMatchObject({ verified: true, official: false });
+    const dir = await http.req<ServerDirectoryEntry[]>('GET', '/servers/directory', { token: alice.token });
+    expect(dir.body.map((d) => d.id)).not.toContain(priv.body.id);
   });
 });
