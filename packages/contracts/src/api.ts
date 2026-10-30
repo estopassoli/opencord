@@ -568,3 +568,26 @@ export const UPLOAD_ALLOWED_MIME = [
   'text/plain',
 ] as const;
 export const UploadResponse = z.object({ attachment: Attachment });
+
+// ---------- Efeitos sonoros (ADR-0016) ----------
+export const SOUND_MAX_BYTES = 1024 * 1024;
+export const SOUND_MAX_MS = 10_000;
+export const SOUNDS_PER_SERVER = 48;
+export const SoundEffect = z.object({
+  id: Id,
+  serverId: Id,
+  name: z.string(),
+  emoji: z.string().nullable(),
+  volume: z.number().min(0).max(1),
+  durationMs: z.number().int(),
+  createdBy: UserPublic,
+  createdAt: IsoDate,
+});
+export type SoundEffect = z.infer<typeof SoundEffect>;
+/** Campos do envio (multipart, junto com o arquivo). */
+export const SoundEffectUpload = z.object({
+  name: z.string().trim().min(1).max(32),
+  emoji: z.string().trim().max(16).optional(),
+  volume: z.coerce.number().min(0).max(1).default(1),
+  durationMs: z.coerce.number().int().min(100).max(SOUND_MAX_MS),
+});

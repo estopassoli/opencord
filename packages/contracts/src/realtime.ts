@@ -55,6 +55,7 @@ export const ClientCommands = {
   'music:add': z.object({ channelId: Id, videoId: YouTubeVideoId }),
   'music:control': MusicControl,
   'music:stop': z.object({ channelId: Id }),
+  'sound:play': z.object({ channelId: Id, soundId: Id }),
   'sync:resume': z.object({
     /** último eventId/seq visto por canal, para ressincronização por cursor */
     channels: z.array(z.object({ channelId: Id, lastMessageId: Id.nullable() })).max(500),
@@ -83,6 +84,7 @@ export interface ClientCommandResults {
   'music:add': MusicState;
   'music:control': MusicState;
   'music:stop': null;
+  'sound:play': null;
 }
 
 // ---------- Eventos servidor → cliente ----------
@@ -150,6 +152,10 @@ export interface ServerEvents {
   /** música da chamada: fila, faixa atual, tocando/pausado e posição */
   'music:state': MusicState;
   'music:ended': { channelId: string; serverId: string };
+  /** alguém tocou um efeito sonoro na chamada: quem está nela toca no próprio app */
+  'sound:played': { channelId: string; serverId: string; soundId: string; userId: string };
+  /** lista de efeitos do servidor mudou (envio/remoção) */
+  'sound:list:changed': { serverId: string };
   /** perfil público mudou (foto, apelido): enviado a quem compartilha servidor com a pessoa */
   'user:updated': z.infer<typeof UserPublic>;
 }

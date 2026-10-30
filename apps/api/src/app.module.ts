@@ -12,6 +12,8 @@ import { AuditService } from './audit/audit.service.js';
 import { AttachmentsController } from './attachments/attachments.controller.js';
 import { AttachmentsService } from './attachments/attachments.service.js';
 import { StorageService } from './attachments/storage.service.js';
+import { SoundsController } from './sounds/sounds.controller.js';
+import { SoundsService } from './sounds/sounds.service.js';
 import { DownloadsController } from './downloads/downloads.controller.js';
 import { HealthController } from './health/health.controller.js';
 import { MessagesController } from './messages/messages.controller.js';
@@ -39,6 +41,7 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
+        SoundsController,
         HealthController,
         DownloadsController,
         AuthController,
@@ -69,6 +72,7 @@ export class AppModule {
         PresenceService,
         RealtimeGateway,
         StorageService,
+        SoundsService,
         AttachmentsService,
         MessagesService,
         SocialService,

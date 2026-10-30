@@ -19,9 +19,10 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { Section, TabbedLayout, type TabDef } from '../settings/SettingsModal';
 import '../settings/settings.css';
+import { SoundsTab } from '../voice/Soundboard';
 import { ServerIconPicker } from './ServerIconPicker';
 
-type ServerTab = 'overview' | 'roles' | 'members' | 'channels' | 'audit';
+type ServerTab = 'overview' | 'roles' | 'members' | 'channels' | 'sounds' | 'audit';
 
 const PERMISSION_LABELS: Record<PermissionName, string> = {
   VIEW_CHANNEL: 'Ver canais',
@@ -80,6 +81,8 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
     if (hasPermission(p, Permission.MANAGE_ROLES)) list.push({ id: 'roles', label: 'Cargos' });
     list.push({ id: 'members', label: 'Membros' });
     if (hasPermission(p, Permission.MANAGE_CHANNELS)) list.push({ id: 'channels', label: 'Canais' });
+    // qualquer membro envia efeitos sonoros (ADR-0016)
+    list.push({ id: 'sounds', label: 'Efeitos sonoros' });
     if (hasPermission(p, Permission.VIEW_AUDIT_LOG)) list.push({ id: 'audit', label: 'Registro de auditoria' });
     return list;
   }, [detail]);
@@ -102,6 +105,13 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
         {active === 'roles' && <RolesTab detail={detail} />}
         {active === 'members' && <MembersTab detail={detail} myId={me.id} />}
         {active === 'channels' && <ChannelsTab detail={detail} />}
+        {active === 'sounds' && (
+          <SoundsTab
+            serverId={detail.id}
+            myId={me.id}
+            canManage={hasPermission(detail.myPermissions, Permission.MANAGE_SERVER)}
+          />
+        )}
         {active === 'audit' && <AuditTab detail={detail} />}
       </TabbedLayout>
     </Dialog>

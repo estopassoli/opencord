@@ -12,6 +12,7 @@ import { isInCall, useVoice, type ParticipantView } from '../../store/voice';
 import { closeStreamWindow, openStreamWindow } from './popout';
 import { ActivitiesPanel, ActivityTile } from './WatchTogether';
 import { MusicPlayer } from './MusicPlayer';
+import { SoundboardPanel } from './Soundboard';
 import { useActivity } from '../../store/activity';
 import { useIsMobile } from '../../lib/media';
 import { bestTileWidth } from './tileLayout';
@@ -613,6 +614,7 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
   const live = v.streamStatus === 'live';
   const activityOn = useActivity((s) => s.state !== null);
   const [panel, setPanel] = useState(false);
+  const [soundAnchor, setSoundAnchor] = useState<DOMRect | null>(null);
   const menu = (e: React.MouseEvent, kind: 'audioinput' | 'audiooutput') => {
     const target = e.currentTarget as HTMLElement;
     const r = target.getBoundingClientRect();
@@ -623,6 +625,7 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
   return (
     <>
       {panel && <ActivitiesPanel onClose={() => setPanel(false)} />}
+      {soundAnchor && <SoundboardPanel anchor={soundAnchor} onClose={() => setSoundAnchor(null)} />}
       <div className="call-controls" role="toolbar" aria-label="Controles da chamada">
         <div className="call-group">
           <Tooltip label={v.selfMute ? 'Ativar microfone' : 'Silenciar microfone'}>
@@ -670,6 +673,19 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
               onClick={() => setPanel((o) => !o)}
             >
               <Icon name="activities" />
+            </button>
+          </Tooltip>
+          <Tooltip label="Efeitos sonoros">
+            <button
+              className="call-btn soundboard-btn"
+              aria-label="Efeitos sonoros"
+              aria-haspopup="dialog"
+              aria-expanded={Boolean(soundAnchor)}
+              onClick={(e) =>
+                setSoundAnchor(soundAnchor ? null : (e.currentTarget as HTMLElement).getBoundingClientRect())
+              }
+            >
+              <Icon name="emoji" />
             </button>
           </Tooltip>
           <Tooltip label={live ? 'Parar transmissão' : 'Transmitir tela'}>

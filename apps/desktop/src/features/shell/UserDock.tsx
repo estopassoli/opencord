@@ -8,6 +8,7 @@ import { api } from '../../store/session';
 import { updateSettings } from '../../store/settings';
 import { useUi } from '../../store/ui';
 import { isInCall, useVoice } from '../../store/voice';
+import { SoundboardPanel } from '../voice/Soundboard';
 import { deviceMenu } from '../voice/devices';
 
 const STATUSES: Exclude<PresenceStatus, 'offline'>[] = ['online', 'idle', 'dnd', 'invisible'];
@@ -33,6 +34,7 @@ function openDevices(e: React.MouseEvent, kind: 'audioinput' | 'audiooutput') {
  * estado da chamada (quando houver) e identidade com controles rápidos de áudio.
  */
 export function UserDock() {
+  const [soundAnchor, setSoundAnchor] = useState<DOMRect | null>(null);
   const me = useData((s) => s.me);
   const myStatus = useData((s) => s.myStatus);
   const details = useData((s) => s.details);
@@ -106,6 +108,7 @@ export function UserDock() {
               </button>
             </Tooltip>
           </div>
+          {soundAnchor && inCall && <SoundboardPanel anchor={soundAnchor} onClose={() => setSoundAnchor(null)} />}
           {v.machine.status === 'failed' && v.machine.error && <p className="small danger-text">{v.machine.error}</p>}
           {inCall && (
             <div className="voice-dock-actions">
@@ -134,6 +137,20 @@ export function UserDock() {
                   onClick={() => (live ? void v.stopStream() : v.openStreamPicker())}
                 >
                   <Icon name="screen" size={20} />
+                </button>
+              </Tooltip>
+              <Tooltip label="Efeitos sonoros">
+                <button
+                  className="dock-action soundboard-btn"
+                  aria-label="Efeitos sonoros"
+                  aria-haspopup="dialog"
+                  aria-expanded={Boolean(soundAnchor)}
+                  disabled={v.machine.status !== 'connected'}
+                  onClick={(e) =>
+                    setSoundAnchor(soundAnchor ? null : (e.currentTarget as HTMLElement).getBoundingClientRect())
+                  }
+                >
+                  <Icon name="emoji" size={20} />
                 </button>
               </Tooltip>
               <Tooltip label={noise ? 'Supressão de ruído: ligada' : 'Supressão de ruído: desligada'}>
