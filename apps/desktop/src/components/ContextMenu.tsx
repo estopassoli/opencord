@@ -116,12 +116,27 @@ function Entries({ items, close }: { items: MenuEntry[]; close: () => void }) {
   );
 }
 
+/** tempo para alcançar o submenu antes de ele fechar */
+const SUBMENU_CLOSE_MS = 300;
+
 function SubEntry({ sub, close }: { sub: MenuSub; close: () => void }) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<'right' | 'left'>('right');
   const wrap = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  // fechar com atraso: atravessar o espaço até o submenu (ou passar o mouse na diagonal por outro item) não fecha;
+  // voltar a qualquer parte do item/submenu cancela
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  const closeSoon = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), SUBMENU_CLOSE_MS);
+  };
+  useEffect(() => cancelClose, []);
   useLayoutEffect(() => {
     if (!open || !panel.current || !wrap.current) return;
     const w = panel.current.offsetWidth;
@@ -135,8 +150,11 @@ function SubEntry({ sub, close }: { sub: MenuSub; close: () => void }) {
     <div
       className="context-sub"
       ref={wrap}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseEnter={() => {
+        cancelClose();
+        setOpen(true);
+      }}
+      onMouseLeave={closeSoon}
       onKeyDown={(e) => {
         if (e.key === 'ArrowLeft' && open) {
           e.preventDefault();

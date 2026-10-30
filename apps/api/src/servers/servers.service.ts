@@ -438,6 +438,27 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     return member(m);
   }
 
+  /**
+   * Cargo por reação (ADR-0019): a própria pessoa ganha/perde o cargo ao reagir. A regra de quem pode dar o cargo
+   * foi conferida quando a mensagem foi configurada (hierarquia e bits proibidos); aqui só aplica, idempotente.
+   */
+  async applyReactionRole(serverId: string, userId: string, roleId: string, on: boolean) {
+    const isMember = await this.prisma.serverMember.findUnique({ where: { serverId_userId: { serverId, userId } } });
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, serverId, isEveryone: false } });
+    if (!isMember || !role) return;
+    const changed = on
+      ? (await this.prisma.memberRole.createMany({ data: [{ serverId, userId, roleId }], skipDuplicates: true })).count
+      : (await this.prisma.memberRole.deleteMany({ where: { serverId, userId, roleId } })).count;
+    if (!changed) return;
+    await this.audit.log(userId, serverId, 'member.roles', userId, { roleId, on, via: 'reaction' });
+    const m = await this.prisma.serverMember.findUniqueOrThrow({
+      where: { serverId_userId: { serverId, userId } },
+      include: MEMBER_INCLUDE,
+    });
+    this.realtime.emit(rooms.server(serverId), 'server:member:updated', { serverId, member: member(m) });
+    await this.permissionsChanged(serverId);
+  }
+
   async setNickname(serverId: string, userId: string, nickname: string | null) {
     await this.perms.server(serverId, userId);
     const m = await this.prisma.serverMember.update({

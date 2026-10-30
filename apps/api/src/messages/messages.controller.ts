@@ -6,6 +6,7 @@ import {
   EditMessageRequest,
   Emoji,
   ListMessagesQuery,
+  SetReactionRolesRequest,
   VotePollRequest,
 } from '@opencord/contracts';
 import { z } from 'zod';
@@ -70,6 +71,16 @@ export class MessagesController {
     @Body(zodPipe(CreatePollRequest)) dto: CreatePoll,
   ) {
     return (await this.messages.create(u.userId, { conversationId: cid }, pollMessage(dto))).message;
+  }
+
+  /** cargos por reação (ADR-0019): substitui o conjunto emoji → cargo da mensagem */
+  @Put('messages/:id/reaction-roles')
+  reactionRoles(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) mid: string,
+    @Body(zodPipe(SetReactionRolesRequest)) dto: z.infer<typeof SetReactionRolesRequest>,
+  ) {
+    return this.messages.setReactionRoles(u.userId, mid, dto.pairs);
   }
 
   @Put('polls/:id/vote')

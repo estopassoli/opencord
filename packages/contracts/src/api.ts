@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Permission } from './permissions.js';
 
 // ---------- Primitivos ----------
 export const Id = z.uuid();
@@ -401,8 +402,36 @@ export const Message = z.object({
     .lazy(() => Poll)
     .nullable()
     .default(null),
+  /** cargos por reação (ADR-0019): reagir com o emoji dá o cargo */
+  reactionRoles: z.array(z.object({ emoji: z.string(), roleId: Id })).default([]),
 });
 export type Message = z.infer<typeof Message>;
+
+// ---------- Cargos por reação (ADR-0019) ----------
+export const MAX_REACTION_ROLES = 20;
+/**
+ * Bits que um cargo por reação NÃO pode ter: qualquer pessoa ganha o cargo só de reagir, então ele não pode dar
+ * poder de moderação. Cargos de cor/identificação e de acesso a canais (ver, falar) podem.
+ */
+export const REACTION_ROLE_FORBIDDEN =
+  Permission.ADMINISTRATOR |
+  Permission.MANAGE_SERVER |
+  Permission.MANAGE_ROLES |
+  Permission.MANAGE_CHANNELS |
+  Permission.MANAGE_MESSAGES |
+  Permission.KICK_MEMBERS |
+  Permission.MUTE_MEMBERS |
+  Permission.MOVE_MEMBERS |
+  Permission.VIEW_AUDIT_LOG |
+  Permission.MENTION_EVERYONE;
+
+export const SetReactionRolesRequest = z.object({
+  pairs: z
+    .array(z.object({ emoji: z.string().trim().min(1).max(64), roleId: Id }))
+    .max(MAX_REACTION_ROLES)
+    .refine((p) => new Set(p.map((x) => x.emoji)).size === p.length, 'emoji repetido'),
+});
+export type SetReactionRolesRequest = z.infer<typeof SetReactionRolesRequest>;
 
 // ---------- Enquetes (ADR-0018) ----------
 export const POLL_MAX_OPTIONS = 10;

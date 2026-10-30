@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '22:00',
+    kind: 'novo',
+    icon: 'tag',
+    title: 'Cargos por reação',
+    body: 'Quem gerencia cargos pode ligar emojis a cargos numa mensagem (botão direito → "Cargos por reação…"). Quem reage ganha o cargo, e quem tira a reação perde. Na mensagem aparecem botões com o emoji e o nome do cargo. No servidor OpenCord, escolha seus interesses em #escolha-seus-cargos.',
+  },
+  {
+    date: '2026-10-30',
+    time: '21:45',
+    kind: 'correção',
+    icon: 'menu',
+    title: 'Submenus não fecham mais no caminho',
+    body: 'Ao levar o mouse de um item com seta (como "Convidar para o servidor") até o submenu ao lado, ele fechava antes de você chegar. Agora fica aberto enquanto você atravessa.',
+  },
+  {
+    date: '2026-10-30',
     time: '21:30',
     kind: 'novo',
     icon: 'edit',
