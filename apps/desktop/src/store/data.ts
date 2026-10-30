@@ -277,10 +277,20 @@ interface MessagesState {
   clear(): void;
 }
 
+/**
+ * Campos que chegaram depois (fixar, enquete, cargos por reação) podem faltar quando a API é mais antiga que o app
+ * (instância sem atualizar): completa com o vazio em vez de quebrar a conversa inteira.
+ */
+type LooseMessage = Omit<Message, 'pinnedAt' | 'poll' | 'reactionRoles'> &
+  Partial<Pick<Message, 'pinnedAt' | 'poll' | 'reactionRoles'>>;
+export function normalizeMessage(m: LooseMessage): Message {
+  return { ...m, pinnedAt: m.pinnedAt ?? null, poll: m.poll ?? null, reactionRoles: m.reactionRoles ?? [] };
+}
+
 /** Inserção ordenada por (createdAt, id) e idempotente: eventos duplicados/fora de ordem não corrompem a lista. */
 export function mergeMessages(list: Message[], incoming: Message[]): Message[] {
   const byId = new Map(list.map((m) => [m.id, m]));
-  for (const m of incoming) byId.set(m.id, m);
+  for (const m of incoming) byId.set(m.id, normalizeMessage(m));
   return [...byId.values()].sort((a, b) =>
     a.createdAt === b.createdAt ? (a.id < b.id ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1,
   );
