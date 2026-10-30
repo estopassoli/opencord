@@ -2177,8 +2177,6 @@ body {
   background: var(--rail);
   -webkit-app-region: drag;
   user-select: none;
-  /* espaço para os controles nativos da janela (titleBarOverlay) */
-  padding-right: 140px;
 }
 .titlebar-nav {
   display: flex;
@@ -2204,10 +2202,35 @@ body {
 }
 .titlebar-actions {
   justify-self: end;
+  align-self: stretch;
   display: flex;
+  align-items: center;
   gap: 2px;
-  padding-right: 8px;
   -webkit-app-region: no-drag;
+}
+.titlebar-actions > :first-child:not(.titlebar-window) {
+  margin-right: 6px;
+}
+/* minimizar/maximizar/fechar no padrão do Windows: 46 px de largura, altura total da barra, fechar em vermelho */
+.titlebar-window {
+  display: flex;
+  align-self: stretch;
+}
+.titlebar-window-btn {
+  width: 46px;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  display: grid;
+  place-items: center;
+}
+.titlebar-window-btn:hover {
+  background: var(--interactive);
+  color: var(--text);
+}
+.titlebar-window-close:hover {
+  background: #c42b1c;
+  color: #fff;
 }
 .titlebar-update {
   color: var(--success);

@@ -1,6 +1,6 @@
 import { Icon } from '@opencord/ui';
 import { useEffect, useState } from 'react';
-import type { UpdateStatus } from '../../../electron/shared/ipc';
+import type { UpdateStatus, WindowControl } from '../../../electron/shared/ipc';
 import { Tooltip } from '../../components/Tooltip';
 import { ServerIcon } from '../../components/ServerIcon';
 import { bridge } from '../../lib/bridge';
@@ -55,9 +55,41 @@ function UpdateButton() {
 }
 
 /**
- * Barra de título integrada (janela com titleBarOverlay): voltar/avançar à esquerda, local atual ao centro.
- * Os controles da janela (minimizar/maximizar/fechar) são nativos do Windows, desenhados à direita pelo Electron.
+ * Minimizar, maximizar/restaurar e fechar, desenhados pelo app (Windows/Linux; no macOS ficam os botões do sistema).
+ * Substituem a sobreposição nativa (titleBarOverlay), que atrasava a apresentação de cada quadro da interface.
  */
+function WindowControls() {
+  const [maximized, setMaximized] = useState(false);
+  useEffect(() => {
+    if (!bridge) return;
+    void bridge.windowState().then(
+      (s) => setMaximized(s.maximized),
+      () => undefined,
+    );
+    return bridge.on('window-state', (s) => setMaximized(s.maximized));
+  }, []);
+  if (!bridge || /Mac/i.test(navigator.userAgent)) return null;
+  const act = (a: WindowControl) => void bridge?.windowControl(a);
+  return (
+    <div className="titlebar-window">
+      <button className="titlebar-window-btn" aria-label="Minimizar" onClick={() => act('minimize')}>
+        <Icon name="window-minimize" size={14} />
+      </button>
+      <button
+        className="titlebar-window-btn"
+        aria-label={maximized ? 'Restaurar' : 'Maximizar'}
+        onClick={() => act('toggle-maximize')}
+      >
+        <Icon name={maximized ? 'window-restore' : 'window-maximize'} size={12} />
+      </button>
+      <button className="titlebar-window-btn titlebar-window-close" aria-label="Fechar" onClick={() => act('close')}>
+        <Icon name="close" size={14} />
+      </button>
+    </div>
+  );
+}
+
+/** Barra de título integrada: voltar/avançar à esquerda, local atual ao centro, atualização e controles à direita. */
 export function TitleBar() {
   const view = useUi((s) => s.view);
   const canBack = useUi((s) => s.back.length > 0);
@@ -112,6 +144,7 @@ export function TitleBar() {
       </div>
       <div className="titlebar-actions">
         <UpdateButton />
+        <WindowControls />
       </div>
     </header>
   );

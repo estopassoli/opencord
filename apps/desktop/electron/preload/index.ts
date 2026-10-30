@@ -12,6 +12,7 @@ const EVENT_CHANNELS = {
   'power-resume': IPC.evPowerResume,
   'tray-action': IPC.evTrayAction,
   update: IPC.evUpdate,
+  'window-state': IPC.evWindowState,
 } as const;
 
 const bridge: OpenCordBridge = {
@@ -28,6 +29,8 @@ const bridge: OpenCordBridge = {
   setShortcuts: (args) => ipcRenderer.invoke(IPC.shortcutsSet, args),
   flashFrame: () => ipcRenderer.invoke(IPC.windowFlash),
   focusWindow: () => ipcRenderer.invoke(IPC.windowFocus),
+  windowControl: (action) => ipcRenderer.invoke(IPC.windowControl, action),
+  windowState: () => ipcRenderer.invoke(IPC.windowState),
   setBadge: (count) => ipcRenderer.invoke(IPC.badgeSet, count),
   setTrayVoiceState: (state) => ipcRenderer.invoke(IPC.trayVoiceState, state),
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),

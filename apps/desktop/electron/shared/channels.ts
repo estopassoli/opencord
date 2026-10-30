@@ -9,6 +9,8 @@ export const IPC = {
   shortcutsSet: 'shortcuts:set',
   windowFlash: 'window:flash',
   windowFocus: 'window:focus',
+  windowControl: 'window:control',
+  windowState: 'window:state',
   badgeSet: 'badge:set',
   appInfo: 'app:info',
   openExternal: 'app:open-external',
@@ -25,4 +27,5 @@ export const IPC = {
   evPowerResume: 'ev:power-resume',
   evTrayAction: 'ev:tray-action',
   evUpdate: 'ev:update',
+  evWindowState: 'ev:window-state',
 } as const;

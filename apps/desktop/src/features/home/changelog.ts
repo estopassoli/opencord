@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '22:30',
+    kind: 'correção',
+    icon: 'window-maximize',
+    title: 'Interface sem atraso com a aceleração de hardware',
+    body: 'Passar o mouse pelos canais e botões ficava atrasado com a aceleração de hardware ligada. A causa eram os botões de minimizar, maximizar e fechar do Windows desenhados por cima da barra do app; agora o próprio OpenCord desenha esses botões, e a interface responde na hora.',
+  },
+  {
+    date: '2026-10-30',
     time: '22:15',
     kind: 'correção',
     icon: 'signal',
