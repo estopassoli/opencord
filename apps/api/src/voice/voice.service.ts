@@ -42,6 +42,19 @@ export function sourcesFor(perms: number): TrackSource[] {
   return s;
 }
 
+/**
+ * Dados na sala só para quem pode transmitir: a única mensagem do app é a prévia da live (miniatura JPEG, tópico
+ * `stream-preview`, ADR-0012). Sem STREAM não há canal de dados (evita mensagens fora da moderação do chat).
+ */
+export function permissionFor(sources: TrackSource[]) {
+  return {
+    canPublish: sources.length > 0,
+    canPublishSources: sources,
+    canPublishData: sources.includes(TrackSource.SCREEN_SHARE),
+    canSubscribe: true,
+  };
+}
+
 @Injectable()
 export class VoiceService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('Voice');
@@ -179,10 +192,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       room: roomName,
       roomJoin: true,
       roomCreate: true,
-      canSubscribe: true,
-      canPublish: sources.length > 0,
-      canPublishSources: sources,
-      canPublishData: false,
+      ...permissionFor(sources),
       canUpdateOwnMetadata: false,
       hidden: false,
     });
@@ -265,7 +275,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const sources = sourcesFor(access.perms).filter((src) => !(muted && src === TrackSource.MICROPHONE));
     await this.rooms
       .updateParticipant(s.roomName, targetId, {
-        permission: { canPublish: sources.length > 0, canPublishSources: sources, canSubscribe: true },
+        permission: permissionFor(sources),
       })
       .catch((e: unknown) => this.log.warn(`serverMute: ${String(e)}`));
     this.realtime.emit(rooms.server(s.serverId), 'voice:state:changed', this.publicState(s));
@@ -330,7 +340,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
         const sources = sourcesFor(perms).filter((src) => !(s.serverMute && src === TrackSource.MICROPHONE));
         await this.rooms
           .updateParticipant(s.roomName, uid, {
-            permission: { canPublish: sources.length > 0, canPublishSources: sources, canSubscribe: true },
+            permission: permissionFor(sources),
           })
           .catch(() => undefined);
       }

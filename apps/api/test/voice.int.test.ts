@@ -98,7 +98,8 @@ describe('voz com LiveKit real', () => {
       roomJoin: true,
       canSubscribe: true,
       canPublish: true,
-      canPublishData: false,
+      // só a prévia da live (ADR-0012): quem pode transmitir publica dados
+      canPublishData: true,
     });
     expect((claims.video.canPublishSources as string[]).sort()).toEqual([
       'camera',
@@ -134,6 +135,8 @@ describe('voz com LiveKit real', () => {
     });
     const j = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
     expect(j.body.canStream).toBe(false);
+    // sem STREAM também não publica dados (a prévia da live é a única mensagem de dados do app)
+    expect((decodeJwt(j.body.token) as { video: Record<string, unknown> }).video.canPublishData).toBe(false);
     const room = await connectRoom(j.body);
     const src = new VideoSource(64, 64);
     const track = LocalVideoTrack.createVideoTrack('screen', src);

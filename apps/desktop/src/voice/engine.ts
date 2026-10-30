@@ -30,6 +30,7 @@ import {
   type VideoCodec,
 } from 'livekit-client';
 import { RNNOISE, RnnoiseProcessor } from './noise';
+import { PreviewReceiver, startPreviewSender } from './preview';
 import { bridge } from '../lib/bridge';
 
 export interface ParticipantView {
@@ -42,6 +43,8 @@ export interface ParticipantView {
   hasScreen: boolean;
   screenAudio: boolean;
   watchingScreen: boolean;
+  /** miniatura mais recente da transmissão (URL de blob), para quem ainda não está assistindo */
+  previewUrl?: string;
   quality: 'excellent' | 'good' | 'poor' | 'lost' | 'unknown';
 }
 
@@ -123,6 +126,11 @@ export class VoiceEngine {
   private screen: { video: LocalVideoTrack; audio: LocalAudioTrack | null; stream: MediaStream } | null = null;
   private lastBytes: { t: number; bytes: number } | null = null;
   private lastVideoBytes: { t: number; bytes: number } | null = null;
+  private stopPreview: (() => void) | null = null;
+  private previews = new PreviewReceiver(
+    (id) => Boolean(this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.ScreenShare)),
+    () => this.emit(),
+  );
 
   constructor(
     private readonly cb: EngineCallbacks,
@@ -147,6 +155,7 @@ export class VoiceEngine {
     });
     this.room = room;
     this.bind(room);
+    this.previews.attach(room);
     await room.connect(url, token, { autoSubscribe: false });
     this.selfMuted = opts.selfMute;
     this.deafened = opts.selfDeaf;
@@ -173,6 +182,7 @@ export class VoiceEngine {
     this.statsTimer = null;
     const r = this.room;
     this.room = null;
+    this.previews.clear(r);
     if (r) this.detachAudio(r);
     await r?.disconnect(true);
     this.speaking.clear();
@@ -196,13 +206,17 @@ export class VoiceEngine {
       .on(RoomEvent.ParticipantConnected, emit)
       .on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => {
         this.watching.delete(p.identity);
+        this.previews.drop(p.identity);
         emit();
       })
       .on(RoomEvent.TrackPublished, (pub: RemoteTrackPublication, p: RemoteParticipant) => {
         this.autoSubscribe(pub, p);
         emit();
       })
-      .on(RoomEvent.TrackUnpublished, emit)
+      .on(RoomEvent.TrackUnpublished, (pub: RemoteTrackPublication, p: RemoteParticipant) => {
+        if (pub.source === Track.Source.ScreenShare) this.previews.drop(p.identity);
+        emit();
+      })
       .on(RoomEvent.TrackSubscribed, (t: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
         if (pub.kind === Track.Kind.Audio) {
           // o livekit-client só toca áudio remoto anexado a um elemento <audio>
@@ -504,6 +518,7 @@ export class VoiceEngine {
       await this.stopStream();
       throw e;
     }
+    this.stopPreview = startPreviewSender(this.room, v);
     this.emit();
     return { audioPublished: Boolean(audio) };
   }
@@ -512,6 +527,8 @@ export class VoiceEngine {
     const s = this.screen;
     this.screen = null;
     this.lastVideoBytes = null;
+    this.stopPreview?.();
+    this.stopPreview = null;
     if (!s) return;
     const lp = this.room?.localParticipant;
     if (lp) {
@@ -600,6 +617,7 @@ export class VoiceEngine {
           ? Boolean(this.screen?.audio)
           : Boolean(p.getTrackPublication(Track.Source.ScreenShareAudio)),
         watchingScreen: isLocal ? this.screen !== null : this.watching.has(p.identity),
+        ...(isLocal ? {} : { previewUrl: this.previews.get(p.identity) }),
         quality: QUALITY[p.connectionQuality] ?? 'unknown',
       };
     };
