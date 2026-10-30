@@ -80,7 +80,11 @@ app.commandLine.appendSwitch('disable-background-timer-throttling');
 // Jogo em tela cheia cobre a janela: o Windows a dá como "ocluída" e o Chromium rebaixava a prioridade do
 // renderer (que captura e codifica a live). Com o jogo disputando CPU/GPU, a live engasgava mesmo com o jogo liso.
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
-app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+// soma às features desligadas pela linha de comando (diagnóstico/E2E) em vez de substituí-las
+app.commandLine.appendSwitch(
+  'disable-features',
+  [app.commandLine.getSwitchValue('disable-features'), 'CalculateNativeWinOcclusion'].filter(Boolean).join(','),
+);
 // NÃO ativar WebRtcAllowWgcUsingTexture: medido no E2E golive-real com animação na tela, a captura travava em ~12 fps
 // com o conteúdo a 47 fps; sem a flag a captura acompanha o conteúdo (docs/MEDIA_ARCHITECTURE.md).
 

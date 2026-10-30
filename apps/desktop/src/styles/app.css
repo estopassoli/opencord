@@ -3059,6 +3059,14 @@ a.rail-item {
   gap: 6px;
   flex: none;
 }
+button.live-badge {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
 .live-badge-q {
   display: inline-flex;
   align-items: center;

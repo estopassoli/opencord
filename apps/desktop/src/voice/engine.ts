@@ -761,7 +761,102 @@ export class VoiceEngine {
       compositor: this.compositor?.stats() ?? null,
       roomEvents: this.roomEvents,
       remotes,
+      pipeline: await this.pipeline(),
     };
+  }
+
+  /**
+   * Contadores brutos da live, etapa por etapa (quem calcula taxas faz a diferença entre duas leituras):
+   * captura (settings aplicados e quadros da fonte) → composição da cena → codificação → envio, e, na live assistida,
+   * recepção → decodificação → descarte. Sem segredos nem conteúdo.
+   */
+  async pipeline() {
+    const pick = (r: Record<string, unknown> | undefined, keys: string[]) =>
+      r ? Object.fromEntries(keys.filter((k) => r[k] !== undefined).map((k) => [k, r[k]])) : null;
+    const out: Record<string, unknown> = { t: performance.now() };
+    if (this.screen) {
+      const v = this.screen.stream.getVideoTracks()[0];
+      out.captureSettings = v?.getSettings() ?? null;
+      out.publishedSettings = this.screen.video.mediaStreamTrack.getSettings();
+      out.compositor = this.compositor?.stats() ?? null;
+      const params = this.screen.video.sender?.getParameters() as
+        (RTCRtpSendParameters & { degradationPreference?: string }) | undefined;
+      out.sender = params
+        ? {
+            degradationPreference: params.degradationPreference ?? null,
+            encodings: params.encodings.map((e) => ({
+              active: e.active,
+              maxBitrate: e.maxBitrate,
+              maxFramerate: e.maxFramerate,
+              scaleResolutionDownBy: e.scaleResolutionDownBy,
+            })),
+          }
+        : null;
+      const rep = await this.screen.video.getRTCStatsReport().catch(() => undefined);
+      rep?.forEach((r: Record<string, unknown>) => {
+        if (r.type === 'media-source' && r.kind === 'video')
+          out.source = pick(r, ['frames', 'framesPerSecond', 'width', 'height']);
+        if (r.type === 'outbound-rtp' && r.kind === 'video') {
+          out.outbound = pick(r, [
+            'framesEncoded',
+            'framesSent',
+            'hugeFramesSent',
+            'keyFramesEncoded',
+            'totalEncodeTime',
+            'totalEncodedBytesTarget',
+            'bytesSent',
+            'packetsSent',
+            'retransmittedPacketsSent',
+            'frameWidth',
+            'frameHeight',
+            'framesPerSecond',
+            'targetBitrate',
+            'qualityLimitationReason',
+            'qualityLimitationDurations',
+            'qualityLimitationResolutionChanges',
+            'encoderImplementation',
+            'powerEfficientEncoder',
+            'nackCount',
+            'pliCount',
+          ]);
+          const c =
+            typeof r.codecId === 'string' ? (rep.get(r.codecId) as { mimeType?: string } | undefined) : undefined;
+          out.codec = c?.mimeType ?? null;
+        }
+        if (r.type === 'candidate-pair' && r.nominated)
+          out.uplink = pick(r, ['availableOutgoingBitrate', 'currentRoundTripTime']);
+      });
+    }
+    const id = [...this.watching][0];
+    const pub = id ? this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.ScreenShare) : undefined;
+    const track = pub?.track as RemoteTrack | undefined;
+    if (track) {
+      const rep = await track.getRTCStatsReport().catch(() => undefined);
+      rep?.forEach((r: Record<string, unknown>) => {
+        if (r.type === 'inbound-rtp' && r.kind === 'video')
+          out.inbound = pick(r, [
+            'framesReceived',
+            'framesDecoded',
+            'framesDropped',
+            'keyFramesDecoded',
+            'totalDecodeTime',
+            'framesPerSecond',
+            'frameWidth',
+            'frameHeight',
+            'jitter',
+            'packetsLost',
+            'packetsReceived',
+            'bytesReceived',
+            'freezeCount',
+            'totalFreezesDuration',
+            'jitterBufferDelay',
+            'jitterBufferEmittedCount',
+            'decoderImplementation',
+          ]);
+        if (r.type === 'candidate-pair' && r.nominated) out.downlink = pick(r, ['currentRoundTripTime']);
+      });
+    }
+    return out;
   }
 
   // ---------- métricas (NFR-08) ----------
