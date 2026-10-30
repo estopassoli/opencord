@@ -60,6 +60,16 @@ test('dois usuários entram na mesma sala e se veem; indicador de fala acende', 
   await expect(B.page.locator('.stage-grid .tile').filter({ hasText: 'Proprietário' })).toBeVisible({
     timeout: 15_000,
   });
+  // hover no servidor: cartão com quem está em voz (avatares de A e B)
+  await A.page
+    .getByRole('navigation', { name: 'Servidores' })
+    .getByRole('button', { name: /^OpenCord/ })
+    .hover();
+  const serverCard = A.page.getByRole('tooltip').locator('.server-card');
+  await expect(serverCard.locator('.server-card-avatars .oc-avatar')).toHaveCount(2, { timeout: 5_000 });
+  await expect(serverCard).toContainText('2 em voz');
+  await A.page.screenshot({ path: shot('03a-cartao-servidor') });
+  await A.page.mouse.move(800, 400);
   // áudio de B chega de fato em A (bytes recebidos crescendo)
   const diag = () =>
     A.page.evaluate(() =>

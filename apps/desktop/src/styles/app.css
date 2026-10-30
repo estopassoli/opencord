@@ -4593,3 +4593,70 @@ section:first-child > .friends-panel-sep {
   height: 100%;
   border-radius: 0;
 }
+
+/* cartão do servidor no hover da barra de servidores */
+.tooltip:has(.server-card) {
+  padding: 10px 12px;
+  max-width: 280px;
+}
+.server-card {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+.server-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+.server-card-head .oc-icon {
+  color: var(--brand);
+  flex: none;
+}
+.server-card-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 30%;
+  background: var(--brand);
+  color: var(--text-on-brand);
+  font-size: 0.5rem;
+  font-weight: 700;
+}
+.server-card-icon .server-icon-img,
+.server-card-icon .brand-mark-sm {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+.server-card-voice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+.server-card-avatars {
+  display: flex;
+  align-items: center;
+}
+.server-card-avatars > .oc-avatar {
+  box-shadow: 0 0 0 2px var(--elevated, #111214);
+  border-radius: 50%;
+}
+.server-card-avatars > * + * {
+  margin-left: -6px;
+}
+.server-card-more {
+  margin-left: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.server-card-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
