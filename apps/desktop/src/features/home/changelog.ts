@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '05:10',
+    kind: 'melhoria',
+    icon: 'speaker',
+    title: 'Canal de voz com fundo animado',
+    body: 'Antes de entrar na chamada, o canal de voz mostra um gradiente que se move devagar, na cor de destaque escolhida em Aparência.',
+  },
+  {
+    date: '2026-10-30',
     time: '04:45',
     kind: 'melhoria',
     icon: 'screen',
