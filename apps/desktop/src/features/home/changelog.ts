@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '14:10',
+    kind: 'melhoria',
+    icon: 'activities',
+    title: 'Painel de atividades arrumado',
+    body: 'Os cards de Assistir juntos e Música ocupam o painel todo, com a mesma altura e o texto em uma linha.',
+  },
+  {
+    date: '2026-10-30',
     time: '14:00',
     kind: 'novo',
     icon: 'emoji',

@@ -439,8 +439,9 @@ export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
               <Icon name="play" size={34} />
             </span>
             <span className="app-name">
-              <strong>YouTube</strong>
-              <span className="muted small">{running ? 'Em andamento: abrir' : 'Assistir juntos'}</span>
+              <strong>Assistir juntos</strong>
+              <span className="muted small">{running ? 'Em andamento: abrir' : 'Vídeos sincronizados'}</span>
+              <span className="app-tag">YouTube</span>
             </span>
           </button>
         </li>
@@ -451,9 +452,8 @@ export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
             </span>
             <span className="app-name">
               <strong>Música</strong>
-              <span className="muted small">
-                {music ? 'Tocando: abrir o player' : 'YouTube e YouTube Music, todos ouvem juntos'}
-              </span>
+              <span className="muted small">{music ? 'Tocando: abrir o player' : 'Ouvir juntos, com fila'}</span>
+              <span className="app-tag">YouTube · YouTube Music</span>
             </span>
           </button>
         </li>

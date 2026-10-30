@@ -433,10 +433,12 @@ test('Efeitos sonoros: A envia um som pelo painel da chamada, toca e B ouve; apa
   const up = A.page.getByRole('dialog', { name: 'Enviar um som' });
   await up.getByLabel('Escolher arquivo de áudio').setInputFiles(path.join(__dirname, 'fixtures', 'efeito-curto.wav'));
   await expect(up.getByText('0.50 s')).toBeVisible();
-  await up.getByLabel('Nome do som').fill('Bip E2E');
+  // nome único por execução: sons de rodadas anteriores continuam no servidor de teste
+  const soundName = `Bip ${Date.now().toString(36).slice(-5)}`;
+  await up.getByLabel('Nome do som').fill(soundName);
   await up.getByRole('button', { name: 'Enviar' }).click();
   await expect(up).toHaveCount(0, { timeout: 10_000 });
-  const bip = board.getByRole('button', { name: 'Tocar Bip E2E' });
+  const bip = board.getByRole('region', { name: 'OpenCord' }).getByRole('button', { name: `Tocar ${soundName}` });
   await expect(bip).toBeVisible();
   await A.page.screenshot({ path: shot('14c-efeitos-sonoros') });
   const heard = () =>
@@ -487,7 +489,7 @@ test('Assistir juntos: A abre um vídeo por link, B entra, pausa sincroniza e en
   const panel = A.page.getByRole('dialog', { name: 'Atividades' });
   await expect(panel).toBeVisible();
   await A.page.screenshot({ path: shot('14-atividades') });
-  await panel.getByRole('button', { name: /^YouTube/ }).click();
+  await panel.getByRole('button', { name: /^Assistir juntos/ }).click();
   const dialog = A.page.getByRole('dialog', { name: 'Assistir juntos' });
   await dialog.getByLabel(/Link/).fill('https://youtu.be/jNQXAC9IVRw');
   await dialog.getByRole('button', { name: 'Assistir juntos' }).click();

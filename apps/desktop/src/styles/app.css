@@ -3559,14 +3559,21 @@ a.rail-item {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  /* cards ocupam a largura toda e têm a mesma altura */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-auto-rows: 1fr;
   gap: 10px;
+}
+.activities-list > li {
+  display: flex;
+  min-width: 0;
 }
 .app-card {
   display: grid;
+  grid-template-rows: auto 1fr;
   gap: 8px;
   width: 100%;
-  padding: 0 0 8px;
+  padding: 0 0 10px;
   border: 0;
   border-radius: var(--radius);
   background: var(--sidebar);
@@ -3589,7 +3596,7 @@ a.rail-item {
 .app-art {
   display: grid;
   place-items: center;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 16 / 7;
   color: #fff;
 }
 .app-youtube .app-art {
@@ -3597,7 +3604,25 @@ a.rail-item {
 }
 .app-name {
   display: grid;
-  padding: 0 10px;
+  align-content: start;
+  gap: 2px;
+  padding: 0 12px;
+  min-width: 0;
+}
+.app-name > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-tag {
+  justify-self: start;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--interactive);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-card:hover,
