@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '18:00',
+    kind: 'novo',
+    icon: 'spotlight',
+    title: 'Cenas na transmissão',
+    body: 'Monte cenas para a sua live: a tela com a sua câmera por cima, imagens e textos, posicionados e redimensionados à vontade. Escolha a cena em "Cena" ao transmitir e troque no meio da live pelo botão "Trocar de cena", sem encerrar a transmissão. As cenas ficam salvas neste computador.',
+  },
+  {
+    date: '2026-10-30',
     time: '16:30',
     kind: 'novo',
     icon: 'user',

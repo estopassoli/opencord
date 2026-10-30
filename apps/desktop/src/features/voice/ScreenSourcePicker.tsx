@@ -14,6 +14,9 @@ import { bridge } from '../../lib/bridge';
 import { useData } from '../../store/data';
 import { updateSettings } from '../../store/settings';
 import { useVoice } from '../../store/voice';
+import { useScenes } from '../../store/scenes';
+import { SceneEditor } from './SceneEditor';
+import { sceneMenu } from './sceneMenu';
 
 type Tab = 'window' | 'screen';
 
@@ -71,6 +74,9 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
   }, [tab, sources]);
   const armed = () => performance.now() - shownAt.current >= ARM_MS;
 
+  const [editing, setEditing] = useState(false);
+  const activeScene = useScenes((st) => st.scenes.find((x) => x.id === st.activeId) ?? null);
+  const sceneName = activeScene?.name ?? 'Sem cena';
   const start = (s: CaptureSourceDto | null) =>
     void useVoice.getState().startStream(s?.id ?? null, audioPossible && !muted, profile, s?.name ?? null);
 
@@ -214,6 +220,23 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
             </span>
           </div>
           <button
+            className="golive-scene"
+            aria-haspopup="menu"
+            aria-label={`Cena: ${sceneName}`}
+            data-tip="Cena da transmissão"
+            onClick={(e) =>
+              openContextMenu(
+                e,
+                sceneMenu(() => setEditing(true)),
+                'Cena da transmissão',
+              )
+            }
+          >
+            <Icon name="spotlight" size={16} />
+            <span className="truncate">{sceneName}</span>
+            <Icon name="chevron-down" size={14} />
+          </button>
+          <button
             className="icon-btn golive-gear"
             aria-label="Opções da transmissão"
             aria-haspopup="menu"
@@ -223,6 +246,7 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
           </button>
         </footer>
       </div>
+      {editing && <SceneEditor onClose={() => setEditing(false)} />}
     </Dialog>
   );
 }

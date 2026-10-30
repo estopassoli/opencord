@@ -13,6 +13,8 @@ import { closeStreamWindow, openStreamWindow } from './popout';
 import { ActivitiesPanel, ActivityTile } from './WatchTogether';
 import { MusicPlayer } from './MusicPlayer';
 import { SoundboardPanel } from './Soundboard';
+import { SceneEditor } from './SceneEditor';
+import { sceneMenu } from './sceneMenu';
 import { useActivity } from '../../store/activity';
 import { useIsMobile } from '../../lib/media';
 import { bestTileWidth } from './tileLayout';
@@ -617,6 +619,9 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
   const setPanel = (v: boolean | ((o: boolean) => boolean)) =>
     useUi.getState().setActivitiesOpen(typeof v === 'function' ? v(useUi.getState().activitiesOpen) : v);
   const [soundAnchor, setSoundAnchor] = useState<DOMRect | null>(null);
+  const [editingScenes, setEditingScenes] = useState(false);
+  // a troca de cena ao vivo só existe quando a live começou com uma cena (há composição em andamento)
+  const sceneLive = useVoice((s) => Boolean(s.engine()?.hasScene()));
   const menu = (e: React.MouseEvent, kind: 'audioinput' | 'audiooutput') => {
     const target = e.currentTarget as HTMLElement;
     const r = target.getBoundingClientRect();
@@ -628,6 +633,7 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
     <>
       {panel && <ActivitiesPanel onClose={() => setPanel(false)} />}
       {soundAnchor && <SoundboardPanel anchor={soundAnchor} onClose={() => setSoundAnchor(null)} />}
+      {editingScenes && <SceneEditor onClose={() => setEditingScenes(false)} />}
       <div className="call-controls" role="toolbar" aria-label="Controles da chamada">
         <div className="call-group">
           <Tooltip label={v.selfMute ? 'Ativar microfone' : 'Silenciar microfone'}>
@@ -701,6 +707,24 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
               <Icon name="screen" />
             </button>
           </Tooltip>
+          {live && sceneLive && (
+            <Tooltip label="Trocar de cena">
+              <button
+                className="call-btn"
+                aria-label="Trocar de cena"
+                aria-haspopup="menu"
+                onClick={(e) =>
+                  openContextMenu(
+                    e,
+                    sceneMenu(() => setEditingScenes(true)),
+                    'Cenas da transmissão',
+                  )
+                }
+              >
+                <Icon name="spotlight" />
+              </button>
+            </Tooltip>
+          )}
           <Tooltip label={v.selfDeaf ? 'Ativar áudio' : 'Ensurdecer'}>
             <button
               className="call-btn"

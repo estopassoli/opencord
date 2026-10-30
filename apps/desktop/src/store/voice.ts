@@ -20,6 +20,7 @@ import { useUi } from './ui';
 import { playSound } from '../lib/sounds';
 import { useActivity } from './activity';
 import { useMusic } from './music';
+import { useScenes } from './scenes';
 
 interface VoiceStore {
   machine: VoiceState;
@@ -63,6 +64,8 @@ interface VoiceStore {
 }
 
 let engine: VoiceEngine | null = null;
+// trocar de cena (ou editar a ativa) durante a live atualiza a composição sem reiniciar a transmissão
+useScenes.setState({ onLiveChange: (scene) => void engine?.setScene(scene) });
 let ptt: PushToTalk | null = null;
 
 function prefsFrom(s: UserSettings | null): AudioPrefs {
@@ -347,6 +350,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
           profile,
           codec,
           video?.streamBitrate ?? 'medium',
+          useScenes.getState().active(),
         );
         // `live` só após a publicação ser confirmada pela SFU
         sdispatch({ type: 'PUBLISHED', audioPublished: r.audioPublished });

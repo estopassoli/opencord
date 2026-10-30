@@ -82,6 +82,8 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
   - Perfis + telemetria (encoder, fps, limitação) na UI. Achado: com simulcast o H.264 roda em software; camada única ficou em 480×270 (`docs/research/F4_GOLIVE_APP.md`). Pendente.
 - [ ] F4.6 Multi-stream viewer, destaque, fullscreen e controle de volume.
   - Implementado (assistir, destacar, tela cheia, volume via saída). **Sem teste** com 2 streams simultâneas no app (a carga da SFU com 3 streams está em LOAD_TEST.md).
+- [x] F4.8 Cenas do Go Live (tela, câmera, imagem, texto; troca ao vivo) — ADR-0015.
+  - E2E `golive-real.spec.ts` (uma máquina Windows): cena com o app coberto acompanha o conteúdo (≥ 80% do fps), troca ao vivo para "Sem cena", espectador segue em 1080p. Validação em duas máquinas faz parte do F4.7.
 - [ ] F4.7 Testes reais em dois Windows, áudio de jogo, borderless/fullscreen e redes distintas.
   - **BLOQUEADO PARA VALIDAÇÃO.**
 **Gate F4:** Go Live vídeo + áudio do sistema comprovados em dois computadores; sem isso status bloqueado.
