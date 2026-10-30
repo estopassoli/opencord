@@ -2584,9 +2584,9 @@ body {
   background: #000;
 }
 
-/* rail: o logotipo preenche o item "Mensagens diretas" e acompanha o arredondamento (círculo → quadrado no hover) */
+/* rail: o logotipo preenche o item "Mensagens diretas" e acompanha o arredondamento (círculo → quadrado no hover).
+   Sem overflow: hidden no botão (cortava o selo de menções); quem arredonda é o próprio logotipo. */
 .rail-home {
-  overflow: hidden;
   padding: 0;
   background: transparent;
 }
@@ -2597,7 +2597,16 @@ body {
 .rail-home .brand-mark-sm {
   width: 100%;
   height: 100%;
-  border-radius: 0;
+  border-radius: inherit;
+}
+.rail-item > .badge {
+  z-index: 1;
+}
+/* servidor com imagem: sem fundo atrás (a cor vazava como um aro nas bordas arredondadas) */
+.rail-item:has(> .server-icon-img),
+.rail-item:has(> .server-icon-img):hover,
+.rail-item:has(> .server-icon-img)[aria-current='page'] {
+  background: transparent;
 }
 
 /* =====================================================================

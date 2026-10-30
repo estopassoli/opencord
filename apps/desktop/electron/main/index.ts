@@ -69,6 +69,9 @@ app.commandLine.appendSwitch('disable-background-timer-throttling');
 // renderer (que captura e codifica a live). Com o jogo disputando CPU/GPU, a live engasgava mesmo com o jogo liso.
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+// Captura WGC entrega o quadro como textura de GPU (sem cópia GPU→CPU a cada quadro). Com um jogo usando a GPU
+// inteira, essa cópia ficava na fila e a live caía para ~7 fps com o jogo a 100+ fps (relato real, RX 6700 XT).
+app.commandLine.appendSwitch('enable-features', 'WebRtcAllowWgcUsingTexture');
 
 function isTrustedSender(e: IpcMainInvokeEvent): boolean {
   const url = e.senderFrame?.url ?? '';

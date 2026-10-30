@@ -53,3 +53,13 @@ Monitorar ICE candidate failures, RTT, jitter, packet loss, bitrate, encode FPS,
 - Validado: E2E `golive-real.spec.ts` passa com as mudanças.
 - **Não validado:** o efeito com jogo pesado real em Windows. Status: BLOQUEADO PARA VALIDAÇÃO.
 - Limite conhecido: se a GPU estiver 100% ocupada pelo jogo, a cópia de quadros da captura ainda disputa tempo de GPU. Nesse caso, limitar o FPS do jogo ajuda.
+
+## Live a ~7 fps com jogo aberto (relato 2026-10-30, Ryzen 7 5700G + RX 6700 XT)
+- Sintoma: fora do jogo a live mantém 60 fps; com o jogo aberto cai para ~7 fps, enquanto o jogo roda a mais de 100 fps.
+- Hipótese: a cópia GPU→CPU de cada quadro capturado fica na fila atrás do jogo, que ocupa a GPU inteira.
+- Mitigação: `enable-features=WebRtcAllowWgcUsingTexture` faz a captura WGC entregar o quadro como textura, sem essa cópia.
+- Validado: E2E `golive-real.spec.ts` continua capturando o monitor real em 1920×1080, com o encoder NVIDIA H.264 MFT.
+- **Não validado:** o efeito na máquina AMD do relato. Status: BLOQUEADO PARA VALIDAÇÃO.
+- Diagnóstico pendente: o tooltip do selo de quem transmite ("limitado por CPU/banda", encoder). Se o encoder for software (OpenH264), a causa é outra: CPU disputada pelo jogo.
+- Paliativo: limitar o FPS do jogo (ex.: Radeon Chill/FRTC), para deixar folga de GPU.
+- Medição neste PC (RTX), assistindo uma live 1080p: `gpu_compositing`, `video_decode` e `video_encode` = enabled; decoder `D3D11VideoDecoder`; interface acima de 470 fps sem long tasks.
