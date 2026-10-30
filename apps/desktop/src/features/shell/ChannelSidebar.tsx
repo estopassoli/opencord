@@ -292,7 +292,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                                 <span className="truncate" style={{ color: roleColorOf(detail, m) }}>
                                   {name}
                                 </span>
-                                {creator && <CreatorTag />}
+                                {creator && <CreatorTag iconOnly />}
                                 {v.streaming && <span className="live-pill">AO VIVO</span>}
                                 {v.video && <Icon name="camera" size={14} label="Câmera ligada" />}
                                 {(v.selfMute || v.serverMute) && (

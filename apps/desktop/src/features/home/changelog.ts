@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     kind: 'melhoria',
     icon: 'verified',
     title: 'Nick colorido também na voz',
-    body: 'Quem está numa sala de voz aparece com a cor do cargo, como na lista de membros. No servidor oficial, o criador do OpenCord ganha o selo de verificado também ali.',
+    body: 'Quem está numa sala de voz aparece com a cor do cargo, como na lista de membros. No servidor oficial, o criador do OpenCord aparece ali com o ícone de verificado.',
   },
   {
     date: '2026-10-30',

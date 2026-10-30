@@ -1291,6 +1291,11 @@ textarea:focus-visible {
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
+.creator-badge {
+  display: inline-flex;
+  flex: none;
+  color: var(--brand-text);
+}
 .members li[data-creator='true'] .member-row > .truncate,
 .voice-members li[data-creator='true'] .voice-member > .truncate {
   font-weight: 700;
