@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '12:30',
+    kind: 'novo',
+    icon: 'speaker',
+    title: 'Música na chamada',
+    body: 'Nova atividade "Música": cole links do YouTube ou do YouTube Music e todos na chamada ouvem juntos, com fila, anterior/próxima, barra de progresso e volume só seu. Qualquer pessoa da chamada adiciona e controla; quando uma música acaba, a próxima começa para todos.',
+  },
+  {
+    date: '2026-10-30',
     time: '11:40',
     kind: 'melhoria',
     icon: 'settings',

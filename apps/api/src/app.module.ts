@@ -24,6 +24,7 @@ import { ServersController } from './servers/servers.controller.js';
 import { ServersService } from './servers/servers.service.js';
 import { DiscordImportService } from './servers/discord-import.service.js';
 import { ActivitiesService } from './voice/activities.service.js';
+import { MusicService } from './voice/music.service.js';
 import { AvatarService } from './users/avatar.service.js';
 import { AvatarsController } from './users/avatars.controller.js';
 import { SocialController } from './social/social.controller.js';
@@ -62,6 +63,7 @@ export class AppModule {
         ServersService,
         DiscordImportService,
         ActivitiesService,
+        MusicService,
         AvatarService,
         RealtimeService,
         PresenceService,

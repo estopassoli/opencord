@@ -11,6 +11,7 @@ import { Button, Icon, Slider, TextField } from '@opencord/ui';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { useActivity } from '../../store/activity';
+import { useMusic } from '../../store/music';
 import { useData } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
@@ -20,7 +21,7 @@ const YT_ORIGIN = 'https://www.youtube.com';
 /** diferença tolerada entre o meu player e o grupo antes de pular para o ponto certo */
 const DRIFT_S = 2;
 
-const fmt = (s: number) => {
+export const fmt = (s: number) => {
   const t = Math.max(0, Math.floor(s));
   const h = Math.floor(t / 3600);
   const m = Math.floor((t % 3600) / 60);
@@ -37,7 +38,7 @@ interface PlayerInfo {
 }
 
 /** Player oficial do YouTube controlado por postMessage (sem carregar o script externo da API do YouTube). */
-function useYouTubeFrame(videoId: string) {
+export function useYouTubeFrame(videoId: string) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [info, setInfo] = useState<PlayerInfo>({ currentTime: 0, duration: 0, state: -1 });
   const [ready, setReady] = useState(false);
@@ -412,6 +413,12 @@ export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
       document.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
+  const music = useMusic((m) => m.state);
+  const openMusic = () => {
+    onClose();
+    if (music) useMusic.getState().join(true);
+    else useMusic.getState().setOpen(true);
+  };
   const openYouTube = () => {
     onClose();
     if (running) {
@@ -434,6 +441,19 @@ export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
             <span className="app-name">
               <strong>YouTube</strong>
               <span className="muted small">{running ? 'Em andamento: abrir' : 'Assistir juntos'}</span>
+            </span>
+          </button>
+        </li>
+        <li>
+          <button className="app-card app-music" onClick={openMusic}>
+            <span className="app-art" aria-hidden="true">
+              <Icon name="speaker" size={34} />
+            </span>
+            <span className="app-name">
+              <strong>Música</strong>
+              <span className="muted small">
+                {music ? 'Tocando: abrir o player' : 'YouTube e YouTube Music, todos ouvem juntos'}
+              </span>
             </span>
           </button>
         </li>

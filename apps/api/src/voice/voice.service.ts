@@ -158,12 +158,14 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     await this.handOffActivity(s);
     if ((await this.r.scard(`voice:channel:${s.channelId}`)) === 0) {
       await this.r.srem('voice:channels', s.channelId);
-      // chamada vazia: a atividade (Assistir juntos) acaba junto
+      // chamada vazia: as atividades (Assistir juntos e música) acabam junto
       if ((await this.r.del(`activity:${s.channelId}`)) > 0)
         this.realtime.emit(rooms.server(s.serverId), 'activity:ended', {
           channelId: s.channelId,
           serverId: s.serverId,
         });
+      if ((await this.r.del(`music:${s.channelId}`)) > 0)
+        this.realtime.emit(rooms.server(s.serverId), 'music:ended', { channelId: s.channelId, serverId: s.serverId });
     }
   }
 
