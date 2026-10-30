@@ -10,8 +10,10 @@ import {
   type ServerDetail,
   type ServerSummary,
 } from '@opencord/contracts';
-import { Button, Checkbox, ColorSwatches, Icon, TextField } from '@opencord/ui';
+import { Button, Checkbox, ColorSwatches, Icon, Select, TextField } from '@opencord/ui';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { CHANNEL_ICON, CHANNEL_LABEL } from '../../lib/channels';
 import { Dialog } from '../../components/Dialog';
 import { useData } from '../../store/data';
 import { api, describeError, loadServer } from '../../store/session';
@@ -639,11 +641,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
   return (
     <li className="admin-row">
       <form className="channel-form" onSubmit={(e) => void save(e)}>
-        <Icon
-          name={channel.kind === 'text' ? 'hashtag' : 'speaker'}
-          size={18}
-          label={channel.kind === 'text' ? 'Canal de texto' : 'Canal de voz'}
-        />
+        <Icon name={CHANNEL_ICON[channel.kind]} size={18} label={CHANNEL_LABEL[channel.kind]} />
         <TextField
           aria-label="Nome do canal"
           value={name}
@@ -661,6 +659,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
             maxLength={1024}
           />
         )}
+        {channel.kind === 'text' && <BoardFeedSelect channel={channel} />}
         <Button type="submit" size="sm" disabled={busy || !dirty || !name.trim()}>
           Salvar
         </Button>
@@ -676,6 +675,39 @@ function ChannelRow({ channel }: { channel: Channel }) {
         </button>
       </form>
     </li>
+  );
+}
+
+/** Canal de texto que alimenta um quadro kanban: cada mensagem nova vira card (ADR-0017). Só aparece se há quadros. */
+function BoardFeedSelect({ channel }: { channel: Channel }) {
+  const boards = useData(
+    useShallow((s) => s.details[channel.serverId]?.channels.filter((c) => c.kind === 'board') ?? []),
+  );
+  if (!boards.length) return null;
+  const change = async (boardId: string) => {
+    try {
+      const c = await api().request<Channel>('PATCH', `/channels/${channel.id}`, {
+        boardId: boardId === 'none' ? null : boardId,
+      });
+      useData.getState().upsertChannel({ ...c, myPermissions: channel.myPermissions });
+      useUi
+        .getState()
+        .toast('success', boardId === 'none' ? 'O canal não alimenta mais um quadro.' : 'Canal ligado ao quadro.');
+    } catch (err) {
+      toastError(err);
+    }
+  };
+  return (
+    <Select<string>
+      aria-label={`Quadro alimentado por ${channel.name}`}
+      className="channel-board"
+      value={channel.boardId ?? 'none'}
+      onChange={(v) => void change(v)}
+      options={[
+        { value: 'none', label: 'Sem quadro' },
+        ...boards.map((b) => ({ value: b.id, label: `Vira card em ${b.name}` })),
+      ]}
+    />
   );
 }
 

@@ -25,11 +25,17 @@ interface NewsEntry {
 
 interface ChannelSpec {
   name: string;
-  kind: 'text' | 'voice';
+  kind: 'text' | 'voice' | 'board';
   topic?: string;
+  /** nomes antigos: o canal existente é renomeado (mantém mensagens e as chaves dos posts) */
+  formerly?: string;
   /** só a equipe escreve (@everyone sem SEND_MESSAGES; reações continuam) */
   readOnly?: boolean;
-  /** mensagens fixas da equipe, na ordem */
+  /** só quem tem Administrador (ou é dono/super admin) vê (@everyone sem VIEW_CHANNEL) */
+  staffOnly?: boolean;
+  /** canal de texto: cada mensagem nova vira card neste quadro (nome do canal "board") */
+  feeds?: string;
+  /** mensagens fixas da equipe, na ordem; o seed atualiza o texto se ele mudar aqui */
   posts?: string[];
 }
 
@@ -55,7 +61,7 @@ const LAYOUT: { category: string; channels: ChannelSpec[] }[] = [
             '• Leia as **#regras** (são poucas).',
             '• Diga oi em **#apresente-se** e converse em **#geral**.',
             '• Tudo o que muda no app sai em **#novidades**; avisos importantes, em **#anúncios**.',
-            '• Dúvidas: **#ajuda**. Ideias: **#sugestões**. Algo quebrou: **#bugs**.',
+            '• Dúvidas: **#ajuda**. Ideias: **#sugestões**. Algo quebrou: **#reportar-bugs**.',
             '• Quer jogar ou conversar por voz? Entre em qualquer canal da categoria **Voz**.',
             '',
             `O app de desktop (Windows, macOS e Linux) está em ${SITE} e a versão no navegador em ${WEB}.`,
@@ -148,9 +154,11 @@ const LAYOUT: { category: string; channels: ChannelSpec[] }[] = [
         ],
       },
       {
-        name: 'bugs',
+        name: 'reportar-bugs',
+        formerly: 'bugs',
         kind: 'text',
-        topic: 'Algo quebrou? Conte aqui',
+        topic: 'Algo quebrou? Conte aqui: cada mensagem vira um card para a equipe',
+        feeds: 'kanban-de-bugs',
         posts: [
           [
             '**Como reportar um bug**',
@@ -160,7 +168,18 @@ const LAYOUT: { category: string; channels: ChannelSpec[] }[] = [
             '4. Um print ou vídeo ajuda muito.',
             `Também dá para abrir uma issue em ${REPO}/issues.`,
           ].join('\n'),
+          [
+            '**Cada mensagem enviada aqui vira um card no quadro de bugs da equipe.** 🐞',
+            'Comece pela frase que resume o problema: ela vira o título do card. Os detalhes podem vir nas linhas de baixo.',
+            'A equipe acompanha o card de "Novo" até "Resolvido".',
+          ].join('\n'),
         ],
+      },
+      {
+        name: 'kanban-de-bugs',
+        kind: 'board',
+        topic: 'Bugs relatados em #reportar-bugs (só a equipe vê)',
+        staffOnly: true,
       },
       {
         name: 'self-hosting',
@@ -317,6 +336,8 @@ async function seed(tx: Prisma.TransactionClient, news: NewsEntry[], log: (s: st
   const chans = await tx.channel.findMany({ where: { serverId: server.id } });
   let created = 0;
   let posted = 0;
+  let edited = 0;
+  const ids = new Map<string, string>();
   const newsChannel: { id?: string } = {};
   for (const [ci, group] of LAYOUT.entries()) {
     let cat = cats.find((c) => c.name.toLowerCase() === group.category.toLowerCase());
@@ -326,8 +347,16 @@ async function seed(tx: Prisma.TransactionClient, news: NewsEntry[], log: (s: st
       log(`Categoria criada: ${group.category}`);
     }
     for (const [pi, spec] of group.channels.entries()) {
-      let ch = chans.find((c) => c.kind === spec.kind && c.name.toLowerCase() === spec.name.toLowerCase());
-      if (ch) {
+      const named = (n: string) => chans.find((c) => c.kind === spec.kind && c.name.toLowerCase() === n.toLowerCase());
+      let ch = named(spec.name);
+      const renamed = !ch && spec.formerly ? named(spec.formerly) : undefined;
+      if (renamed) {
+        ch = await tx.channel.update({
+          where: { id: renamed.id },
+          data: { name: spec.name, categoryId: cat.id, position: pi, ...(spec.topic ? { topic: spec.topic } : {}) },
+        });
+        log(`Canal renomeado: ${renamed.name} → ${spec.name}`);
+      } else if (ch) {
         await tx.channel.update({
           where: { id: ch.id },
           data: { categoryId: cat.id, position: pi, ...(spec.topic && !ch.topic ? { topic: spec.topic } : {}) },
@@ -353,28 +382,54 @@ async function seed(tx: Prisma.TransactionClient, news: NewsEntry[], log: (s: st
           update: {},
         });
       }
+      if (spec.staffOnly) {
+        const key = { channelId: ch.id, subjectType: 'role' as const, subjectId: everyone.id };
+        await tx.channelPermissionOverride.upsert({
+          where: { channelId_subjectType_subjectId: key },
+          create: { ...key, allow: 0, deny: Permission.VIEW_CHANNEL },
+          update: { deny: Permission.VIEW_CHANNEL, allow: 0 },
+        });
+      }
+      ids.set(spec.name, ch.id);
       if (spec.name === 'novidades') newsChannel.id = ch.id;
       // posts fixos: um segundo entre eles, para a ordem ficar estável
       const base = Date.now() - (spec.posts?.length ?? 0) * 1000;
       for (const [i, body] of (spec.posts ?? []).entries()) {
-        const r = await tx.message.createMany({
-          data: [
-            {
-              authorId: ownerId,
-              channelId: ch.id,
-              requestId: stableId(`post:${spec.name}:${i}`),
-              body,
-              mentions: [],
-              createdAt: new Date(base + i * 1000),
-            },
-          ],
-          skipDuplicates: true,
+        // chave pelo nome original: renomear o canal não posta tudo de novo
+        const requestId = stableId(`post:${spec.formerly ?? spec.name}:${i}`);
+        const old = await tx.message.findUnique({
+          where: { authorId_requestId: { authorId: ownerId, requestId } },
+          select: { id: true, body: true, deletedAt: true },
         });
-        posted += r.count;
+        if (old) {
+          // texto mudou no seed: edita a mensagem (fica marcada como editada); apagada pela equipe fica apagada
+          if (old.body !== body && !old.deletedAt) {
+            await tx.message.update({ where: { id: old.id }, data: { body, editedAt: new Date() } });
+            edited++;
+          }
+          continue;
+        }
+        await tx.message.create({
+          data: {
+            authorId: ownerId,
+            channelId: ch.id,
+            requestId,
+            body,
+            mentions: [],
+            createdAt: new Date(base + i * 1000),
+          },
+        });
+        posted++;
       }
     }
   }
-  log(`Canais criados: ${created}; mensagens fixas postadas: ${posted}`);
+  // canais que alimentam quadros (depois do laço: o quadro pode vir depois do canal)
+  for (const spec of LAYOUT.flatMap((g) => g.channels).filter((c) => c.feeds)) {
+    const from = ids.get(spec.name);
+    const to = ids.get(spec.feeds!);
+    if (from && to) await tx.channel.update({ where: { id: from }, data: { boardId: to } });
+  }
+  log(`Canais criados: ${created}; mensagens fixas postadas: ${posted}, editadas: ${edited}`);
 
   // categorias padrão que ficaram vazias
   for (const c of cats.filter((c) => DEFAULT_CATEGORIES.includes(c.name))) {

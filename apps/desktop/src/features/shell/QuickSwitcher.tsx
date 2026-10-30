@@ -1,6 +1,7 @@
 import { nickKeyOf } from '@opencord/contracts';
 import { Icon, TextField, type IconName } from '@opencord/ui';
 import { useMemo, useState, type KeyboardEvent } from 'react';
+import { CHANNEL_ICON } from '../../lib/channels';
 import { Dialog } from '../../components/Dialog';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
@@ -32,7 +33,7 @@ export function QuickSwitcher({ onClose }: { onClose: () => void }) {
           id: c.id,
           label: c.name,
           hint: srv.name,
-          icon: c.kind === 'text' ? 'hashtag' : 'speaker',
+          icon: CHANNEL_ICON[c.kind],
           go: () => {
             useUi.getState().go({ kind: 'server', serverId: srv.id, channelId: c.id });
             if (c.kind === 'voice') void useVoice.getState().join(c.id, srv.id);

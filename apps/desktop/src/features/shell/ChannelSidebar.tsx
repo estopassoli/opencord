@@ -10,6 +10,7 @@ import { ProfileButton } from './ProfileButton';
 import { ActivityHint } from '../voice/WatchTogether';
 import { Tooltip } from '../../components/Tooltip';
 import { moveToVoice } from './voiceMove';
+import { CHANNEL_ICON, CHANNEL_ORDER } from '../../lib/channels';
 
 /** Categorias recolhidas (por id de categoria), lembradas neste dispositivo. */
 const COLLAPSED_KEY = 'oc:collapsed-categories';
@@ -54,7 +55,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
     const byCat = new Map<string | null, Channel[]>();
     for (const c of detail.channels) byCat.set(c.categoryId, [...(byCat.get(c.categoryId) ?? []), c]);
     const sortCh = (l: Channel[]) =>
-      [...l].sort((a, b) => (a.kind === b.kind ? a.position - b.position : a.kind === 'text' ? -1 : 1));
+      [...l].sort((a, b) => CHANNEL_ORDER[a.kind] - CHANNEL_ORDER[b.kind] || a.position - b.position);
     const out: { id: string | null; name: string | null; channels: Channel[] }[] = [];
     const loose = byCat.get(null);
     if (loose?.length) out.push({ id: null, name: null, channels: sortCh(loose) });
@@ -211,13 +212,15 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                                     onSelect: () => void markTargetRead(`c:${c.id}`),
                                   },
                                 ]
-                              : [
-                                  {
-                                    label: 'Entrar no canal de voz',
-                                    icon: 'speaker' as const,
-                                    onSelect: () => void useVoice.getState().join(c.id, serverId),
-                                  },
-                                ]),
+                              : c.kind === 'board'
+                                ? []
+                                : [
+                                    {
+                                      label: 'Entrar no canal de voz',
+                                      icon: 'speaker' as const,
+                                      onSelect: () => void useVoice.getState().join(c.id, serverId),
+                                    },
+                                  ]),
                             ...(canManage
                               ? ([
                                   'separator',
@@ -249,7 +252,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                         if (c.kind === 'voice' && voiceChannel !== c.id) void useVoice.getState().join(c.id, serverId);
                       }}
                     >
-                      <Icon name={c.kind === 'text' ? 'hashtag' : 'speaker'} size={18} />
+                      <Icon name={CHANNEL_ICON[c.kind]} size={18} />
                       <span className="truncate">{c.name}</span>
                       {!hasPermission(c.myPermissions, Permission.SEND_MESSAGES) && c.kind === 'text' && (
                         <Icon name="lock" size={14} label="Somente leitura" />

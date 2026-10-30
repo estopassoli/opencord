@@ -12,6 +12,8 @@ import { AuditService } from './audit/audit.service.js';
 import { AttachmentsController } from './attachments/attachments.controller.js';
 import { AttachmentsService } from './attachments/attachments.service.js';
 import { StorageService } from './attachments/storage.service.js';
+import { BoardsController } from './boards/boards.controller.js';
+import { BoardsService } from './boards/boards.service.js';
 import { SoundsController } from './sounds/sounds.controller.js';
 import { SoundsService } from './sounds/sounds.service.js';
 import { DownloadsController } from './downloads/downloads.controller.js';
@@ -42,6 +44,7 @@ export class AppModule {
       module: AppModule,
       controllers: [
         SoundsController,
+        BoardsController,
         HealthController,
         DownloadsController,
         AuthController,
@@ -74,6 +77,7 @@ export class AppModule {
         StorageService,
         SoundsService,
         AttachmentsService,
+        BoardsService,
         MessagesService,
         SocialService,
         VoiceService,

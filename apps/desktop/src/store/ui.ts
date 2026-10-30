@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ChannelKind } from '@opencord/contracts';
 import type { TargetKey } from './data';
 
 export type View =
@@ -21,7 +22,7 @@ export type Modal =
   | { kind: 'join-invite'; code: string }
   | { kind: 'profile'; userId: string }
   | { kind: 'add-to-dm'; peerId: string }
-  | { kind: 'create-channel'; serverId: string; channelKind: 'text' | 'voice'; categoryId: string | null }
+  | { kind: 'create-channel'; serverId: string; channelKind: ChannelKind; categoryId: string | null }
   | { kind: 'create-category'; serverId: string }
   | { kind: 'watch-together' }
   | { kind: 'screen-picker' }

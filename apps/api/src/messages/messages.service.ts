@@ -17,6 +17,7 @@ import { forbidden, notFound } from '../common/errors.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
 import { PermissionsService } from '../servers/permissions.service.js';
+import { BoardsService } from '../boards/boards.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
 export type Target =
@@ -48,13 +49,14 @@ export class MessagesService {
     private readonly perms: PermissionsService,
     private readonly attachments: AttachmentsService,
     private readonly realtime: RealtimeService,
+    private readonly boards: BoardsService,
   ) {}
 
   /** Resolve acesso ao destino. DMs: membros têm todas as permissões de mensagem. */
   async access(userId: string, target: Target): Promise<TargetAccess> {
     if (target.channelId) {
       const a = await this.perms.channel(target.channelId, userId);
-      if (a.kind !== 'text') throw new BadRequestException('canal de voz não aceita mensagens');
+      if (a.kind !== 'text') throw new BadRequestException('este canal não aceita mensagens');
       return {
         room: rooms.channel(a.channelId),
         channelId: a.channelId,
@@ -231,6 +233,8 @@ export class MessagesService {
     });
     await this.markRead(userId, target, row.id, false);
     this.notify(userId, a, row, mentions, mentionEveryone);
+    // canal que alimenta um quadro kanban: a mensagem vira card (ADR-0017)
+    if (a.channelId) await this.boards.fromMessage(row);
     return { message: this.serialize(row, userId), duplicate: false };
   }
 

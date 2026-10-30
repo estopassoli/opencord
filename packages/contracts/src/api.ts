@@ -119,7 +119,7 @@ export const UpdateProfileRequest = z.object({ displayName: Nickname.optional() 
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>;
 
 // ---------- Servidores, cargos, canais ----------
-export const ChannelKind = z.enum(['text', 'voice']);
+export const ChannelKind = z.enum(['text', 'voice', 'board']);
 export type ChannelKind = z.infer<typeof ChannelKind>;
 
 export const Role = z.object({
@@ -155,8 +155,52 @@ export const Channel = z.object({
   /** Permissões efetivas do usuário atual neste canal. */
   myPermissions: z.number().int().nonnegative(),
   overrides: z.array(PermissionOverrideDto),
+  /** canal de texto que alimenta um quadro kanban: cada mensagem nova vira card nele (ADR-0017) */
+  boardId: Id.nullable().default(null),
 });
 export type Channel = z.infer<typeof Channel>;
+
+// ---------- Quadros kanban (ADR-0017) ----------
+export const BoardColumn = z.enum(['new', 'triage', 'doing', 'done']);
+export type BoardColumn = z.infer<typeof BoardColumn>;
+export const BOARD_COLUMNS: readonly { id: BoardColumn; label: string }[] = [
+  { id: 'new', label: 'Novo' },
+  { id: 'triage', label: 'Em análise' },
+  { id: 'doing', label: 'Em andamento' },
+  { id: 'done', label: 'Resolvido' },
+];
+
+export const BoardCard = z.object({
+  id: Id,
+  boardId: Id,
+  column: BoardColumn,
+  position: z.number(),
+  title: z.string(),
+  body: z.string(),
+  reporter: UserPublic.nullable(),
+  /** mensagem de origem e o canal dela (para abrir a conversa) */
+  messageId: Id.nullable(),
+  sourceChannelId: Id.nullable(),
+  attachments: z.number().int().nonnegative(),
+  createdAt: IsoDate,
+  updatedAt: IsoDate,
+});
+export type BoardCard = z.infer<typeof BoardCard>;
+
+export const CreateBoardCardRequest = z.object({
+  title: z.string().trim().min(1).max(200),
+  body: z.string().trim().max(4000).default(''),
+});
+export type CreateBoardCardRequest = z.input<typeof CreateBoardCardRequest>;
+
+/** mover (coluna e/ou posição) e editar título/descrição */
+export const UpdateBoardCardRequest = z.object({
+  column: BoardColumn.optional(),
+  position: z.number().finite().optional(),
+  title: z.string().trim().min(1).max(200).optional(),
+  body: z.string().trim().max(4000).optional(),
+});
+export type UpdateBoardCardRequest = z.input<typeof UpdateBoardCardRequest>;
 
 export const Member = z.object({
   user: UserPublic,
@@ -232,6 +276,8 @@ export const UpdateChannelRequest = z.object({
   categoryId: Id.nullable().optional(),
   position: z.number().int().min(0).optional(),
   overrides: z.array(PermissionOverrideDto).max(100).optional(),
+  /** canal de texto: quadro kanban alimentado pelas mensagens dele (null desliga) */
+  boardId: Id.nullable().optional(),
 });
 export type UpdateChannelRequest = z.input<typeof UpdateChannelRequest>;
 
