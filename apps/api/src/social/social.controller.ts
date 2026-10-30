@@ -15,6 +15,11 @@ export class SocialController {
     private readonly presence: PresenceService,
   ) {}
 
+  @Get('users/:userId/profile')
+  profile(@CurrentUser() u: AuthUser, @Param('userId', id) other: string) {
+    return this.social.profile(u.userId, other);
+  }
+
   @Get('friends')
   async friends(@CurrentUser() u: AuthUser) {
     const list = await this.social.listFriends(u.userId);

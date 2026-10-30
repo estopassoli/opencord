@@ -7,6 +7,7 @@ import { keyOf, useData, useMessages, type TargetKey } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { Composer } from './Composer';
+import { useDmPeer } from '../shell/DmProfilePanel';
 import { MessageItem } from './MessageItem';
 
 export type ChatTarget =
@@ -34,6 +35,8 @@ export function ChatView({ target }: { target: ChatTarget }) {
   const members = useData((s) => (channel ? s.details[channel.serverId]?.members : undefined));
   const showMembers = useUi((s) => s.showMembers);
   const friendsPanel = useUi((s) => s.friendsPanel);
+  const dmProfile = useUi((s) => s.dmProfile);
+  const dmPeer = useDmPeer(target.conversationId ?? null);
   const membersPanel = useUi((s) => s.panel === 'members');
   const mobile = useIsMobile();
   const scroller = useRef<HTMLDivElement>(null);
@@ -137,6 +140,17 @@ export function ChatView({ target }: { target: ChatTarget }) {
         <h2 className="truncate">{title}</h2>
         {channel?.topic && <span className="chat-topic truncate">{channel.topic}</span>}
         <span className="spacer" />
+        {!channel && !mobile && dmPeer && (
+          <button
+            className="icon-btn"
+            aria-pressed={dmProfile}
+            aria-label={dmProfile ? 'Ocultar perfil do usuário' : 'Mostrar perfil do usuário'}
+            title={dmProfile ? 'Ocultar perfil do usuário' : 'Mostrar perfil do usuário'}
+            onClick={() => useUi.getState().setDmProfile(!dmProfile)}
+          >
+            <Icon name="user" />
+          </button>
+        )}
         {!channel && !mobile && (
           <button
             className="icon-btn"

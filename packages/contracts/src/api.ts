@@ -402,6 +402,17 @@ export type Friend = z.infer<typeof Friend>;
 export const FriendRequestCreate = z.object({ username: z.string().trim().min(2).max(32) });
 
 export const ConversationKind = z.enum(['dm', 'group']);
+/** Perfil visto por outra pessoa (painel da DM): só para quem tem conversa, servidor ou amizade em comum. */
+export const UserProfile = z.object({
+  user: UserPublic,
+  createdAt: IsoDate,
+  /** quando a amizade foi aceita (null se não são amigos) */
+  friendSince: IsoDate.nullable(),
+  mutualServers: z.array(z.object({ id: Id, name: z.string(), iconKey: z.string().nullable(), official: z.boolean() })),
+  mutualFriends: z.array(UserPublic),
+});
+export type UserProfile = z.infer<typeof UserProfile>;
+
 export const Conversation = z.object({
   id: Id,
   kind: ConversationKind,

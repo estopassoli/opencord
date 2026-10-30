@@ -1,4 +1,5 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { UserProfile } from '@opencord/contracts';
 import {
   Permission,
   type Message,
@@ -300,5 +301,24 @@ describe('configurações do usuário', () => {
       });
       expect(r.status, JSON.stringify(bad)).toBe(400);
     }
+  });
+
+  it('perfil para o painel da DM: data, amizade e servidores em comum; sem vínculo ou com bloqueio é 404', async () => {
+    const { alice, bob, serverId } = await setup();
+    const p0 = await http.req<UserProfile>('GET', `/users/${bob.id}/profile`, { token: alice.token });
+    expect(p0.status).toBe(200);
+    expect(p0.body.friendSince).toBeNull();
+    expect(p0.body.mutualServers.map((s) => s.id)).toContain(serverId);
+    expect(Date.parse(p0.body.createdAt)).toBeGreaterThan(0);
+    await http.req('POST', '/friends/requests', { token: alice.token, body: { username: bob.auth.user.username } });
+    await http.req('POST', `/friends/${alice.id}/accept`, { token: bob.token });
+    const p1 = await http.req<UserProfile>('GET', `/users/${bob.id}/profile`, { token: alice.token });
+    expect(p1.body.friendSince).not.toBeNull();
+    // sem vínculo: 404 (não serve de busca de usuários)
+    const stranger = await outsider(http);
+    expect((await http.req('GET', `/users/${bob.id}/profile`, { token: stranger.token })).status).toBe(404);
+    // bloqueio em qualquer direção: 404
+    await http.req('PUT', `/blocks/${alice.id}`, { token: bob.token });
+    expect((await http.req('GET', `/users/${bob.id}/profile`, { token: alice.token })).status).toBe(404);
   });
 });
