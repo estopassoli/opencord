@@ -19,6 +19,7 @@ import { api, describeError, useSession } from '../../store/session';
 import { updateSettings } from '../../store/settings';
 import { useUi } from '../../store/ui';
 import './settings.css';
+import { deviceLabel } from '../voice/devices';
 import { AvatarPicker } from './AvatarPicker';
 
 // ---------------------------------------------------------------------------
@@ -463,7 +464,7 @@ function DeviceSelect({
   const missing = value !== null && !list.some((d) => d.deviceId === value);
   const options: SelectOption<string>[] = [
     { value: DEFAULT_DEVICE, label: 'Padrão do sistema' },
-    ...list.map((d, i) => ({ value: d.deviceId, label: d.label || `Dispositivo ${i + 1}` })),
+    ...list.map((d, i) => ({ value: d.deviceId, label: deviceLabel(d.label) || `Dispositivo ${i + 1}` })),
     ...(missing && value !== null ? [{ value, label: 'Dispositivo desconectado' }] : []),
   ];
   return (

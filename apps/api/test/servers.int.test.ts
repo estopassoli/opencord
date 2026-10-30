@@ -202,6 +202,8 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     const inv = await http.req<Invite>('POST', `/servers/${sid}/invites`, { token: alice.token });
     expect(inv.status).toBe(201);
     expect(inv.body.code).toMatch(/^[A-Za-z0-9]{10}$/);
+    // link de convite: PUBLIC_APP_URL/invite/<código>
+    expect(inv.body.url).toBe(`http://localhost:5173/invite/${inv.body.code}`);
     // a mesma pessoa recebe o mesmo código
     expect((await http.req<Invite>('POST', `/servers/${sid}/invites`, { token: alice.token })).body.code).toBe(
       inv.body.code,

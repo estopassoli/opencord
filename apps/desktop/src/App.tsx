@@ -7,10 +7,21 @@ import { AppShell } from './features/shell/AppShell';
 import { bridge } from './lib/bridge';
 import { openRoute } from './store/notify';
 import { useSession } from './store/session';
+import { useUi } from './store/ui';
+import { clearPendingInvite, pendingInvite } from './lib/invite';
 import { useVoice } from './store/voice';
 
 export function App() {
   const status = useSession((s) => s.status);
+
+  // link de convite (/invite/<código>, capturado em main.tsx): abre assim que a pessoa entrar
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const code = pendingInvite();
+    if (!code) return;
+    clearPendingInvite();
+    useUi.getState().openModal({ kind: 'join-invite', code });
+  }, [status]);
 
   useEffect(() => {
     void useSession.getState().restore();

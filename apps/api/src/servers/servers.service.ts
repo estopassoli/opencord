@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
   ALL_PERMISSIONS,
   Permission,
@@ -19,6 +19,7 @@ import { randomInt } from 'node:crypto';
 import { createServerShell, createServerWithDefaults } from '@opencord/db';
 import type { ImportPlan } from './discord-template.js';
 import { PrismaService } from '../common/prisma.service.js';
+import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DomainEvents } from '../common/domain-events.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { category, channel, member, MEMBER_INCLUDE, role, serverSummary } from '../common/serialize.js';
@@ -41,6 +42,7 @@ export class ServersService {
     private readonly realtime: RealtimeService,
     private readonly audit: AuditService,
     private readonly events: DomainEvents,
+    @Inject(APP_CONFIG) private readonly cfg: AppConfig,
   ) {}
 
   // ---------- Servidores ----------
@@ -235,10 +237,15 @@ export class ServersService {
   async createInvite(serverId: string, userId: string): Promise<Invite> {
     await this.perms.server(serverId, userId); // 404 para quem não é membro
     const existing = await this.prisma.invite.findFirst({ where: { serverId, creatorId: userId } });
-    if (existing) return { code: existing.code, serverId };
+    if (existing) return this.inviteDto(existing.code, serverId);
     const invite = await this.prisma.invite.create({ data: { code: inviteCode(), serverId, creatorId: userId } });
     await this.audit.log(userId, serverId, 'invite.create', invite.code, {});
-    return { code: invite.code, serverId };
+    return this.inviteDto(invite.code, serverId);
+  }
+
+  private inviteDto(code: string, serverId: string): Invite {
+    const base = this.cfg.PUBLIC_APP_URL?.replace(/\/+$/, '');
+    return { code, serverId, url: base ? `${base}/invite/${code}` : null };
   }
 
   async previewInvite(code: string, userId: string): Promise<InvitePreview> {

@@ -19,6 +19,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-10-30',
+    time: '00:10',
+    kind: 'melhoria',
+    icon: 'link',
+    title: 'Convite por link',
+    body: '"Convidar pessoas" agora gera um link. Quem abrir entra pelo navegador, mesmo sem conta (só escolhe um apelido), e cai direto no convite do servidor.',
+  },
+  {
+    date: '2026-10-30',
+    time: '00:05',
+    kind: 'correção',
+    icon: 'microphone',
+    title: 'Nomes de dispositivos sem códigos',
+    body: 'Microfones e saídas de áudio aparecem sem o código do fabricante no fim do nome (ex.: "(046d:0b0b)").',
+  },
+  {
     date: '2026-10-29',
     time: '23:55',
     kind: 'novo',

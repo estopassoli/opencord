@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { ApiClient, normalizeServerUrl } from '../../lib/api';
 import { isDesktop, secrets } from '../../lib/bridge';
 import { DEFAULT_SERVER_URL } from '../../lib/config';
+import { pendingInvite } from '../../lib/invite';
 import { describeError, useSession } from '../../store/session';
 
 type Mode = 'nickname' | 'login' | 'register';
@@ -21,7 +22,8 @@ const TITLES: Record<Mode, [string, string]> = {
  * Conta continua opcional: o link "Utilizar apenas apelido" entra sem senha, com os dados só neste dispositivo.
  */
 export function AuthScreen() {
-  const [mode, setMode] = useState<Mode>('login');
+  // quem chega por um link de convite provavelmente não tem conta: começa pelo "só apelido"
+  const [mode, setMode] = useState<Mode>(() => (pendingInvite() ? 'nickname' : 'login'));
   const [serverUrl, setServerUrl] = useState('');
   const [nickname, setNickname] = useState('');
   const [login, setLogin] = useState('');
@@ -90,6 +92,7 @@ export function AuthScreen() {
         <div className="auth-brand">
           <span className="brand-mark" aria-hidden />
           <h1>{title || `Entrar no ${instance?.name ?? 'OpenCord'}`}</h1>
+          {pendingInvite() && <p className="auth-invite">Você recebeu um convite. Entre para aceitar.</p>}
           <p className="muted">{subtitle}</p>
         </div>
 

@@ -3,6 +3,11 @@ import { updateSettings } from '../../store/settings';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
 
+/** Nome do dispositivo sem o id USB de fabricante:produto que o Chromium acrescenta, ex.: " (046d:0b0b)". */
+export function deviceLabel(label: string): string {
+  return label.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '').trim();
+}
+
 /** Menu de dispositivos (seta ao lado do microfone/áudio): lista entradas ou saídas e grava a escolha nas configurações. */
 export async function deviceMenu(kind: 'audioinput' | 'audiooutput'): Promise<MenuEntry[]> {
   let devices: MediaDeviceInfo[] = [];
@@ -23,7 +28,7 @@ export async function deviceMenu(kind: 'audioinput' | 'audiooutput'): Promise<Me
   const items: MenuEntry[] = [
     { label: `${current === null ? '✓ ' : ''}Padrão do sistema`, onSelect: () => pick(null) },
     ...devices.map((d, i) => ({
-      label: `${current === d.deviceId ? '✓ ' : ''}${d.label || `${kind === 'audioinput' ? 'Microfone' : 'Saída'} ${i + 1}`}`,
+      label: `${current === d.deviceId ? '✓ ' : ''}${deviceLabel(d.label) || `${kind === 'audioinput' ? 'Microfone' : 'Saída'} ${i + 1}`}`,
       onSelect: () => pick(d.deviceId),
     })),
     'separator',

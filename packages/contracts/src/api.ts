@@ -268,7 +268,12 @@ export type ServerDirectoryEntry = z.infer<typeof ServerDirectoryEntry>;
 
 /** Código de convite: 10 caracteres alfanuméricos. Aceita também o link inteiro (o código é o final). */
 export const INVITE_CODE = /^[A-Za-z0-9]{10}$/;
-export const Invite = z.object({ code: z.string(), serverId: Id });
+export const Invite = z.object({
+  code: z.string(),
+  serverId: Id,
+  /** link para abrir no navegador (`PUBLIC_APP_URL/invite/<código>`); null se a instância não tem interface web */
+  url: z.string().nullable(),
+});
 export type Invite = z.infer<typeof Invite>;
 export const InvitePreview = z.object({
   code: z.string(),

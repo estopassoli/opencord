@@ -8,6 +8,8 @@ export const ConfigSchema = z.object({
   API_PORT: z.coerce.number().int().min(0).max(65535).default(3000),
   PUBLIC_API_URL: z.url().default('http://localhost:3000'),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  /** Interface no navegador (ex.: https://app.opencord.pro): links de convite apontam para `<url>/invite/<código>`. */
+  PUBLIC_APP_URL: z.url().optional(),
   TRUST_PROXY: bool.default(false),
   /** Cabeçalho com o IP real do cliente, posto pelo proxy de borda (ex.: `cf-connecting-ip`). Ver common/client-ip.ts. */
   CLIENT_IP_HEADER: z.preprocess(

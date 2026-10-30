@@ -26,6 +26,7 @@ export const TEST_ENV = {
   GUEST_JOIN_PER_IP_HOUR: '100000',
   VOICE_RECONCILE_INTERVAL_MS: '0',
   CORS_ORIGINS: 'http://localhost:5173',
+  PUBLIC_APP_URL: 'http://localhost:5173',
   YOUTUBE_OEMBED: 'false',
 } as const;
 
