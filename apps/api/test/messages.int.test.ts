@@ -236,6 +236,49 @@ describe('amigos, bloqueios e DMs (RF-04)', () => {
     ).toBe(404);
   });
 
+  it('mensagens fixadas: na DM qualquer participante; no canal só MANAGE_MESSAGES; terceiro não vê', async () => {
+    const { alice, bob, channelId, owner } = await setup();
+    await http.req('POST', '/friends/requests', { token: alice.token, body: { username: bob.auth.user.username } });
+    await http.req('POST', `/friends/${alice.id}/accept`, { token: bob.token });
+    const conv = await http.req<{ id: string }>('POST', '/conversations', {
+      token: alice.token,
+      body: { userIds: [bob.id] },
+    });
+    const m = await http.req<Message>('POST', `/conversations/${conv.body.id}/messages`, {
+      token: alice.token,
+      body: { requestId: rid(), body: 'endereço da festa' },
+    });
+    // bob (não é o autor) fixa na DM
+    const pinned = await http.req<Message>('PUT', `/messages/${m.body.id}/pin`, { token: bob.token });
+    expect(pinned.status).toBe(200);
+    expect(pinned.body.pinnedAt).toBeTruthy();
+    const pins = await http.req<Message[]>('GET', `/conversations/${conv.body.id}/pins`, { token: alice.token });
+    expect(pins.body.map((x) => x.id)).toEqual([m.body.id]);
+    const page = await http.req<MessagePage>('GET', `/conversations/${conv.body.id}/messages`, { token: alice.token });
+    expect(page.body.messages[0]?.pinnedAt).toBeTruthy();
+    // terceiro não vê nem fixa
+    const eve = await register(http);
+    expect((await http.req('GET', `/conversations/${conv.body.id}/pins`, { token: eve.token })).status).toBe(404);
+    expect((await http.req('DELETE', `/messages/${m.body.id}/pin`, { token: eve.token })).status).toBe(404);
+    // desafixar e excluir
+    await http.req('DELETE', `/messages/${m.body.id}/pin`, { token: alice.token });
+    expect(
+      (await http.req<Message[]>('GET', `/conversations/${conv.body.id}/pins`, { token: bob.token })).body,
+    ).toEqual([]);
+    await http.req('PUT', `/messages/${m.body.id}/pin`, { token: alice.token });
+    await http.req('DELETE', `/messages/${m.body.id}`, { token: alice.token });
+    expect(
+      (await http.req<Message[]>('GET', `/conversations/${conv.body.id}/pins`, { token: bob.token })).body,
+    ).toEqual([]);
+
+    // canal: membro comum não fixa; dono fixa
+    const c = await send(alice.token, channelId, 'regras');
+    expect((await http.req('PUT', `/messages/${c.body.id}/pin`, { token: alice.token })).status).toBe(403);
+    expect((await http.req('PUT', `/messages/${c.body.id}/pin`, { token: owner.token })).status).toBe(200);
+    const cp = await http.req<Message[]>('GET', `/channels/${channelId}/pins`, { token: bob.token });
+    expect(cp.body.map((x) => x.id)).toEqual([c.body.id]);
+  });
+
   it('terceiro não acessa a DM; grupo exige amizade', async () => {
     const { alice, bob } = await setup();
     const carol = await register(http);

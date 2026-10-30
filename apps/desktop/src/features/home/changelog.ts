@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '20:30',
+    kind: 'novo',
+    icon: 'pin',
+    title: 'Mensagens fixadas',
+    body: 'Fixe mensagens importantes clicando com o botão direito nelas e escolhendo "Fixar mensagem". O alfinete no topo da conversa mostra todas as fixadas e leva até cada uma. Nas conversas diretas qualquer participante fixa; nos canais, quem pode gerenciar mensagens.',
+  },
+  {
+    date: '2026-10-30',
     time: '20:00',
     kind: 'novo',
     icon: 'kanban',

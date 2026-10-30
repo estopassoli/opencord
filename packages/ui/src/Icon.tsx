@@ -45,6 +45,8 @@ import {
   Notification01Icon,
   PauseIcon,
   PencilEdit01Icon,
+  PinIcon,
+  PinOffIcon,
   PlayIcon,
   PlusSignIcon,
   Refresh01Icon,
@@ -157,6 +159,8 @@ const ICONS = {
   upload: Upload01Icon,
   menu: Menu01Icon,
   'at-symbol': AtIcon,
+  pin: PinIcon,
+  'pin-off': PinOffIcon,
 } satisfies Record<string, IconSvgElement>;
 
 export type IconName = keyof typeof ICONS;

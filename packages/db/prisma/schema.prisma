@@ -288,6 +288,9 @@ model Message {
   createdAt      DateTime      @default(now()) @db.Timestamptz(3)
   editedAt       DateTime?     @db.Timestamptz(3)
   deletedAt      DateTime?     @db.Timestamptz(3)
+  /** Fixada no canal/conversa (quem fixou fica em pinnedById, sem relação). */
+  pinnedAt       DateTime?     @db.Timestamptz(3)
+  pinnedById     String?       @db.Uuid
   author         User          @relation(fields: [authorId], references: [id])
   channel        Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)

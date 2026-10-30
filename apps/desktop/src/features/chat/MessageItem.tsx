@@ -67,6 +67,8 @@ export const MessageItem = memo(function MessageItem({
   const mine = m.author.id === meId;
   const canDelete = mine || hasPermission(perms, Permission.MANAGE_MESSAGES);
   const canReact = hasPermission(perms, Permission.ADD_REACTIONS);
+  // na DM qualquer participante fixa; no canal, quem gerencia mensagens
+  const canPin = Boolean(target.conversationId) || hasPermission(perms, Permission.MANAGE_MESSAGES);
   const time = new Date(m.createdAt);
   const serverId = useUi((s) => (s.view.kind === 'server' ? s.view.serverId : undefined));
 
@@ -97,6 +99,11 @@ export const MessageItem = memo(function MessageItem({
       .catch((e: unknown) => useUi.getState().toast('error', describeError(e)));
   };
 
+  const togglePin = () =>
+    void api()
+      .request(m.pinnedAt ? 'DELETE' : 'PUT', `/messages/${m.id}/pin`)
+      .catch((e: unknown) => useUi.getState().toast('error', describeError(e)));
+
   const editKeys = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -121,6 +128,15 @@ export const MessageItem = memo(function MessageItem({
           onSelect: () => useUi.getState().setReplyTo(keyOf(target), m.id),
         },
         ...(mine ? [{ label: 'Editar mensagem', icon: 'edit' as const, onSelect: () => setEditing(true) }] : []),
+        ...(canPin
+          ? [
+              {
+                label: m.pinnedAt ? 'Desafixar mensagem' : 'Fixar mensagem',
+                icon: m.pinnedAt ? ('pin-off' as const) : ('pin' as const),
+                onSelect: togglePin,
+              },
+            ]
+          : []),
         {
           label: 'Copiar texto',
           icon: 'copy' as const,
@@ -153,6 +169,8 @@ export const MessageItem = memo(function MessageItem({
       }}
       tabIndex={-1}
       className={grouped ? 'msg msg-grouped' : 'msg'}
+      data-msg-id={m.id}
+      data-pinned={m.pinnedAt ? 'true' : undefined}
       data-mention={mentionsMe ? 'true' : undefined}
       aria-label={`${m.author.displayName}, ${time.toLocaleString()}`}
     >
@@ -204,6 +222,11 @@ export const MessageItem = memo(function MessageItem({
         </div>
       ) : (
         <div className="msg-body">
+          {m.pinnedAt && (
+            <span className="msg-pin" data-tip="Mensagem fixada">
+              <Icon name="pin" size={14} label="Mensagem fixada" />
+            </span>
+          )}
           {renderRich(m.body, nameOf)}
           {m.editedAt && (
             <span className="msg-edited" data-tip={new Date(m.editedAt).toLocaleString()}>
