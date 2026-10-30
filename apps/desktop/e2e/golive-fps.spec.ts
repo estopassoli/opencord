@@ -19,7 +19,12 @@ test.beforeAll(async () => {
   // OC_FPS_ARGS: flags extras do Chromium em quem transmite (comparar caminhos de captura)
   const extra = (process.env.OC_FPS_ARGS ?? '').split(' ').filter(Boolean);
   A = await launch('golive-fps-a', ['--mute-audio', '--use-fake-ui-for-media-stream', ...extra]);
-  B = await launch('golive-fps-b', FLAGS);
+  B = await launch('golive-fps-b', [...FLAGS, ...(process.env.OC_FPS_B_ARGS ?? '').split(' ').filter(Boolean)]);
+  for (const [n, x] of [
+    ['A', A],
+    ['B', B],
+  ] as const)
+    x.page.on('console', (m) => m.type() === 'error' && console.warn('PAGEERROR', n, m.text().slice(0, 900)));
   await login(A.page, OWNER.email, OWNER.password);
   await joinWithNickname(B.page, uniqueNick('Espectador'));
   C = await launch('golive-fps-c', ['--mute-audio']);
@@ -292,6 +297,18 @@ test('1080p60: medição por etapa (direta e com cena, bitrates)', async () => {
     await A.page.waitForTimeout(8000);
     rows.push(await measure(`${scene} ${bitrate} Mbps`, 10));
     rows.push(await measure(`${scene} ${bitrate} Mbps (2)`, 10));
+    if (rows.length === 2) {
+      // diagnóstico num clique (selo de quem assiste): mede 5 s e copia
+      await B.app.evaluate(({ clipboard }) => clipboard.writeText(''));
+      await B.page.locator('.stream-stats').first().click();
+      await expect
+        .poll(() => B.app.evaluate(({ clipboard }) => clipboard.readText()), { timeout: 15_000 })
+        .toContain('"decodedFps"');
+      console.warn(
+        'DIAG_COPIADO',
+        (await B.app.evaluate(({ clipboard }) => clipboard.readText())).replace(/\s+/g, ' '),
+      );
+    }
     await stopLive();
   }
   await PATTERN_APP().app.evaluate(({ BrowserWindow }) => {

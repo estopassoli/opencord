@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '22:15',
+    kind: 'correção',
+    icon: 'signal',
+    title: 'Lives voltam a usar a placa de vídeo',
+    body: 'O modo "Interface leve, lives na placa de vídeo" (Configurações → Desempenho) fazia o contrário do que dizia: a sua live e as que você assiste passavam a ser processadas pelo processador, com fps bem menor. Ele foi removido e quem o usava volta a "Placa de vídeo para tudo". O selo da live agora avisa se o vídeo estiver sem a placa de vídeo, e o diagnóstico copiado traz o histórico dos últimos 10 minutos.',
+  },
+  {
+    date: '2026-10-30',
     time: '22:00',
     kind: 'novo',
     icon: 'tag',

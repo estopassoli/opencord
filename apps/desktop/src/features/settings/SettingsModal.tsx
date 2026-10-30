@@ -1402,12 +1402,6 @@ const GPU_MODE_OPTIONS: readonly { value: GpuMode; label: string; description: s
     description: 'Interface, lives que você assiste e a sua live usam a placa de vídeo.',
   },
   {
-    value: 'ui-software',
-    label: 'Interface leve, lives na placa de vídeo',
-    description:
-      'A interface é desenhada pelo processador e não disputa a placa de vídeo com o jogo; as lives continuam na placa de vídeo. Experimente se o app engasgar enquanto você joga.',
-  },
-  {
     value: 'off',
     label: 'Sem aceleração',
     description:
