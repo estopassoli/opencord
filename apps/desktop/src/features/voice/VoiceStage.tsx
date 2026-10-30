@@ -437,14 +437,18 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
       className="tile tile-stream"
       ref={box}
       data-large={large ? 'true' : undefined}
-      data-focusable={!large && !inPopout && !elsewhere ? 'true' : undefined}
+      data-focusable={!inPopout && !elsewhere ? 'true' : undefined}
       onContextMenu={menu}
-      // na grade, clique esquerdo coloca a live em destaque (e começa a assistir, se ainda não estava);
-      // os botões do card (pelo teclado) continuam fazendo o mesmo
+      // clique esquerdo: na grade, coloca a live em destaque (e começa a assistir, se ainda não estava); em destaque,
+      // volta para a grade (fora da tela cheia). Os botões do card fazem o mesmo pelo teclado.
       onClick={
-        !large && !inPopout && !elsewhere
+        !inPopout && !elsewhere
           ? (e) => {
               if (e.button !== 0) return;
+              if (large) {
+                if (!(box.current?.ownerDocument ?? document).fullscreenElement) useUi.getState().focusStream(null);
+                return;
+              }
               if (!watching && !p.isLocal) engineWatch(true);
               useUi.getState().focusStream(p.identity);
             }
@@ -477,7 +481,8 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
         {!p.screenAudio && <span className="small muted">sem áudio</span>}
       </div>
       {watching && !elsewhere && (
-        <div className="tile-actions">
+        // os botões têm ação própria: não repassam o clique para o card (que alternaria o destaque)
+        <div className="tile-actions" onClick={(e) => e.stopPropagation()}>
           {inPopout ? (
             <button
               className="icon-btn"
