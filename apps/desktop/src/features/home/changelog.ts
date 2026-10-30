@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '04:20',
+    kind: 'novo',
+    icon: 'screen',
+    title: 'Prévia da live no perfil',
+    body: 'Clique em quem está AO VIVO na lista do canal para ver a prévia da transmissão. Um clique na prévia entra na chamada e abre a live.',
+  },
+  {
+    date: '2026-10-30',
+    time: '04:15',
+    kind: 'correção',
+    icon: 'camera',
+    title: 'Ícone de câmera some ao desligar',
+    body: 'Depois de desligar a webcam, a lista do canal continuava mostrando a câmera ligada. Agora o ícone some na hora.',
+  },
+  {
+    date: '2026-10-30',
     time: '04:10',
     kind: 'correção',
     icon: 'screen',
