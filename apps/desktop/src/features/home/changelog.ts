@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '01:20',
+    kind: 'melhoria',
+    icon: 'spotlight',
+    title: 'Clique na live para destacar',
+    body: 'Na grade da chamada, um clique numa transmissão coloca ela em destaque (e começa a assistir, se ainda não estava).',
+  },
+  {
+    date: '2026-10-30',
     time: '01:05',
     kind: 'correção',
     icon: 'screen',

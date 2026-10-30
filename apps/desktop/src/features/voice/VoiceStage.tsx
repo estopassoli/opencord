@@ -433,7 +433,24 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
     if (items.length) openContextMenu(e, items, `Transmissão de ${p.name}`);
   };
   return (
-    <div className="tile tile-stream" ref={box} data-large={large ? 'true' : undefined} onContextMenu={menu}>
+    <div
+      className="tile tile-stream"
+      ref={box}
+      data-large={large ? 'true' : undefined}
+      data-focusable={!large && !inPopout && !elsewhere ? 'true' : undefined}
+      onContextMenu={menu}
+      // na grade, clique esquerdo coloca a live em destaque (e começa a assistir, se ainda não estava);
+      // os botões do card (pelo teclado) continuam fazendo o mesmo
+      onClick={
+        !large && !inPopout && !elsewhere
+          ? (e) => {
+              if (e.button !== 0) return;
+              if (!watching && !p.isLocal) engineWatch(true);
+              useUi.getState().focusStream(p.identity);
+            }
+          : undefined
+      }
+    >
       {elsewhere ? (
         <div className="stream-cover">
           <Icon name="popout" size={32} />
