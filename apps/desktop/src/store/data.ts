@@ -85,6 +85,7 @@ const summaryOf = (d: ServerSummary): ServerSummary => ({
   iconKey: d.iconKey,
   ownerId: d.ownerId,
   official: d.official,
+  verified: d.verified ?? false,
 });
 
 export const useData = create<DataState>()((set) => ({

@@ -21,6 +21,8 @@ model User {
   /** Apelido normalizado (minúsculas, sem acento) — único entre todos os usuários. */
   nickKey      String?   @unique
   avatarKey    String?
+  /// Super admin da instância: vê todos os servidores e, ao entrar (auditado), tem permissões de dono (ADR-0013).
+  isInstanceAdmin Boolean @default(false)
   createdAt    DateTime  @default(now()) @db.Timestamptz(3)
   disabledAt   DateTime? @db.Timestamptz(3)
 
@@ -101,6 +103,8 @@ model Server {
   /// Servidor oficial da instância: aberto a todos (entrada automática, diretório) e com selo de verificado.
   /// Os demais são privados: só entra quem tem convite.
   official   Boolean        @default(false)
+  /// Só o selo de verificado (marcado pelo super admin); não muda privacidade, diretório nem entrada (ADR-0013).
+  verified   Boolean        @default(false)
   createdAt  DateTime       @default(now()) @db.Timestamptz(3)
   owner      User           @relation("ServerOwner", fields: [ownerId], references: [id])
   invites    Invite[]

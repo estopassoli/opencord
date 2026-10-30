@@ -71,9 +71,17 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
           onClick={() => open({ kind: 'server-settings', serverId })}
           title="Configurações do servidor"
         >
-          {detail.official && (
-            <span className="verified-badge" title="Servidor oficial verificado">
-              <Icon name="verified" size={16} active label="Servidor oficial verificado" />
+          {(detail.official || detail.verified) && (
+            <span
+              className="verified-badge"
+              title={detail.official ? 'Servidor oficial verificado' : 'Servidor verificado'}
+            >
+              <Icon
+                name="verified"
+                size={16}
+                active
+                label={detail.official ? 'Servidor oficial verificado' : 'Servidor verificado'}
+              />
             </span>
           )}
           <span className="truncate">{detail.name}</span>

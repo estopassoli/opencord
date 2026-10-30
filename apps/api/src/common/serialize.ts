@@ -16,12 +16,14 @@ export const serverSummary = (s: {
   iconKey: string | null;
   ownerId: string;
   official: boolean;
+  verified?: boolean;
 }): ServerSummary => ({
   id: s.id,
   name: s.name,
   iconKey: s.iconKey,
   ownerId: s.ownerId,
   official: s.official,
+  verified: s.verified ?? false,
 });
 
 export const role = (r: {
