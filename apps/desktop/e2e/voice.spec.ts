@@ -239,6 +239,11 @@ test('imagem do servidor: dono envia e a barra de servidores dos dois mostra na 
   await expect(railA.locator('img.server-icon-img')).toHaveAttribute('src', /\/server-icons\//);
   await expect(railB.locator('img.server-icon-img')).toHaveAttribute('src', /\/server-icons\//, { timeout: 10_000 });
   await expect.poll(() => railB.locator('img').evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(256);
+  // regressão (imagem oval na barra): a imagem ocupa o botão quadrado de 48 px
+  const box = await railB.locator('img').boundingBox();
+  console.warn('RAIL_ICON', JSON.stringify(box));
+  expect(Math.round(box!.width)).toBe(48);
+  expect(Math.round(box!.height)).toBe(48);
   await A.page.screenshot({ path: shot('19-imagem-servidor') });
   await dialog.getByRole('button', { name: 'Remover' }).click();
   await expect(railB.locator('img')).toHaveCount(0, { timeout: 10_000 });

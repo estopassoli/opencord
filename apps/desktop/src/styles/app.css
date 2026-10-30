@@ -4385,3 +4385,20 @@ section:first-child > .friends-panel-sep {
   text-transform: uppercase;
   color: var(--text-muted);
 }
+
+/* no app desktop a janela não tem moldura: o visualizador começa abaixo da barra de título (botões da janela) */
+:root:has(.titlebar) .media-viewer {
+  top: 32px;
+}
+/* imagem do servidor na barra: ocupa o botão inteiro (no grid de coluna automática, width: 100% era calculado
+   sobre o tamanho natural da imagem e ela ficava oval) */
+.rail-item {
+  flex: none;
+}
+.rail-item > .server-icon-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
