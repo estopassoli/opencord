@@ -57,8 +57,10 @@ export function AuthScreen() {
     };
   }, [serverUrl]);
 
-  const guestDisabled = instance !== null && !instance.guestJoin;
-  const effective: Mode = guestDisabled && mode === 'nickname' ? 'login' : mode;
+  // cadastros fechados pelo super admin (ADR-0020): só entrar com a conta que já existe
+  const closed = instance !== null && instance.registrationOpen === false;
+  const guestDisabled = closed || (instance !== null && !instance.guestJoin);
+  const effective: Mode = closed ? 'login' : guestDisabled && mode === 'nickname' ? 'login' : mode;
   const needsCode = Boolean(instance?.requiresAccessCode) && effective !== 'login';
 
   async function submit(e: FormEvent) {
@@ -174,12 +176,13 @@ export function AuthScreen() {
               Já tenho conta
             </button>
           )}
-          {effective !== 'register' && (
+          {effective !== 'register' && !closed && (
             <button type="button" className="link-btn" onClick={() => go('register')}>
               Criar conta
             </button>
           )}
         </p>
+        {closed && <p className="muted small auth-switch">Novos cadastros estão fechados no momento.</p>}
         {effective !== 'nickname' && !guestDisabled && (
           <p className="auth-switch auth-links">
             <button type="button" className="link-btn" onClick={() => go('nickname')}>

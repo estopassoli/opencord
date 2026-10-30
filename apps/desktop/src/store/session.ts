@@ -2,6 +2,7 @@ import {
   defaultUserSettings,
   type AuthResponse,
   type Conversation,
+  type InstanceInfo,
   type Me,
   type Message,
   type PresenceStatus,
@@ -222,15 +223,17 @@ export async function loadFriends() {
 
 async function bootstrap() {
   const a = api();
-  const [me, settings, servers, conversations, unreads] = await Promise.all([
+  const [me, settings, servers, conversations, unreads, instance] = await Promise.all([
     a.request<Me & { presence: Exclude<PresenceStatus, 'offline'> }>('GET', '/me'),
     a.request<UserSettings>('GET', '/me/settings').catch(() => defaultUserSettings()),
     a.request<ServerSummary[]>('GET', '/servers'),
     a.request<Conversation[]>('GET', '/conversations'),
     a.request<UnreadState[]>('GET', '/me/unreads'),
+    a.request<InstanceInfo>('GET', '/auth/instance').catch(() => null),
   ]);
   useData.setState({
     me,
+    instance,
     settings,
     servers,
     conversations,
@@ -430,8 +433,20 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('friend:changed', () => void loadFriends().catch(() => undefined));
     rt.on('conversation:upserted', (c) => d().upsertConversation(c));
     rt.on('notification:created', (n) => void import('./notify').then(({ notify }) => notify(n)));
-    rt.on('session:revoked', () => {
-      useUi.getState().toast('error', 'Sua sessão foi encerrada.');
+    // aviso/cadastro da instância; também chega quando o super admin me promove ou rebaixa
+    rt.on('instance:updated', (instance) => {
+      useData.setState({ instance });
+      void api()
+        .request<Me>('GET', '/me')
+        .then(
+          (me) => useData.setState((s) => ({ me: s.me ? { ...s.me, isInstanceAdmin: me.isInstanceAdmin } : s.me })),
+          () => undefined,
+        );
+    });
+    rt.on('session:revoked', (p) => {
+      useUi
+        .getState()
+        .toast('error', p.reason === 'conta suspensa' ? 'Sua conta foi suspensa.' : 'Sua sessão foi encerrada.');
       void useSession.getState().logout();
     });
   });

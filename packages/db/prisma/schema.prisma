@@ -427,6 +427,22 @@ model AuditLog {
   server    Server?  @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
   @@index([serverId, createdAt])
+  @@index([createdAt])
+}
+
+/// Configuração da instância editada no painel do super admin (ADR-0020). Uma linha só (id = 1).
+model InstanceConfig {
+  id               Int      @id @default(1)
+  /// false: ninguém novo entra (nem conta, nem só apelido); quem já tem conta continua entrando.
+  registrationOpen Boolean  @default(true)
+  /// Aviso em faixa no topo do app para todo mundo (null = sem aviso).
+  announcementText String?
+  /// info | warning | success
+  announcementTone String   @default("info")
+  /// Limite de upload menor que o do ambiente (UPLOAD_MAX_BYTES); null = o do ambiente.
+  uploadMaxBytes   Int?
+  updatedAt        DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  updatedById      String?  @db.Uuid
 }
 
 /// Convite para servidor privado: código aleatório, sem expiração; o criador ou quem gerencia o servidor revoga.

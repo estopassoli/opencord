@@ -16,6 +16,7 @@ export interface Toast {
 export type Modal =
   | { kind: 'settings'; tab?: string }
   | { kind: 'server-settings'; serverId: string; tab?: string }
+  | { kind: 'admin'; tab?: string }
   | { kind: 'create-server' }
   | { kind: 'explore-servers' }
   | { kind: 'invite'; serverId: string }

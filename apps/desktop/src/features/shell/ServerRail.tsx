@@ -70,6 +70,7 @@ export function ServerRail() {
   const view = useUi((s) => s.view);
   const go = useUi((s) => s.go);
   const open = useUi((s) => s.openModal);
+  const isAdmin = useData((s) => Boolean(s.me?.isInstanceAdmin));
   const homeActive = view.kind === 'home' || view.kind === 'dm';
   const dmUnread = Object.values(unread).reduce((n, u) => n + (u.conversationId ? u.unreadCount : 0), 0);
 
@@ -153,6 +154,11 @@ export function ServerRail() {
         <RailItem label="Explorar servidores" variant="action" onClick={() => open({ kind: 'explore-servers' })}>
           <Icon name="search" />
         </RailItem>
+        {isAdmin && (
+          <RailItem label="Painel admin" variant="action" onClick={() => open({ kind: 'admin' })}>
+            <Icon name="shield" />
+          </RailItem>
+        )}
         <DownloadAppRailItem />
       </ul>
     </nav>

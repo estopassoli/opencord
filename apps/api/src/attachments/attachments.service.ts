@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { UPLOAD_ALLOWED_MIME, type Attachment } from '@opencord/contracts';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
+import { InstanceService } from '../admin/instance.service.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { StorageService } from './storage.service.js';
 
@@ -90,6 +91,7 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly instance: InstanceService,
   ) {}
 
   onModuleInit() {
@@ -135,12 +137,13 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
     filename: string,
     declaredMime: string,
   ): Promise<Attachment> {
+    // o super admin pode baixar o limite do ambiente (ADR-0020)
+    const max = await this.instance.uploadMaxBytes();
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const chunk of file) {
       size += chunk.length;
-      if (size > this.cfg.UPLOAD_MAX_BYTES)
-        throw new PayloadTooLargeException(`arquivo excede ${this.cfg.UPLOAD_MAX_BYTES} bytes`);
+      if (size > max) throw new PayloadTooLargeException(`arquivo excede ${Math.floor(max / 1024 / 1024)} MB`);
       chunks.push(chunk);
     }
     if (file.truncated) throw new PayloadTooLargeException('arquivo excede o limite');

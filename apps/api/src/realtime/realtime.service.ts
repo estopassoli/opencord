@@ -34,6 +34,26 @@ export class RealtimeService {
     this.io.to(room).emit(name, envelope(randomUUID(), payload));
   }
 
+  /** Para todos os conectados (ex.: aviso da instância). */
+  emitAll<N extends ServerEventName>(name: N, payload: ServerEvents[N]) {
+    this.io?.emit(name, envelope(randomUUID(), payload));
+  }
+
+  /** Quem tem ao menos um socket conectado agora. */
+  async onlineUserIds(): Promise<Set<string>> {
+    if (!this.io) return new Set();
+    const sockets = await this.io.fetchSockets();
+    return new Set(sockets.map((s) => (s.data as SocketData).userId).filter(Boolean));
+  }
+
+  /** Derruba todas as conexões do usuário (conta suspensa, sessões encerradas pelo admin). */
+  async disconnectUser(userId: string, reason: string) {
+    for (const s of await this.socketsOf(rooms.user(userId))) {
+      s.emit('session:revoked', envelope(randomUUID(), { reason }));
+      s.disconnect(true);
+    }
+  }
+
   toUser<N extends ServerEventName>(userId: string, name: N, payload: ServerEvents[N]) {
     this.emit(rooms.user(userId), name, payload);
   }

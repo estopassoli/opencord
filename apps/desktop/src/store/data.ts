@@ -3,6 +3,7 @@ import type {
   Channel,
   Conversation,
   Friend,
+  InstanceInfo,
   Me,
   Member,
   Message,
@@ -28,6 +29,8 @@ export interface FriendWithPresence extends Friend {
 
 interface DataState {
   me: Me | null;
+  /** aviso, cadastro e limite de upload da instância (ADR-0020); atualiza em tempo real */
+  instance: InstanceInfo | null;
   settings: UserSettings | null;
   servers: ServerSummary[];
   details: Record<string, ServerDetail>;
@@ -63,6 +66,7 @@ interface DataState {
 
 const empty = {
   me: null,
+  instance: null,
   settings: null,
   servers: [],
   details: {},

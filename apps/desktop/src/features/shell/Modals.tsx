@@ -1,5 +1,4 @@
 import type {
-  AdminServerEntry,
   Category,
   Channel,
   ChannelKind,
@@ -19,6 +18,7 @@ import { loadServer, api, describeError } from '../../store/session';
 import { useData } from '../../store/data';
 import { useUi, type Modal } from '../../store/ui';
 import { useVoice } from '../../store/voice';
+import { AdminPanel } from '../admin/AdminPanel';
 import { ServerSettings } from '../admin/ServerSettings';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ScreenSourcePicker } from '../voice/ScreenSourcePicker';
@@ -65,6 +65,8 @@ export function Modals() {
       return <SettingsModal onClose={close} />;
     case 'server-settings':
       return <ServerSettings serverId={modal.serverId} onClose={close} />;
+    case 'admin':
+      return <AdminPanel onClose={close} />;
     case 'quick-switcher':
       return <QuickSwitcher onClose={close} />;
     case 'screen-picker':
@@ -447,95 +449,7 @@ function ExploreServers({ onClose }: { onClose: () => void }) {
           </li>
         ))}
       </ul>
-      <AdminServers onClose={onClose} />
     </Dialog>
-  );
-}
-
-/** Super admin (ADR-0013): todos os servidores da instância; entrar fica na auditoria e todos veem. */
-function AdminServers({ onClose }: { onClose: () => void }) {
-  const isAdmin = useData((s) => Boolean(s.me?.isInstanceAdmin));
-  const [list, setList] = useState<AdminServerEntry[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  useEffect(() => {
-    if (isAdmin)
-      void api()
-        .request<AdminServerEntry[]>('GET', '/admin/servers')
-        .then(setList, () => undefined);
-  }, [isAdmin]);
-  if (!isAdmin || !list) return null;
-  const others = list.filter((s) => !s.official);
-  const go = (id: string) => {
-    useUi.getState().go({ kind: 'server', serverId: id, channelId: null });
-    onClose();
-  };
-  const join = async (s: AdminServerEntry) => {
-    if (!confirm(`Entrar em "${s.name}" como super admin? A entrada fica registrada e os membros veem você.`)) return;
-    setBusy(s.id);
-    try {
-      await api().request<ServerDetail>('POST', `/admin/servers/${s.id}/join`);
-      await loadServer(s.id);
-      go(s.id);
-    } catch (e) {
-      useUi.getState().toast('error', describeError(e));
-    } finally {
-      setBusy(null);
-    }
-  };
-  /** Só o selo de verificado: o servidor continua privado (ADR-0013). */
-  const toggleVerified = async (s: AdminServerEntry) => {
-    setBusy(s.id);
-    try {
-      await api().request('PUT', `/admin/servers/${s.id}/verified`, { verified: !s.verified });
-      setList((l) => l?.map((x) => (x.id === s.id ? { ...x, verified: !s.verified } : x)) ?? l);
-    } catch (e) {
-      useUi.getState().toast('error', describeError(e));
-    } finally {
-      setBusy(null);
-    }
-  };
-  return (
-    <section aria-label="Todos os servidores (super admin)">
-      <h3 className="section-label">Todos os servidores · super admin</h3>
-      {others.length === 0 && <p className="muted">Nenhum servidor criado por usuários ainda.</p>}
-      <ul className="directory">
-        {others.map((s) => (
-          <li key={s.id} className="directory-row">
-            <span className="directory-icon" aria-hidden>
-              <ServerIcon name={s.name} iconKey={s.iconKey} />
-            </span>
-            <span className="directory-names">
-              <strong className="truncate">
-                {s.name}
-                {s.verified && <Icon name="verified" size={14} active label="Servidor verificado" />}
-              </strong>
-              <span className="muted small truncate">
-                de {s.owner.displayName} · {s.memberCount} membro(s)
-              </span>
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="verified"
-              aria-pressed={s.verified}
-              disabled={busy === s.id}
-              onClick={() => void toggleVerified(s)}
-            >
-              {s.verified ? 'Tirar selo' : 'Verificar'}
-            </Button>
-            {s.joined ? (
-              <Button variant="secondary" size="sm" onClick={() => go(s.id)}>
-                Abrir
-              </Button>
-            ) : (
-              <Button size="sm" icon="shield" disabled={busy === s.id} onClick={() => void join(s)}>
-                Entrar
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 
