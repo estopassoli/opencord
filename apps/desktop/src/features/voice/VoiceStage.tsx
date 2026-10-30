@@ -169,7 +169,8 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
   const stats = useVoice((s) => s.stats?.stream);
   const audioUnavailable = stream.status === 'live' && stream.audioUnavailable;
   if (stream.status !== 'live') {
-    return focus ? <span className="live-pill">AO VIVO</span> : null;
+    if (!focus) return null;
+    return <WatchBadge identity={focus.identity} />;
   }
   if (!stats) return <span className="live-pill">AO VIVO</span>;
   if (stats.paused) {
@@ -203,6 +204,32 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
         {stats.limitation && stats.limitation !== 'none' ? <Icon name="warning" size={14} /> : null}
       </span>
       {audioUnavailable && <span className="warn-text small">sem áudio</span>}
+      <span className="live-pill">AO VIVO</span>
+    </span>
+  );
+}
+
+/** Selo de quem assiste: o que chega de fato (resolução, fps, Mb/s) e, no tooltip, perdas, travadas e decoder. */
+function WatchBadge({ identity }: { identity: string }) {
+  const w = useVoice((s) => (s.stats?.watching?.identity === identity ? s.stats.watching : null));
+  if (!w || !w.height) return <span className="live-pill">AO VIVO</span>;
+  const bad = (w.lossPct ?? 0) >= 2;
+  const details = [
+    `Recebendo ${w.width}×${w.height} · ${w.fps ?? '–'} fps${w.codec ? ` · ${w.codec}` : ''}`,
+    w.kbps !== null ? `${(w.kbps / 1000).toFixed(1)} Mb/s` : null,
+    w.lossPct !== null ? `perda de pacotes ${w.lossPct}%` : null,
+    w.freezes !== null ? `${w.freezes} travada(s)` : null,
+    w.decoder ? `decoder ${w.decoder}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <span className="live-badge stream-stats" title={details} aria-label={details}>
+      <span className="live-badge-q">
+        <Icon name="signal" size={14} />
+        {w.height}p {w.fps ?? '–'} FPS{w.kbps !== null ? ` · ${(w.kbps / 1000).toFixed(1)} Mb/s` : ''}
+        {bad ? <Icon name="warning" size={14} /> : null}
+      </span>
       <span className="live-pill">AO VIVO</span>
     </span>
   );

@@ -69,6 +69,19 @@ export interface MediaStats {
     paused: boolean;
     availableKbps: number | null;
   };
+  /** recepção da live em destaque (lado de quem assiste): diagnostica onde a qualidade cai */
+  watching?: {
+    identity: string;
+    width: number | null;
+    height: number | null;
+    fps: number | null;
+    kbps: number | null;
+    lossPct: number | null;
+    /** travadas acumuladas do vídeo recebido (freezeCount do WebRTC) */
+    freezes: number | null;
+    decoder: string | null;
+    codec: string | null;
+  };
 }
 
 export interface EngineCallbacks {
@@ -126,6 +139,7 @@ export class VoiceEngine {
   private screen: { video: LocalVideoTrack; audio: LocalAudioTrack | null; stream: MediaStream } | null = null;
   private lastBytes: { t: number; bytes: number } | null = null;
   private lastVideoBytes: { t: number; bytes: number } | null = null;
+  private lastRecv: { id: string; t: number; bytes: number; lost: number; got: number } | null = null;
   private stopPreview: (() => void) | null = null;
   private previews = new PreviewReceiver(
     (id) => Boolean(this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.ScreenShare)),
@@ -741,7 +755,47 @@ export class VoiceEngine {
         };
       }
     }
+    await this.collectWatching(s);
     this.cb.onStats(s);
+  }
+
+  /** Estatísticas de recepção da primeira live assistida (quem assiste vê no selo da live). */
+  private async collectWatching(s: MediaStats) {
+    const id = [...this.watching][0];
+    const pub = id ? this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.ScreenShare) : undefined;
+    const track = pub?.track as RemoteTrack | undefined;
+    if (!id || !track) {
+      this.lastRecv = null;
+      return;
+    }
+    const rep = await track.getRTCStatsReport().catch(() => undefined);
+    let r: Record<string, unknown> | null = null;
+    rep?.forEach((x: Record<string, unknown>) => {
+      if (x.type === 'inbound-rtp' && x.kind === 'video') r = x;
+    });
+    const v = r as Record<string, unknown> | null;
+    if (!v) return;
+    const num = (k: string) => (typeof v[k] === 'number' ? (v[k] as number) : null);
+    const now = performance.now();
+    const bytes = num('bytesReceived') ?? 0;
+    const lost = num('packetsLost') ?? 0;
+    const got = num('packetsReceived') ?? 0;
+    const prev = this.lastRecv?.id === id ? this.lastRecv : null;
+    const dLost = prev ? lost - prev.lost : 0;
+    const dGot = prev ? got - prev.got : 0;
+    this.lastRecv = { id, t: now, bytes, lost, got };
+    const c = typeof v.codecId === 'string' ? (rep?.get(v.codecId) as { mimeType?: string } | undefined) : undefined;
+    s.watching = {
+      identity: id,
+      width: num('frameWidth'),
+      height: num('frameHeight'),
+      fps: num('framesPerSecond') !== null ? Math.round(num('framesPerSecond')!) : null,
+      kbps: prev && bytes >= prev.bytes ? Math.round(((bytes - prev.bytes) * 8) / (now - prev.t)) : null,
+      lossPct: prev && dGot + dLost > 0 ? Math.round((dLost / (dGot + dLost)) * 1000) / 10 : null,
+      freezes: num('freezeCount'),
+      decoder: typeof v.decoderImplementation === 'string' ? v.decoderImplementation : null,
+      codec: c?.mimeType?.replace('video/', '') ?? null,
+    };
   }
 }
 

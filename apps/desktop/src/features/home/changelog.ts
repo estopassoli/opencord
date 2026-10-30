@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '00:45',
+    kind: 'melhoria',
+    icon: 'signal',
+    title: 'Qualidade recebida no selo da live',
+    body: 'Quem assiste vê no selo da live a resolução, os FPS e os Mb/s que estão chegando; passe o mouse para ver perda de pacotes, travadas e o decoder.',
+  },
+  {
+    date: '2026-10-30',
     time: '00:30',
     kind: 'melhoria',
     icon: 'screen',
