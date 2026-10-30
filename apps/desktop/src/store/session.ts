@@ -311,6 +311,7 @@ function wireRealtime(rt: RealtimeClient) {
       }
     });
     rt.on('chat:message:updated', (msg) => m().upsert(msg));
+    rt.on('poll:updated', (e) => m().setPoll(keyOf(e), e.messageId, e.poll, true));
     rt.on('chat:message:deleted', (e) => m().markDeleted(keyOf(e), e.messageId));
     rt.on('chat:reaction:changed', (e) => m().reaction(keyOf(e), e.messageId, e.emoji, e.userId, e.on, e.count, me()));
     rt.on('chat:typing', (e) => d().setTyping(keyOf(e), e.userId, e.active));

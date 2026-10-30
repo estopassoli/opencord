@@ -8,6 +8,7 @@ import { openContextMenu } from '../../components/ContextMenu';
 import { ProfileButton } from '../shell/ProfileButton';
 import { renderRich } from './rich';
 import { InviteEmbed, inviteCodesIn } from './InviteEmbed';
+import { PollCard } from './Poll';
 import type { ChatTarget } from './ChatView';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
@@ -66,6 +67,8 @@ export const MessageItem = memo(function MessageItem({
   const [picker, setPicker] = useState(false);
   const mine = m.author.id === meId;
   const canDelete = mine || hasPermission(perms, Permission.MANAGE_MESSAGES);
+  // enquete não se edita (ADR-0018)
+  const canEdit = mine && !m.poll;
   const canReact = hasPermission(perms, Permission.ADD_REACTIONS);
   // na DM qualquer participante fixa; no canal, quem gerencia mensagens
   const canPin = Boolean(target.conversationId) || hasPermission(perms, Permission.MANAGE_MESSAGES);
@@ -127,7 +130,7 @@ export const MessageItem = memo(function MessageItem({
           icon: 'reply' as const,
           onSelect: () => useUi.getState().setReplyTo(keyOf(target), m.id),
         },
-        ...(mine ? [{ label: 'Editar mensagem', icon: 'edit' as const, onSelect: () => setEditing(true) }] : []),
+        ...(canEdit ? [{ label: 'Editar mensagem', icon: 'edit' as const, onSelect: () => setEditing(true) }] : []),
         ...(canPin
           ? [
               {
@@ -227,7 +230,16 @@ export const MessageItem = memo(function MessageItem({
               <Icon name="pin" size={14} label="Mensagem fixada" />
             </span>
           )}
-          {renderRich(m.body, nameOf)}
+          {m.poll ? (
+            <PollCard
+              poll={m.poll}
+              messageId={m.id}
+              targetKey={keyOf(target)}
+              canClose={mine || (Boolean(target.channelId) && hasPermission(perms, Permission.MANAGE_MESSAGES))}
+            />
+          ) : (
+            renderRich(m.body, nameOf)
+          )}
           {m.editedAt && (
             <span className="msg-edited" data-tip={new Date(m.editedAt).toLocaleString()}>
               {' '}
@@ -322,7 +334,7 @@ export const MessageItem = memo(function MessageItem({
         >
           <Icon name="reply" size={18} />
         </button>
-        {mine && (
+        {canEdit && (
           <button className="icon-btn icon-btn-sm" aria-label="Editar" onClick={() => setEditing(true)}>
             <Icon name="edit" size={18} />
           </button>

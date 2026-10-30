@@ -6,6 +6,7 @@ import type {
   Me,
   Member,
   Message,
+  Poll,
   PresenceStatus,
   Role,
   ServerDetail,
@@ -262,6 +263,8 @@ interface MessagesState {
   addPending(key: TargetKey, requestId: string, p: Timeline['pending'][string]): void;
   resolvePending(key: TargetKey, requestId: string, failed?: boolean): void;
   markDeleted(key: TargetKey, messageId: string): void;
+  /** enquete mudou (ADR-0018); `keepMine`: evento em tempo real, que não traz o meu voto */
+  setPoll(key: TargetKey, messageId: string, poll: Poll, keepMine: boolean): void;
   reaction(
     key: TargetKey,
     messageId: string,
@@ -315,6 +318,8 @@ export const useMessages = create<MessagesState>()((set, get) => ({
       const merged = prev
         ? {
             ...m,
+            // idem para o meu voto na enquete
+            poll: m.poll && prev.poll && !m.poll.mine.length ? { ...m.poll, mine: prev.poll.mine } : m.poll,
             reactions: m.reactions.map((r) => ({
               ...r,
               me: prev.reactions.find((p) => p.emoji === r.emoji)?.me ?? r.me,
@@ -352,6 +357,15 @@ export const useMessages = create<MessagesState>()((set, get) => ({
           },
         },
       };
+    }),
+  setPoll: (key, messageId, poll, keepMine) =>
+    set((s) => {
+      const cur = s.timelines[key];
+      if (!cur) return {};
+      const messages = cur.messages.map((m) =>
+        m.id === messageId ? { ...m, poll: keepMine && m.poll ? { ...poll, mine: m.poll.mine } : poll } : m,
+      );
+      return { timelines: { ...s.timelines, [key]: { ...cur, messages } } };
     }),
   reaction: (key, messageId, emoji, userId, on, count, me) =>
     set((s) => {

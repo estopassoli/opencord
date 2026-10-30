@@ -2,9 +2,11 @@ import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, P
 import {
   AckReadRequest,
   CreateMessageRequest,
+  CreatePollRequest,
   EditMessageRequest,
   Emoji,
   ListMessagesQuery,
+  VotePollRequest,
 } from '@opencord/contracts';
 import { z } from 'zod';
 import { CurrentUser, type AuthUser } from '../common/auth.js';
@@ -14,6 +16,20 @@ import { MessagesService, type Target } from './messages.service.js';
 const id = new ParseUUIDPipe();
 type ListQ = z.infer<typeof ListMessagesQuery>;
 type CreateM = z.infer<typeof CreateMessageRequest>;
+type CreatePoll = z.infer<typeof CreatePollRequest>;
+type VotePoll = z.infer<typeof VotePollRequest>;
+
+/** a pergunta vira o texto da mensagem (prévia, notificações e busca); o prazo conta a partir de agora */
+const pollMessage = (dto: CreatePoll) => ({
+  requestId: dto.requestId,
+  body: dto.question,
+  poll: {
+    question: dto.question,
+    options: dto.options,
+    multiple: dto.multiple,
+    endsAt: dto.durationHours ? new Date(Date.now() + dto.durationHours * 3_600_000) : null,
+  },
+});
 
 @Controller()
 export class MessagesController {
@@ -35,6 +51,36 @@ export class MessagesController {
     @Body(zodPipe(CreateMessageRequest)) dto: CreateM,
   ) {
     return (await this.messages.create(u.userId, this.routes('channels', cid), dto)).message;
+  }
+
+  /** enquete (ADR-0018): uma mensagem com a pergunta e a enquete presa a ela */
+  @Post('channels/:id/polls')
+  async pollChannel(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) cid: string,
+    @Body(zodPipe(CreatePollRequest)) dto: CreatePoll,
+  ) {
+    return (await this.messages.create(u.userId, { channelId: cid }, pollMessage(dto))).message;
+  }
+
+  @Post('conversations/:id/polls')
+  async pollConv(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) cid: string,
+    @Body(zodPipe(CreatePollRequest)) dto: CreatePoll,
+  ) {
+    return (await this.messages.create(u.userId, { conversationId: cid }, pollMessage(dto))).message;
+  }
+
+  @Put('polls/:id/vote')
+  vote(@CurrentUser() u: AuthUser, @Param('id', id) pid: string, @Body(zodPipe(VotePollRequest)) dto: VotePoll) {
+    return this.messages.vote(u.userId, pid, dto.optionIds);
+  }
+
+  @Post('polls/:id/close')
+  @HttpCode(200)
+  closePoll(@CurrentUser() u: AuthUser, @Param('id', id) pid: string) {
+    return this.messages.closePoll(u.userId, pid);
   }
 
   @Put('channels/:id/read')

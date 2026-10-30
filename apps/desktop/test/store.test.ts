@@ -16,6 +16,7 @@ const msg = (id: string, createdAt: string, extra: Partial<Message> = {}): Messa
   attachments: [],
   mentions: [],
   pinnedAt: null,
+  poll: null,
   ...extra,
 });
 
