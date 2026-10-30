@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '02:05',
+    kind: 'novo',
+    icon: 'eye',
+    title: 'Visualizador de imagens nas conversas',
+    body: 'Clique numa imagem para abrir em tela grande: zoom (roda do mouse ou clique, arraste para mover), girar, baixar, abrir no navegador, copiar imagem ou link e ver detalhes. As setas ← → passam pelas imagens da conversa; Esc fecha. As imagens da mensagem também ficaram lado a lado, sem espaços estranhos.',
+  },
+  {
+    date: '2026-10-30',
     time: '01:55',
     kind: 'melhoria',
     icon: 'screen',

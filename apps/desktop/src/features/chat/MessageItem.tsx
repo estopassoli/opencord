@@ -2,8 +2,8 @@ import { hasPermission, Permission, type Message } from '@opencord/contracts';
 import { Avatar, Icon, TextArea } from '@opencord/ui';
 import { memo, useEffect, useState, type KeyboardEvent } from 'react';
 import { useSession, api, describeError } from '../../store/session';
-import { useUi } from '../../store/ui';
-import { keyOf } from '../../store/data';
+import { useUi, type MediaItem } from '../../store/ui';
+import { keyOf, useMessages, type TargetKey } from '../../store/data';
 import { openContextMenu } from '../../components/ContextMenu';
 import { ProfileButton } from '../shell/ProfileButton';
 import { renderRich } from './rich';
@@ -19,6 +19,31 @@ interface Props {
   target: ChatTarget;
   nameOf: (id: string) => string;
   mentionsMe: boolean;
+}
+
+/** Abre o visualizador com as imagens já carregadas da conversa, começando pela clicada. */
+function openMediaFor(key: TargetKey, attachmentId: string) {
+  const items: MediaItem[] = useMessages
+    .getState()
+    .get(key)
+    .messages.flatMap((msg) =>
+      msg.attachments
+        .filter((a) => a.mime.startsWith('image/'))
+        .map((a) => ({
+          id: a.id,
+          url: a.url,
+          name: a.originalName,
+          mime: a.mime,
+          sizeBytes: a.sizeBytes,
+          width: a.width,
+          height: a.height,
+          authorId: msg.author.id,
+          authorName: msg.author.displayName,
+          createdAt: msg.createdAt,
+        })),
+    );
+  const index = items.findIndex((x) => x.id === attachmentId);
+  if (index >= 0) useUi.getState().openMedia(items, index);
 }
 
 export const MessageItem = memo(function MessageItem({
@@ -191,7 +216,20 @@ export const MessageItem = memo(function MessageItem({
         <div className="msg-attachments">
           {m.attachments.map((a) =>
             a.mime.startsWith('image/') ? (
-              <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="attachment-image">
+              <a
+                key={a.id}
+                href={a.url}
+                target="_blank"
+                rel="noreferrer"
+                className="attachment-image"
+                aria-label={`Abrir imagem ${a.originalName}`}
+                onClick={(e) => {
+                  // clique comum abre o visualizador com todas as imagens da conversa; ctrl/cmd segue o link
+                  if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+                  e.preventDefault();
+                  openMediaFor(keyOf(target), a.id);
+                }}
+              >
                 <img
                   src={a.url}
                   alt={a.originalName}

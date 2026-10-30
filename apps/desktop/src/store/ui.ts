@@ -26,6 +26,20 @@ export type Modal =
   | { kind: 'quick-switcher' }
   | null;
 
+/** Imagem aberta no visualizador de mídia (com quem enviou e quando). */
+export interface MediaItem {
+  id: string;
+  url: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+}
+
 interface UiState {
   view: View;
   /** último canal visitado por servidor (navegação lembra o contexto) */
@@ -33,6 +47,10 @@ interface UiState {
   drafts: Record<TargetKey, string>;
   replyTo: Record<TargetKey, string | null>;
   modal: Modal;
+  /** visualizador de mídia: imagens da conversa e a aberta agora */
+  media: { items: MediaItem[]; index: number } | null;
+  openMedia(items: MediaItem[], index: number): void;
+  closeMedia(): void;
   showMembers: boolean;
   /** celular: painel aberto por cima do conteúdo (gaveta de navegação ou de membros) */
   panel: 'none' | 'nav' | 'members';
@@ -76,6 +94,9 @@ export const useUi = create<UiState>()((set) => ({
   drafts: {},
   replyTo: {},
   modal: null,
+  media: null,
+  openMedia: (items, index) => set({ media: { items, index } }),
+  closeMedia: () => set({ media: null }),
   showMembers: true,
   panel: 'none',
   focusedStream: null,
