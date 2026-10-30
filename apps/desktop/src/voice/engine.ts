@@ -187,6 +187,11 @@ export class VoiceEngine {
     this.bind(room);
     this.previews.attach(room);
     await room.connect(url, token, { autoSubscribe: false });
+    // Dispositivo de saída escolhido: o LiveKit o aplica no construtor da sala, antes de existir o AudioContext do
+    // webAudioMix; ao conectar ele cria um contexto novo SEM aplicá-lo, e as vozes saíam no padrão do Windows a
+    // cada vez que o app abria (relato real). Reaplica agora, com o contexto já criado.
+    if (this.prefs.outputDeviceId)
+      await room.switchActiveDevice('audiooutput', this.prefs.outputDeviceId).catch(() => undefined);
     this.selfMuted = opts.selfMute;
     this.deafened = opts.selfDeaf;
     // assinar microfones/câmeras já publicados; streams só sob demanda
@@ -711,6 +716,8 @@ export class VoiceEngine {
         inputMode: this.prefs.inputMode,
         noiseFilter: mic?.getProcessor()?.name ?? null,
       },
+      // saída de áudio em uso de fato (sinkId do AudioContext do webAudioMix; '' = padrão do sistema)
+      outputSink: (room as unknown as { audioContext?: { sinkId?: unknown } }).audioContext?.sinkId ?? null,
       remotes,
     };
   }

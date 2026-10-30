@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '14:45',
+    kind: 'correção',
+    icon: 'speaker',
+    title: 'Dispositivo de áudio mantido ao reabrir',
+    body: 'Ao abrir o app e entrar numa chamada, as vozes voltavam a sair pelo dispositivo padrão do Windows, mesmo com outro escolhido. Agora saem sempre pelo dispositivo que você escolheu.',
+  },
+  {
+    date: '2026-10-30',
     time: '14:30',
     kind: 'melhoria',
     icon: 'soundboard',

@@ -278,6 +278,46 @@ test('cartão de voz: status, supressão de ruído no topo e 4 ações (câmera,
   await expect(A.page.getByRole('dialog', { name: 'Atividades' })).toHaveCount(0);
 });
 
+test('dispositivo de saída escolhido continua valendo ao entrar de novo na chamada (como ao reabrir o app)', async () => {
+  // saídas reais da máquina (a flag de dispositivo falso só troca as entradas)
+  const outs = await A.page.evaluate(async () =>
+    (await navigator.mediaDevices.enumerateDevices())
+      .filter(
+        (d) => d.kind === 'audiooutput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications',
+      )
+      .map((d) => ({ id: d.deviceId, label: d.label })),
+  );
+  test.skip(outs.length === 0, 'máquina sem saída de áudio além da padrão');
+  const target = outs[0]!;
+  await A.page.getByRole('button', { name: 'Configurações do usuário' }).first().click();
+  const settings = A.page.getByRole('dialog', { name: 'Configurações do usuário' });
+  await settings.getByRole('tab', { name: 'Voz e vídeo' }).click();
+  await settings.getByRole('combobox', { name: 'Dispositivo de saída' }).click();
+  await A.page
+    .getByRole('option', { name: new RegExp(target.label.slice(0, 12).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) })
+    .first()
+    .click();
+  await A.page.keyboard.press('Escape');
+  // sair e entrar de novo: sala e AudioContext novos (o caminho em que o LiveKit perdia a saída escolhida)
+  await A.page.locator('.voice-dock').getByRole('button', { name: 'Sair da chamada' }).click();
+  await joinVoice(A.page);
+  const sink = () =>
+    A.page.evaluate(async () => {
+      const d =
+        (await (
+          window as unknown as { __opencordDiag: () => Promise<{ media?: { outputSink?: unknown } }> }
+        ).__opencordDiag()) ?? {};
+      return d.media?.outputSink ?? null;
+    });
+  await expect.poll(sink, { timeout: 10_000 }).toBe(target.id);
+  // volta ao padrão para não afetar os outros testes
+  await A.page.getByRole('button', { name: 'Configurações do usuário' }).first().click();
+  await settings.getByRole('tab', { name: 'Voz e vídeo' }).click();
+  await settings.getByRole('combobox', { name: 'Dispositivo de saída' }).click();
+  await A.page.getByRole('option', { name: 'Padrão do sistema' }).click();
+  await A.page.keyboard.press('Escape');
+});
+
 test('mute é refletido para o outro participante', async () => {
   await B.page.locator('.dock').getByRole('button', { name: 'Silenciar microfone', exact: true }).click();
   await expect(
