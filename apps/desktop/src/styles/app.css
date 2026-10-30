@@ -4329,3 +4329,59 @@ section:first-child > .friends-panel-sep {
 .cropper-view[data-shape='rounded'] .cropper-mask {
   border-radius: 28%;
 }
+
+/* cartão de convite numa mensagem */
+.invite-embed {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(420px, 100%);
+  min-height: 72px;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  border: 1px solid var(--border);
+}
+.invite-embed-icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 30%;
+  background: var(--brand);
+  color: var(--text-on-brand);
+  font-weight: 700;
+}
+.invite-embed-icon .server-icon-img,
+.invite-embed-icon .brand-mark-sm {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+.invite-embed-dead {
+  background: var(--interactive);
+  color: var(--text-muted);
+}
+.invite-embed-names {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+.invite-embed-names strong {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.invite-embed-names .oc-icon {
+  color: var(--brand);
+}
+.invite-embed-kicker {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}

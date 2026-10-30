@@ -8,6 +8,7 @@ import {
   type ServerDirectoryEntry,
   type ServerDetail,
 } from '@opencord/contracts';
+import { TEST_API_PORT } from './env.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { bootstrapOwner, Http, outsider, prisma, register, resetDb, startApp } from './helpers.js';
 
@@ -224,6 +225,15 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     expect((await http.req('POST', `/invites/${inv.body.code}`, { token: bob.token })).status).toBe(201);
     expect((await prisma.invite.findUnique({ where: { code: inv.body.code } }))?.uses).toBe(1);
     expect((await http.req('GET', '/invites/AAAAAAAAAA', { token: bob.token })).status).toBe(404);
+    // página pública do link: cartão (Open Graph) com o nome do servidor, sem login, e redireciona ao app
+    const page = await fetch(`http://127.0.0.1:${TEST_API_PORT}/invites/${inv.body.code}/embed`);
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain('<meta property="og:title" content="Convite para Amigos">');
+    expect(html).toContain('2 membros');
+    expect(html).toContain(`/?invite=${inv.body.code}`);
+    const bad = await (await fetch(`http://127.0.0.1:${TEST_API_PORT}/invites/<script>/embed`)).text();
+    expect(bad).not.toContain('<script>/');
     expect((await http.req('GET', '/invites/../x', { token: bob.token })).status).toBe(404);
   });
 

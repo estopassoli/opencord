@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '03:25',
+    kind: 'novo',
+    icon: 'link',
+    title: 'Cartão do convite',
+    body: 'Links de convite colados no Discord, WhatsApp e afins mostram um cartão com a imagem, o nome e os membros do servidor. Dentro do OpenCord, o link vira um cartão com o botão Entrar.',
+  },
+  {
+    date: '2026-10-30',
     time: '03:10',
     kind: 'melhoria',
     icon: 'upload',
