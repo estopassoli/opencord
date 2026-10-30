@@ -1,6 +1,9 @@
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import {
   AddCircleIcon,
+  Copy02Icon,
+  SquareIcon,
+  MinusSignIcon,
   Alert02Icon,
   AppWindowIcon,
   ArrowDown01Icon,
@@ -170,6 +173,9 @@ const ICONS = {
   menu: Menu01Icon,
   'at-symbol': AtIcon,
   pin: PinIcon,
+  'window-minimize': MinusSignIcon,
+  'window-maximize': SquareIcon,
+  'window-restore': Copy02Icon,
   'pin-off': PinOffIcon,
 } satisfies Record<string, IconSvgElement>;
 

@@ -28,6 +28,7 @@ import {
   SecureKey,
   ShortcutsArgs,
   TrayVoiceState,
+  WindowControl,
   type AppInfo,
   type AppPrefsState,
   type ShortcutAction,
@@ -126,9 +127,10 @@ function createWindow() {
     title: 'OpenCord',
     icon: appIcon(),
     autoHideMenuBar: true,
-    // Barra de título integrada ao app; os botões minimizar/maximizar/fechar continuam nativos do Windows.
+    // Barra de título integrada ao app, com minimizar/maximizar/fechar desenhados pelo próprio app (fora do macOS).
+    // NÃO usar titleBarOverlay: medido no E2E ui-hover (RTX 5090, Windows 11), a sobreposição nativa fazia cada quadro
+    // esperar ~16 ms para ser apresentado e o hover chegava 64 ms atrasado (76 hovers em 3 s); sem ela, 0 ms (544).
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#111317', symbolColor: '#b0b5bf', height: 32 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -182,6 +184,9 @@ function createWindow() {
   wc.on('will-attach-webview', (e) => e.preventDefault());
 
   // Fechar a janela minimiza para a bandeja: a chamada de voz continua (P11).
+  const sendState = () => send(IPC.evWindowState, { maximized: Boolean(win?.isMaximized()) });
+  win.on('maximize', sendState);
+  win.on('unmaximize', sendState);
   win.on('close', (e) => {
     if (!quitting) {
       e.preventDefault();
@@ -273,6 +278,15 @@ function registerIpc() {
     if (win && !win.isFocused()) win.flashFrame(true);
   });
   handle(IPC.windowFocus, [], () => showWindow());
+  handle(IPC.windowControl, [WindowControl], (action) => {
+    if (!win) return;
+    if (action === 'minimize') win.minimize();
+    else if (action === 'toggle-maximize') {
+      if (win.isMaximized()) win.unmaximize();
+      else win.maximize();
+    } else win.close(); // o handler de 'close' esconde na bandeja, como o botão nativo fazia
+  });
+  handle(IPC.windowState, [], () => ({ maximized: Boolean(win?.isMaximized()) }));
   handle(IPC.badgeSet, [z.number().int().min(0).max(9999)], (count) => {
     if (!win) return;
     if (process.platform === 'win32')

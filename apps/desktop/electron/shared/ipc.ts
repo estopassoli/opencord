@@ -47,6 +47,13 @@ export type ShortcutsArgs = z.infer<typeof ShortcutsArgs>;
 export const ShortcutResult = z.object({ registered: z.array(z.string()), failed: z.array(z.string()) });
 export type ShortcutResult = z.infer<typeof ShortcutResult>;
 
+/** Controles da janela desenhados pelo app (a sobreposição nativa titleBarOverlay atrasava a interface). */
+export const WindowControl = z.enum(['minimize', 'toggle-maximize', 'close']);
+export type WindowControl = z.infer<typeof WindowControl>;
+export interface WindowState {
+  maximized: boolean;
+}
+
 export const ExternalUrl = z.url().refine((u) => /^https?:\/\//i.test(u), 'apenas http(s)');
 
 export const TrayVoiceState = z.object({ inVoice: z.boolean(), muted: z.boolean(), deafened: z.boolean() });
@@ -115,6 +122,8 @@ export interface OpenCordBridge {
   setShortcuts(args: ShortcutsArgs): Promise<ShortcutResult>;
   flashFrame(): Promise<void>;
   focusWindow(): Promise<void>;
+  windowControl(action: WindowControl): Promise<void>;
+  windowState(): Promise<WindowState>;
   setBadge(count: number): Promise<void>;
   setTrayVoiceState(state: TrayVoiceState): Promise<void>;
   appInfo(): Promise<AppInfo>;
@@ -136,4 +145,5 @@ export interface OpenCordBridge {
   on(event: 'power-resume', cb: () => void): () => void;
   on(event: 'tray-action', cb: (action: TrayAction) => void): () => void;
   on(event: 'update', cb: (status: UpdateStatus) => void): () => void;
+  on(event: 'window-state', cb: (state: WindowState) => void): () => void;
 }
