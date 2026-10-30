@@ -25,6 +25,7 @@ import { ActivitiesService } from './activities.service.js';
 
 const id = new ParseUUIDPipe();
 const MuteBody = z.object({ muted: z.boolean() });
+const MoveBody = z.object({ channelId: z.string().uuid() });
 
 @Controller()
 export class VoiceController {
@@ -92,6 +93,17 @@ export class VoiceController {
     @Body(zodPipe(MuteBody)) dto: z.infer<typeof MuteBody>,
   ) {
     await this.voice.serverMute(u.userId, target, dto.muted);
+  }
+
+  /** Move o membro para outro canal de voz do mesmo servidor (arrastar na lista de canais). */
+  @Put('voice/members/:userId/channel')
+  @HttpCode(204)
+  async move(
+    @CurrentUser() u: AuthUser,
+    @Param('userId', id) target: string,
+    @Body(zodPipe(MoveBody)) dto: z.infer<typeof MoveBody>,
+  ) {
+    await this.voice.moveMember(u.userId, target, dto.channelId);
   }
 
   @Delete('voice/members/:userId')

@@ -31,6 +31,7 @@ const PREVIEW_MAX_BYTES = 256 * 1024;
 const PREVIEW_TTL_SECONDS = 15 * 60;
 /** Tempo para o cliente conectar à SFU após receber o token antes de ser considerado ausente. */
 const CONNECT_GRACE_MS = 30_000;
+const MOVE_GRACE_MS = 10_000;
 
 interface StoredState extends VoiceMemberState {
   roomName: string;
@@ -325,6 +326,35 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const actor = await this.perms.requireServer(s.serverId, actorId, Permission.MOVE_MEMBERS);
     void actor;
     await this.endSession(s, 'kicked', 'kicked');
+  }
+
+  /**
+   * Arrastar para outra chamada: quem move precisa de MOVE_MEMBERS no servidor e de CONNECT no destino;
+   * o membro movido precisa poder entrar no destino. O app do membro reentra sozinho (token emitido para
+   * ele pelo join normal); se não reentrar em MOVE_GRACE_MS, sai da chamada antiga do mesmo jeito.
+   */
+  async moveMember(actorId: string, targetId: string, channelId: string) {
+    const s = await this.stateOf(targetId);
+    if (!s) throw new BadRequestException('membro não está em voz');
+    if (s.channelId === channelId) return;
+    await this.perms.requireServer(s.serverId, actorId, Permission.MOVE_MEMBERS);
+    const dest = await this.perms.requireChannel(channelId, actorId, Permission.CONNECT);
+    if (dest.kind !== 'voice' || dest.serverId !== s.serverId)
+      throw new BadRequestException('não é um canal de voz deste servidor');
+    const theirs = await this.perms.channel(channelId, targetId).then(
+      (a) => a.perms,
+      () => 0,
+    );
+    if (!hasPermission(theirs, Permission.CONNECT)) throw forbidden('o membro não tem acesso a esse canal');
+    if ((await this.r.scard(`voice:channel:${channelId}`)) >= MAX_PER_CHANNEL)
+      throw new BadRequestException('canal de voz cheio');
+    this.realtime.toUser(targetId, 'voice:force-move', { serverId: s.serverId, channelId, byUserId: actorId });
+    setTimeout(() => {
+      void this.stateOf(targetId).then(async (cur) => {
+        // ainda na chamada antiga (app fechado ou desatualizado): tira de lá
+        if (cur && cur.channelId === s.channelId && cur.joinedAt === s.joinedAt) await this.endSession(cur, 'moved');
+      });
+    }, MOVE_GRACE_MS).unref();
   }
 
   async listServer(userId: string, serverId: string): Promise<VoiceMemberState[]> {

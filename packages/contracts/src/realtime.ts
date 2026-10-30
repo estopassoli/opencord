@@ -119,6 +119,8 @@ export interface ServerEvents {
     reason: 'left' | 'kicked' | 'timeout' | 'moved';
   };
   'voice:force-disconnect': { channelId: string; reason: 'kicked' | 'revoked' | 'replaced' };
+  /** um moderador arrastou você para outro canal de voz: o app reentra nele */
+  'voice:force-move': { serverId: string; channelId: string; byUserId: string };
   'server:updated': z.infer<typeof ServerSummary>;
   /** o usuário passou a ser membro de um servidor (servidor novo ou entrada pelo diretório) */
   'server:added': z.infer<typeof ServerSummary>;

@@ -239,6 +239,44 @@ describe('voz com LiveKit real', () => {
     expect(states.body.map((s) => s.channelId)).toEqual([second.body.id]);
   });
 
+  it('mover para outro canal: só com MOVE_MEMBERS; o membro recebe voice:force-move e reentra no destino', async () => {
+    const { alice, owner, serverId, voiceId, textId } = await setup();
+    const second = await http.req<{ id: string }>('POST', `/servers/${serverId}/channels`, {
+      token: owner.token,
+      body: { name: 'Sala 2', kind: 'voice' },
+    });
+    const locked = await http.req<{ id: string }>('POST', `/servers/${serverId}/channels`, {
+      token: owner.token,
+      body: { name: 'Fechada', kind: 'voice' },
+    });
+    await http.req('PATCH', `/channels/${locked.body.id}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'member', subjectId: alice.id, allow: 0, deny: Permission.CONNECT }] },
+    });
+    const sa = await sock(alice.token);
+    const j1 = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    await connectRoom(j1.body);
+    await waitUntil(async () => (await participants(j1.body.roomName)).includes(alice.id));
+    await http.req('POST', `/voice/channels/${voiceId}/join`, { token: owner.token });
+
+    const move = (actor: string, target: string, channelId: string) =>
+      http.req('PUT', `/voice/members/${target}/channel`, { token: actor, body: { channelId } });
+    expect((await move(alice.token, owner.id, second.body.id)).status).toBe(403); // sem MOVE_MEMBERS
+    expect((await move(owner.token, alice.id, textId)).status).toBe(400); // canal de texto
+    expect((await move(owner.token, alice.id, locked.body.id)).status).toBe(403); // alice não pode entrar lá
+
+    const moved = nextEvent<{ serverId: string; channelId: string; byUserId: string }>(sa, 'voice:force-move');
+    expect((await move(owner.token, alice.id, second.body.id)).status).toBe(204);
+    expect(await moved).toEqual({ serverId, channelId: second.body.id, byUserId: owner.id });
+    // o app reage reentrando pelo join normal (token emitido para a própria alice)
+    const j2 = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${second.body.id}/join`, {
+      token: alice.token,
+    });
+    await connectRoom(j2.body);
+    await waitUntil(async () => (await participants(j2.body.roomName)).includes(alice.id));
+    expect(await participants(j1.body.roomName)).not.toContain(alice.id);
+  });
+
   it('mute/deafen próprios refletidos para os demais; deafen implica mute', async () => {
     const { alice, owner, voiceId } = await setup();
     const so = await sock(owner.token);
