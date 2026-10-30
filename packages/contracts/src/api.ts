@@ -396,8 +396,57 @@ export const Message = z.object({
   mentions: z.array(Id),
   /** quando foi fixada no canal/conversa (null = não fixada) */
   pinnedAt: IsoDate.nullable(),
+  /** enquete presa à mensagem (ADR-0018) */
+  poll: z
+    .lazy(() => Poll)
+    .nullable()
+    .default(null),
 });
 export type Message = z.infer<typeof Message>;
+
+// ---------- Enquetes (ADR-0018) ----------
+export const POLL_MAX_OPTIONS = 10;
+/** prazos oferecidos ao criar (horas; 0 = sem prazo) */
+export const POLL_DURATIONS = [0, 1, 4, 8, 24, 72, 168] as const;
+
+export const PollOption = z.object({ id: Id, text: z.string(), votes: z.number().int().nonnegative() });
+export type PollOption = z.infer<typeof PollOption>;
+
+export const Poll = z.object({
+  id: Id,
+  question: z.string(),
+  multiple: z.boolean(),
+  endsAt: IsoDate.nullable(),
+  /** encerrada (prazo vencido ou encerrada pelo autor/moderação) */
+  closed: z.boolean(),
+  options: z.array(PollOption),
+  /** pessoas que votaram (cada uma conta uma vez, mesmo com várias opções) */
+  voters: z.number().int().nonnegative(),
+  /** opções em que eu votei (vazio nos eventos em tempo real: cada app guarda o próprio voto) */
+  mine: z.array(Id),
+});
+export type Poll = z.infer<typeof Poll>;
+
+export const CreatePollRequest = z.object({
+  requestId: z.uuid(),
+  question: z.string().trim().min(1).max(300),
+  options: z
+    .array(z.string().trim().min(1).max(80))
+    .min(2)
+    .max(POLL_MAX_OPTIONS)
+    .refine((o) => new Set(o.map((x) => x.toLowerCase())).size === o.length, 'opções repetidas'),
+  multiple: z.boolean().default(false),
+  durationHours: z
+    .number()
+    .int()
+    .refine((h) => (POLL_DURATIONS as readonly number[]).includes(h), 'prazo inválido')
+    .default(24),
+});
+export type CreatePollRequest = z.input<typeof CreatePollRequest>;
+
+/** substitui o meu voto (vazio = retira) */
+export const VotePollRequest = z.object({ optionIds: z.array(Id).max(POLL_MAX_OPTIONS) });
+export type VotePollRequest = z.infer<typeof VotePollRequest>;
 /** limite de mensagens fixadas por canal ou conversa */
 export const MAX_PINS = 50;
 

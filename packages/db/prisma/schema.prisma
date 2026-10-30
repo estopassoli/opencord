@@ -31,6 +31,7 @@ model User {
   invites           Invite[]
   sounds            SoundEffect[]
   boardCards        BoardCard[]
+  pollVotes         PollVote[]
   memberships       ServerMember[]
   messages          Message[]
   reactions         Reaction[]
@@ -229,6 +230,44 @@ model BoardCard {
   @@index([boardId, column, position])
 }
 
+/// Enquete presa a uma mensagem (ADR-0018). Encerra em endsAt (null = sem prazo) ou quando o autor encerra.
+model Poll {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  messageId String       @unique @db.Uuid
+  question  String
+  /// várias opções por pessoa
+  multiple  Boolean      @default(false)
+  endsAt    DateTime?    @db.Timestamptz(3)
+  createdAt DateTime     @default(now()) @db.Timestamptz(3)
+  message   Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  options   PollOption[]
+  votes     PollVote[]
+}
+
+model PollOption {
+  id       String     @id @default(uuid(7)) @db.Uuid
+  pollId   String     @db.Uuid
+  text     String
+  position Int
+  poll     Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes    PollVote[]
+
+  @@index([pollId])
+}
+
+model PollVote {
+  pollId    String     @db.Uuid
+  optionId  String     @db.Uuid
+  userId    String     @db.Uuid
+  createdAt DateTime   @default(now()) @db.Timestamptz(3)
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([pollId, optionId, userId])
+  @@index([pollId, userId])
+}
+
 enum OverrideSubject {
   role
   member
@@ -299,6 +338,7 @@ model Message {
   attachments    Attachment[]
   reactions      Reaction[]
   boardCard      BoardCard?
+  poll           Poll?
 
   @@unique([authorId, requestId])
   @@index([channelId, createdAt, id])

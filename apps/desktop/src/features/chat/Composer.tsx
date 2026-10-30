@@ -5,6 +5,8 @@ import { useData, useMessages, type TargetKey } from '../../store/data';
 import { api, describeError, markTargetRead, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { sendMessage, type ChatTarget } from './ChatView';
+import { CreatePollDialog } from './Poll';
+import { openContextMenu } from '../../components/ContextMenu';
 
 interface Upload {
   id: string;
@@ -26,6 +28,7 @@ export function Composer({
   canAttach: boolean;
 }) {
   const draft = useUi((s) => s.drafts[targetKey] ?? '');
+  const [pollOpen, setPollOpen] = useState(false);
   const replyToId = useUi((s) => s.replyTo[targetKey] ?? null);
   const replyTo = useMessages((s) =>
     replyToId ? s.timelines[targetKey]?.messages.find((m) => m.id === replyToId) : undefined,
@@ -176,16 +179,29 @@ export function Composer({
         </ul>
       )}
       <div className="composer-row">
+        <button
+          className="icon-btn"
+          aria-label="Anexar arquivo ou criar enquete"
+          aria-haspopup="menu"
+          data-tip="Anexar ou criar enquete"
+          onClick={(e) =>
+            openContextMenu(
+              e,
+              [
+                ...(canAttach
+                  ? [{ label: 'Enviar arquivo', icon: 'attach' as const, onSelect: () => fileInput.current?.click() }]
+                  : []),
+                { label: 'Criar enquete', icon: 'poll' as const, onSelect: () => setPollOpen(true) },
+              ],
+              'Adicionar à mensagem',
+            )
+          }
+        >
+          <Icon name="plus-circle" />
+        </button>
+        {pollOpen && <CreatePollDialog target={target} onClose={() => setPollOpen(false)} />}
         {canAttach && (
           <>
-            <button
-              className="icon-btn"
-              aria-label="Anexar arquivo"
-              data-tip="Anexar arquivo"
-              onClick={() => fileInput.current?.click()}
-            >
-              <Icon name="plus-circle" />
-            </button>
             <input
               ref={fileInput}
               type="file"

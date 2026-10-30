@@ -9,6 +9,7 @@ import {
   rooms,
   type Message,
   type MessagePage,
+  type Poll,
   type ReactionSummary,
   type UnreadState,
 } from '@opencord/contracts';
@@ -29,6 +30,12 @@ const MESSAGE_INCLUDE = {
   attachments: { orderBy: { createdAt: 'asc' } },
   reactions: { select: { emoji: true, userId: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
   replyTo: { select: { id: true, body: true, deletedAt: true, author: { select: USER_PUBLIC_SELECT } } },
+  poll: {
+    include: {
+      options: { orderBy: { position: 'asc' } },
+      votes: { select: { optionId: true, userId: true } },
+    },
+  },
 } satisfies Prisma.MessageInclude;
 type MessageRow = Prisma.MessageGetPayload<{ include: typeof MESSAGE_INCLUDE }>;
 
@@ -122,6 +129,22 @@ export class MessagesService {
       attachments: deleted ? [] : m.attachments.map((a) => this.attachments.serialize(a)),
       mentions: deleted ? [] : m.mentions,
       pinnedAt: deleted ? null : (m.pinnedAt?.toISOString() ?? null),
+      poll: deleted || !m.poll ? null : this.serializePoll(m.poll, me),
+    };
+  }
+
+  private serializePoll(p: NonNullable<MessageRow['poll']>, me: string | null): Poll {
+    const count = new Map<string, number>();
+    for (const v of p.votes) count.set(v.optionId, (count.get(v.optionId) ?? 0) + 1);
+    return {
+      id: p.id,
+      question: p.question,
+      multiple: p.multiple,
+      endsAt: p.endsAt?.toISOString() ?? null,
+      closed: p.endsAt !== null && p.endsAt.getTime() <= Date.now(),
+      options: p.options.map((o) => ({ id: o.id, text: o.text, votes: count.get(o.id) ?? 0 })),
+      voters: new Set(p.votes.map((v) => v.userId)).size,
+      mine: me ? p.votes.filter((v) => v.userId === me).map((v) => v.optionId) : [],
     };
   }
 
@@ -166,7 +189,14 @@ export class MessagesService {
   async create(
     userId: string,
     target: Target,
-    dto: { requestId: string; body: string; replyToId?: string | undefined; attachmentIds?: string[] | undefined },
+    dto: {
+      requestId: string;
+      body: string;
+      replyToId?: string | undefined;
+      attachmentIds?: string[] | undefined;
+      /** enquete (ADR-0018): criada na mesma transação da mensagem */
+      poll?: { question: string; options: string[]; multiple: boolean; endsAt: Date | null } | undefined;
+    },
   ): Promise<{ message: Message; duplicate: boolean }> {
     const a = await this.access(userId, target);
     if (!hasPermission(a.perms, Permission.SEND_MESSAGES)) throw forbidden('sem permissão para enviar mensagens');
@@ -212,6 +242,16 @@ export class MessagesService {
           },
         });
         await this.attachments.claimForMessage(tx, userId, attachmentIds, m.id);
+        if (dto.poll)
+          await tx.poll.create({
+            data: {
+              messageId: m.id,
+              question: dto.poll.question,
+              multiple: dto.poll.multiple,
+              endsAt: dto.poll.endsAt,
+              options: { create: dto.poll.options.map((text, position) => ({ text, position })) },
+            },
+          });
         return tx.message.findUniqueOrThrow({ where: { id: m.id }, include: MESSAGE_INCLUDE });
       });
     } catch (e) {
@@ -320,6 +360,7 @@ export class MessagesService {
       throw notFound('mensagem');
     });
     if (m.authorId !== userId) throw forbidden('só o autor pode editar');
+    if (m.poll) throw new BadRequestException('enquetes não podem ser editadas');
     if (m.deletedAt) throw notFound('mensagem');
     const a = await this.access(userId, this.targetOf(m));
     const parsed = extractMentions(body.trim());
@@ -401,6 +442,55 @@ export class MessagesService {
     });
     this.realtime.emit(a.room, 'chat:message:updated', this.serialize(row, null));
     return this.serialize(row, userId);
+  }
+
+  /** Enquete: confere acesso pela mensagem; encerrada ou apagada não aceita mais nada. */
+  private async pollContext(userId: string, pollId: string) {
+    const poll = await this.prisma.poll.findUnique({ where: { id: pollId }, select: { messageId: true } });
+    if (!poll) throw notFound('enquete');
+    const m = await this.load(poll.messageId);
+    const a = await this.access(userId, this.targetOf(m)).catch(() => {
+      throw notFound('enquete');
+    });
+    if (m.deletedAt || !m.poll) throw notFound('enquete');
+    return { m, a, poll: m.poll };
+  }
+
+  private async emitPoll(a: TargetAccess, messageId: string, userId: string): Promise<Poll> {
+    const row = await this.load(messageId);
+    const poll = row.poll as NonNullable<MessageRow['poll']>;
+    this.realtime.emit(a.room, 'poll:updated', {
+      messageId,
+      channelId: a.channelId,
+      conversationId: a.conversationId,
+      poll: this.serializePoll(poll, null),
+    });
+    return this.serializePoll(poll, userId);
+  }
+
+  /** Substitui o meu voto (vazio = retira). Precisa só de ver o canal: votar não é escrever. */
+  async vote(userId: string, pollId: string, optionIds: string[]): Promise<Poll> {
+    const { m, a, poll } = await this.pollContext(userId, pollId);
+    if (poll.endsAt && poll.endsAt.getTime() <= Date.now()) throw new BadRequestException('enquete encerrada');
+    const ids = [...new Set(optionIds)];
+    if (!poll.multiple && ids.length > 1) throw new BadRequestException('esta enquete aceita uma opção');
+    const valid = new Set(poll.options.map((o) => o.id));
+    if (ids.some((id) => !valid.has(id))) throw new BadRequestException('opção inválida');
+    await this.prisma.$transaction([
+      this.prisma.pollVote.deleteMany({ where: { pollId, userId } }),
+      this.prisma.pollVote.createMany({ data: ids.map((optionId) => ({ pollId, optionId, userId })) }),
+    ]);
+    return this.emitPoll(a, m.id, userId);
+  }
+
+  /** Encerrar antes do prazo: quem criou ou quem gerencia mensagens no canal. */
+  async closePoll(userId: string, pollId: string): Promise<Poll> {
+    const { m, a, poll } = await this.pollContext(userId, pollId);
+    if (m.authorId !== userId && !(a.channelId && hasPermission(a.perms, Permission.MANAGE_MESSAGES)))
+      throw forbidden();
+    if (!poll.endsAt || poll.endsAt.getTime() > Date.now())
+      await this.prisma.poll.update({ where: { id: pollId }, data: { endsAt: new Date() } });
+    return this.emitPoll(a, m.id, userId);
   }
 
   async react(userId: string, messageId: string, emoji: string, on: boolean): Promise<void> {

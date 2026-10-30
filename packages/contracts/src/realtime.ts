@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   BoardCard,
+  Poll,
   Channel,
   Category,
   Emoji,
@@ -93,6 +94,13 @@ export interface ServerEvents {
   ready: { userId: string; sessionId: string; heartbeatIntervalMs: number };
   'chat:message:created': Message;
   'chat:message:updated': Message;
+  /** votos/encerramento de uma enquete; `mine` vem vazio (cada app guarda o próprio voto) */
+  'poll:updated': {
+    messageId: string;
+    channelId: string | null;
+    conversationId: string | null;
+    poll: z.infer<typeof Poll>;
+  };
   'chat:message:deleted': { messageId: string; channelId: string | null; conversationId: string | null };
   'chat:reaction:changed': {
     messageId: string;
