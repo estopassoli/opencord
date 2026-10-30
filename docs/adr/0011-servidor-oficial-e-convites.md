@@ -23,6 +23,11 @@ O mantenedor relatou que outros usuários viam o servidor que ele tinha acabado 
   - "Convidar pessoas" no cabeçalho do servidor e no menu da barra de servidores;
   - "Tenho um convite" em Explorar servidores.
 - Os membros atuais dos servidores privados são mantidos (nenhuma remoção automática).
+- **Link de convite** (pedido do mantenedor: "deveria gerar um URL para convidar até mesmo quem não está logado"):
+  - Com `PUBLIC_APP_URL` (ex.: `https://app.opencord.pro`), o convite vem como `PUBLIC_APP_URL/invite/<código>`.
+  - O nginx da interface web redireciona esse link para `/?invite=<código>`. O build usa caminhos relativos por causa do Electron, então a SPA precisa abrir na raiz.
+  - O app guarda o código (sessionStorage) e abre a tela de entrada já em "só apelido". Depois de entrar, mostra o convite e o botão Entrar.
+  - Sem `PUBLIC_APP_URL`, volta a mostrar só o código. No desktop, colar o link em "Tenho um convite" também funciona.
 
 ## Consequências
 - **Deploy:** a migração precisa rodar em produção (`prisma migrate deploy`). Ela é aditiva (coluna com padrão e tabela nova), então pode rodar antes da API nova. Já a API nova falha nas consultas de servidor até a migração rodar.

@@ -3793,3 +3793,10 @@ a.rail-item {
 .stream-cover[data-preview='true'] > p {
   text-shadow: 0 1px 4px rgb(0 0 0 / 0.8);
 }
+.auth-invite {
+  margin: 4px 0 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+  font-size: 0.875rem;
+}

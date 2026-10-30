@@ -33,6 +33,18 @@ export function Modals() {
       return <ExploreServers onClose={close} />;
     case 'invite':
       return <InviteDialog serverId={modal.serverId} onClose={close} />;
+    case 'join-invite':
+      return (
+        <Dialog title="Convite para servidor" onClose={close}>
+          <InviteJoin
+            initialCode={modal.code}
+            onJoined={(id) => {
+              useUi.getState().go({ kind: 'server', serverId: id, channelId: null });
+              close();
+            }}
+          />
+        </Dialog>
+      );
     case 'create-channel':
       return <CreateChannel modal={modal} onClose={close} />;
     case 'watch-together':
@@ -232,28 +244,35 @@ function ImportDiscord({ onClose }: { onClose: () => void }) {
 }
 
 /** Servidores são abertos a todos (ADR-0007): lista e entra com um clique, sem convite. */
-/** Convidar pessoas: mostra o código de convite do servidor (o mesmo a cada abertura) para copiar e enviar. */
+/** Convidar pessoas: link do convite (abre no navegador, mesmo sem conta) ou, sem interface web, o código. */
 function InviteDialog({ serverId, onClose }: { serverId: string; onClose: () => void }) {
   const name = useData((s) => s.details[serverId]?.name ?? s.servers.find((x) => x.id === serverId)?.name ?? '');
-  const [code, setCode] = useState<string | null>(null);
+  const [invite, setInvite] = useState<Invite | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     api()
       .request<Invite>('POST', `/servers/${serverId}/invites`)
-      .then(
-        (i) => setCode(i.code),
-        (e: unknown) => setError(describeError(e)),
-      );
+      .then(setInvite, (e: unknown) => setError(describeError(e)));
   }, [serverId]);
+  const value = invite ? (invite.url ?? invite.code) : null;
   const copy = () => {
-    if (!code) return;
-    void navigator.clipboard.writeText(code).then(() => setCopied(true));
+    if (!value) return;
+    void navigator.clipboard.writeText(value).then(() => setCopied(true));
   };
   return (
     <Dialog title={`Convidar pessoas para ${name}`} onClose={onClose}>
       <p className="muted">
-        Envie este código. A pessoa entra em <strong>Explorar servidores → Tenho um convite</strong>.
+        {invite?.url ? (
+          <>
+            Envie este link. Quem abrir entra pelo navegador, mesmo sem conta (só escolhe um apelido). No app, também dá
+            para colar o link em <strong>Explorar servidores → Tenho um convite</strong>.
+          </>
+        ) : (
+          <>
+            Envie este código. A pessoa entra em <strong>Explorar servidores → Tenho um convite</strong>.
+          </>
+        )}
       </p>
       {error && (
         <p className="form-error" role="alert">
@@ -262,12 +281,12 @@ function InviteDialog({ serverId, onClose }: { serverId: string; onClose: () => 
       )}
       <div className="invite-code-row">
         <TextField
-          label="Código de convite"
-          value={code ?? 'Gerando…'}
+          label={invite?.url ? 'Link de convite' : 'Código de convite'}
+          value={value ?? 'Gerando…'}
           readOnly
           onFocus={(e) => e.currentTarget.select()}
         />
-        <Button icon={copied ? 'check' : 'copy'} disabled={!code} onClick={copy}>
+        <Button icon={copied ? 'check' : 'copy'} disabled={!value} onClick={copy}>
           {copied ? 'Copiado' : 'Copiar'}
         </Button>
       </div>
@@ -276,9 +295,17 @@ function InviteDialog({ serverId, onClose }: { serverId: string; onClose: () => 
 }
 
 /** Colar um convite: mostra o servidor (prévia) e entra. */
-function InviteJoin({ onJoined }: { onJoined: (serverId: string) => void }) {
-  const [text, setText] = useState('');
+function InviteJoin({ onJoined, initialCode }: { onJoined: (serverId: string) => void; initialCode?: string }) {
+  const [text, setText] = useState(initialCode ?? '');
   const [preview, setPreview] = useState<InvitePreview | null>(null);
+  const [autoError, setAutoError] = useState<string | null>(null);
+  // vindo de um link: já mostra o servidor
+  useEffect(() => {
+    if (!initialCode) return;
+    api()
+      .request<InvitePreview>('GET', `/invites/${initialCode}`)
+      .then(setPreview, (e: unknown) => setAutoError(describeError(e)));
+  }, [initialCode]);
   const look = useSubmit(async () => {
     setPreview(null);
     const code = parseInviteCode(text);
@@ -308,9 +335,9 @@ function InviteJoin({ onJoined }: { onJoined: (serverId: string) => void }) {
           Ver convite
         </Button>
       </form>
-      {(look.error ?? join.error) && (
+      {(look.error ?? join.error ?? autoError) && (
         <p className="form-error" role="alert">
-          {look.error ?? join.error}
+          {look.error ?? join.error ?? autoError}
         </p>
       )}
       {preview && (
