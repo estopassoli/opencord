@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '01:55',
+    kind: 'melhoria',
+    icon: 'screen',
+    title: 'Lives gastam menos internet',
+    body: 'O teto da live em 1080p60 caiu de 12 para 8 Mbps (em 1440p60, de 18 para 12 Mbps). A imagem continua nítida em jogos, e quem assiste com internet mais fraca trava menos.',
+  },
+  {
+    date: '2026-10-30',
     time: '01:50',
     kind: 'correção',
     icon: 'settings',
