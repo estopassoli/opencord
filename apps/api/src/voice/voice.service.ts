@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  PayloadTooLargeException,
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
@@ -21,11 +22,13 @@ import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DomainEvents } from '../common/domain-events.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { RedisService } from '../common/redis.service.js';
-import { forbidden } from '../common/errors.js';
+import { forbidden, notFound } from '../common/errors.js';
 import { PermissionsService } from '../servers/permissions.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
 const MAX_PER_CHANNEL = 25;
+const PREVIEW_MAX_BYTES = 256 * 1024;
+const PREVIEW_TTL_SECONDS = 15 * 60;
 /** Tempo para o cliente conectar à SFU após receber o token antes de ser considerado ausente. */
 const CONNECT_GRACE_MS = 30_000;
 
@@ -164,6 +167,38 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  // ---------- prévia da live (ADR-0012): última imagem de quem transmite, para quem está fora da chamada ----------
+  /** Guarda a prévia (JPEG até 256 KB) de quem está transmitindo; vale 15 min e some quando a live acaba. */
+  async setStreamPreview(userId: string, file: AsyncIterable<Buffer> & { truncated?: boolean }) {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const c of file) {
+      size += c.length;
+      if (size > PREVIEW_MAX_BYTES) throw new PayloadTooLargeException('prévia passa de 256 KB');
+      chunks.push(c);
+    }
+    if (file.truncated) throw new PayloadTooLargeException('prévia passa de 256 KB');
+    const buf = Buffer.concat(chunks);
+    if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff)
+      throw new BadRequestException('a prévia precisa ser JPEG');
+    const s = await this.stateOf(userId);
+    if (!s?.streaming) throw new BadRequestException('você não está transmitindo');
+    await this.r.set(`voice:preview:${userId}`, buf, 'EX', PREVIEW_TTL_SECONDS);
+    s.previewAt = new Date().toISOString();
+    await this.save(s);
+    this.realtime.emit(rooms.server(s.serverId), 'voice:state:changed', this.publicState(s));
+  }
+
+  /** Prévia de alguém: só para quem pode ver o canal em que a pessoa está transmitindo. */
+  async streamPreview(viewerId: string, userId: string): Promise<Buffer> {
+    const s = await this.stateOf(userId);
+    if (!s?.streaming || !s.previewAt) throw notFound('prévia');
+    await this.perms.requireChannel(s.channelId, viewerId, Permission.VIEW_CHANNEL);
+    const buf = await this.r.getBuffer(`voice:preview:${userId}`);
+    if (!buf) throw notFound('prévia');
+    return buf;
+  }
+
   private publicState(s: StoredState): VoiceMemberState {
     const { roomName: _r, confirmed: _c, ...pub } = s;
     return pub;
@@ -206,6 +241,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       serverMute: current?.channelId === channelId ? current.serverMute : false,
       video: false,
       streaming: false,
+      previewAt: null,
       joinedAt: current?.channelId === channelId ? current.joinedAt : new Date().toISOString(),
       roomName,
       confirmed: current?.channelId === channelId ? current.confirmed : false,
@@ -413,8 +449,13 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
         const on = ev.event === 'track_published';
         const source = ev.track?.source;
         if (source === TrackSource.CAMERA) s.video = on;
-        else if (source === TrackSource.SCREEN_SHARE) s.streaming = on;
-        else break;
+        else if (source === TrackSource.SCREEN_SHARE) {
+          s.streaming = on;
+          if (!on) {
+            s.previewAt = null;
+            await this.r.del(`voice:preview:${s.userId}`);
+          }
+        } else break;
         await this.save(s);
         this.realtime.emit(rooms.server(s.serverId), 'voice:state:changed', this.publicState(s));
         break;

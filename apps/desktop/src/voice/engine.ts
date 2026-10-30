@@ -92,6 +92,8 @@ export interface EngineCallbacks {
   onDisconnected(reason: 'removed' | 'replaced' | 'failed' | 'ended', detail?: string): void;
   onStreamEnded(): void;
   onStats(s: MediaStats): void;
+  /** nova prévia da própria live (JPEG), para publicar na API */
+  onStreamPreview?(image: Blob): void;
 }
 
 export interface AudioPrefs {
@@ -532,7 +534,7 @@ export class VoiceEngine {
       await this.stopStream();
       throw e;
     }
-    this.stopPreview = startPreviewSender(this.room, v);
+    this.stopPreview = startPreviewSender(this.room, v, (img) => this.cb.onStreamPreview?.(img));
     this.emit();
     return { audioPublished: Boolean(audio) };
   }

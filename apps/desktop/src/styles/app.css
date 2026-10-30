@@ -3865,3 +3865,84 @@ a.rail-item {
 .tile-stream[data-focusable='true'] {
   cursor: pointer;
 }
+
+/* "Em atividade": prévias das lives (imagem publicada por quem transmite); um clique entra e assiste */
+.now-streams {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.now-stream {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.now-stream-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+.now-stream-thumb > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--dur) var(--ease);
+}
+.now-stream-thumb > .live-pill {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+}
+.now-stream-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #fff;
+  background: rgb(0 0 0 / 0.45);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.now-stream:hover .now-stream-play,
+.now-stream:focus-visible .now-stream-play {
+  opacity: 1;
+}
+.now-stream:hover .now-stream-thumb > img {
+  transform: scale(1.03);
+}
+.now-stream:focus-visible {
+  outline: 2px solid var(--focus, var(--brand));
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.now-stream-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .now-stream-thumb > img,
+  .now-stream-play {
+    transition: none;
+  }
+}

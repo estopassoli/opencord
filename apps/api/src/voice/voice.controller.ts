@@ -12,9 +12,11 @@ import {
   Put,
   Query,
   Req,
+  Res,
+  BadRequestException,
 } from '@nestjs/common';
 import { UpdateVoiceStateRequest } from '@opencord/contracts';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { CurrentUser, Public, type AuthUser } from '../common/auth.js';
 import { zodPipe } from '../common/zod.pipe.js';
@@ -60,6 +62,26 @@ export class VoiceController {
   @Get('servers/:id/voice-states')
   list(@CurrentUser() u: AuthUser, @Param('id', id) serverId: string) {
     return this.voice.listServer(u.userId, serverId);
+  }
+
+  /** Prévia da própria live (multipart, campo "file", JPEG até 256 KB), para quem está fora da chamada (ADR-0012). */
+  @Post('voice/stream-preview')
+  @HttpCode(204)
+  async setStreamPreview(@CurrentUser() u: AuthUser, @Req() req: FastifyRequest) {
+    if (!req.isMultipart()) throw new BadRequestException('multipart/form-data esperado');
+    const file = await req.file();
+    if (!file) throw new BadRequestException('campo "file" ausente');
+    await this.voice.setStreamPreview(u.userId, file.file);
+  }
+
+  @Get('voice/members/:userId/stream-preview')
+  async streamPreview(@CurrentUser() u: AuthUser, @Param('userId', id) userId: string, @Res() reply: FastifyReply) {
+    const buf = await this.voice.streamPreview(u.userId, userId);
+    return reply
+      .header('Content-Type', 'image/jpeg')
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Cache-Control', 'private, no-store')
+      .send(buf);
   }
 
   @Put('voice/members/:userId/server-mute')

@@ -14,7 +14,12 @@ const PREVIEW_WIDTH = 640;
 const MIN_GAP_MS = 1000;
 
 /** Começa a enviar miniaturas da trilha capturada. Devolve a função que para. */
-export function startPreviewSender(room: Room, track: MediaStreamTrack): () => void {
+export function startPreviewSender(
+  room: Room,
+  track: MediaStreamTrack,
+  /** cada prévia geral (não as enviadas só para quem acabou de entrar) também vai para a API: "Em atividade" */
+  onImage?: (blob: Blob) => void,
+): () => void {
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
@@ -24,7 +29,8 @@ export function startPreviewSender(room: Room, track: MediaStreamTrack): () => v
   let busy = false;
   /** sem destino = todos; com destino = só quem acabou de entrar */
   const send = async (to?: string) => {
-    if (busy || room.remoteParticipants.size === 0 || video.videoWidth === 0) return;
+    // sem ninguém na sala ainda vale gerar: a prévia da API aparece para quem está fora da chamada
+    if (busy || video.videoWidth === 0 || (to && room.remoteParticipants.size === 0)) return;
     busy = true;
     try {
       const w = PREVIEW_WIDTH;
@@ -34,6 +40,8 @@ export function startPreviewSender(room: Room, track: MediaStreamTrack): () => v
       canvas.getContext('2d')?.drawImage(video, 0, 0, w, h);
       const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.8));
       if (!blob || blob.size > PREVIEW_MAX_BYTES) return;
+      if (!to) onImage?.(blob);
+      if (room.remoteParticipants.size === 0) return;
       await room.localParticipant.sendFile(new File([blob], 'preview.jpg', { type: 'image/jpeg' }), {
         topic: PREVIEW_TOPIC,
         mimeType: 'image/jpeg',
@@ -46,7 +54,8 @@ export function startPreviewSender(room: Room, track: MediaStreamTrack): () => v
     }
   };
   // primeira prévia logo que o vídeo tiver quadros; depois, a cada intervalo
-  const first = setTimeout(() => void send(), 800);
+  // 3 s: a API só aceita a prévia depois que o aviso do LiveKit (live começou) chega a ela
+  const first = setTimeout(() => void send(), 3000);
   const timer = setInterval(() => void send(), PREVIEW_INTERVAL_MS);
   // quem entra na sala não espera os 5 minutos
   const joined = (p: RemoteParticipant) => setTimeout(() => void send(p.identity), 1500);

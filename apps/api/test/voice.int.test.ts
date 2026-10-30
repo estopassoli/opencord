@@ -24,7 +24,7 @@ import { decodeJwt } from 'jose';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import type { Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { TEST_ENV } from './env.js';
+import { TEST_API_PORT, TEST_ENV } from './env.js';
 import {
   bootstrapOwner,
   connectSocket,
@@ -268,5 +268,47 @@ describe('voz com LiveKit real', () => {
   it('webhook com assinatura inválida é rejeitado', async () => {
     const r = await http.req('POST', '/livekit/webhook', { body: { event: 'participant_left' } });
     expect(r.status).toBe(403);
+  });
+
+  it('prévia da live: só JPEG de quem transmite; quem vê o canal baixa; some quando a live acaba', async () => {
+    const { alice, owner, voiceId } = await setup();
+    await http.req('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    const up = async (data: Buffer) => {
+      const form = new FormData();
+      form.append('file', new Blob([data], { type: 'image/jpeg' }), 'p.jpg');
+      return (
+        await fetch(`http://127.0.0.1:${TEST_API_PORT}/voice/stream-preview`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${alice.token}` },
+          body: form,
+        })
+      ).status;
+    };
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+    // sem transmitir: recusado
+    expect(await up(jpeg)).toBe(400);
+    const { VoiceService } = await import('../src/voice/voice.service.js');
+    const svc = app.get(VoiceService);
+    const raw = JSON.parse((await svc['redis'].client.get(`voice:user:${alice.id}`)) as string) as Record<
+      string,
+      unknown
+    >;
+    await svc['redis'].client.set(`voice:user:${alice.id}`, JSON.stringify({ ...raw, streaming: true }));
+    // não JPEG: recusado
+    expect(await up(Buffer.from('<svg/>'))).toBe(400);
+    expect(await up(jpeg)).toBe(204);
+    expect((await svc.stateOf(alice.id))?.previewAt).toBeTruthy();
+    const got = await fetch(`http://127.0.0.1:${TEST_API_PORT}/voice/members/${alice.id}/stream-preview`, {
+      headers: { authorization: `Bearer ${owner.token}` },
+    });
+    expect(got.status).toBe(200);
+    expect(got.headers.get('content-type')).toBe('image/jpeg');
+    expect(Buffer.from(await got.arrayBuffer()).equals(jpeg)).toBe(true);
+    // quem não participa do servidor não vê
+    const stranger = await outsider(http);
+    const denied = await fetch(`http://127.0.0.1:${TEST_API_PORT}/voice/members/${alice.id}/stream-preview`, {
+      headers: { authorization: `Bearer ${stranger.token}` },
+    });
+    expect(denied.status).toBe(404);
   });
 });
