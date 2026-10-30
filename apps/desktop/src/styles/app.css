@@ -3781,14 +3781,19 @@ a.rail-item {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   background: #000;
   z-index: -1;
-  filter: brightness(0.55);
+  /* blur leve: dá a ideia do que passa sem competir com o "Assistir"; scale esconde a borda borrada */
+  filter: blur(6px) brightness(0.6);
+  transform: scale(1.06);
   transition: filter var(--dur) var(--ease);
 }
 .tile-stream:hover .stream-preview {
-  filter: brightness(0.75);
+  filter: blur(4px) brightness(0.75);
+}
+.tile-stream {
+  overflow: hidden;
 }
 .stream-cover[data-preview='true'] > p {
   text-shadow: 0 1px 4px rgb(0 0 0 / 0.8);
@@ -3799,4 +3804,52 @@ a.rail-item {
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--brand) 18%, transparent);
   font-size: 0.875rem;
+}
+
+/* lista de amigos: linhas altas com divisória, @usuário no hover, status em texto e ações em Mensagem e ⋮ */
+.friend-list {
+  display: grid;
+}
+.friend-row[data-clickable='true'] {
+  cursor: pointer;
+}
+.friend-row:hover {
+  background: var(--interactive);
+}
+.friend-names {
+  gap: 2px;
+}
+.friend-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.friend-username {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.friend-row:hover .friend-username,
+.friend-row:focus-within .friend-username {
+  opacity: 1;
+}
+.friend-sub {
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+.friend-voice {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--status-online);
+}
+.friend-actions {
+  gap: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .friend-username {
+    transition: none;
+  }
 }

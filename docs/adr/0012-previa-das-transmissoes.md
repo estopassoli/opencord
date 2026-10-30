@@ -26,3 +26,10 @@ Status: Accepted (pedido do mantenedor, 2026-10-29)
   - E2E `voice.spec.ts` (Go Live): B vê a miniatura (`naturalWidth` 320) antes de assistir.
   - Integração `voice.int.test.ts`: `canPublishData` só com STREAM.
   - Unit `test/preview.test.ts`.
+
+## Revisão (2026-10-30)
+- O mantenedor achou a miniatura pixelada: "coloque a imagem certinha só que com uma atualização de 5 em 5 min, com um blur".
+- A imagem passa a ter 640 px de largura, JPEG 0,8 e teto de 256 KB.
+- É enviada a cada 5 min, mais uma vez logo para quem entra na sala (`destinationIdentities`).
+- No card ela aparece com blur leve.
+- O tráfego cai para menos de 1 KB/s por live.

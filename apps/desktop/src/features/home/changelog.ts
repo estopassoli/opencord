@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '00:30',
+    kind: 'melhoria',
+    icon: 'screen',
+    title: 'Prévia da live nítida',
+    body: 'A prévia no card da live ficou nítida (com um leve desfoque) e é atualizada a cada 5 minutos; quem entra na chamada já recebe uma na hora.',
+  },
+  {
+    date: '2026-10-30',
+    time: '00:25',
+    kind: 'melhoria',
+    icon: 'users',
+    title: 'Lista de amigos repaginada',
+    body: 'Linhas maiores em ordem alfabética, o @usuário ao passar o mouse, o status escrito (ou o canal de voz em que a pessoa está) e um clique na linha abre a conversa. Remover e bloquear ficaram no menu "⋮" e no botão direito.',
+  },
+  {
+    date: '2026-10-30',
     time: '00:10',
     kind: 'melhoria',
     icon: 'link',

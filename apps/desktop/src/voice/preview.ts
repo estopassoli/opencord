@@ -1,15 +1,15 @@
 /**
- * Prévia das transmissões (ADR-0012): quem transmite envia, a cada poucos segundos, uma miniatura JPEG da própria
- * tela pela sala do LiveKit (byte stream, tópico `stream-preview`). Quem ainda não clicou em "Assistir" vê a miniatura
+ * Prévia das transmissões (ADR-0012): quem transmite envia, a cada 5 minutos (e logo para quem acaba de entrar na
+ * sala), uma imagem JPEG da própria tela pela sala do LiveKit (byte stream, tópico `stream-preview`). Quem ainda não clicou em "Assistir" vê a miniatura
  * no card, sem assinar o vídeo. Nada passa pelo Socket.IO.
  */
-import type { ByteStreamReader, Room } from 'livekit-client';
+import { RoomEvent, type ByteStreamReader, type RemoteParticipant, type Room } from 'livekit-client';
 
 export const PREVIEW_TOPIC = 'stream-preview';
-/** teto por miniatura (320×180 em JPEG 0,6 fica em ~8–20 KB) */
-export const PREVIEW_MAX_BYTES = 48 * 1024;
-export const PREVIEW_INTERVAL_MS = 4000;
-const PREVIEW_WIDTH = 320;
+/** teto por imagem (640×360 em JPEG 0,8 fica em ~40–120 KB) */
+export const PREVIEW_MAX_BYTES = 256 * 1024;
+export const PREVIEW_INTERVAL_MS = 5 * 60_000;
+const PREVIEW_WIDTH = 640;
 /** intervalo mínimo aceito por remetente (protege contra inundação) */
 const MIN_GAP_MS = 1000;
 
@@ -22,7 +22,8 @@ export function startPreviewSender(room: Room, track: MediaStreamTrack): () => v
   void video.play().catch(() => undefined);
   const canvas = document.createElement('canvas');
   let busy = false;
-  const send = async () => {
+  /** sem destino = todos; com destino = só quem acabou de entrar */
+  const send = async (to?: string) => {
     if (busy || room.remoteParticipants.size === 0 || video.videoWidth === 0) return;
     busy = true;
     try {
@@ -31,11 +32,12 @@ export function startPreviewSender(room: Room, track: MediaStreamTrack): () => v
       canvas.width = w;
       canvas.height = h;
       canvas.getContext('2d')?.drawImage(video, 0, 0, w, h);
-      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.6));
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.8));
       if (!blob || blob.size > PREVIEW_MAX_BYTES) return;
       await room.localParticipant.sendFile(new File([blob], 'preview.jpg', { type: 'image/jpeg' }), {
         topic: PREVIEW_TOPIC,
         mimeType: 'image/jpeg',
+        ...(to ? { destinationIdentities: [to] } : {}),
       });
     } catch {
       /* prévia é opcional: falha de envio não afeta a live */
@@ -46,9 +48,13 @@ export function startPreviewSender(room: Room, track: MediaStreamTrack): () => v
   // primeira prévia logo que o vídeo tiver quadros; depois, a cada intervalo
   const first = setTimeout(() => void send(), 800);
   const timer = setInterval(() => void send(), PREVIEW_INTERVAL_MS);
+  // quem entra na sala não espera os 5 minutos
+  const joined = (p: RemoteParticipant) => setTimeout(() => void send(p.identity), 1500);
+  room.on(RoomEvent.ParticipantConnected, joined);
   return () => {
     clearTimeout(first);
     clearInterval(timer);
+    room.off(RoomEvent.ParticipantConnected, joined);
     video.srcObject = null;
   };
 }
