@@ -30,11 +30,32 @@ function countPresented(ms: number): Promise<number | null> {
   });
 }
 
-export async function copyLiveDiagnostics() {
-  const engine = useVoice.getState().engine();
-  if (!engine) return;
+/**
+ * Chamar direto no clique. A escrita na área de transferência começa na hora (com o texto prometido): esperar os 5 s
+ * da medição e só então escrever falhava, porque o clique já não valia mais como gesto do usuário.
+ */
+export function copyLiveDiagnostics() {
   const ui = useUi.getState();
+  const text = measure();
+  if (!text) return;
   ui.toast('info', 'Medindo a live por 5 segundos…');
+  const blob = text.then((t) => new Blob([t], { type: 'text/plain' }));
+  navigator.clipboard
+    .write([new ClipboardItem({ 'text/plain': blob })])
+    .catch(async () => navigator.clipboard.writeText(await text))
+    .then(
+      () => ui.toast('success', 'Diagnóstico da live copiado. Cole onde quiser compartilhar.'),
+      () => ui.toast('error', 'Não foi possível copiar o diagnóstico.'),
+    );
+}
+
+function measure(): Promise<string> | null {
+  const engine = useVoice.getState().engine();
+  if (!engine) return null;
+  return collect(engine);
+}
+
+async function collect(engine: NonNullable<ReturnType<ReturnType<typeof useVoice.getState>['engine']>>) {
   const MS = 5000;
   const a = (await engine.pipeline()) as Record<string, Rec>;
   const presented = countPresented(MS);
@@ -95,10 +116,8 @@ export async function copyLiveDiagnostics() {
         }
       : null,
   };
-  try {
-    await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
-    ui.toast('success', 'Diagnóstico da live copiado. Cole onde quiser compartilhar.');
-  } catch {
-    ui.toast('error', 'Não foi possível copiar o diagnóstico.');
-  }
+  // histórico a cada 2 s (últimos 10 min): mostra se a live demorou a subir no começo; uma linha por amostra
+  const timeline = engine.liveTimeline();
+  const lines = timeline.map((r) => JSON.stringify(r, (_k, v: unknown) => (v === null ? undefined : v)));
+  return `${JSON.stringify(report, null, 2)}\n\nhistórico (a cada 2 s, ${timeline.length} amostras):\n${lines.join('\n')}`;
 }

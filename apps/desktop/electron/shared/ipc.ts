@@ -74,10 +74,11 @@ export type UpdateStatus =
 /**
  * Uso da placa de vídeo:
  * - full: tudo na GPU (interface, decodificação e codificação das lives);
- * - ui-software: interface desenhada pelo processador (não disputa a GPU com jogos), lives ainda na GPU;
  * - off: sem aceleração (tudo no processador, inclusive a live).
+ * O antigo "ui-software" (disable-gpu-compositing) saiu: medido no E2E golive-fps, ele também tirava da placa a
+ * codificação (OpenH264, live a 2,5 fps com cena pesada) e a decodificação das lives (FFmpeg). Quem o tinha volta a "full".
  */
-export const GpuMode = z.enum(['full', 'ui-software', 'off']);
+export const GpuMode = z.enum(['full', 'off']);
 export type GpuMode = z.infer<typeof GpuMode>;
 export const AppPrefsSchema = z.object({ gpuMode: GpuMode }).strict();
 export type AppPrefs = z.infer<typeof AppPrefsSchema>;

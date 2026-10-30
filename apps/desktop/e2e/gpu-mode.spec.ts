@@ -4,7 +4,8 @@ import path from 'node:path';
 
 /**
  * Modos de uso da placa de vídeo (Configurações → Sobre → Desempenho). O que importa em cada modo:
- * - ui-software: composição da interface no processador, mas codificação/decodificação de vídeo na GPU (lives);
+ * - o antigo "ui-software" (disable-gpu-compositing) saiu: o status da GPU dizia "vídeo enabled", mas a live codificava
+ *   em software (OpenH264) e decodificava em FFmpeg (medido no golive-fps). Quem o tinha salvo volta a "full";
  * - off: sem aceleração nenhuma; o formato antigo { hardwareAcceleration: false } continua significando "off".
  */
 async function launchWith(prefs: object) {
@@ -32,13 +33,11 @@ async function launchWith(prefs: object) {
   return status;
 }
 
-test('ui-software: interface no processador, vídeo das lives na GPU', async () => {
+test('modo antigo ui-software volta a usar a placa de vídeo para tudo', async () => {
   const s = await launchWith({ gpuMode: 'ui-software' });
-  console.warn('GPU_UI_SOFTWARE', JSON.stringify(s));
   expect(s.accel).toBe(true);
-  expect(s.gpu.gpu_compositing).toMatch(/disabled/);
+  expect(s.gpu.gpu_compositing).toMatch(/^enabled/);
   expect(s.gpu.video_encode).toMatch(/^enabled/);
-  expect(s.gpu.video_decode).toMatch(/^enabled/);
 });
 
 test('full: tudo na GPU', async () => {

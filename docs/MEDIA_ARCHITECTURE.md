@@ -90,9 +90,12 @@ Monitorar ICE candidate failures, RTT, jitter, packet loss, bitrate, encode FPS,
 
 ## Uso da placa de vídeo (2026-10-30)
 - Relato: com um jogo ocupando a GPU, as transições do app engasgavam e ficaram lisas com a aceleração desligada. O custo de desligar é a live ser codificada e decodificada pelo processador.
-- Modo intermediário `ui-software` (`disable-gpu-compositing`): a interface é composta no processador, e o processo de GPU segue com o encoder e o decoder de vídeo.
-- E2E `gpu-mode.spec.ts`: em ui-software, `gpu_compositing=disabled_software` e `video_encode`/`video_decode=enabled`; em full, tudo `enabled`; o formato antigo `{hardwareAcceleration:false}` continua sem aceleração.
-- **Não validado no PC do relato** (NVIDIA com jogo). Para reverter, escolha "Placa de vídeo para tudo".
+- ~~Modo intermediário `ui-software` (`disable-gpu-compositing`)~~ **removido em 2026-10-30.** O status da GPU (`getGPUFeatureStatus`) dizia `video_encode`/`video_decode=enabled`, mas no E2E `golive-fps` a live real foi outra:
+  - quem transmite codificou em **OpenH264** (software), a 2,5 fps com a textura pesada a 12 Mb/s (20 ms por quadro);
+  - quem assiste decodificou em **FFmpeg** (software).
+  Relato que bate com isso: o selo de quem assiste mostrava "decoder FFmpeg", 39 fps e 7 travadas.
+- Quem tinha o modo salvo volta a "Placa de vídeo para tudo" (`readAppPrefs`). O selo da live agora avisa quando a codificação ou a decodificação estiver no processador.
+- O relato original (transições engasgando com um jogo na GPU) segue sem solução que preserve as lives.
 
 ## Fluidez da live 1080p60, etapa por etapa (2026-10-30)
 Relato: live 1080p60 chegando a ~31 fps a 11,2 Mb/s (bitrate "equilibrada", 12 Mb/s), com o jogo a ~65 fps.
@@ -133,3 +136,7 @@ Observações gerais:
 - Clicar no selo da live (de quem transmite e de quem assiste) mede 5 s e copia as taxas por etapa: captura, cena, codificação, envio, banda, recepção, decodificação, descarte e apresentação.
 - O teste real exigido no gate F4 continua pendente: dois Windows, jogo em foco, 5 min, com e sem cena.
 - 16 Mb/s não é um nível do app (os níveis de 1080p60 são 8/12/20); foram medidos 12 e 20.
+
+**Atualização (mesmo dia):**
+- O diagnóstico copiado agora inclui um histórico da live a cada 2 s (últimos 10 min). Ele mostra se a live demora a subir no começo, como no relato de "fps baixo nos primeiros ~5 min".
+- A cópia passou a ser iniciada no próprio clique. Antes, esperar os 5 s da medição para só então copiar fazia o Chromium recusar a área de transferência.

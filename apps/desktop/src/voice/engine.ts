@@ -157,6 +157,9 @@ export class VoiceEngine {
   private screen: { video: LocalVideoTrack; audio: LocalAudioTrack | null; stream: MediaStream } | null = null;
   private lastBytes: { t: number; bytes: number } | null = null;
   private lastVideoBytes: { t: number; bytes: number } | null = null;
+  /** histórico da live (a cada 2 s, últimos 10 min): mostra rampas lentas no começo, não só o instante atual */
+  private liveHistory: Record<string, number | string | null>[] = [];
+  private lastPipe: Record<string, unknown> | null = null;
   private lastRecv: { id: string; t: number; bytes: number; lost: number; got: number } | null = null;
   private stopPreview: (() => void) | null = null;
   private compositor: SceneCompositor | null = null;
@@ -765,6 +768,60 @@ export class VoiceEngine {
     };
   }
 
+  /** Uma linha de taxas por etapa (diferença para a leitura anterior), enquanto há live enviada ou assistida. */
+  private async sampleHistory() {
+    if (!this.screen && this.watching.size === 0) {
+      this.lastPipe = null;
+      return;
+    }
+    const cur = (await this.pipeline()) as Record<string, unknown>;
+    const prev = this.lastPipe;
+    this.lastPipe = cur;
+    if (!prev) return;
+    const n = (o: unknown, k: string) => {
+      const v = (o as Record<string, unknown> | null | undefined)?.[k];
+      return typeof v === 'number' ? v : null;
+    };
+    const dt = ((n(cur, 't') ?? 0) - (n(prev, 't') ?? 0)) / 1000;
+    if (dt <= 0) return;
+    const rate = (k: string, f: string) => {
+      const a = n(prev[k], f);
+      const b = n(cur[k], f);
+      return a !== null && b !== null && b >= a ? Math.round(((b - a) / dt) * 10) / 10 : null;
+    };
+    const mbps = (k: string, f: string) => {
+      const r = rate(k, f);
+      return r === null ? null : Math.round((r * 8) / 1e5) / 10;
+    };
+    const out = cur.outbound as Record<string, unknown> | undefined;
+    this.liveHistory.push({
+      at: new Date().toISOString().slice(11, 19),
+      srcFps: rate('source', 'frames'),
+      sceneFps: rate('compositor', 'written'),
+      encFps: rate('outbound', 'framesEncoded'),
+      sentMbps: mbps('outbound', 'bytesSent'),
+      targetMbps: n(out, 'targetBitrate') !== null ? Math.round(n(out, 'targetBitrate')! / 1e5) / 10 : null,
+      upMbps:
+        n(cur.uplink, 'availableOutgoingBitrate') !== null
+          ? Math.round(n(cur.uplink, 'availableOutgoingBitrate')! / 1e5) / 10
+          : null,
+      limit: typeof out?.qualityLimitationReason === 'string' ? out.qualityLimitationReason : null,
+      res: out ? `${n(out, 'frameWidth') ?? '?'}x${n(out, 'frameHeight') ?? '?'}` : null,
+      recvFps: rate('inbound', 'framesReceived'),
+      decFps: rate('inbound', 'framesDecoded'),
+      dropFps: rate('inbound', 'framesDropped'),
+      recvMbps: mbps('inbound', 'bytesReceived'),
+      lost: rate('inbound', 'packetsLost'),
+      freezes: rate('inbound', 'freezeCount'),
+    });
+    if (this.liveHistory.length > 300) this.liveHistory.shift();
+  }
+
+  /** Histórico por etapa (cópia), para o diagnóstico da live. */
+  liveTimeline() {
+    return [...this.liveHistory];
+  }
+
   /**
    * Contadores brutos da live, etapa por etapa (quem calcula taxas faz a diferença entre duas leituras):
    * captura (settings aplicados e quadros da fonte) → composição da cena → codificação → envio, e, na live assistida,
@@ -862,7 +919,10 @@ export class VoiceEngine {
   // ---------- métricas (NFR-08) ----------
   private startStats() {
     if (this.statsTimer) clearInterval(this.statsTimer);
-    this.statsTimer = setInterval(() => void this.collectStats(), 2000);
+    this.statsTimer = setInterval(() => {
+      void this.collectStats();
+      void this.sampleHistory();
+    }, 2000);
   }
 
   private async collectStats() {

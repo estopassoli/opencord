@@ -211,6 +211,9 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
       ? `limitado por ${stats.limitation === 'cpu' ? 'CPU' : 'banda'}`
       : null,
     stats.availableKbps !== null ? `banda de subida estimada: ${(stats.availableKbps / 1000).toFixed(1)} Mb/s` : null,
+    stats.hardware === false
+      ? 'codificando pelo processador (sem a placa de vídeo): a live pode perder fps; confira Configurações → Desempenho'
+      : null,
     stats.encoder,
     stats.fmtp,
     audioUnavailable ? 'sem áudio do sistema' : null,
@@ -222,12 +225,14 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
       className="live-badge stream-stats"
       data-tip={`${details} · clique para copiar o diagnóstico`}
       aria-label={details}
-      onClick={() => void copyLiveDiagnostics()}
+      onClick={copyLiveDiagnostics}
     >
       <span className="live-badge-q">
         <Icon name="signal" size={14} />
         {stats.height ? `${stats.height}p` : '–'} {stats.fps ?? '–'} FPS
-        {stats.limitation && stats.limitation !== 'none' ? <Icon name="warning" size={14} /> : null}
+        {(stats.limitation && stats.limitation !== 'none') || stats.hardware === false ? (
+          <Icon name="warning" size={14} />
+        ) : null}
       </span>
       {audioUnavailable && <span className="warn-text small">sem áudio</span>}
       <span className="live-pill">AO VIVO</span>
@@ -239,7 +244,11 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
 function WatchBadge({ identity }: { identity: string }) {
   const w = useVoice((s) => (s.stats?.watching?.identity === identity ? s.stats.watching : null));
   if (!w || !w.height) return <span className="live-pill">AO VIVO</span>;
-  const bad = (w.lossPct ?? 0) >= 2;
+  // decodificação em software (FFmpeg/libvpx/dav1d): na placa de vídeo o Chromium usa D3D11/ExternalDecoder
+  const softDecode = Boolean(
+    w.decoder && !/D3D11|ExternalDecoder|MediaFoundation|VideoToolbox|VaapiVideoDecoder/i.test(w.decoder),
+  );
+  const bad = (w.lossPct ?? 0) >= 2 || softDecode;
   const details = [
     `Recebendo ${w.width}×${w.height} · ${w.fps ?? '–'} fps${w.codec ? ` · ${w.codec}` : ''}`,
     w.kbps !== null ? `${(w.kbps / 1000).toFixed(1)} Mb/s` : null,
@@ -248,6 +257,9 @@ function WatchBadge({ identity }: { identity: string }) {
     w.dropped ? `${w.dropped} quadro(s) descartado(s)` : null,
     w.transport ? `conexão ${w.transport}${w.rttMs !== null ? ` (${w.rttMs} ms)` : ''}` : null,
     w.decoder ? `decoder ${w.decoder}` : null,
+    softDecode
+      ? 'decodificando pelo processador (sem a placa de vídeo): pode perder fps; confira Configurações → Desempenho'
+      : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -256,7 +268,7 @@ function WatchBadge({ identity }: { identity: string }) {
       className="live-badge stream-stats"
       data-tip={`${details} · clique para copiar o diagnóstico`}
       aria-label={details}
-      onClick={() => void copyLiveDiagnostics()}
+      onClick={copyLiveDiagnostics}
     >
       <span className="live-badge-q">
         <Icon name="signal" size={14} />

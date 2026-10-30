@@ -16,6 +16,8 @@ export function readAppPrefs(): AppPrefs {
     const raw = JSON.parse(readFileSync(file(), 'utf8')) as { gpuMode?: unknown; hardwareAcceleration?: unknown };
     const mode = GpuMode.safeParse(raw.gpuMode);
     if (mode.success) return { gpuMode: mode.data };
+    // modo removido (tirava da placa a codificação e a decodificação das lives): volta ao padrão
+    if (raw.gpuMode === 'ui-software') return { ...DEFAULTS };
     // formato antigo (só liga/desliga): desligada continua desligada
     return { gpuMode: raw.hardwareAcceleration === false ? 'off' : DEFAULTS.gpuMode };
   } catch {
