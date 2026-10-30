@@ -46,6 +46,17 @@ describe('ApiClient', () => {
     await expect(c.request('GET', '/me')).rejects.toBeInstanceOf(ApiError);
     expect(lost).toHaveBeenCalledOnce();
   });
+  it('página HTML do proxy (502 durante atualização) vira erro legível, não "Unexpected token <"', async () => {
+    const html = new Response('<!DOCTYPE html><html><body>Bad Gateway</body></html>', {
+      status: 502,
+      headers: { 'content-type': 'text/html' },
+    });
+    const c = new ApiClient('http://x', vi.fn(async () => html) as typeof fetch);
+    const err = await c.request('GET', '/channels/1/messages', undefined, { auth: false }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(502);
+    expect((err as ApiError).message).toMatch(/servidor está reiniciando/);
+  });
 });
 
 describe('helpers', () => {

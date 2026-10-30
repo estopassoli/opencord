@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '23:45',
+    kind: 'correção',
+    icon: 'chat',
+    title: 'Conversa se recupera sozinha quando o servidor reinicia',
+    body: 'Durante uma atualização do servidor, a conversa mostrava um erro técnico ("Unexpected token…") e ficava parada. Agora aparece um aviso claro e o app tenta carregar de novo sozinho a cada poucos segundos. A mensagem que falhou ao enviar também voltou a aparecer inteira, com o "Tentar novamente" ao lado do texto.',
+  },
+  {
+    date: '2026-10-30',
     time: '23:30',
     kind: 'novo',
     icon: 'shield',
