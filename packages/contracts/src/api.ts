@@ -394,8 +394,12 @@ export const Message = z.object({
   reactions: z.array(ReactionSummary),
   attachments: z.array(Attachment),
   mentions: z.array(Id),
+  /** quando foi fixada no canal/conversa (null = não fixada) */
+  pinnedAt: IsoDate.nullable(),
 });
 export type Message = z.infer<typeof Message>;
+/** limite de mensagens fixadas por canal ou conversa */
+export const MAX_PINS = 50;
 
 export const MessageBody = z.string().max(4000);
 export const Emoji = z.string().min(1).max(64);

@@ -5533,3 +5533,103 @@ section:first-child > .friends-panel-sep {
     translate: none;
   }
 }
+
+/* ---------- mensagens fixadas ---------- */
+.pins {
+  position: relative;
+  display: flex;
+}
+.pins-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow);
+  animation: tip-in 100ms var(--ease);
+}
+.pins-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.pins-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.pins-list {
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pins-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-2);
+}
+.pins-empty p {
+  margin: 0;
+}
+.pin-item {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 10px;
+  padding: 10px;
+  background: var(--chat);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.pin-main {
+  min-width: 0;
+}
+.pin-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.pin-body {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pin-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.msg-pin {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: var(--text-muted);
+}
+.msg[data-flash='true'] {
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  transition: background 600ms var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pins-panel {
+    animation: none;
+  }
+  .msg[data-flash='true'] {
+    transition: none;
+  }
+}

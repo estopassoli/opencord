@@ -9,6 +9,7 @@ import { useUi } from '../../store/ui';
 import { Composer } from './Composer';
 import { useDmPeer } from '../shell/DmProfilePanel';
 import { MessageItem } from './MessageItem';
+import { PinnedMessages } from './PinnedMessages';
 
 export type ChatTarget =
   { channelId: string; conversationId?: undefined } | { conversationId: string; channelId?: undefined };
@@ -140,6 +141,11 @@ export function ChatView({ target }: { target: ChatTarget }) {
         <h2 className="truncate">{title}</h2>
         {channel?.topic && <span className="chat-topic truncate">{channel.topic}</span>}
         <span className="spacer" />
+        <PinnedMessages
+          target={target}
+          canUnpin={!channel || hasPermission(perms, Permission.MANAGE_MESSAGES)}
+          nameOf={nameOf}
+        />
         {!channel && dmPeer && (
           <button
             className="icon-btn"

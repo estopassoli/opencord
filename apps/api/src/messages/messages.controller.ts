@@ -47,6 +47,26 @@ export class MessagesController {
     await this.messages.markRead(u.userId, { channelId: cid }, dto.messageId);
   }
 
+  @Get('channels/:id/pins')
+  pinsChannel(@CurrentUser() u: AuthUser, @Param('id', id) cid: string) {
+    return this.messages.pins(u.userId, { channelId: cid });
+  }
+
+  @Get('conversations/:id/pins')
+  pinsConv(@CurrentUser() u: AuthUser, @Param('id', id) cid: string) {
+    return this.messages.pins(u.userId, { conversationId: cid });
+  }
+
+  @Put('messages/:id/pin')
+  pinMessage(@CurrentUser() u: AuthUser, @Param('id', id) mid: string) {
+    return this.messages.pin(u.userId, mid, true);
+  }
+
+  @Delete('messages/:id/pin')
+  unpinMessage(@CurrentUser() u: AuthUser, @Param('id', id) mid: string) {
+    return this.messages.pin(u.userId, mid, false);
+  }
+
   @Get('conversations/:id/messages')
   listConv(@CurrentUser() u: AuthUser, @Param('id', id) cid: string, @Query(zodPipe(ListMessagesQuery)) q: ListQ) {
     return this.messages.list(u.userId, this.routes('conversations', cid), q);

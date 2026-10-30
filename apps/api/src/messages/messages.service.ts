@@ -4,6 +4,7 @@ import {
   encodeCursor,
   extractMentions,
   hasPermission,
+  MAX_PINS,
   Permission,
   rooms,
   type Message,
@@ -120,6 +121,7 @@ export class MessagesService {
       reactions: deleted ? [] : this.reactions(m.reactions, me),
       attachments: deleted ? [] : m.attachments.map((a) => this.attachments.serialize(a)),
       mentions: deleted ? [] : m.mentions,
+      pinnedAt: deleted ? null : (m.pinnedAt?.toISOString() ?? null),
     };
   }
 
@@ -346,7 +348,14 @@ export class MessagesService {
     await this.prisma.$transaction([
       this.prisma.message.update({
         where: { id: messageId },
-        data: { deletedAt: new Date(), body: '', mentions: [], mentionEveryone: false },
+        data: {
+          deletedAt: new Date(),
+          body: '',
+          mentions: [],
+          mentionEveryone: false,
+          pinnedAt: null,
+          pinnedById: null,
+        },
       }),
       this.prisma.reaction.deleteMany({ where: { messageId } }),
     ]);
@@ -355,6 +364,43 @@ export class MessagesService {
       channelId: m.channelId,
       conversationId: m.conversationId,
     });
+  }
+
+  /** Mensagens fixadas, mais recente primeiro. */
+  async pins(userId: string, target: Target): Promise<Message[]> {
+    const a = await this.access(userId, target);
+    if (!hasPermission(a.perms, Permission.READ_HISTORY)) throw forbidden('sem acesso ao histórico');
+    const rows = await this.prisma.message.findMany({
+      where: { ...this.targetWhere(a), pinnedAt: { not: null }, deletedAt: null },
+      include: MESSAGE_INCLUDE,
+      orderBy: { pinnedAt: 'desc' },
+      take: MAX_PINS,
+    });
+    return rows.map((m) => this.serialize(m, userId));
+  }
+
+  /** Fixar/desafixar: em canais exige MANAGE_MESSAGES; na DM qualquer participante. */
+  async pin(userId: string, messageId: string, on: boolean): Promise<Message> {
+    const m = await this.load(messageId);
+    const a = await this.access(userId, this.targetOf(m)).catch(() => {
+      throw notFound('mensagem');
+    });
+    if (m.deletedAt) throw notFound('mensagem');
+    if (a.channelId && !hasPermission(a.perms, Permission.MANAGE_MESSAGES)) throw forbidden();
+    if (on === (m.pinnedAt !== null)) return this.serialize(m, userId);
+    if (on) {
+      const count = await this.prisma.message.count({
+        where: { ...this.targetWhere(a), pinnedAt: { not: null }, deletedAt: null },
+      });
+      if (count >= MAX_PINS) throw new BadRequestException(`limite de ${MAX_PINS} mensagens fixadas`);
+    }
+    const row = await this.prisma.message.update({
+      where: { id: messageId },
+      data: on ? { pinnedAt: new Date(), pinnedById: userId } : { pinnedAt: null, pinnedById: null },
+      include: MESSAGE_INCLUDE,
+    });
+    this.realtime.emit(a.room, 'chat:message:updated', this.serialize(row, null));
+    return this.serialize(row, userId);
   }
 
   async react(userId: string, messageId: string, emoji: string, on: boolean): Promise<void> {
