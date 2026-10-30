@@ -71,14 +71,22 @@ export type UpdateStatus =
   | { state: 'ready'; version: string }
   | { state: 'available'; version: string; url: string };
 
-export const AppPrefsSchema = z.object({ hardwareAcceleration: z.boolean() }).strict();
+/**
+ * Uso da placa de vídeo:
+ * - full: tudo na GPU (interface, decodificação e codificação das lives);
+ * - ui-software: interface desenhada pelo processador (não disputa a GPU com jogos), lives ainda na GPU;
+ * - off: sem aceleração (tudo no processador, inclusive a live).
+ */
+export const GpuMode = z.enum(['full', 'ui-software', 'off']);
+export type GpuMode = z.infer<typeof GpuMode>;
+export const AppPrefsSchema = z.object({ gpuMode: GpuMode }).strict();
 export type AppPrefs = z.infer<typeof AppPrefsSchema>;
 
 export interface AppPrefsState {
   /** O que está salvo (vale a partir da próxima abertura). */
   saved: AppPrefs;
-  /** Aceleração de hardware em uso AGORA (muda só ao reiniciar o app). */
-  hardwareAccelerationActive: boolean;
+  /** Modo em uso AGORA (muda só ao reiniciar o app). */
+  activeGpuMode: GpuMode;
 }
 
 export interface AppInfo {

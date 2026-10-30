@@ -87,3 +87,9 @@ Monitorar ICE candidate failures, RTT, jitter, packet loss, bitrate, encode FPS,
 - Relato: lives engasgando com o teto de 20 Mbps. O LiveKit estimou 16,8 Mbps de subida para um dos streamers (congestionamento no transporte de publicação). Acima da subida real há perda de pacotes, e a live trava para todos que assistem.
 - O Go Live (engrenagem) e Configurações → Voz e vídeo têm o **bitrate**: leve, equilibrada (padrão) ou máxima. Os valores dependem do perfil: 720p30 com 3, 4,5 ou 6 Mbps; 1080p60 com 8, 12 ou 20 Mbps; 1440p60 com 12, 18 ou 30 Mbps. A máxima é o teto do perfil.
 - A configuração fica salva por usuário (`settings.video.streamBitrate`). fps e resolução continuam fixos (perfil exato).
+
+## Uso da placa de vídeo (2026-10-30)
+- Relato: com um jogo ocupando a GPU, as transições do app engasgavam e ficaram lisas com a aceleração desligada. O custo de desligar é a live ser codificada e decodificada pelo processador.
+- Modo intermediário `ui-software` (`disable-gpu-compositing`): a interface é composta no processador, e o processo de GPU segue com o encoder e o decoder de vídeo.
+- E2E `gpu-mode.spec.ts`: em ui-software, `gpu_compositing=disabled_software` e `video_encode`/`video_decode=enabled`; em full, tudo `enabled`; o formato antigo `{hardwareAcceleration:false}` continua sem aceleração.
+- **Não validado no PC do relato** (NVIDIA com jogo). Para reverter, escolha "Placa de vídeo para tudo".

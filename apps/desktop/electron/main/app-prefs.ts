@@ -5,19 +5,19 @@
 import { app } from 'electron';
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { AppPrefs } from '../shared/ipc';
+import { GpuMode, type AppPrefs } from '../shared/ipc';
 
-const DEFAULTS: AppPrefs = { hardwareAcceleration: true };
+const DEFAULTS: AppPrefs = { gpuMode: 'full' };
 const file = () => path.join(app.getPath('userData'), 'app-prefs.json');
 
 export function readAppPrefs(): AppPrefs {
   try {
     if (!existsSync(file())) return { ...DEFAULTS };
-    const raw = JSON.parse(readFileSync(file(), 'utf8')) as Partial<AppPrefs>;
-    return {
-      hardwareAcceleration:
-        typeof raw.hardwareAcceleration === 'boolean' ? raw.hardwareAcceleration : DEFAULTS.hardwareAcceleration,
-    };
+    const raw = JSON.parse(readFileSync(file(), 'utf8')) as { gpuMode?: unknown; hardwareAcceleration?: unknown };
+    const mode = GpuMode.safeParse(raw.gpuMode);
+    if (mode.success) return { gpuMode: mode.data };
+    // formato antigo (só liga/desliga): desligada continua desligada
+    return { gpuMode: raw.hardwareAcceleration === false ? 'off' : DEFAULTS.gpuMode };
   } catch {
     return { ...DEFAULTS };
   }

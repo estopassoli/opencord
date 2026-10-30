@@ -63,9 +63,14 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', () => showWindow());
 }
 
-// Configurações → Sobre → "Aceleração de hardware" (só pode ser aplicado antes de o app ficar pronto).
-// Desligada, a GPU sai de cena: a live perde o encoder por hardware (NVENC/AMF/QSV) e a decodificação D3D11.
-if (!readAppPrefs().hardwareAcceleration) app.disableHardwareAcceleration();
+// Configurações → Sobre → Desempenho (só pode ser aplicado antes de o app ficar pronto).
+// - off: a GPU sai de cena; a live perde o encoder por hardware (NVENC/AMF/QSV) e a decodificação D3D11.
+// - ui-software: só a composição da interface vai para o processador (relato real: com um jogo ocupando a GPU, as
+//   transições do app engasgavam e ficavam lisas sem aceleração); o processo de GPU segue codificando e
+//   decodificando as lives.
+const gpuMode = readAppPrefs().gpuMode;
+if (gpuMode === 'off') app.disableHardwareAcceleration();
+else if (gpuMode === 'ui-software') app.commandLine.appendSwitch('disable-gpu-compositing');
 
 // Necessário para notificações nativas no Windows.
 app.setAppUserModelId('org.opencord.desktop');
@@ -289,7 +294,7 @@ function registerIpc() {
   handle(IPC.openExternal, [ExternalUrl], (url) => shell.openExternal(url));
   const prefsState = (): AppPrefsState => ({
     saved: readAppPrefs(),
-    hardwareAccelerationActive: app.isHardwareAccelerationEnabled(),
+    activeGpuMode: gpuMode,
   });
   handle(IPC.prefsGet, [], prefsState);
   handle(IPC.prefsSet, [AppPrefsSchema], (prefs) => {

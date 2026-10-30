@@ -1,7 +1,7 @@
 import type { Me, UserSettings } from '@opencord/contracts';
 import { Button, ColorSwatches, RadioGroup, Select, Slider, Switch, TextField, type SelectOption } from '@opencord/ui';
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
-import type { AppInfo, AppPrefsState } from '../../../electron/shared/ipc';
+import type { AppInfo, AppPrefsState, GpuMode } from '../../../electron/shared/ipc';
 import { Dialog } from '../../components/Dialog';
 import { bridge } from '../../lib/bridge';
 import { playSound } from '../../lib/sounds';
@@ -1395,7 +1395,27 @@ function AboutTab() {
   );
 }
 
-/** Aceleração de hardware (GPU). Só no app: precisa ser aplicada antes de a janela abrir, então pede reinício. */
+const GPU_MODE_OPTIONS: readonly { value: GpuMode; label: string; description: string }[] = [
+  {
+    value: 'full',
+    label: 'Placa de vídeo para tudo',
+    description: 'Interface, lives que você assiste e a sua live usam a placa de vídeo.',
+  },
+  {
+    value: 'ui-software',
+    label: 'Interface leve, lives na placa de vídeo',
+    description:
+      'A interface é desenhada pelo processador e não disputa a placa de vídeo com o jogo; as lives continuam na placa de vídeo. Experimente se o app engasgar enquanto você joga.',
+  },
+  {
+    value: 'off',
+    label: 'Sem aceleração',
+    description:
+      'Tudo pelo processador, inclusive a sua live (mais pesado e com menos fps). Use se o app piscar, ficar com a tela preta ou travar.',
+  },
+];
+
+/** Uso da placa de vídeo. Só no app: precisa ser aplicado antes de a janela abrir, então pede reinício. */
 function HardwareAcceleration() {
   const [state, setState] = useState<AppPrefsState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1411,17 +1431,17 @@ function HardwareAcceleration() {
     };
   }, []);
   if (!bridge || (!state && !error)) return null;
-  const pending = state && state.saved.hardwareAcceleration !== state.hardwareAccelerationActive;
+  const pending = state && state.saved.gpuMode !== state.activeGpuMode;
   return (
     <Section title="Desempenho">
       {error && <p className="form-error">{error}</p>}
       {state && (
-        <Switch
-          label="Aceleração de hardware"
-          description="Usa a placa de vídeo para desenhar o app, decodificar as lives e codificar a sua. Desligue só se o app piscar, ficar com a tela preta ou travar; desligada, a sua live passa a ser codificada pelo processador (mais pesado e com menos fps)."
-          checked={state.saved.hardwareAcceleration}
-          onChange={(on) =>
-            bridge?.prefs.set({ hardwareAcceleration: on }).then(setState, () => setError('Não foi possível salvar.'))
+        <RadioGroup
+          label="Uso da placa de vídeo"
+          options={GPU_MODE_OPTIONS}
+          value={state.saved.gpuMode}
+          onChange={(gpuMode) =>
+            bridge?.prefs.set({ gpuMode }).then(setState, () => setError('Não foi possível salvar.'))
           }
         />
       )}
