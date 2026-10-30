@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     kind: 'melhoria',
     icon: 'spotlight',
     title: 'Clique na live para destacar',
-    body: 'Na grade da chamada, um clique numa transmissão coloca ela em destaque (e começa a assistir, se ainda não estava).',
+    body: 'Na grade da chamada, um clique numa transmissão coloca ela em destaque (e começa a assistir, se ainda não estava); clicar de novo na live em destaque volta para a chamada inteira.',
   },
   {
     date: '2026-10-30',
