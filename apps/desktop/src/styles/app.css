@@ -3862,3 +3862,6 @@ a.rail-item {
     transition: none;
   }
 }
+.tile-stream[data-focusable='true'] {
+  cursor: pointer;
+}
