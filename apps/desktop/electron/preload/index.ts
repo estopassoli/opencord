@@ -32,6 +32,11 @@ const bridge: OpenCordBridge = {
   setTrayVoiceState: (state) => ipcRenderer.invoke(IPC.trayVoiceState, state),
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
   openExternal: (url) => ipcRenderer.invoke(IPC.openExternal, url),
+  prefs: {
+    get: () => ipcRenderer.invoke(IPC.prefsGet),
+    set: (prefs) => ipcRenderer.invoke(IPC.prefsSet, prefs),
+  },
+  relaunch: () => ipcRenderer.invoke(IPC.appRelaunch),
   updates: {
     status: () => ipcRenderer.invoke(IPC.updateStatus),
     check: () => ipcRenderer.invoke(IPC.updateCheck),
