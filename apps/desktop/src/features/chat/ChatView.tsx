@@ -140,6 +140,16 @@ export function ChatView({ target }: { target: ChatTarget }) {
         <h2 className="truncate">{title}</h2>
         {channel?.topic && <span className="chat-topic truncate">{channel.topic}</span>}
         <span className="spacer" />
+        {!channel && dmPeer && (
+          <button
+            className="icon-btn"
+            aria-label="Adicionar amigos à conversa"
+            data-tip="Adicionar amigos à conversa"
+            onClick={() => useUi.getState().openModal({ kind: 'add-to-dm', peerId: dmPeer.id })}
+          >
+            <Icon name="user-plus" />
+          </button>
+        )}
         {!channel && !mobile && dmPeer && (
           <button
             className="icon-btn"

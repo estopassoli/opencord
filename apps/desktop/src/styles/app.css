@@ -5061,3 +5061,113 @@ section:first-child > .friends-panel-sep {
   display: grid;
   min-width: 0;
 }
+
+/* perfil completo (janela) */
+.full-profile {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 20px;
+  min-height: 420px;
+}
+.full-profile-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  overflow: hidden;
+}
+.full-profile-banner {
+  height: 110px;
+  flex: none;
+}
+.full-profile-avatar {
+  margin: -60px 0 0 20px;
+  width: max-content;
+  padding: 6px;
+  border-radius: 50%;
+  background: var(--sidebar);
+}
+.full-profile-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px 20px 20px;
+  min-width: 0;
+}
+.full-profile-body h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+.full-profile-body > p {
+  margin: 0;
+}
+.full-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.full-profile-side {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+.full-profile-tab {
+  min-height: 0;
+  overflow-y: auto;
+}
+.full-profile-activity {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  color: var(--status-online);
+  text-align: left;
+}
+.full-profile-activity > span {
+  display: grid;
+  color: var(--text);
+}
+.full-profile-activity:hover,
+.full-profile-activity:focus-visible {
+  background: var(--interactive);
+}
+.dm-profile-section-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.dm-profile-full {
+  margin-top: 12px;
+}
+/* adicionar amigos à conversa */
+.add-dm-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.add-dm-list > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+}
+.add-dm-list > li:hover {
+  background: var(--interactive);
+}
+@media (max-width: 860px) {
+  .full-profile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
