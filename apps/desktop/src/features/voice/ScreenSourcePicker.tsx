@@ -1,4 +1,10 @@
-import { availableProfiles, STREAM_PROFILES, type StreamProfileId } from '@opencord/media';
+import {
+  availableProfiles,
+  STREAM_PROFILES,
+  streamBitrate,
+  type StreamBitrateLevel,
+  type StreamProfileId,
+} from '@opencord/media';
 import { Button, Icon } from '@opencord/ui';
 import { useEffect, useRef, useState } from 'react';
 import type { CaptureSourceDto } from '../../../electron/shared/ipc';
@@ -19,6 +25,14 @@ const QUALITY_HINT: Record<StreamProfileId, string> = {
   '1440p60': 'máxima, exige upload alto',
 };
 
+const BITRATE_HINT: Record<StreamBitrateLevel, string> = {
+  low: 'leve, para upload fraco',
+  medium: 'recomendado',
+  high: 'máxima, precisa de upload folgado',
+};
+
+const mbps = (bps: number) => `${(bps / 1_000_000).toLocaleString('pt-BR')} Mbps`;
+
 const label = (id: StreamProfileId) => {
   const p = STREAM_PROFILES[id];
   return `${p.height}p · ${p.fps} fps`;
@@ -34,6 +48,7 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('window');
   const profile = useData((s) => s.settings?.video.streamProfile ?? '1080p60');
+  const bitrate = useData((s) => s.settings?.video.streamBitrate ?? 'medium');
   const [muted, setMuted] = useState(false);
   const isWindows = navigator.userAgent.includes('Windows');
   const audioPossible = isWindows || !bridge;
@@ -66,6 +81,16 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
       checked: p.id === profile,
       onSelect: () => updateSettings((s) => ({ ...s, video: { ...s.video, streamProfile: p.id } })),
     }));
+    items.push('separator');
+    // se a subida de quem transmite não comporta o bitrate, a live engasga para todo mundo que assiste
+    for (const level of ['low', 'medium', 'high'] as const) {
+      items.push({
+        label: mbps(streamBitrate(profile, level)),
+        hint: BITRATE_HINT[level],
+        checked: level === bitrate,
+        onSelect: () => updateSettings((s) => ({ ...s, video: { ...s.video, streamBitrate: level } })),
+      });
+    }
     items.push('separator', {
       label: 'Transmitir sem som',
       hint: audioPossible ? 'o áudio do PC não vai junto' : 'áudio do sistema só no Windows',
@@ -184,7 +209,8 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
           <div className="golive-summary">
             <strong>Pronto para jogos</strong>
             <span className="muted small">
-              {label(profile)} · {audioPossible && !muted ? 'com áudio do sistema' : 'sem som'}
+              {label(profile)} · {mbps(streamBitrate(profile, bitrate))} ·{' '}
+              {audioPossible && !muted ? 'com áudio do sistema' : 'sem som'}
             </span>
           </div>
           <button

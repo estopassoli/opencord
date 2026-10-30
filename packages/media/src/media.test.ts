@@ -9,6 +9,8 @@ import {
   MAX_RECONNECT_ATTEMPTS,
   PushToTalk,
   SpeakingDebouncer,
+  STREAM_PROFILES,
+  streamBitrate,
   streamReducer,
   voiceReducer,
   type StreamEvent,
@@ -170,5 +172,16 @@ describe('backoffDelay', () => {
     expect(backoffDelay(3, 500, 15000, () => 1)).toBe(4000);
     expect(backoffDelay(20, 500, 15000, () => 1)).toBe(15000);
     expect(backoffDelay(5, 500, 15000, () => 0)).toBe(0);
+  });
+});
+
+describe('bitrate da live', () => {
+  it('máxima é o teto do perfil e leve < equilibrada < máxima', () => {
+    for (const p of Object.values(STREAM_PROFILES)) {
+      expect(streamBitrate(p.id, 'high')).toBe(p.maxBitrate);
+      expect(streamBitrate(p.id, 'low')).toBeLessThan(streamBitrate(p.id, 'medium'));
+      expect(streamBitrate(p.id, 'medium')).toBeLessThan(streamBitrate(p.id, 'high'));
+    }
+    expect(streamBitrate('1080p60', 'medium')).toBe(12_000_000);
   });
 });

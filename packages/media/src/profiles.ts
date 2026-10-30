@@ -25,6 +25,21 @@ export const STREAM_PROFILES: Record<StreamProfileId, StreamProfile> = {
   '1440p60': { id: '1440p60', width: 2560, height: 1440, fps: 60, maxBitrate: 30_000_000, requiresHardware: true },
 };
 
+/** Bitrate escolhido por quem transmite: o teto do perfil ("máxima") pode não caber no upload de casa. */
+export type StreamBitrateLevel = 'low' | 'medium' | 'high';
+
+// 'high' = teto do perfil (decisão do mantenedor). Upload menor que o bitrate perde pacotes e a live engasga para
+// todo mundo (medido: 16,8 Mbps de subida contra 20 Mbps de teto); por isso o padrão é 'medium'.
+export const STREAM_BITRATES: Record<StreamProfileId, Record<StreamBitrateLevel, number>> = {
+  '720p30': { low: 3_000_000, medium: 4_500_000, high: 6_000_000 },
+  '1080p60': { low: 8_000_000, medium: 12_000_000, high: 20_000_000 },
+  '1440p60': { low: 12_000_000, medium: 18_000_000, high: 30_000_000 },
+};
+
+export function streamBitrate(profile: StreamProfileId, level: StreamBitrateLevel): number {
+  return STREAM_BITRATES[profile][level];
+}
+
 export interface EncoderCapability {
   /** Encoder por hardware observado (getStats().encoderImplementation / powerEfficientEncoder). null = desconhecido. */
   hardware: boolean | null;

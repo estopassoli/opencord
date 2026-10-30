@@ -605,6 +605,12 @@ const STREAM_PROFILE_OPTIONS: readonly SelectOption<UserSettings['video']['strea
   { value: '1440p60', label: '1440p 60 fps' },
 ];
 
+const STREAM_BITRATE_OPTIONS: readonly SelectOption<UserSettings['video']['streamBitrate']>[] = [
+  { value: 'low', label: 'Leve (para upload fraco)' },
+  { value: 'medium', label: 'Equilibrada (recomendado)' },
+  { value: 'high', label: 'Máxima (precisa de upload folgado)' },
+];
+
 const CODEC_OPTIONS: readonly SelectOption<UserSettings['video']['preferredCodec']>[] = [
   { value: 'h264', label: 'H.264' },
   { value: 'vp8', label: 'VP8' },
@@ -717,6 +723,12 @@ function VoiceTab({ settings }: { settings: UserSettings }) {
             value={video.streamProfile}
             options={STREAM_PROFILE_OPTIONS}
             onChange={(v) => setVideo({ streamProfile: v })}
+          />
+          <Select
+            label="Bitrate da transmissão"
+            value={video.streamBitrate}
+            options={STREAM_BITRATE_OPTIONS}
+            onChange={(v) => setVideo({ streamBitrate: v })}
           />
           <Select
             label="Codec preferido"
