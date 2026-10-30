@@ -7,6 +7,7 @@ import { keyOf, useMessages, type TargetKey } from '../../store/data';
 import { openContextMenu } from '../../components/ContextMenu';
 import { ProfileButton } from '../shell/ProfileButton';
 import { renderRich } from './rich';
+import { InviteEmbed, inviteCodesIn } from './InviteEmbed';
 import type { ChatTarget } from './ChatView';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
@@ -212,6 +213,9 @@ export const MessageItem = memo(function MessageItem({
           )}
         </div>
       )}
+      {inviteCodesIn(m.body).map((code) => (
+        <InviteEmbed key={code} code={code} />
+      ))}
       {m.attachments.length > 0 && (
         <div className="msg-attachments">
           {m.attachments.map((a) =>

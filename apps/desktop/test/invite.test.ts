@@ -34,3 +34,14 @@ describe('link de convite', () => {
     expect(capturePendingInvite({ pathname: '/outra', search: '?invite=curto' })).toBeNull();
   });
 });
+
+import { inviteCodesIn } from '../src/features/chat/InviteEmbed';
+
+describe('inviteCodesIn', () => {
+  it('acha códigos em links de convite, sem repetir', () => {
+    expect(inviteCodesIn('vem: https://app.opencord.pro/invite/nFCcysEmVn e https://x/invite/nFCcysEmVn')).toEqual([
+      'nFCcysEmVn',
+    ]);
+    expect(inviteCodesIn('https://app.opencord.pro/invite/curto')).toEqual([]);
+  });
+});

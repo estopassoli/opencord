@@ -12,8 +12,9 @@ import {
   Put,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Permission } from '@opencord/contracts';
 import { serverSummary } from '../common/serialize.js';
 import { AvatarService } from '../users/avatar.service.js';
@@ -30,7 +31,7 @@ import {
   UpdateServerRequest,
 } from '@opencord/contracts';
 import { z } from 'zod';
-import { CurrentUser, type AuthUser } from '../common/auth.js';
+import { CurrentUser, Public, type AuthUser } from '../common/auth.js';
 import { zodPipe } from '../common/zod.pipe.js';
 import { AuditService } from '../audit/audit.service.js';
 import { PresenceService } from '../realtime/presence.service.js';
@@ -112,6 +113,18 @@ export class ServersController {
   @Post('servers/:id/invites')
   createInvite(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
     return this.servers.createInvite(id, u.userId);
+  }
+
+  /** Página do link de convite com meta tags (cartão no Discord/WhatsApp); redireciona quem abre para o app. */
+  @Public()
+  @Get('invites/:code/embed')
+  async inviteEmbed(@Param('code') code: string, @Res() reply: FastifyReply) {
+    return reply
+      .header('Content-Type', 'text/html; charset=utf-8')
+      .header('Cache-Control', 'public, max-age=300')
+      .header('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'")
+      .header('X-Content-Type-Options', 'nosniff')
+      .send(await this.servers.inviteEmbed(code));
   }
 
   /** Prévia do convite (nome, imagem e membros do servidor) antes de entrar. */

@@ -27,5 +27,7 @@ COPY infra/docker/nginx-web.conf /etc/nginx/templates/default.conf.template
 COPY site /usr/share/nginx/site
 COPY --from=build /repo/apps/desktop/dist /usr/share/nginx/app
 ENV APP_HOST=app.opencord.pro
+# API pública: o link de convite (/invite/<código>) redireciona para a página de cartão dela
+ENV PUBLIC_API_URL=https://api.opencord.pro
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -q -O /dev/null http://127.0.0.1/healthz || exit 1

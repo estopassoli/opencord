@@ -79,6 +79,7 @@ services:
     restart: unless-stopped
     environment:
       APP_HOST: ${APP_HOST:?defina APP_HOST}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?defina PUBLIC_API_URL}
     ports: ['127.0.0.1:8080:80']
 
 volumes:

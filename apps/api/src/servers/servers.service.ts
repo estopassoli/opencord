@@ -263,6 +263,41 @@ export class ServersService {
     };
   }
 
+  /**
+   * Página pública do link de convite: meta tags Open Graph (nome, imagem e membros do servidor) para o cartão que
+   * Discord, WhatsApp etc. mostram ao colar o link; quem abre no navegador segue para o app com o convite.
+   */
+  async inviteEmbed(code: string): Promise<string> {
+    const app = this.cfg.PUBLIC_APP_URL?.replace(/\/+$/, '') ?? '';
+    const target = `${app}/?invite=${encodeURIComponent(code)}`;
+    const esc = (t: string) =>
+      t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+    let title = 'Convite para o OpenCord';
+    let description = 'Este convite não existe mais.';
+    let image = app ? `${app}/opencord-logo.png` : '';
+    try {
+      const inv = await this.findInvite(code);
+      const members = await this.prisma.serverMember.count({ where: { serverId: inv.serverId } });
+      title = `Convite para ${inv.server.name}`;
+      description = `${members} ${members === 1 ? 'membro' : 'membros'} · Entre pelo navegador ou pelo app, só com um apelido.`;
+      if (inv.server.iconKey)
+        image = `${this.cfg.PUBLIC_API_URL.replace(/\/+$/, '')}/server-icons/${encodeURIComponent(inv.server.iconKey)}`;
+    } catch {
+      /* convite inválido: cartão genérico */
+    }
+    const meta = (p: string, v: string) => (v ? `<meta property="${p}" content="${esc(v)}">` : '');
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>${esc(title)}</title>
+${meta('og:site_name', 'OpenCord')}${meta('og:type', 'website')}${meta('og:title', title)}
+${meta('og:description', description)}${meta('og:image', image)}${meta('og:url', target)}
+<meta name="twitter:card" content="summary"><meta name="theme-color" content="#4d56fd">
+<meta name="description" content="${esc(description)}">
+</head><body style="background:#1e1f22;color:#dbdee1;font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0">
+<p><a style="color:#8b93ff" href="${esc(target)}">Abrir o convite no OpenCord</a></p>
+<script>location.replace(${JSON.stringify(target)})</script>
+</body></html>`;
+  }
+
   async acceptInvite(code: string, userId: string): Promise<ServerDetail> {
     const inv = await this.findInvite(code);
     const already = await this.prisma.serverMember.findUnique({

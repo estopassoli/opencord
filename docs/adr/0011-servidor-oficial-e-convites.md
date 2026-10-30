@@ -34,3 +34,11 @@ O mantenedor relatou que outros usuários viam o servidor que ele tinha acabado 
 - **Reversão:** `DROP TABLE "Invite"; ALTER TABLE "Server" DROP COLUMN "official";` e voltar à versão anterior da API.
 - **Pendências:** expiração e revogação de convites, e um link clicável (`opencord://`).
 - **Evidência:** `apps/api/test/servers.int.test.ts` (privado fora do diretório e sem entrada direta, fluxo de convite, código inválido) e `discord-import.int.test.ts` (importado nasce privado e o membro entra por convite). Rodaram 96 testes de integração. No desktop: unit `test/invite.test.ts`. O E2E `smoke.spec.ts` foi atualizado, mas **não foi executado** (a pedido do mantenedor, E2E só quando extremamente necessário).
+
+## Revisão: cartão do link (2026-10-30)
+- O mantenedor pediu: "quando mando o link do invite… queria que aparecesse o cartão do opencord do servidor" (colado no Discord).
+- `GET /invites/:code/embed` é **público**: devolve HTML com Open Graph (nome, imagem e nº de membros do servidor) e redireciona por JS para `PUBLIC_APP_URL/?invite=<código>`.
+- O nginx da interface web manda `/invite/<código>` para essa página (`PUBLIC_API_URL` no contêiner web).
+- **Exposição:** quem tem um código válido vê o nome, a imagem e o tamanho do servidor, o mesmo que a prévia mostraria após entrar. Código inválido mostra um cartão genérico. O HTML escapa tudo e usa CSP `default-src 'none'`.
+- Dentro do app, links de convite numa mensagem viram um cartão com Entrar/Abrir.
+- **Evidência:** `servers.int.test.ts` (meta `og:title`, nº de membros, redirecionamento, escape) e unit `inviteCodesIn`. A configuração do nginx não foi validada localmente (sem nginx no ambiente).
