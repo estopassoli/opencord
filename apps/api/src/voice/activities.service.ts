@@ -190,6 +190,36 @@ export class ActivitiesService {
     return out;
   }
 
+  /**
+   * Faixas de um mix automático ("RD…": Mix/Rádio do YouTube e YouTube Music), que a Data API não expõe.
+   * NÃO OFICIAL (decisão do mantenedor, ADR-0014): lê a página do vídeo no mix e tira a lista do `ytInitialData`.
+   * Pode quebrar se o YouTube mudar a página; quem chama cai para o vídeo do link.
+   */
+  async mix(playlistId: string, videoId: string | undefined, max: number) {
+    if (!this.cfg.YOUTUBE_OEMBED) throw new ServiceUnavailableException('acesso ao YouTube desligado neste servidor');
+    const u = new URL('https://www.youtube.com/watch');
+    u.search = new URLSearchParams({ ...(videoId ? { v: videoId } : {}), list: playlistId }).toString();
+    let html: string;
+    try {
+      const res = await fetch(u, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(8000),
+        headers: {
+          'user-agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
+          'accept-language': 'pt-BR,pt;q=0.9,en;q=0.8',
+          // aceite de cookies já dado: sem isso, servidores na Europa recebem a página de consentimento
+          cookie: 'CONSENT=YES+1; SOCS=CAI',
+        },
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      html = await res.text();
+    } catch {
+      throw new ServiceUnavailableException('não foi possível ler o mix agora');
+    }
+    return parseMix(html, max);
+  }
+
   /** Pesquisa no YouTube (Data API v3); só com YOUTUBE_API_KEY. */
   async search(q: string): Promise<YouTubeSearchResult[]> {
     const k = this.cfg.YOUTUBE_API_KEY;
@@ -238,4 +268,47 @@ function decodeEntities(s: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&');
+}
+
+/** Lista de um mix a partir do HTML da página do YouTube (`playlistPanelVideoRenderer` dentro do `ytInitialData`). */
+export function parseMix(html: string, max: number): { videoId: string; title: string; author: string }[] {
+  const start = html.indexOf('ytInitialData = ');
+  if (start < 0) throw new BadGatewayException('o YouTube mudou a página do mix');
+  const from = start + 'ytInitialData = '.length;
+  const end = html.indexOf(';</script>', from);
+  let data: unknown;
+  try {
+    data = JSON.parse(html.slice(from, end));
+  } catch {
+    throw new BadGatewayException('o YouTube mudou a página do mix');
+  }
+  type Text = { simpleText?: string; runs?: { text?: string }[] };
+  const text = (t: Text | undefined) => t?.simpleText ?? t?.runs?.map((r) => r.text ?? '').join('') ?? '';
+  const out: { videoId: string; title: string; author: string }[] = [];
+  const seen = new Set<string>();
+  const walk = (n: unknown) => {
+    if (out.length >= max || !n || typeof n !== 'object') return;
+    if (Array.isArray(n)) {
+      for (const x of n) walk(x);
+      return;
+    }
+    const o = n as Record<string, unknown>;
+    const r = o.playlistPanelVideoRenderer as
+      { videoId?: string; title?: Text; shortBylineText?: Text; longBylineText?: Text } | undefined;
+    if (r?.videoId && /^[A-Za-z0-9_-]{11}$/.test(r.videoId) && !seen.has(r.videoId)) {
+      seen.add(r.videoId);
+      out.push({
+        videoId: r.videoId,
+        title: text(r.title).slice(0, 200),
+        author: text(r.shortBylineText ?? r.longBylineText)
+          .replace(/ - Topic$/, '')
+          .slice(0, 100),
+      });
+      return;
+    }
+    for (const v of Object.values(o)) walk(v);
+  };
+  walk(data);
+  if (!out.length) throw new BadGatewayException('o YouTube mudou a página do mix');
+  return out;
 }
