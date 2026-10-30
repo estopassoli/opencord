@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '11:40',
+    kind: 'melhoria',
+    icon: 'settings',
+    title: 'Modo "Interface leve" para quem joga',
+    body: 'Em Configurações → Sobre → Desempenho há três opções: placa de vídeo para tudo, interface leve (o app é desenhado pelo processador e não disputa a placa de vídeo com o jogo, mas as lives continuam na placa de vídeo) e sem aceleração. Quem tinha desligado a aceleração continua sem.',
+  },
+  {
+    date: '2026-10-30',
     time: '11:10',
     kind: 'melhoria',
     icon: 'eye',
