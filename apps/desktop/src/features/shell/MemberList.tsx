@@ -1,8 +1,31 @@
-import type { Member, PresenceStatus } from '@opencord/contracts';
+import type { Member, PresenceStatus, ServerDetail } from '@opencord/contracts';
 import { Avatar, Icon } from '@opencord/ui';
 import { useData } from '../../store/data';
 import { ProfileButton } from './ProfileButton';
 import { useAliases } from '../../lib/names';
+
+/** Cor do nick: a do cargo mais alto que tem cor. */
+export function roleColorOf(detail: ServerDetail, m: Member | undefined): string | undefined {
+  if (!m) return undefined;
+  return (
+    detail.roles
+      .filter((r) => !r.isEveryone && r.color && m.roleIds.includes(r.id))
+      .sort((a, b) => b.position - a.position)[0]?.color ?? undefined
+  );
+}
+
+/** Servidor oficial: quem criou o OpenCord (o dono do oficial) ganha o selo de verificado. */
+export const isCreator = (detail: ServerDetail, userId: string) => detail.official && detail.ownerId === userId;
+
+/** Selo "criador" com o ícone de verificado (lista de membros e voz). */
+export function CreatorTag() {
+  return (
+    <span className="creator-tag" data-tip="Criador do OpenCord">
+      <Icon name="verified" size={14} active label="Verificado" />
+      criador
+    </span>
+  );
+}
 
 export function MemberList({ serverId }: { serverId: string }) {
   const detail = useData((s) => s.details[serverId]);
@@ -32,7 +55,7 @@ export function MemberList({ serverId }: { serverId: string }) {
   if (offline.length) groups.push({ title: 'Offline', members: offline });
   const shown = (m: Member) => aliases?.[m.user.id] ?? m.nickname ?? m.user.displayName;
   const sortByName = (a: Member, b: Member) => shown(a).localeCompare(shown(b));
-  const roleColor = (m: Member) => hoisted.find((r) => m.roleIds.includes(r.id) && r.color)?.color ?? undefined;
+  const roleColor = (m: Member) => roleColorOf(detail, m);
 
   return (
     <aside className="members" aria-label="Membros">
@@ -54,10 +77,7 @@ export function MemberList({ serverId }: { serverId: string }) {
                     {shown(m)}
                   </span>
                   {m === creator ? (
-                    <span className="creator-tag" data-tip="Criador do OpenCord">
-                      <Icon name="verified" size={14} active label="Verificado" />
-                      criador
-                    </span>
+                    <CreatorTag />
                   ) : (
                     detail.ownerId === m.user.id && (
                       <span className="owner-tag" data-tip="Proprietário">

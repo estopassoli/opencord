@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '23:00',
+    kind: 'melhoria',
+    icon: 'verified',
+    title: 'Nick colorido também na voz',
+    body: 'Quem está numa sala de voz aparece com a cor do cargo, como na lista de membros. No servidor oficial, o criador do OpenCord ganha o selo de verificado também ali.',
+  },
+  {
+    date: '2026-10-30',
     time: '22:45',
     kind: 'melhoria',
     icon: 'screen',

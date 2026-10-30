@@ -6,6 +6,7 @@ import { useData } from '../../store/data';
 import { api, describeError, markTargetRead } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
+import { CreatorTag, isCreator, roleColorOf } from './MemberList';
 import { ProfileButton } from './ProfileButton';
 import { ActivityHint } from '../voice/WatchTogether';
 import { Tooltip } from '../../components/Tooltip';
@@ -268,9 +269,11 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                           const m = memberName(v.userId);
                           const name = aliases?.[v.userId] ?? m?.nickname ?? m?.user.displayName ?? 'Alguém';
                           const draggable = v.userId === me || canMove;
+                          const creator = isCreator(detail, v.userId);
                           return (
                             <li
                               key={v.userId}
+                              data-creator={creator ? 'true' : undefined}
                               draggable={draggable || undefined}
                               data-dragging={drag?.userId === v.userId ? 'true' : undefined}
                               onDragStart={(e) => {
@@ -286,7 +289,10 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                             >
                               <ProfileButton userId={v.userId} serverId={serverId} className="voice-member">
                                 <Avatar id={v.userId} name={name} size={22} speaking={speakingIds.has(v.userId)} />
-                                <span className="truncate">{name}</span>
+                                <span className="truncate" style={{ color: roleColorOf(detail, m) }}>
+                                  {name}
+                                </span>
+                                {creator && <CreatorTag />}
                                 {v.streaming && <span className="live-pill">AO VIVO</span>}
                                 {v.video && <Icon name="camera" size={14} label="Câmera ligada" />}
                                 {(v.selfMute || v.serverMute) && (

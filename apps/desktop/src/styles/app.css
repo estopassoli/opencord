@@ -1291,7 +1291,8 @@ textarea:focus-visible {
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
-.members li[data-creator='true'] .member-row > .truncate {
+.members li[data-creator='true'] .member-row > .truncate,
+.voice-members li[data-creator='true'] .voice-member > .truncate {
   font-weight: 700;
 }
 
