@@ -5,6 +5,7 @@ import {
   extractMentions,
   hasPermission,
   MAX_PINS,
+  REACTION_ROLE_FORBIDDEN,
   Permission,
   rooms,
   type Message,
@@ -20,6 +21,7 @@ import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
 import { PermissionsService } from '../servers/permissions.service.js';
 import { BoardsService } from '../boards/boards.service.js';
+import { ServersService } from '../servers/servers.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
 export type Target =
@@ -30,6 +32,7 @@ const MESSAGE_INCLUDE = {
   attachments: { orderBy: { createdAt: 'asc' } },
   reactions: { select: { emoji: true, userId: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
   replyTo: { select: { id: true, body: true, deletedAt: true, author: { select: USER_PUBLIC_SELECT } } },
+  reactionRoles: { select: { emoji: true, roleId: true }, orderBy: { createdAt: 'asc' } },
   poll: {
     include: {
       options: { orderBy: { position: 'asc' } },
@@ -58,6 +61,7 @@ export class MessagesService {
     private readonly attachments: AttachmentsService,
     private readonly realtime: RealtimeService,
     private readonly boards: BoardsService,
+    private readonly servers: ServersService,
   ) {}
 
   /** Resolve acesso ao destino. DMs: membros têm todas as permissões de mensagem. */
@@ -130,6 +134,7 @@ export class MessagesService {
       mentions: deleted ? [] : m.mentions,
       pinnedAt: deleted ? null : (m.pinnedAt?.toISOString() ?? null),
       poll: deleted || !m.poll ? null : this.serializePoll(m.poll, me),
+      reactionRoles: deleted ? [] : m.reactionRoles,
     };
   }
 
@@ -444,6 +449,35 @@ export class MessagesService {
     return this.serialize(row, userId);
   }
 
+  /**
+   * Configura os cargos por reação de uma mensagem de canal (substitui o conjunto). Exige MANAGE_ROLES; cada cargo
+   * precisa estar abaixo do meu e não pode ter bits de moderação (REACTION_ROLE_FORBIDDEN), porque qualquer um que
+   * vê a mensagem ganha o cargo só de reagir.
+   */
+  async setReactionRoles(userId: string, messageId: string, pairs: { emoji: string; roleId: string }[]) {
+    const m = await this.load(messageId);
+    const a = await this.access(userId, this.targetOf(m)).catch(() => {
+      throw notFound('mensagem');
+    });
+    if (m.deletedAt || !a.serverId) throw new BadRequestException('só mensagens de canais de servidor');
+    const actor = await this.perms.requireServer(a.serverId, userId, Permission.MANAGE_ROLES);
+    const roles = await this.prisma.role.findMany({ where: { serverId: a.serverId } });
+    for (const p of pairs) {
+      const r = roles.find((x) => x.id === p.roleId);
+      if (!r || r.isEveryone) throw new BadRequestException('cargo inválido');
+      if (r.permissions & REACTION_ROLE_FORBIDDEN)
+        throw new BadRequestException(`o cargo ${r.name} tem permissões de moderação e não pode ser dado por reação`);
+      this.perms.assertAbove(actor, r.position);
+    }
+    await this.prisma.$transaction([
+      this.prisma.reactionRole.deleteMany({ where: { messageId } }),
+      this.prisma.reactionRole.createMany({ data: pairs.map((p) => ({ messageId, ...p })) }),
+    ]);
+    const row = await this.load(messageId);
+    this.realtime.emit(a.room, 'chat:message:updated', this.serialize(row, null));
+    return this.serialize(row, userId);
+  }
+
   /** Enquete: confere acesso pela mensagem; encerrada ou apagada não aceita mais nada. */
   private async pollContext(userId: string, pollId: string) {
     const poll = await this.prisma.poll.findUnique({ where: { id: pollId }, select: { messageId: true } });
@@ -513,6 +547,9 @@ export class MessagesService {
     } else {
       await this.prisma.reaction.deleteMany({ where: { messageId, userId, emoji } });
     }
+    // cargo por reação (ADR-0019): reagir dá o cargo, tirar a reação tira
+    const rr = a.serverId ? m.reactionRoles.find((x) => x.emoji === emoji) : undefined;
+    if (rr && a.serverId) await this.servers.applyReactionRole(a.serverId, userId, rr.roleId, on);
     const count = await this.prisma.reaction.count({ where: { messageId, emoji } });
     this.realtime.emit(a.room, 'chat:reaction:changed', {
       messageId,

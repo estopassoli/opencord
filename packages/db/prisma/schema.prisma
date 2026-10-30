@@ -143,6 +143,7 @@ model Role {
   isEveryone      Boolean      @default(false)
   server          Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
   members         MemberRole[]
+  reactionRoles   ReactionRole[]
 
   @@index([serverId])
 }
@@ -268,6 +269,19 @@ model PollVote {
   @@index([pollId, userId])
 }
 
+/// Cargo por reação (ADR-0019): reagir com o emoji nesta mensagem dá o cargo; tirar a reação tira o cargo.
+model ReactionRole {
+  messageId String   @db.Uuid
+  emoji     String
+  roleId    String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, emoji])
+  @@index([roleId])
+}
+
 enum OverrideSubject {
   role
   member
@@ -339,6 +353,7 @@ model Message {
   reactions      Reaction[]
   boardCard      BoardCard?
   poll           Poll?
+  reactionRoles  ReactionRole[]
 
   @@unique([authorId, requestId])
   @@index([channelId, createdAt, id])

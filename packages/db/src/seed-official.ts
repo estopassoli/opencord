@@ -37,6 +37,8 @@ interface ChannelSpec {
   feeds?: string;
   /** mensagens fixas da equipe, na ordem; o seed atualiza o texto se ele mudar aqui */
   posts?: string[];
+  /** cargos por reação no primeiro post (ADR-0019): emoji → nome do cargo de INTERESTS */
+  reactionRoles?: { emoji: string; role: string }[];
 }
 
 const REPO = 'https://github.com/estopassoli/opencord';
@@ -107,6 +109,27 @@ const LAYOUT: { category: string; channels: ChannelSpec[] }[] = [
         kind: 'text',
         topic: 'Tudo o que muda no OpenCord, do lançamento até hoje',
         readOnly: true,
+      },
+      {
+        name: 'escolha-seus-cargos',
+        kind: 'text',
+        topic: 'Clique nos botões para pegar ou largar cargos de interesse',
+        readOnly: true,
+        posts: [
+          [
+            '**Escolha seus cargos** 👇',
+            'Clique nos botões abaixo (ou reaja com o emoji) para mostrar do que você curte. Clique de novo para tirar.',
+            'Os cargos dão cor ao seu nome e ajudam a achar gente com os mesmos interesses.',
+          ].join('\n'),
+        ],
+        reactionRoles: [
+          { emoji: '🎮', role: 'Gamer' },
+          { emoji: '🎧', role: 'Música' },
+          { emoji: '🎬', role: 'Filmes e séries' },
+          { emoji: '💻', role: 'Dev' },
+          { emoji: '🎨', role: 'Arte' },
+          { emoji: '📚', role: 'Estudos' },
+        ],
       },
     ],
   },
@@ -262,6 +285,16 @@ const ROLES = [
   { name: 'Equipe OpenCord', color: '#8b5cf6', permissions: Permission.ADMINISTRATOR, owner: true },
 ];
 
+/** cargos de interesse (só cor, sem permissões), pegos por reação em #escolha-seus-cargos; ficam abaixo dos demais */
+const INTERESTS = [
+  { name: 'Gamer', color: '#22c55e' },
+  { name: 'Música', color: '#ec4899' },
+  { name: 'Filmes e séries', color: '#f97316' },
+  { name: 'Dev', color: '#38bdf8' },
+  { name: 'Arte', color: '#e879f9' },
+  { name: 'Estudos', color: '#facc15' },
+];
+
 const KIND_LABEL: Record<NewsEntry['kind'], string> = {
   novo: '🆕 Novo',
   melhoria: '✨ Melhoria',
@@ -330,6 +363,29 @@ async function seed(tx: Prisma.TransactionClient, news: NewsEntry[], log: (s: st
         skipDuplicates: true,
       });
   }
+  // interesses: entram embaixo (logo acima do @everyone), empurrando os demais para cima
+  const newInterests = INTERESTS.filter((i) => !roles.some((r) => r.name.toLowerCase() === i.name.toLowerCase()));
+  if (newInterests.length) {
+    await tx.role.updateMany({
+      where: { serverId: server.id, isEveryone: false },
+      data: { position: { increment: newInterests.length } },
+    });
+    for (const [i, spec] of newInterests.entries()) {
+      await tx.role.create({
+        data: {
+          serverId: server.id,
+          name: spec.name,
+          color: spec.color,
+          permissions: 0,
+          position: newInterests.length - i,
+        },
+      });
+      log(`Cargo de interesse criado: ${spec.name}`);
+    }
+  }
+  const roleId = new Map(
+    (await tx.role.findMany({ where: { serverId: server.id } })).map((r) => [r.name.toLowerCase(), r.id]),
+  );
 
   // categorias e canais
   const cats = await tx.category.findMany({ where: { serverId: server.id } });
@@ -420,6 +476,23 @@ async function seed(tx: Prisma.TransactionClient, news: NewsEntry[], log: (s: st
           },
         });
         posted++;
+      }
+      // cargos por reação no primeiro post (ADR-0019); só acrescenta, não mexe no que a equipe mudou à mão
+      if (spec.reactionRoles?.length) {
+        const first = await tx.message.findUnique({
+          where: {
+            authorId_requestId: { authorId: ownerId, requestId: stableId(`post:${spec.formerly ?? spec.name}:0`) },
+          },
+          select: { id: true },
+        });
+        if (first)
+          await tx.reactionRole.createMany({
+            data: spec.reactionRoles.flatMap((rr) => {
+              const id = roleId.get(rr.role.toLowerCase());
+              return id ? [{ messageId: first.id, emoji: rr.emoji, roleId: id }] : [];
+            }),
+            skipDuplicates: true,
+          });
       }
     }
   }

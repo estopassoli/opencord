@@ -3803,6 +3803,19 @@ button.live-badge {
   left: auto;
   right: calc(100% + 6px);
 }
+/* ponte invisível sobre o espaço entre o item e o submenu aberto: o mouse atravessa sem "sair" do item */
+.context-sub:has(> .context-submenu)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 16px;
+}
+.context-sub:has(> .context-submenu[data-side='left'])::after {
+  left: auto;
+  right: 100%;
+}
 .context-label-row {
   display: flex;
   align-items: center;
@@ -5791,6 +5804,66 @@ section:first-child > .friends-panel-sep {
 @media (prefers-reduced-motion: reduce) {
   .poll-option,
   .poll-option[data-results='true']::before {
+    transition: none;
+  }
+}
+
+/* ---------- Cargos por reação (ADR-0019) ---------- */
+.reaction-roles {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.reaction-roles > .muted {
+  flex-basis: 100%;
+}
+.reaction-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--sidebar);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+.reaction-role:hover:not(:disabled) {
+  border-color: var(--role, var(--brand));
+}
+.reaction-role[aria-pressed='true'] {
+  border-color: var(--role, var(--brand));
+  background: color-mix(in srgb, var(--role, var(--brand)) 20%, transparent);
+}
+.reaction-role:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.reaction-role:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.rr-rows {
+  display: grid;
+  gap: 8px;
+}
+.rr-row {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction-role {
     transition: none;
   }
 }

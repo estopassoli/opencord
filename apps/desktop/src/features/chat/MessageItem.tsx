@@ -3,12 +3,13 @@ import { Avatar, Icon, TextArea } from '@opencord/ui';
 import { memo, useEffect, useState, type KeyboardEvent } from 'react';
 import { useSession, api, describeError } from '../../store/session';
 import { useUi, type MediaItem } from '../../store/ui';
-import { keyOf, useMessages, type TargetKey } from '../../store/data';
+import { keyOf, useData, useMessages, type TargetKey } from '../../store/data';
 import { openContextMenu } from '../../components/ContextMenu';
 import { ProfileButton } from '../shell/ProfileButton';
 import { renderRich } from './rich';
 import { InviteEmbed, inviteCodesIn } from './InviteEmbed';
 import { PollCard } from './Poll';
+import { ReactionRoleChips, ReactionRolesDialog } from './ReactionRoles';
 import type { ChatTarget } from './ChatView';
 import { nameFor } from '../../lib/names';
 
@@ -66,6 +67,7 @@ export const MessageItem = memo(function MessageItem({
     if (editing) setDraft(m.body);
   }, [editing, m.body]);
   const [picker, setPicker] = useState(false);
+  const [rrOpen, setRrOpen] = useState(false);
   const mine = m.author.id === meId;
   const canDelete = mine || hasPermission(perms, Permission.MANAGE_MESSAGES);
   // enquete não se edita (ADR-0018)
@@ -75,6 +77,12 @@ export const MessageItem = memo(function MessageItem({
   const canPin = Boolean(target.conversationId) || hasPermission(perms, Permission.MANAGE_MESSAGES);
   const time = new Date(m.createdAt);
   const serverId = useUi((s) => (s.view.kind === 'server' ? s.view.serverId : undefined));
+  // cargos por reação (ADR-0019): quem gerencia cargos configura, em mensagens de canal
+  const canRoles = useData((s) =>
+    Boolean(
+      target.channelId && serverId && hasPermission(s.details[serverId]?.myPermissions ?? 0, Permission.MANAGE_ROLES),
+    ),
+  );
 
   const react = (emoji: string, on: boolean) => {
     const rt = useSession.getState().realtime;
@@ -138,6 +146,15 @@ export const MessageItem = memo(function MessageItem({
                 label: m.pinnedAt ? 'Desafixar mensagem' : 'Fixar mensagem',
                 icon: m.pinnedAt ? ('pin-off' as const) : ('pin' as const),
                 onSelect: togglePin,
+              },
+            ]
+          : []),
+        ...(canRoles
+          ? [
+              {
+                label: m.reactionRoles.length ? 'Editar cargos por reação' : 'Cargos por reação…',
+                icon: 'tag' as const,
+                onSelect: () => setRrOpen(true),
               },
             ]
           : []),
@@ -291,6 +308,10 @@ export const MessageItem = memo(function MessageItem({
           )}
         </div>
       )}
+      {m.reactionRoles.length > 0 && (
+        <ReactionRoleChips message={m} serverId={serverId} canReact={canReact} react={react} />
+      )}
+      {rrOpen && serverId && <ReactionRolesDialog message={m} serverId={serverId} onClose={() => setRrOpen(false)} />}
       {m.reactions.length > 0 && (
         <div className="reactions" role="group" aria-label="Reações">
           {m.reactions.map((r) => (
