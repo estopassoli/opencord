@@ -2,7 +2,7 @@ import { cloneElement, useId, useLayoutEffect, useRef, useState, type ReactEleme
 import { createPortal } from 'react-dom';
 import { portalTarget } from '@opencord/ui';
 
-type Side = 'right' | 'top' | 'bottom';
+type Side = 'right' | 'left' | 'top' | 'bottom';
 
 interface TriggerProps {
   onMouseEnter?: (e: React.MouseEvent) => void;
@@ -47,9 +47,14 @@ export function Tooltip({
     if (!anchor || !tip.current) return;
     const t = tip.current.getBoundingClientRect();
     const gap = 8;
-    let left = side === 'right' ? anchor.right + gap : anchor.left + anchor.width / 2 - t.width / 2;
-    let top =
+    let left =
       side === 'right'
+        ? anchor.right + gap
+        : side === 'left'
+          ? anchor.left - t.width - gap
+          : anchor.left + anchor.width / 2 - t.width / 2;
+    let top =
+      side === 'right' || side === 'left'
         ? anchor.top + anchor.height / 2 - t.height / 2
         : side === 'top'
           ? anchor.top - t.height - gap

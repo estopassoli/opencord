@@ -26,6 +26,17 @@ export type Modal =
   | { kind: 'quick-switcher' }
   | null;
 
+export type FriendsPanelMode = 'open' | 'compact' | 'hidden';
+const FRIENDS_PANEL_KEY = 'oc-friends-panel';
+function readFriendsPanel(): FriendsPanelMode {
+  try {
+    const v = localStorage.getItem(FRIENDS_PANEL_KEY);
+    return v === 'compact' || v === 'hidden' ? v : 'open';
+  } catch {
+    return 'open';
+  }
+}
+
 /** Imagem aberta no visualizador de mídia (com quem enviou e quando). */
 export interface MediaItem {
   id: string;
@@ -52,6 +63,9 @@ interface UiState {
   openMedia(items: MediaItem[], index: number): void;
   closeMedia(): void;
   showMembers: boolean;
+  /** painel de amigos nas mensagens diretas: aberto, só avatares ou escondido (lembrado neste computador) */
+  friendsPanel: FriendsPanelMode;
+  setFriendsPanel(m: FriendsPanelMode): void;
   /** celular: painel aberto por cima do conteúdo (gaveta de navegação ou de membros) */
   panel: 'none' | 'nav' | 'members';
   /** stream em foco no palco (identity do publisher) */
@@ -98,6 +112,15 @@ export const useUi = create<UiState>()((set) => ({
   openMedia: (items, index) => set({ media: { items, index } }),
   closeMedia: () => set({ media: null }),
   showMembers: true,
+  friendsPanel: readFriendsPanel(),
+  setFriendsPanel: (m) => {
+    try {
+      localStorage.setItem(FRIENDS_PANEL_KEY, m);
+    } catch {
+      /* sem armazenamento: vale só nesta sessão */
+    }
+    set({ friendsPanel: m });
+  },
   panel: 'none',
   focusedStream: null,
   poppedStream: null,
