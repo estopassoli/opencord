@@ -15,10 +15,12 @@ export interface StreamProfile {
   requiresHardware: boolean;
 }
 
+// Tetos de bitrate: cada espectador recebe a live inteira, e a franquia mensal de tráfego dos nós do SFU é
+// finita (bitrate × espectadores × horas). 8 Mbps em 1080p60 H.264 por hardware segue nítido em jogos.
 export const STREAM_PROFILES: Record<StreamProfileId, StreamProfile> = {
   '720p30': { id: '720p30', width: 1280, height: 720, fps: 30, maxBitrate: 2_500_000, requiresHardware: false },
-  '1080p60': { id: '1080p60', width: 1920, height: 1080, fps: 60, maxBitrate: 12_000_000, requiresHardware: false },
-  '1440p60': { id: '1440p60', width: 2560, height: 1440, fps: 60, maxBitrate: 18_000_000, requiresHardware: true },
+  '1080p60': { id: '1080p60', width: 1920, height: 1080, fps: 60, maxBitrate: 8_000_000, requiresHardware: false },
+  '1440p60': { id: '1440p60', width: 2560, height: 1440, fps: 60, maxBitrate: 12_000_000, requiresHardware: true },
 };
 
 export interface EncoderCapability {
