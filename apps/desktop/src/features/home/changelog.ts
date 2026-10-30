@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '01:50',
+    kind: 'correção',
+    icon: 'settings',
+    title: 'Configurações sem rolagem lateral',
+    body: 'Nomes longos de dispositivos de áudio são cortados com reticências em vez de alargar a tela de Voz e vídeo.',
+  },
+  {
+    date: '2026-10-30',
     time: '01:40',
     kind: 'novo',
     icon: 'screen',

@@ -165,6 +165,7 @@
 /* ---------- select ---------- */
 .oc-select {
   width: 100%;
+  min-width: 0;
   min-height: 40px;
   display: flex;
   align-items: center;
@@ -194,6 +195,9 @@
   cursor: not-allowed;
 }
 .oc-select-value {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
