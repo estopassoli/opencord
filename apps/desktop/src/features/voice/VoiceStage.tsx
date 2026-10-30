@@ -185,7 +185,9 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
     `Transmitindo ${stats.width}×${stats.height} · ${stats.fps ?? '–'} fps · ${stats.codec?.replace('video/', '') ?? ''}${
       stats.hardware ? ' (hardware)' : stats.hardware === false ? ' (software)' : ''
     }`,
+    stats.captureFps !== null ? `captura ${stats.captureFps} fps` : null,
     stats.kbps !== null ? `${(stats.kbps / 1000).toFixed(1)} Mb/s` : null,
+    stats.transport ? `conexão ${stats.transport}${stats.rttMs !== null ? ` (${stats.rttMs} ms)` : ''}` : null,
     stats.limitation && stats.limitation !== 'none'
       ? `limitado por ${stats.limitation === 'cpu' ? 'CPU' : 'banda'}`
       : null,
@@ -219,6 +221,8 @@ function WatchBadge({ identity }: { identity: string }) {
     w.kbps !== null ? `${(w.kbps / 1000).toFixed(1)} Mb/s` : null,
     w.lossPct !== null ? `perda de pacotes ${w.lossPct}%` : null,
     w.freezes !== null ? `${w.freezes} travada(s)` : null,
+    w.dropped ? `${w.dropped} quadro(s) descartado(s)` : null,
+    w.transport ? `conexão ${w.transport}${w.rttMs !== null ? ` (${w.rttMs} ms)` : ''}` : null,
     w.decoder ? `decoder ${w.decoder}` : null,
   ]
     .filter(Boolean)

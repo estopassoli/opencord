@@ -63,3 +63,13 @@ Monitorar ICE candidate failures, RTT, jitter, packet loss, bitrate, encode FPS,
 - Diagnóstico pendente: o tooltip do selo de quem transmite ("limitado por CPU/banda", encoder). Se o encoder for software (OpenH264), a causa é outra: CPU disputada pelo jogo.
 - Paliativo: limitar o FPS do jogo (ex.: Radeon Chill/FRTC), para deixar folga de GPU.
 - Medição neste PC (RTX), assistindo uma live 1080p: `gpu_compositing`, `video_decode` e `video_encode` = enabled; decoder `D3D11VideoDecoder`; interface acima de 470 fps sem long tasks.
+
+## Medição com movimento na tela (2026-10-30) — `WebRtcAllowWgcUsingTexture` revertida
+- E2E `golive-real.spec.ts`: uma janela anima sobre o monitor capturado; o teste registra fps da animação, da captura (`media-source`), do envio e da recepção.
+- **Com a flag:** animação a 46–48 fps → captura **12–14 fps** (duas execuções).
+- **Sem a flag:** animação a 30 fps → captura 30 fps; numa execução com mais movimento → captura **42–50 fps**, recepção 35–50 fps.
+- A flag (ligada em 807f116) foi **removida**: piorava a captura para todos. O teste agora exige captura ≥ 20 fps com movimento.
+- No lado de quem assiste:
+  - buffer de recepção das lives de 200 ms (`jitterBufferTarget`), para o reenvio de pacotes perdidos chegar antes de congelar;
+  - o selo mostra o fps de captura, o transporte (UDP/TCP, host/srflx/relay) e o RTT.
+- **Ainda não validado em máquinas reais com jogo:** o relato do Tiago (AMD) e as travadas do theuzin (rede). Status: BLOQUEADO PARA VALIDAÇÃO.

@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '02:55',
+    kind: 'correção',
+    icon: 'screen',
+    title: 'Live volta a capturar com fluidez',
+    body: 'Uma mudança da madrugada na captura da tela limitava a live a uns 12 FPS em cenas com movimento; foi desfeita e a captura volta a acompanhar a tela. Quem assiste também ganhou uma pequena folga no buffer, para perdas de pacote não virarem congelamentos de 1 segundo.',
+  },
+  {
+    date: '2026-10-30',
     time: '02:35',
     kind: 'melhoria',
     icon: 'screen',

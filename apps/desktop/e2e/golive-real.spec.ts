@@ -199,6 +199,51 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   expect(fit.videoW).toBeLessThanOrEqual(fit.tileW);
   expect(await B.page.locator('.tile-stream .tile-label').innerText()).not.toContain('sem áudio');
 
+  // fps com conteúdo em movimento (relato: "live não roda a 60 fps"): uma janela anima a 60 fps sobre o monitor
+  // capturado; medimos o que a captura entrega, o que é enviado e o que o espectador recebe
+  await A.app.evaluate(({ BrowserWindow, screen }) => {
+    const d = screen.getPrimaryDisplay().workArea;
+    const w = new BrowserWindow({ x: d.x, y: d.y, width: d.width, height: d.height, alwaysOnTop: true, show: true });
+    void w.loadURL(
+      'data:text/html,' +
+        encodeURIComponent(
+          '<body style="margin:0;background:#111"><canvas id=c></canvas><script>' +
+            'const c=document.getElementById("c"),x=c.getContext("2d");c.width=innerWidth;c.height=innerHeight;' +
+            'let t=0;(function f(){t++;document.title=String(t);x.fillStyle=`hsl(${t*3%360} 70% 40%)`;x.fillRect(0,0,c.width,c.height);' +
+            'x.fillStyle="#fff";for(let i=0;i<40;i++)x.fillRect((t*7+i*97)%c.width,(i*53+t*3)%c.height,120,120);' +
+            'requestAnimationFrame(f)})()</script></body>',
+        ),
+    );
+  });
+  const animFrames = () =>
+    A.app.evaluate(({ BrowserWindow }) =>
+      Number(
+        BrowserWindow.getAllWindows()
+          .find((w) => w.webContents.getURL().startsWith('data:'))
+          ?.getTitle() ?? 0,
+      ),
+    );
+  let captureFps = 0;
+  for (let i = 0; i < 3; i++) {
+    const f0 = await animFrames();
+    await A.page.waitForTimeout(3000);
+    console.warn(
+      'MOTION_FPS',
+      i,
+      `animação ${Math.round(((await animFrames()) - f0) / 3)} fps`,
+      (await A.page.locator('.stream-stats').getAttribute('title')) ?? '',
+      '|',
+      (await B.page.locator('.stream-stats').first().getAttribute('aria-label')) ?? '',
+    );
+    const t = (await A.page.locator('.stream-stats').getAttribute('title')) ?? '';
+    captureFps = Number(/captura (\d+) fps/.exec(t)?.[1] ?? 0);
+  }
+  await A.app.evaluate(({ BrowserWindow }) => {
+    for (const w of BrowserWindow.getAllWindows()) if (w.webContents.getURL().startsWith('data:')) w.close();
+  });
+  // regressão: com WebRtcAllowWgcUsingTexture a captura travava em ~12 fps com a tela a 47 fps
+  expect(captureFps).toBeGreaterThanOrEqual(20);
+
   // métricas reais do encoder no publisher após alguns segundos
   await A.page.waitForTimeout(6000);
   const stats = (await A.page.locator('.stream-stats').getAttribute('title')) ?? '';
