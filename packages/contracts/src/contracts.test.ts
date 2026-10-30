@@ -3,6 +3,8 @@ import {
   CreateMessageRequest,
   ClientCommands,
   decodeCursor,
+  parseYouTubeId,
+  parseYouTubePlaylistId,
   defaultUserSettings,
   encodeCursor,
   extractMentions,
@@ -79,5 +81,18 @@ describe('mentions', () => {
       everyone: true,
     });
     expect(extractMentions('email@everyone.com').everyone).toBe(false);
+  });
+});
+
+describe('links do YouTube (música)', () => {
+  it('playlist: list= em links do YouTube e do YouTube Music', () => {
+    expect(parseYouTubePlaylistId('https://music.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG')).toBe(
+      'PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG',
+    );
+    expect(parseYouTubePlaylistId('youtube.com/watch?v=dQw4w9WgXcQ&list=PLabcdefghijklmnop&index=3')).toBe(
+      'PLabcdefghijklmnop',
+    );
+    expect(parseYouTubePlaylistId('https://youtu.be/dQw4w9WgXcQ')).toBeNull();
+    expect(parseYouTubeId('youtube.com/watch?v=dQw4w9WgXcQ&list=PLabcdefghijklmnop')).toBe('dQw4w9WgXcQ');
   });
 });

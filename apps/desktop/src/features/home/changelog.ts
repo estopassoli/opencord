@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '21:00',
+    kind: 'melhoria',
+    icon: 'crown',
+    title: 'Música com DJ e playlists inteiras',
+    body: 'Quem começa a música na chamada vira o DJ, e só ele adiciona, pula, pausa ou encerra para todos. Quem ouve controla só o próprio player: volume, pausar só para si e voltar ao vivo. Se o DJ sai, quem está há mais tempo na chamada assume; se todos saem, a música para. Links de playlist do YouTube e do YouTube Music agora trazem a playlist inteira (até 100 músicas). Os mixes automáticos do YouTube ainda não podem ser importados.',
+  },
+  {
+    date: '2026-10-30',
     time: '20:30',
     kind: 'novo',
     icon: 'poll',

@@ -509,7 +509,7 @@ test('Efeitos sonoros: A envia um som pelo painel da chamada, toca e B ouve; apa
   await expect(board).toHaveCount(0);
 });
 
-test('Música na chamada: A abre e cola um link do YouTube Music, B ouve, fila e pausa valem para todos', async () => {
+test('Música na chamada: A abre e vira DJ, B ouve; só o DJ controla, B pausa só para si', async () => {
   // processo com --mute-audio: toca mudo
   await A.page.locator('.call-controls').getByRole('button', { name: 'Atividades' }).click();
   await A.page
@@ -545,8 +545,15 @@ test('Música na chamada: A abre e cola um link do YouTube Music, B ouve, fila e
   await mini.click();
   await expect(playerA.getByLabel(/Adicionar música/)).toBeVisible();
   expect(await playerA.locator('.music-video iframe').getAttribute('data-mark')).toBe('antes');
-  // B (não abriu a música) pausa para todos: A vê pausado
-  await playerB.getByRole('button', { name: 'Pausar para todos' }).click();
+  // B ouve: vê quem é o DJ, não tem os controles do grupo nem o campo de adicionar; pausa só para si
+  await expect(playerB.getByText(/^DJ: /)).toBeVisible();
+  await expect(playerB.getByRole('button', { name: 'Pausar para todos' })).toHaveCount(0);
+  await expect(playerB.getByLabel(/Adicionar música/)).toHaveCount(0);
+  await playerB.getByRole('button', { name: 'Pausar só para mim' }).click();
+  await expect(playerB.getByRole('button', { name: 'Voltar ao vivo' })).toBeVisible();
+  await expect(playerA.getByRole('button', { name: 'Pausar para todos' })).toBeVisible(); // A segue tocando
+  // o DJ pausa para todos: A vê pausado
+  await playerA.getByRole('button', { name: 'Pausar para todos' }).click();
   await expect(playerA.getByRole('button', { name: 'Tocar para todos' })).toBeVisible({ timeout: 10_000 });
   // encerrar some para os dois
   await playerA.getByRole('button', { name: 'Encerrar a música para todos' }).click();

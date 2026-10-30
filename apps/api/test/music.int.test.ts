@@ -1,4 +1,4 @@
-/** Música na chamada: fila compartilhada, todos controlam, fim da faixa avança uma vez só (ADR-0014). */
+/** Música na chamada: DJ controla a fila, quem ouve não; fim da faixa avança uma vez só; DJ passa adiante (ADR-0014). */
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { MusicState, ServerDetail } from '@opencord/contracts';
 import type { Socket } from 'socket.io-client';
@@ -29,7 +29,7 @@ async function setup() {
     expect((await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token })).status).toBe(201);
   const [so, sa, sb] = await Promise.all([owner, alice, bob].map((u) => connectSocket(u.token)));
   sockets.push(so!, sa!, sb!);
-  return { owner, alice, voiceId, so: so!, sa: sa!, sb: sb! };
+  return { owner, alice, bob, voiceId, so: so!, sa: sa!, sb: sb! };
 }
 
 const data = <T>(r: { ok: boolean; data?: unknown }) => {
@@ -38,57 +38,75 @@ const data = <T>(r: { ok: boolean; data?: unknown }) => {
 };
 
 describe('Música na chamada', () => {
-  it('fila: a primeira toca, as próximas entram na fila; todos na chamada controlam e recebem o estado', async () => {
-    const { voiceId, so, sa } = await setup();
+  it('quem começa é o DJ: só ele adiciona e controla; quem ouve é recusado; fim da faixa avança uma vez', async () => {
+    const { owner, voiceId, so, sa } = await setup();
     const first = data<MusicState>(await command(so, 'music:add', { channelId: voiceId, videoId: 'dQw4w9WgXcQ' }));
-    expect(first).toMatchObject({ index: 0, playing: true, positionSec: 0 });
-    const got = nextEvent<MusicState>(so, 'music:state', (s) => s.queue.length === 2);
-    const second = data<MusicState>(await command(sa, 'music:add', { channelId: voiceId, videoId: 'jNQXAC9IVRw' }));
-    expect(second.index).toBe(0);
-    expect((await got).queue.map((t) => t.videoId)).toEqual(['dQw4w9WgXcQ', 'jNQXAC9IVRw']);
+    expect(first).toMatchObject({ index: 0, playing: true, positionSec: 0, djId: owner.id });
 
-    // alice (não iniciou) pausa e pula: todos controlam
-    expect(data<MusicState>(await command(sa, 'music:control', { channelId: voiceId, action: 'pause' })).playing).toBe(
+    // alice ouve: não adiciona, não pausa, não pula, não encerra
+    expect((await command(sa, 'music:add', { channelId: voiceId, videoId: 'jNQXAC9IVRw' })).ok).toBe(false);
+    for (const action of ['pause', 'next', 'seek'] as const)
+      expect((await command(sa, 'music:control', { channelId: voiceId, action, positionSec: 3 })).ok).toBe(false);
+    expect((await command(sa, 'music:stop', { channelId: voiceId })).ok).toBe(false);
+
+    // o DJ adiciona e todos recebem o estado
+    const got = nextEvent<MusicState>(sa, 'music:state', (s) => s.queue.length === 2);
+    data<MusicState>(await command(so, 'music:add', { channelId: voiceId, videoId: 'jNQXAC9IVRw' }));
+    expect((await got).queue.map((t) => t.videoId)).toEqual(['dQw4w9WgXcQ', 'jNQXAC9IVRw']);
+    expect(data<MusicState>(await command(so, 'music:control', { channelId: voiceId, action: 'pause' })).playing).toBe(
       false,
     );
-    const skipped = data<MusicState>(await command(sa, 'music:control', { channelId: voiceId, action: 'next' }));
+    const skipped = data<MusicState>(await command(so, 'music:control', { channelId: voiceId, action: 'next' }));
     expect(skipped).toMatchObject({ index: 1, playing: true, positionSec: 0 });
 
-    // fim da faixa: dois players avisam; só o primeiro aviso avança
+    // fim da faixa: o player de qualquer um avisa; só o primeiro aviso avança
     const cur = skipped.queue[1]!.id;
     const e1 = data<MusicState>(
-      await command(so, 'music:control', { channelId: voiceId, action: 'ended', trackId: cur }),
+      await command(sa, 'music:control', { channelId: voiceId, action: 'ended', trackId: cur }),
     );
     const e2 = data<MusicState>(
-      await command(sa, 'music:control', { channelId: voiceId, action: 'ended', trackId: cur }),
+      await command(so, 'music:control', { channelId: voiceId, action: 'ended', trackId: cur }),
     );
     expect(e1).toMatchObject({ index: -1, playing: false });
     expect(e2.revision).toBe(e1.revision);
 
-    // fila terminada: adicionar volta a tocar a faixa nova
-    const again = data<MusicState>(await command(so, 'music:add', { channelId: voiceId, videoId: 'M7lc1UVf-VE' }));
-    expect(again).toMatchObject({ index: 2, playing: true });
-
-    // tirar a faixa atual segue para a que ocupou o lugar (aqui: nenhuma) e jump volta a uma anterior
-    const jumped = data<MusicState>(
-      await command(so, 'music:control', { channelId: voiceId, action: 'jump', trackId: again.queue[0]!.id }),
-    );
-    expect(jumped.index).toBe(0);
-    const removed = data<MusicState>(
-      await command(so, 'music:control', { channelId: voiceId, action: 'remove', trackId: again.queue[1]!.id }),
-    );
-    expect(removed.queue).toHaveLength(2);
-    expect(removed.index).toBe(0);
+    // fila terminada: quem adicionar recomeça a música e vira o DJ
+    const alices = data<MusicState>(await command(sa, 'music:add', { channelId: voiceId, videoId: 'M7lc1UVf-VE' }));
+    expect(alices.index).toBe(0);
+    expect(alices.queue.map((t) => t.videoId)).toEqual(['M7lc1UVf-VE']);
+    expect(alices.djId).not.toBe(owner.id);
   });
 
-  it('quem não está na chamada não vê nem controla; encerrar avisa todos', async () => {
+  it('link de vídeo dentro de playlist sem chave do YouTube: entra só o vídeo; playlist sozinha é recusada', async () => {
+    const { voiceId, so } = await setup();
+    const s = data<MusicState>(
+      await command(so, 'music:add', { channelId: voiceId, videoId: 'dQw4w9WgXcQ', playlistId: 'PLabcdefghijklmnop' }),
+    );
+    expect(s.queue.map((t) => t.videoId)).toEqual(['dQw4w9WgXcQ']);
+    expect((await command(so, 'music:add', { channelId: voiceId, playlistId: 'PLabcdefghijklmnop' })).ok).toBe(false);
+  });
+
+  it('DJ sai: quem está na chamada há mais tempo assume; todos saem: a música acaba', async () => {
+    const { owner, alice, bob, voiceId, so, sb } = await setup();
+    expect((await http.req('POST', `/voice/channels/${voiceId}/join`, { token: bob.token })).status).toBe(201);
+    await command(so, 'music:add', { channelId: voiceId, videoId: 'dQw4w9WgXcQ' });
+    const handed = nextEvent<MusicState>(sb, 'music:state', (s) => s.djId !== owner.id);
+    await http.req('POST', '/voice/leave', { token: owner.token });
+    expect((await handed).djId).toBe(alice.id); // alice entrou antes de bob
+    const ended = nextEvent<{ channelId: string }>(sb, 'music:ended', (e) => e.channelId === voiceId);
+    await http.req('POST', '/voice/leave', { token: alice.token });
+    await http.req('POST', '/voice/leave', { token: bob.token });
+    expect((await ended).channelId).toBe(voiceId);
+  });
+
+  it('quem não está na chamada não vê nem controla; o DJ encerra e avisa todos', async () => {
     const { voiceId, so, sa, sb } = await setup();
     await command(so, 'music:add', { channelId: voiceId, videoId: 'dQw4w9WgXcQ' });
     expect((await command(sb, 'music:get', { channelId: voiceId })).ok).toBe(false);
     expect((await command(sb, 'music:control', { channelId: voiceId, action: 'pause' })).ok).toBe(false);
     const ended = nextEvent<{ channelId: string }>(sa, 'music:ended', (e) => e.channelId === voiceId);
-    expect((await command(sa, 'music:stop', { channelId: voiceId })).ok).toBe(true);
+    expect((await command(so, 'music:stop', { channelId: voiceId })).ok).toBe(true);
     expect((await ended).channelId).toBe(voiceId);
-    expect(data<MusicState | null>(await command(so, 'music:get', { channelId: voiceId }))).toBeNull();
+    expect(data<MusicState | null>(await command(sa, 'music:get', { channelId: voiceId }))).toBeNull();
   });
 });

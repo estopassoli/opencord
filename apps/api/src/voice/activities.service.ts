@@ -1,4 +1,10 @@
-import { BadGatewayException, Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { rooms, type ActivityState, type YouTubeSearchResult } from '@opencord/contracts';
 import { forbidden } from '../common/errors.js';
 import { RedisService } from '../common/redis.service.js';
@@ -127,6 +133,61 @@ export class ActivitiesService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Faixas de uma playlist (Data API v3, playlistItems; 1 unidade de cota por página de 50). Só com YOUTUBE_API_KEY.
+   * Mixes automáticos ("RD…", "Rádio" do YouTube Music) não existem na API: dão 404 e quem chama decide o que fazer.
+   * Vídeos privados ou removidos ficam de fora.
+   */
+  async playlist(playlistId: string, max: number): Promise<{ videoId: string; title: string; author: string }[]> {
+    const k = this.cfg.YOUTUBE_API_KEY;
+    if (!k) throw new ServiceUnavailableException('playlists precisam da chave do YouTube neste servidor');
+    const out: { videoId: string; title: string; author: string }[] = [];
+    let page: string | undefined;
+    do {
+      const u = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+      u.search = new URLSearchParams({
+        part: 'snippet,status',
+        playlistId,
+        maxResults: '50',
+        key: k,
+        ...(page ? { pageToken: page } : {}),
+      }).toString();
+      let res: Response;
+      try {
+        res = await fetch(u, { redirect: 'error', signal: AbortSignal.timeout(8000) });
+      } catch {
+        throw new ServiceUnavailableException('não foi possível ler a playlist agora');
+      }
+      if (res.status === 404)
+        throw new BadRequestException(
+          'playlist não encontrada (mixes automáticos e playlists privadas não podem ser importados)',
+        );
+      if (res.status === 403) throw new ServiceUnavailableException('cota diária do YouTube esgotada');
+      if (!res.ok) throw new BadGatewayException(`o YouTube respondeu ${res.status}`);
+      const j = (await res.json()) as {
+        nextPageToken?: string;
+        items?: {
+          status?: { privacyStatus?: string };
+          snippet?: { title?: string; videoOwnerChannelTitle?: string; resourceId?: { videoId?: string } };
+        }[];
+      };
+      for (const i of j.items ?? []) {
+        const id = i.snippet?.resourceId?.videoId;
+        if (!id || !/^[A-Za-z0-9_-]{11}$/.test(id) || i.status?.privacyStatus === 'private') continue;
+        out.push({
+          videoId: id,
+          title: decodeEntities(i.snippet?.title ?? '').slice(0, 200),
+          author: decodeEntities(i.snippet?.videoOwnerChannelTitle ?? '')
+            .replace(/ - Topic$/, '')
+            .slice(0, 100),
+        });
+        if (out.length >= max) return out;
+      }
+      page = j.nextPageToken;
+    } while (page);
+    return out;
   }
 
   /** Pesquisa no YouTube (Data API v3); só com YOUTUBE_API_KEY. */
