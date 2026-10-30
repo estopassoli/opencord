@@ -6,7 +6,7 @@ import { useData } from '../../store/data';
 import { api, describeError, markTargetRead } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
-import { CreatorTag, isCreator, roleColorOf } from './MemberList';
+import { CreatorTag, roleColorOf, useCreatorId } from './MemberList';
 import { ProfileButton } from './ProfileButton';
 import { ActivityHint } from '../voice/WatchTogether';
 import { Tooltip } from '../../components/Tooltip';
@@ -49,6 +49,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   const voiceChannel = useVoice((s) => s.machine.channelId);
   const me = useData((s) => s.me?.id);
   const aliases = useAliases();
+  const creatorId = useCreatorId(detail);
   // arrastar alguém da voz para outro canal de voz (MOVE_MEMBERS; a si mesmo, qualquer um)
   const [drag, setDrag] = useState<{ userId: string; from: string } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
@@ -269,7 +270,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                           const m = memberName(v.userId);
                           const name = aliases?.[v.userId] ?? m?.nickname ?? m?.user.displayName ?? 'Alguém';
                           const draggable = v.userId === me || canMove;
-                          const creator = isCreator(detail, v.userId);
+                          const creator = v.userId === creatorId;
                           return (
                             <li
                               key={v.userId}

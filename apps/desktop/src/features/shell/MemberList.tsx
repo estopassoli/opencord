@@ -14,8 +14,12 @@ export function roleColorOf(detail: ServerDetail, m: Member | undefined): string
   );
 }
 
-/** Servidor oficial: quem criou o OpenCord (o dono do oficial) ganha o selo de verificado. */
-export const isCreator = (detail: ServerDetail, userId: string) => detail.official && detail.ownerId === userId;
+/** Quem criou o OpenCord (o dono do servidor oficial): selo de verificado em qualquer servidor. */
+export function useCreatorId(detail: ServerDetail | undefined): string | null {
+  const fromInstance = useData((s) => s.instance?.creatorId ?? null);
+  // API antiga sem `creatorId`: no oficial ainda dá para saber pelo dono
+  return fromInstance ?? (detail?.official ? detail.ownerId : null);
+}
 
 /** Selo "criador" com o ícone de verificado; `iconOnly` (voz) mostra só o ícone. */
 export function CreatorTag({ iconOnly }: { iconOnly?: boolean }) {
@@ -39,17 +43,19 @@ export function MemberList({ serverId }: { serverId: string }) {
   const meId = useData((s) => s.me?.id);
   const myStatus = useData((s) => s.myStatus);
   const aliases = useAliases();
+  const creatorId = useCreatorId(detail);
   if (!detail) return null;
 
   const status = (id: string): PresenceStatus =>
     id === meId ? (myStatus === 'invisible' ? 'offline' : myStatus) : (presence[id] ?? 'offline');
   const hoisted = detail.roles.filter((r) => !r.isEveryone).sort((a, b) => b.position - a.position);
-  // servidor oficial: quem criou o OpenCord (o dono do oficial) fica sempre no topo, online ou não
-  const creator = detail.official ? detail.members.find((m) => m.user.id === detail.ownerId) : undefined;
-  const others = creator ? detail.members.filter((m) => m !== creator) : detail.members;
+  // quem criou o OpenCord tem o selo em qualquer servidor; no oficial fica sempre no topo, online ou não
+  const creator = creatorId ? detail.members.find((m) => m.user.id === creatorId) : undefined;
+  const pinned = detail.official ? creator : undefined;
+  const others = pinned ? detail.members.filter((m) => m !== pinned) : detail.members;
   const online = others.filter((m) => status(m.user.id) !== 'offline');
   const offline = others.filter((m) => status(m.user.id) === 'offline');
-  const groups: { title: string; members: Member[] }[] = creator ? [{ title: 'Criador', members: [creator] }] : [];
+  const groups: { title: string; members: Member[] }[] = pinned ? [{ title: 'Criador', members: [pinned] }] : [];
   const placed = new Set<string>();
   for (const r of hoisted) {
     const ms = online.filter((m) => m.roleIds.includes(r.id) && !placed.has(m.user.id));

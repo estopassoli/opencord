@@ -15,6 +15,7 @@ const CACHE_MS = 5_000;
 export class InstanceService {
   private readonly log = new Logger('Instance');
   private cache: { row: InstanceConfig | null; at: number } | null = null;
+  private creator: { id: string | null; at: number } | null = null;
 
   constructor(
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
@@ -34,6 +35,15 @@ export class InstanceService {
 
   invalidate() {
     this.cache = null;
+    this.creator = null;
+  }
+
+  /** Dono do servidor oficial: o criador do OpenCord. */
+  async creatorId(): Promise<string | null> {
+    if (this.creator && Date.now() - this.creator.at < CACHE_MS) return this.creator.id;
+    const s = await this.prisma.server.findFirst({ where: { official: true }, select: { ownerId: true } });
+    this.creator = { id: s?.ownerId ?? null, at: Date.now() };
+    return this.creator.id;
   }
 
   async registrationOpen(): Promise<boolean> {
@@ -61,6 +71,7 @@ export class InstanceService {
       registrationOpen: row?.registrationOpen ?? true,
       announcement: this.announcementOf(row),
       uploadMaxBytes: await this.uploadMaxBytes(),
+      creatorId: await this.creatorId(),
     };
   }
 }
