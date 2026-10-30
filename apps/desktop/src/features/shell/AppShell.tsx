@@ -17,6 +17,7 @@ import { TitleBar } from './TitleBar';
 import { UserDock } from './UserDock';
 import { PopoutStage, VoiceStage } from '../voice/VoiceStage';
 import { PopoutPortal } from '../voice/popout';
+import { MediaViewer } from '../chat/MediaViewer';
 import { ConnectionBanner } from './ConnectionBanner';
 
 /** Layout: rail de servidores | sidebar (canais/DMs + dock) | conteúdo | membros. Cada região rola de forma independente. */
@@ -173,6 +174,7 @@ export function AppShell() {
         </div>
       )}
       <Modals />
+      <MediaViewer />
       <ContextMenuHost />
       {popped && (
         <PopoutPortal key={popped}>
