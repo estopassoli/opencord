@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '23:50',
+    kind: 'correção',
+    icon: 'verified',
+    title: 'Selo de verificado do criador em todos os servidores',
+    body: 'O selo de verificado de quem criou o OpenCord aparecia só no servidor oficial. Agora ele aparece em qualquer servidor, na lista de membros e na lista de quem está na voz.',
+  },
+  {
+    date: '2026-10-30',
     time: '23:45',
     kind: 'correção',
     icon: 'chat',

@@ -59,6 +59,8 @@ export const InstanceInfo = z.object({
   announcement: InstanceAnnouncement.nullable().default(null),
   /** limite de upload em vigor (bytes) */
   uploadMaxBytes: z.number().int().positive().optional(),
+  /** quem criou o OpenCord (dono do servidor oficial): selo de verificado em qualquer servidor */
+  creatorId: z.string().uuid().nullable().default(null),
 });
 export type InstanceInfo = z.infer<typeof InstanceInfo>;
 
