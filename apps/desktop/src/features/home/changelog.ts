@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '22:45',
+    kind: 'melhoria',
+    icon: 'screen',
+    title: 'Live a 60 fps de verdade',
+    body: 'A captura da tela perdia alguns quadros e a live ficava em torno de 57 fps. Agora ela acompanha o conteúdo de perto: cerca de 59,5 quadros por segundo diferentes chegam a quem assiste, com ou sem cena.',
+  },
+  {
+    date: '2026-10-30',
     time: '22:30',
     kind: 'correção',
     icon: 'window-maximize',

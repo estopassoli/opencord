@@ -534,7 +534,10 @@ export class VoiceEngine {
       video: {
         width: { ideal: profile.width },
         height: { ideal: profile.height },
-        frameRate: { ideal: profile.fps, max: profile.fps },
+        // captura no DOBRO do fps da live; o limite fica no envio (maxFramerate). Pedindo só 60, a captura olha a tela a
+        // cada 1/60 s e, com a variação de tempo, perde quadros novos: medido no E2E golive-fps, 57,7 quadros distintos
+        // no espectador com 60 pedidos × 59,5 com 120 (conteúdo a 60 e a 120 fps, com e sem cena).
+        frameRate: { ideal: profile.fps * 2, max: profile.fps * 2 },
       },
       // restrictOwnAudio: exclui as vozes da chamada tocadas pelo próprio OpenCord (evita eco para quem assiste)
       audio: withAudio
