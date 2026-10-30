@@ -72,7 +72,7 @@ export function FriendsPanel({ forceCompact }: { forceCompact?: boolean }) {
             sec.list.length > 0 && (
               <section key={sec.id}>
                 {compact ? (
-                  <span className="friends-panel-sep" title={sec.title}>
+                  <span className="friends-panel-sep" data-tip={sec.title}>
                     <Icon name={sec.icon} size={14} label={sec.title} />
                   </span>
                 ) : (

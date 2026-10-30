@@ -158,7 +158,7 @@ export function Composer({
       {uploads.length > 0 && (
         <ul className="composer-uploads" aria-label="Anexos">
           {uploads.map((u) => (
-            <li key={u.id} className="upload-chip" data-status={u.status} title={u.error}>
+            <li key={u.id} className="upload-chip" data-status={u.status} data-tip={u.error}>
               <Icon name={u.status === 'error' ? 'warning' : 'attach'} size={14} />
               <span className="truncate">{u.file.name}</span>
               <span className="small muted">
@@ -181,7 +181,7 @@ export function Composer({
             <button
               className="icon-btn"
               aria-label="Anexar arquivo"
-              title="Anexar arquivo"
+              data-tip="Anexar arquivo"
               onClick={() => fileInput.current?.click()}
             >
               <Icon name="plus-circle" />
@@ -216,7 +216,7 @@ export function Composer({
         <button
           className="icon-btn"
           aria-label="Enviar"
-          title="Enviar (Enter)"
+          data-tip="Enviar (Enter)"
           onClick={send}
           disabled={!draft.trim() && !uploads.some((u) => u.status === 'done')}
         >

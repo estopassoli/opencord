@@ -145,7 +145,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
             className="icon-btn"
             aria-pressed={dmProfile}
             aria-label={dmProfile ? 'Ocultar perfil do usuário' : 'Mostrar perfil do usuário'}
-            title={dmProfile ? 'Ocultar perfil do usuário' : 'Mostrar perfil do usuário'}
+            data-tip={dmProfile ? 'Ocultar perfil do usuário' : 'Mostrar perfil do usuário'}
             onClick={() => useUi.getState().setDmProfile(!dmProfile)}
           >
             <Icon name="user" />
@@ -156,7 +156,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
             className="icon-btn"
             aria-pressed={friendsPanel !== 'hidden'}
             aria-label="Mostrar amigos"
-            title={friendsPanel === 'hidden' ? 'Mostrar amigos' : 'Ocultar amigos'}
+            data-tip={friendsPanel === 'hidden' ? 'Mostrar amigos' : 'Ocultar amigos'}
             onClick={() => useUi.getState().setFriendsPanel(friendsPanel === 'hidden' ? 'open' : 'hidden')}
           >
             <Icon name="users" />
@@ -167,7 +167,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
             className="icon-btn"
             aria-pressed={mobile ? membersPanel : showMembers}
             aria-label="Mostrar membros"
-            title="Lista de membros"
+            data-tip="Lista de membros"
             onClick={() =>
               mobile ? useUi.getState().setPanel(membersPanel ? 'none' : 'members') : useUi.getState().toggleMembers()
             }

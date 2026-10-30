@@ -206,7 +206,7 @@ export const MessageItem = memo(function MessageItem({
         <div className="msg-body">
           {renderRich(m.body, nameOf)}
           {m.editedAt && (
-            <span className="msg-edited" title={new Date(m.editedAt).toLocaleString()}>
+            <span className="msg-edited" data-tip={new Date(m.editedAt).toLocaleString()}>
               {' '}
               (editada)
             </span>
@@ -263,7 +263,7 @@ export const MessageItem = memo(function MessageItem({
               aria-pressed={r.me}
               disabled={!canReact && !r.me}
               onClick={() => react(r.emoji, !r.me)}
-              title={r.userIds.map(nameOf).join(', ')}
+              data-tip={r.userIds.map(nameOf).join(', ')}
             >
               <span>{r.emoji}</span> <span>{r.count}</span>
             </button>

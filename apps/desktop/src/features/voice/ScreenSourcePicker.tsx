@@ -117,7 +117,7 @@ export function ScreenSourcePicker({ onClose }: { onClose: () => void }) {
             <button
               className="icon-btn golive-refresh"
               aria-label="Atualizar lista"
-              title="Atualizar lista"
+              data-tip="Atualizar lista"
               onClick={refresh}
             >
               <Icon name="refresh" />

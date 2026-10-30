@@ -7,6 +7,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { GlobalTips } from '../../components/GlobalTips';
 import { useUi } from '../../store/ui';
 
 export const POPOUT_NAME = 'opencord-live';
@@ -90,5 +91,13 @@ export function PopoutPortal({ children }: { children: ReactNode }) {
   useEffect(() => {
     setTarget(popup?.document.getElementById('oc-popout') ?? null);
   }, []);
-  return target ? createPortal(children, target) : null;
+  return target
+    ? createPortal(
+        <>
+          {children}
+          <GlobalTips doc={target.ownerDocument} />
+        </>,
+        target,
+      )
+    : null;
 }

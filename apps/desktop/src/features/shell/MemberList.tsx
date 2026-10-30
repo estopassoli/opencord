@@ -45,7 +45,7 @@ export function MemberList({ serverId }: { serverId: string }) {
                     {m.nickname ?? m.user.displayName}
                   </span>
                   {detail.ownerId === m.user.id && (
-                    <span className="owner-tag" title="Proprietário">
+                    <span className="owner-tag" data-tip="Proprietário">
                       dono
                     </span>
                   )}

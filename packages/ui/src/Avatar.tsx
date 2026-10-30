@@ -67,7 +67,7 @@ export function Avatar({ id, name, size = 32, status, speaking, src }: AvatarPro
         )}
       </span>
       {status && (
-        <span className="oc-status" data-status={status} title={STATUS_LABEL[status]}>
+        <span className="oc-status" data-status={status} data-tip={STATUS_LABEL[status]}>
           <span className="oc-visually-hidden">{STATUS_LABEL[status]}</span>
         </span>
       )}

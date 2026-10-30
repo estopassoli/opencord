@@ -171,7 +171,7 @@ export function UserDock() {
             aria-haspopup="menu"
             aria-expanded={menu}
             onClick={() => setMenu((m) => !m)}
-            title="Alterar status"
+            data-tip="Alterar status"
           >
             <Avatar
               id={me.id}

@@ -122,7 +122,7 @@ export function HomeView() {
                         <button
                           className="round-btn"
                           aria-label={`Desbloquear ${u.displayName}`}
-                          title="Desbloquear"
+                          data-tip="Desbloquear"
                           onClick={() =>
                             act(
                               api()
