@@ -32,6 +32,19 @@ describe('mergeMessages', () => {
   });
 });
 
+describe('normalizeMessage', () => {
+  it('API mais antiga (sem fixar, enquete e cargos por reação) não quebra: completa com vazio', () => {
+    const {
+      pinnedAt: _p,
+      poll: _q,
+      reactionRoles: _r,
+      ...old
+    } = msg('00000000-0000-7000-8000-000000000009', '2026-01-01T00:00:00.000Z');
+    const [m] = mergeMessages([], [old as Message]);
+    expect(m).toMatchObject({ pinnedAt: null, poll: null, reactionRoles: [] });
+  });
+});
+
 describe('useMessages', () => {
   beforeEach(() => useMessages.getState().clear());
   it('evento duplicado/fora de ordem não duplica; reação calcula `me` localmente', () => {

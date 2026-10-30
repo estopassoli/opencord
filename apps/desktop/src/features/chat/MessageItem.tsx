@@ -3,7 +3,7 @@ import { Avatar, Icon, TextArea } from '@opencord/ui';
 import { memo, useEffect, useState, type KeyboardEvent } from 'react';
 import { useSession, api, describeError } from '../../store/session';
 import { useUi, type MediaItem } from '../../store/ui';
-import { keyOf, useData, useMessages, type TargetKey } from '../../store/data';
+import { keyOf, normalizeMessage, useData, useMessages, type TargetKey } from '../../store/data';
 import { openContextMenu } from '../../components/ContextMenu';
 import { ProfileButton } from '../shell/ProfileButton';
 import { renderRich } from './rich';
@@ -51,7 +51,7 @@ function openMediaFor(key: TargetKey, attachmentId: string) {
 }
 
 export const MessageItem = memo(function MessageItem({
-  message: m,
+  message: raw,
   grouped,
   meId,
   perms,
@@ -59,6 +59,8 @@ export const MessageItem = memo(function MessageItem({
   nameOf,
   mentionsMe,
 }: Props) {
+  // API mais antiga que o app pode não mandar os campos novos (ver normalizeMessage)
+  const m = normalizeMessage(raw);
   // edição controlada pelo store: permite "seta para cima" no composer abrir a edição da última mensagem
   const editing = useUi((st) => st.editing === m.id);
   const setEditing = (on: boolean) => useUi.getState().setEditing(on ? m.id : null);
