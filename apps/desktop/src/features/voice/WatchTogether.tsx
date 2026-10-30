@@ -99,7 +99,7 @@ export function ActivityTile({ large }: { large?: boolean }) {
         <button
           className="icon-btn"
           aria-label={large ? 'Voltar à grade' : 'Destacar vídeo'}
-          title={large ? 'Voltar à grade' : 'Destacar'}
+          data-tip={large ? 'Voltar à grade' : 'Destacar'}
           onClick={() => useUi.getState().focusStream(large ? null : 'activity')}
         >
           <Icon name={large ? 'grid' : 'spotlight'} />
@@ -203,7 +203,7 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
         <button
           className="icon-btn"
           aria-label={toggleLabel}
-          title={toggleLabel}
+          data-tip={toggleLabel}
           aria-disabled={groupPausedForMe || undefined}
           onClick={toggle}
         >
@@ -248,20 +248,20 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
           <button
             className="icon-btn yt-extra"
             aria-label="Trocar vídeo"
-            title="Trocar vídeo"
+            data-tip="Trocar vídeo"
             onClick={() => useUi.getState().openModal({ kind: 'watch-together' })}
           >
             <Icon name="refresh" />
           </button>
         ) : (
-          <span className="yt-owner muted small yt-extra" title={`Quem controla a reprodução: ${ownerName}`}>
+          <span className="yt-owner muted small yt-extra" data-tip={`Quem controla a reprodução: ${ownerName}`}>
             de {ownerName}
           </span>
         )}
         <button
           className="icon-btn yt-extra"
           aria-label="Sair do vídeo (só você)"
-          title="Sair do vídeo (só você)"
+          data-tip="Sair do vídeo (só você)"
           onClick={() => useActivity.getState().join(false)}
         >
           <Icon name="eye-off" />
@@ -270,7 +270,7 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
           <button
             className="icon-btn danger"
             aria-label="Encerrar para todos"
-            title="Encerrar para todos"
+            data-tip="Encerrar para todos"
             onClick={() => void useActivity.getState().stop()}
           >
             <Icon name="close" />
@@ -385,7 +385,7 @@ export function ActivityHint({ channelId }: { channelId: string }) {
   const a = useActivity((s) => s.channels[channelId]);
   if (!a) return null;
   return (
-    <span className="activity-hint truncate" title={a.title ?? 'Assistir juntos'}>
+    <span className="activity-hint truncate" data-tip={a.title ?? 'Assistir juntos'}>
       <Icon name="play" size={12} /> {a.title ?? 'Assistindo juntos'}
     </span>
   );

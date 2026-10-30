@@ -69,12 +69,12 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
         <button
           className="server-name"
           onClick={() => open({ kind: 'server-settings', serverId })}
-          title="Configurações do servidor"
+          data-tip="Configurações do servidor"
         >
           {(detail.official || detail.verified) && (
             <span
               className="verified-badge"
-              title={detail.official ? 'Servidor oficial verificado' : 'Servidor verificado'}
+              data-tip={detail.official ? 'Servidor oficial verificado' : 'Servidor verificado'}
             >
               <Icon
                 name="verified"
@@ -145,7 +145,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                   <button
                     className="icon-btn icon-btn-sm"
                     aria-label={`Criar canal em ${g.name}`}
-                    title="Criar canal"
+                    data-tip="Criar canal"
                     onClick={() => open({ kind: 'create-channel', serverId, channelKind: 'text', categoryId: g.id })}
                   >
                     <Icon name="plus" size={16} />

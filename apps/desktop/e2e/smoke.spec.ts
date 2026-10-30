@@ -205,6 +205,11 @@ test('rail: item ativo tem pílula alta e tooltip aparece no hover', async () =>
   await expect.poll(async () => active.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThan(30);
   await page.getByRole('button', { name: 'Explorar servidores' }).hover();
   await expect(page.getByRole('tooltip')).toHaveText('Explorar servidores');
+  // tooltips do app no lugar do title nativo (data-tip + GlobalTips)
+  const members = page.getByRole('button', { name: 'Mostrar membros' });
+  expect(await members.getAttribute('title')).toBeNull();
+  await members.hover();
+  await expect(page.getByRole('tooltip')).toHaveText('Lista de membros');
 });
 
 test('seta para cima no composer vazio edita a última mensagem própria', async () => {

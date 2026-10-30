@@ -175,7 +175,7 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
   if (!stats) return <span className="live-pill">AO VIVO</span>;
   if (stats.paused) {
     return (
-      <span className="live-badge stream-stats" title={STATS_HINT}>
+      <span className="live-badge stream-stats" data-tip={STATS_HINT}>
         <span className="live-badge-q">Em espera · ninguém assistindo</span>
         <span className="live-pill">AO VIVO</span>
       </span>
@@ -204,7 +204,7 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
     .filter(Boolean)
     .join(' · ');
   return (
-    <span className="live-badge stream-stats" title={details} aria-label={details}>
+    <span className="live-badge stream-stats" data-tip={details} aria-label={details}>
       <span className="live-badge-q">
         <Icon name="signal" size={14} />
         {stats.height ? `${stats.height}p` : '–'} {stats.fps ?? '–'} FPS
@@ -233,7 +233,7 @@ function WatchBadge({ identity }: { identity: string }) {
     .filter(Boolean)
     .join(' · ');
   return (
-    <span className="live-badge stream-stats" title={details} aria-label={details}>
+    <span className="live-badge stream-stats" data-tip={details} aria-label={details}>
       <span className="live-badge-q">
         <Icon name="signal" size={14} />
         {w.height}p {w.fps ?? '–'} FPS{w.kbps !== null ? ` · ${(w.kbps / 1000).toFixed(1)} Mb/s` : ''}
@@ -534,7 +534,7 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
             <button
               className="icon-btn"
               aria-label="Voltar para o app"
-              title="Voltar para o app"
+              data-tip="Voltar para o app"
               onClick={closeStreamWindow}
             >
               <Icon name="popin" />
@@ -543,7 +543,7 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
             <button
               className="icon-btn"
               aria-label="Abrir em nova janela"
-              title="Abrir em nova janela"
+              data-tip="Abrir em nova janela"
               onClick={() => {
                 useUi.getState().focusStream(p.identity);
                 openStreamWindow(p.identity);
@@ -556,7 +556,7 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
             <button
               className="icon-btn"
               aria-label="Destacar transmissão"
-              title="Destacar"
+              data-tip="Destacar"
               onClick={() => useUi.getState().focusStream(p.identity)}
             >
               <Icon name="spotlight" />
@@ -565,20 +565,20 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
             <button
               className="icon-btn"
               aria-label="Voltar à grade"
-              title="Voltar à grade"
+              data-tip="Voltar à grade"
               onClick={() => useUi.getState().focusStream(null)}
             >
               <Icon name="grid" />
             </button>
           )}
-          <button className="icon-btn" aria-label="Tela cheia" title="Tela cheia" onClick={fullscreen}>
+          <button className="icon-btn" aria-label="Tela cheia" data-tip="Tela cheia" onClick={fullscreen}>
             <Icon name="maximize" />
           </button>
           {!p.isLocal && (
             <button
               className="icon-btn"
               aria-label="Parar de assistir"
-              title="Parar de assistir"
+              data-tip="Parar de assistir"
               onClick={() => engineWatch(false)}
             >
               <Icon name="eye-off" />

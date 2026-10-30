@@ -479,7 +479,7 @@ function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
                       type="button"
                       className="icon-btn danger"
                       aria-label={`Expulsar ${name}`}
-                      title="Expulsar"
+                      data-tip="Expulsar"
                       onClick={() => void kick(m)}
                     >
                       <Icon name="user-minus" size={18} />
@@ -658,7 +658,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
           type="button"
           className="icon-btn danger"
           aria-label={`Excluir canal ${channel.name}`}
-          title="Excluir"
+          data-tip="Excluir"
           disabled={busy}
           onClick={() => void remove()}
         >

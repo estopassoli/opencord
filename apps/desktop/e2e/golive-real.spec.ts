@@ -109,11 +109,11 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
     const w = await v.evaluate((el: HTMLVideoElement) => `${el.videoWidth}x${el.videoHeight}`).catch(() => '?');
     const st = await A.page
       .locator('.stream-stats')
-      .getAttribute('title')
+      .getAttribute('data-tip')
       .catch(() => '?');
     const enc = await A.page
       .locator('.stream-stats')
-      .getAttribute('title')
+      .getAttribute('data-tip')
       .catch(() => '?');
     console.warn('GOLIVE_TRACE', i, w, st, '|', enc);
   }
@@ -231,11 +231,11 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
       'MOTION_FPS',
       i,
       `animação ${Math.round(((await animFrames()) - f0) / 3)} fps`,
-      (await A.page.locator('.stream-stats').getAttribute('title')) ?? '',
+      (await A.page.locator('.stream-stats').getAttribute('data-tip')) ?? '',
       '|',
       (await B.page.locator('.stream-stats').first().getAttribute('aria-label')) ?? '',
     );
-    const t = (await A.page.locator('.stream-stats').getAttribute('title')) ?? '';
+    const t = (await A.page.locator('.stream-stats').getAttribute('data-tip')) ?? '';
     captureFps = Number(/captura (\d+) fps/.exec(t)?.[1] ?? 0);
   }
   await A.app.evaluate(({ BrowserWindow }) => {
@@ -246,11 +246,11 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
 
   // métricas reais do encoder no publisher após alguns segundos
   await A.page.waitForTimeout(6000);
-  const stats = (await A.page.locator('.stream-stats').getAttribute('title')) ?? '';
+  const stats = (await A.page.locator('.stream-stats').getAttribute('data-tip')) ?? '';
   console.warn('GOLIVE_REAL', JSON.stringify({ viewerVideo: dims, publisher: stats }));
   expect(stats).toMatch(/Transmitindo \d+×\d+/);
   // H.264 nunca negocia Constrained Baseline (42e0xx), que o Chromium só codifica em software (preferHardwareH264)
-  const negotiated = (await A.page.locator('.stream-stats').getAttribute('title')) ?? '';
+  const negotiated = (await A.page.locator('.stream-stats').getAttribute('data-tip')) ?? '';
   test.info().annotations.push({ type: 'encoder', description: negotiated });
   if (/H264/.test(stats)) expect(negotiated).not.toMatch(/profile-level-id=42e0/i);
 
@@ -259,7 +259,9 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   await B.page.getByRole('button', { name: 'Parar de assistir' }).click();
   await expect(A.page.getByText('ninguém assistindo', { exact: false })).toBeVisible({ timeout: 20_000 });
   await B.page.getByRole('button', { name: 'Assistir', exact: true }).click();
-  await expect(A.page.locator('.stream-stats')).toHaveAttribute('title', /Transmitindo \d+×\d+/, { timeout: 20_000 });
+  await expect(A.page.locator('.stream-stats')).toHaveAttribute('data-tip', /Transmitindo \d+×\d+/, {
+    timeout: 20_000,
+  });
   await expect
     .poll(async () => v.evaluate((el: HTMLVideoElement) => el.videoWidth), { timeout: 20_000 })
     .toBeGreaterThan(640);

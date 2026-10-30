@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { AvatarProvider } from './components/AvatarProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Toasts } from './components/Toasts';
+import { GlobalTips } from './components/GlobalTips';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { AppShell } from './features/shell/AppShell';
 import { bridge } from './lib/bridge';
@@ -60,6 +61,7 @@ export function App() {
         </AvatarProvider>
       )}
       <Toasts />
+      <GlobalTips />
     </ErrorBoundary>
   );
 }

@@ -373,8 +373,10 @@ test('Go Live: A transmite a tela com áudio do sistema; B assiste; parar encerr
   }));
   expect(flicker).toEqual({ emptied: 0, sameSource: true });
   // métricas do publisher (encoder/fps) visíveis em A
-  await expect(A.page.locator('.stream-stats')).toHaveAttribute('title', /Transmitindo \d+×\d+/, { timeout: 10_000 });
-  const stats = (await A.page.locator('.stream-stats').getAttribute('title')) ?? '';
+  await expect(A.page.locator('.stream-stats')).toHaveAttribute('data-tip', /Transmitindo \d+×\d+/, {
+    timeout: 10_000,
+  });
+  const stats = (await A.page.locator('.stream-stats').getAttribute('data-tip')) ?? '';
   test.info().annotations.push({ type: 'publisher-stats', description: stats });
 
   // os dois transmitindo (relato real): B abre a própria live, que vai para o destaque; a de A fica na faixa

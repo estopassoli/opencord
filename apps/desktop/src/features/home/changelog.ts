@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '11:10',
+    kind: 'melhoria',
+    icon: 'eye',
+    title: 'Dicas no visual do app',
+    body: 'As dicas que apareciam ao passar o mouse com o balão padrão do sistema (botões da live, do Assistir juntos, da conversa, status e outros) agora usam o mesmo balão escuro do resto do OpenCord, também pelo teclado.',
+  },
+  {
+    date: '2026-10-30',
     time: '10:50',
     kind: 'novo',
     icon: 'server',
