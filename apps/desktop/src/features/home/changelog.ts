@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '20:00',
+    kind: 'novo',
+    icon: 'kanban',
+    title: 'Quadros kanban e canal de relatos',
+    body: 'Servidores ganharam um novo tipo de canal: o quadro, com as colunas Novo, Em análise, Em andamento e Resolvido. É só arrastar os cards entre elas. Um canal de texto pode alimentar um quadro, e cada mensagem enviada nele vira um card. No servidor oficial, o que você relatar em #reportar-bugs chega direto ao quadro da equipe.',
+  },
+  {
+    date: '2026-10-30',
+    time: '19:45',
+    kind: 'melhoria',
+    icon: 'verified',
+    title: 'Criador no topo do servidor oficial',
+    body: 'Na lista de membros do servidor OpenCord, quem criou o projeto aparece sempre no topo, com o selo de verificado.',
+  },
+  {
+    date: '2026-10-30',
     time: '19:30',
     kind: 'melhoria',
     icon: 'server',

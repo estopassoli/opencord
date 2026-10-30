@@ -359,6 +359,15 @@ function wireRealtime(rt: RealtimeClient) {
       const cur = d().voiceStates[e.userId];
       if (cur?.channelId === e.channelId) d().removeVoiceState(e.userId);
     });
+    // quadros kanban (ADR-0017): só chegam para quem vê o quadro
+    rt.on(
+      'board:card:upserted',
+      (c) => void import('./boards').then(({ useBoards }) => useBoards.getState().upsert(c)),
+    );
+    rt.on(
+      'board:card:deleted',
+      (e) => void import('./boards').then(({ useBoards }) => useBoards.getState().remove(e.boardId, e.cardId)),
+    );
     rt.on('voice:force-move', (e) => {
       void import('./voice').then(({ useVoice }) => {
         // só se ainda estou em voz neste servidor (evento atrasado após eu sair não me coloca de volta)

@@ -21,7 +21,7 @@ export interface ServerAccess {
 
 export interface ChannelAccess extends ServerAccess {
   channelId: string;
-  kind: 'text' | 'voice';
+  kind: 'text' | 'voice' | 'board';
   perms: number;
 }
 

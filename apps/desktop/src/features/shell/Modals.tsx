@@ -2,6 +2,7 @@ import type {
   AdminServerEntry,
   Category,
   Channel,
+  ChannelKind,
   DiscordImportPreview,
   Invite,
   InvitePreview,
@@ -573,7 +574,7 @@ function CreateCategory({ serverId, onClose }: { serverId: string; onClose: () =
 
 function CreateChannel({ modal, onClose }: { modal: Extract<Modal, { kind: 'create-channel' }>; onClose: () => void }) {
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<'text' | 'voice'>(modal.channelKind);
+  const [kind, setKind] = useState<ChannelKind>(modal.channelKind);
   const { busy, error, submit } = useSubmit(async () => {
     const c = await api().request<Channel>('POST', `/servers/${modal.serverId}/channels`, {
       name,
@@ -581,13 +582,13 @@ function CreateChannel({ modal, onClose }: { modal: Extract<Modal, { kind: 'crea
       categoryId: modal.categoryId,
     });
     useData.getState().upsertChannel(c);
-    if (c.kind === 'text') useUi.getState().go({ kind: 'server', serverId: modal.serverId, channelId: c.id });
+    if (c.kind !== 'voice') useUi.getState().go({ kind: 'server', serverId: modal.serverId, channelId: c.id });
     onClose();
   });
   return (
     <Dialog title="Criar canal" onClose={onClose}>
       <form onSubmit={submit} className="form">
-        <RadioGroup<'text' | 'voice'>
+        <RadioGroup<ChannelKind>
           label="Tipo de canal"
           variant="cards"
           value={kind}
@@ -595,6 +596,7 @@ function CreateChannel({ modal, onClose }: { modal: Extract<Modal, { kind: 'crea
           options={[
             { value: 'text', label: 'Texto', icon: 'hashtag', description: 'Mensagens, imagens e arquivos' },
             { value: 'voice', label: 'Voz', icon: 'speaker', description: 'Voz, vídeo e transmissão de tela' },
+            { value: 'board', label: 'Quadro', icon: 'kanban', description: 'Kanban com colunas e cards' },
           ]}
         />
         <TextField

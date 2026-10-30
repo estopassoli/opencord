@@ -56,7 +56,8 @@ export const channel = (
     id: string;
     serverId: string;
     categoryId: string | null;
-    kind: 'text' | 'voice';
+    kind: 'text' | 'voice' | 'board';
+    boardId?: string | null;
     name: string;
     topic: string | null;
     position: number;
@@ -72,6 +73,7 @@ export const channel = (
   topic: c.topic,
   position: c.position,
   myPermissions,
+  boardId: c.boardId ?? null,
   overrides: c.overrides.map((o) => ({
     subjectType: o.subjectType,
     subjectId: o.subjectId,

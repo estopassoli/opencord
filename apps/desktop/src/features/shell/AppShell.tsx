@@ -1,3 +1,4 @@
+import { BoardView } from '../board/BoardView';
 import { useEffect } from 'react';
 import { bridge } from '../../lib/bridge';
 import { useIsMobile } from '../../lib/media';
@@ -165,6 +166,7 @@ export function AppShell() {
         {view.kind === 'server' && channel?.kind === 'text' && (
           <ChatView key={channel.id} target={{ channelId: channel.id }} />
         )}
+        {view.kind === 'server' && channel?.kind === 'board' && <BoardView key={channel.id} channel={channel} />}
         {view.kind === 'server' && channel?.kind === 'voice' && (
           <VoiceStage channelId={channel.id} serverId={view.serverId} />
         )}

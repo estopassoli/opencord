@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  BoardCard,
   Channel,
   Category,
   Emoji,
@@ -130,6 +131,9 @@ export interface ServerEvents {
   'server:member:left': { serverId: string; userId: string; reason: 'left' | 'kicked' };
   'server:removed': { serverId: string; reason: 'kicked' | 'left' | 'deleted' };
   'channel:created': z.infer<typeof Channel>;
+  /** quadro kanban (sala do canal do quadro: só quem o vê recebe) */
+  'board:card:upserted': z.infer<typeof BoardCard>;
+  'board:card:deleted': { boardId: string; cardId: string };
   'channel:updated': z.infer<typeof Channel>;
   'channel:deleted': { serverId: string; channelId: string };
   'category:upserted': z.infer<typeof Category>;

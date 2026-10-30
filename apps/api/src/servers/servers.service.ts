@@ -627,7 +627,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     actorId: string,
     dto: {
       name: string;
-      kind: 'text' | 'voice';
+      kind: 'text' | 'voice' | 'board';
       categoryId?: string | null | undefined;
       topic?: string | null | undefined;
     },
@@ -670,6 +670,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       categoryId?: string | null | undefined;
       position?: number | undefined;
       overrides?: PermissionOverrideDto[] | undefined;
+      boardId?: string | null | undefined;
     },
   ): Promise<Channel> {
     const existing = await this.prisma.channel.findUnique({ where: { id: channelId } });
@@ -688,10 +689,18 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       const cat = await this.prisma.category.findFirst({ where: { id: dto.categoryId, serverId: existing.serverId } });
       if (!cat) throw new BadRequestException('categoria inválida');
     }
+    if (dto.boardId) {
+      // só canal de texto alimenta quadro, e o quadro precisa ser deste servidor (ADR-0017)
+      const board = await this.prisma.channel.findFirst({
+        where: { id: dto.boardId, serverId: existing.serverId, kind: 'board' },
+      });
+      if (!board || existing.kind !== 'text') throw new BadRequestException('quadro inválido');
+    }
     await this.prisma.$transaction(async (tx) => {
       await tx.channel.update({
         where: { id: channelId },
         data: {
+          ...(dto.boardId !== undefined ? { boardId: dto.boardId } : {}),
           ...(dto.name ? { name: dto.name } : {}),
           ...(dto.topic !== undefined ? { topic: dto.topic } : {}),
           ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),

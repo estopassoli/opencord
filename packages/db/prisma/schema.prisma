@@ -30,6 +30,7 @@ model User {
   ownedServers      Server[]             @relation("ServerOwner")
   invites           Invite[]
   sounds            SoundEffect[]
+  boardCards        BoardCard[]
   memberships       ServerMember[]
   messages          Message[]
   reactions         Reaction[]
@@ -170,6 +171,8 @@ model Category {
 enum ChannelKind {
   text
   voice
+  /// quadro kanban (ADR-0017): colunas de cards, sem mensagens
+  board
 }
 
 model Channel {
@@ -186,8 +189,44 @@ model Channel {
   overrides  ChannelPermissionOverride[]
   messages   Message[]
   readStates ReadState[]
+  /// canal de texto: cada mensagem nova vira card neste quadro (ADR-0017)
+  boardId    String?                     @db.Uuid
+  board      Channel?                    @relation("BoardFeed", fields: [boardId], references: [id], onDelete: SetNull)
+  feeds      Channel[]                   @relation("BoardFeed")
+  cards      BoardCard[]                 @relation("BoardCards")
+  sourced    BoardCard[]                 @relation("BoardCardSource")
 
   @@index([serverId])
+}
+
+enum BoardColumn {
+  new
+  triage
+  doing
+  done
+}
+
+/// Card de um quadro kanban (ADR-0017). Nasce de uma mensagem do canal que alimenta o quadro ou é criado à mão.
+model BoardCard {
+  id              String      @id @default(uuid(7)) @db.Uuid
+  boardId         String      @db.Uuid
+  column          BoardColumn @default(new)
+  /// ordem dentro da coluna (menor = mais acima)
+  position        Float
+  title           String
+  body            String      @default("")
+  reporterId      String?     @db.Uuid
+  /// mensagem de origem
+  messageId       String?     @unique @db.Uuid
+  sourceChannelId String?     @db.Uuid
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+  board           Channel     @relation("BoardCards", fields: [boardId], references: [id], onDelete: Cascade)
+  source          Channel?    @relation("BoardCardSource", fields: [sourceChannelId], references: [id], onDelete: SetNull)
+  reporter        User?       @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+  message         Message?    @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([boardId, column, position])
 }
 
 enum OverrideSubject {
@@ -256,6 +295,7 @@ model Message {
   replies        Message[]     @relation("Replies")
   attachments    Attachment[]
   reactions      Reaction[]
+  boardCard      BoardCard?
 
   @@unique([authorId, requestId])
   @@index([channelId, createdAt, id])

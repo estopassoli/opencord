@@ -273,6 +273,11 @@ export function ChatView({ target }: { target: ChatTarget }) {
           </span>
         )}
       </div>
+      {channel?.boardId && (
+        <p className="board-feed-hint muted small">
+          <Icon name="kanban" size={14} /> Cada mensagem aqui vira um card no quadro da equipe.
+        </p>
+      )}
       {canSend ? (
         <Composer
           target={target}
