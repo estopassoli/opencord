@@ -73,3 +73,12 @@ Monitorar ICE candidate failures, RTT, jitter, packet loss, bitrate, encode FPS,
   - buffer de recepção das lives de 200 ms (`jitterBufferTarget`), para o reenvio de pacotes perdidos chegar antes de congelar;
   - o selo mostra o fps de captura, o transporte (UDP/TCP, host/srflx/relay) e o RTT.
 - **Ainda não validado em máquinas reais com jogo:** o relato do Tiago (AMD) e as travadas do theuzin (rede). Status: BLOQUEADO PARA VALIDAÇÃO.
+
+## Perfil exato (2026-10-30)
+- Relato: com 1080p60 escolhido, a live saía a 42 fps e 8,1 Mb/s, exatamente o teto da época; com 720p30, saía a 24 fps.
+- O WebRTC, em `maintain-resolution`, descartava quadros para caber no teto.
+- **Agora:**
+  - `maintain-framerate-and-resolution`, aplicado com `setParameters` depois de publicar (se não for suportado, fica `maintain-resolution`);
+  - tetos de 6, 20 e 30 Mbps.
+- **E2E golive-real:** o Chromium do Electron 44 aceita o modo (o selo mostra "fps e resolução fixos") e o fps enviado acompanha o capturado.
+- **Limite físico:** se a banda de subida de quem transmite não comporta o perfil, a imagem perde nitidez (QP maior), mas fps e resolução ficam.

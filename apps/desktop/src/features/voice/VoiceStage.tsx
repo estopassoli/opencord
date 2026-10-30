@@ -186,6 +186,11 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
       stats.hardware ? ' (hardware)' : stats.hardware === false ? ' (software)' : ''
     }`,
     stats.captureFps !== null ? `captura ${stats.captureFps} fps` : null,
+    stats.degradation === 'maintain-framerate-and-resolution'
+      ? 'fps e resolução fixos'
+      : stats.degradation
+        ? `sob pressão: ${stats.degradation}`
+        : null,
     stats.kbps !== null ? `${(stats.kbps / 1000).toFixed(1)} Mb/s` : null,
     stats.transport ? `conexão ${stats.transport}${stats.rttMs !== null ? ` (${stats.rttMs} ms)` : ''}` : null,
     stats.limitation && stats.limitation !== 'none'

@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '04:10',
+    kind: 'correção',
+    icon: 'screen',
+    title: 'A live sai no FPS e na resolução escolhidos',
+    body: 'A transmissão não troca mais FPS nem resolução quando a cena pesa: 1080p 60 fps sai como 1080p 60 fps. O limite de bitrate subiu (até 20 Mbps em 1080p60 e 30 Mbps em 1440p60); se a internet de quem transmite não aguentar, a imagem perde um pouco de nitidez, mas não trava nem encolhe.',
+  },
+  {
+    date: '2026-10-30',
     time: '03:50',
     kind: 'correção',
     icon: 'server',

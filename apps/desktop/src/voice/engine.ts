@@ -74,6 +74,8 @@ export interface MediaStats {
     transport: string | null;
     /** RTT até a SFU (ms) */
     rttMs: number | null;
+    /** o que o WebRTC sacrifica sob pressão (maintain-framerate-and-resolution = nada) */
+    degradation: string | null;
   };
   /** recepção da live em destaque (lado de quem assiste): diagnostica onde a qualidade cai */
   watching?: {
@@ -550,6 +552,7 @@ export class VoiceEngine {
       await this.stopStream();
       throw e;
     }
+    await lockFramerateAndResolution(video);
     this.stopPreview = startPreviewSender(this.room, v, (img) => this.cb.onStreamPreview?.(img));
     this.emit();
     return { audioPublished: Boolean(audio) };
@@ -784,6 +787,9 @@ export class VoiceEngine {
           captureFps,
           transport,
           rttMs,
+          degradation:
+            (this.screen.video.sender?.getParameters() as { degradationPreference?: string } | undefined)
+              ?.degradationPreference ?? null,
         };
       }
     }
@@ -872,6 +878,24 @@ function preferHardwareH264() {
     }
     return (createOffer as (...a: unknown[]) => Promise<RTCSessionDescriptionInit>).apply(this, args);
   } as typeof createOffer;
+}
+
+/**
+ * A live sai exatamente no perfil escolhido: sem trocar fps nem resolução sob pressão (o encoder comprime mais o
+ * quadro). Aplicado depois de publicar: se este Chromium não conhece o valor, a live segue em maintain-resolution.
+ */
+async function lockFramerateAndResolution(track: LocalVideoTrack) {
+  const sender = track.sender;
+  if (!sender) return;
+  try {
+    const params = sender.getParameters();
+    await sender.setParameters({
+      ...params,
+      degradationPreference: 'maintain-framerate-and-resolution' as RTCDegradationPreference,
+    });
+  } catch {
+    /* valor não suportado: fica o publicado (maintain-resolution) */
+  }
 }
 
 /** Folga do buffer de recepção das lives (ms): cobre o RTT do reenvio de pacotes perdidos. */
