@@ -3,18 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { Avatar, avatarColor, Icon, ICON_NAMES, initials } from './index.js';
 
 describe('Icon', () => {
-  it('renderiza outline e solid sobrepostos e é decorativo sem label', () => {
+  it('renderiza um svg do Hugeicons e é decorativo sem label', () => {
     const { container } = render(<Icon name="microphone" />);
     const span = container.querySelector('.oc-icon') as HTMLElement;
     expect(span.getAttribute('aria-hidden')).toBe('true');
-    expect(span.querySelectorAll('svg.oc-icon-outline')).toHaveLength(1);
-    expect(span.querySelectorAll('svg.oc-icon-solid')).toHaveLength(1);
+    expect(span.querySelectorAll('svg')).toHaveLength(1);
   });
-  it('com label vira role=img; active e slashed viram data-attrs', () => {
-    const { getByRole } = render(<Icon name="microphone" label="Microfone mutado" active slashed />);
+  it('com label vira role=img; active vira data-attr; microfone desligado tem ícone próprio', () => {
+    const { getByRole, container } = render(<Icon name="microphone" label="Microfone mutado" active slashed />);
     const img = getByRole('img', { name: 'Microfone mutado' });
     expect(img.dataset.active).toBe('true');
-    expect(img.dataset.slashed).toBe('true');
+    // o microfone desligado usa o ícone dedicado, sem o traço diagonal
+    expect(img.dataset.slashed).toBeUndefined();
+    const on = container.ownerDocument.createElement('div');
+    on.innerHTML = render(<Icon name="microphone" />).container.innerHTML;
+    expect(img.querySelector('svg')?.innerHTML).not.toBe(on.querySelector('svg')?.innerHTML);
+  });
+  it('outros ícones desligados ganham o traço diagonal', () => {
+    const { container } = render(<Icon name="speaker" slashed />);
+    expect((container.querySelector('.oc-icon') as HTMLElement).dataset.slashed).toBe('true');
   });
   it('todos os nomes renderizam', () => {
     for (const n of ICON_NAMES) expect(() => render(<Icon name={n} />)).not.toThrow();

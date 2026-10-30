@@ -314,9 +314,6 @@ importers:
       react-dom:
         specifier: 19.1.10
         version: 19.1.10(react@19.1.10)
-      react-icons:
-        specifier: 5.7.0
-        version: 5.7.0(react@19.1.10)
       socket.io-client:
         specifier: 4.8.3
         version: 4.8.3(supports-color@7.2.0)
@@ -413,12 +410,15 @@ importers:
 
   packages/ui:
     dependencies:
+      '@hugeicons/core-free-icons':
+        specifier: 4.4.0
+        version: 4.4.0
+      '@hugeicons/react':
+        specifier: 1.1.10
+        version: 1.1.10(react@19.1.10)
       '@opencord/contracts':
         specifier: workspace:*
         version: link:../contracts
-      react-icons:
-        specifier: 5.7.0
-        version: 5.7.0(react@19.1.10)
     devDependencies:
       '@testing-library/react':
         specifier: 16.3.3
@@ -1009,6 +1009,14 @@ packages:
 
   '@fontsource-variable/inter@5.3.0':
     resolution: {integrity: sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==}
+
+  '@hugeicons/core-free-icons@4.4.0':
+    resolution: {integrity: sha512-7Mz8bmGoY6tZ6l3C2TXwNMLVSr0I8HPwjjFIERAuJFj3rWwLxdF2ZLkDqdrVuEE1dx5b/VXyIsP4WoSU6Q40KQ==}
+
+  '@hugeicons/react@1.1.10':
+    resolution: {integrity: sha512-9tAsd92yMVVGP+E+d8cM+wc0VnXuYZHNbWQi7TOe8k2neawmhiaFmVFbzyruejhOMa197/LbgvSED32ayUo3ZA==}
+    peerDependencies:
+      react: '>=16.0.0'
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -2849,11 +2857,6 @@ packages:
     peerDependencies:
       react: ^19.1.10
 
-  react-icons@5.7.0:
-    resolution: {integrity: sha512-LBLy340Rzqy6+/yVhZKT3B/QpP1BZaesGqasf09HPOBzRarcDIFH0WwXlXQfE7q7ipxK4MSiC5DIBWURCny6fw==}
-    peerDependencies:
-      react: '*'
-
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
 
@@ -4247,6 +4250,12 @@ snapshots:
       toad-cache: 3.7.4
 
   '@fontsource-variable/inter@5.3.0': {}
+
+  '@hugeicons/core-free-icons@4.4.0': {}
+
+  '@hugeicons/react@1.1.10(react@19.1.10)':
+    dependencies:
+      react: 19.1.10
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -6167,10 +6176,6 @@ snapshots:
     dependencies:
       react: 19.1.10
       scheduler: 0.26.0
-
-  react-icons@5.7.0(react@19.1.10):
-    dependencies:
-      react: 19.1.10
 
   react-is@17.0.2: {}
 

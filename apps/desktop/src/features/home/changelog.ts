@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '15:10',
+    kind: 'melhoria',
+    icon: 'activities',
+    title: 'Ícones novos',
+    body: 'Todos os ícones do app foram trocados por um conjunto novo, mais legível: ondas de áudio para a supressão de ruído, megafone para os efeitos sonoros, formas para as atividades e outros. Ao passar o mouse, o traço do ícone fica mais forte.',
+  },
+  {
+    date: '2026-10-30',
     time: '14:45',
     kind: 'correção',
     icon: 'speaker',
