@@ -1064,6 +1064,11 @@ textarea:focus-visible {
 .msg-pending[data-failed='true'] .msg-body {
   color: var(--danger-text);
 }
+/* "Falha ao enviar" na coluna do texto (sem isso caía na coluna do avatar, de 56 px, uma palavra por linha) */
+.msg-pending > .link-btn {
+  grid-column: 2;
+  justify-self: start;
+}
 .msg-actions {
   position: absolute;
   right: 16px;

@@ -127,7 +127,19 @@ export class ApiClient {
   private async parse<T>(res: Response): Promise<T> {
     if (res.status === 204) return undefined as T;
     const text = await res.text();
-    const data: unknown = text ? JSON.parse(text) : null;
+    let data: unknown = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      // HTML do proxy (502/503/504 enquanto o servidor reinicia numa atualização) ou outra resposta que não é JSON:
+      // antes aparecia na tela como "Unexpected token '<', "<!DOCTYPE"… is not valid JSON"
+      throw new ApiError(
+        res.status,
+        res.status >= 502 && res.status <= 504
+          ? 'O servidor está reiniciando (atualização ou instabilidade). Tentando de novo em instantes…'
+          : `Resposta inesperada do servidor (erro ${res.status}).`,
+      );
+    }
     if (!res.ok) {
       const d = (data ?? {}) as { message?: string | string[]; details?: unknown };
       const msg = Array.isArray(d.message) ? d.message.join('; ') : (d.message ?? `erro ${res.status}`);

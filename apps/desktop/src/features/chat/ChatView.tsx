@@ -81,6 +81,13 @@ export function ChatView({ target }: { target: ChatTarget }) {
     void load(false);
   }, [load]);
 
+  // falhou ao carregar (ex.: servidor reiniciando numa atualização): tenta de novo sozinho a cada 5 s
+  useEffect(() => {
+    if (!loadError) return;
+    const t = setTimeout(() => void load(false), 5000);
+    return () => clearTimeout(t);
+  }, [loadError, load]);
+
   // marcar como lido ao ver o fim da conversa
   const last = timeline?.messages.at(-1);
   useEffect(() => {
