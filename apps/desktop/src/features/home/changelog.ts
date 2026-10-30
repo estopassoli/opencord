@@ -36,14 +36,6 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '23:30',
-    kind: 'novo',
-    icon: 'shield',
-    title: 'Painel admin da instância',
-    body: 'Para super admins, um escudo na barra de servidores abre o painel: números da instância, todos os servidores, usuários (suspender, encerrar sessões, tornar super admin), cadastro aberto ou fechado, aviso em faixa para todo mundo, limite de upload e a auditoria de tudo.',
-  },
-  {
-    date: '2026-10-30',
     time: '23:15',
     kind: 'melhoria',
     icon: 'screen',
