@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '03:50',
+    kind: 'correção',
+    icon: 'server',
+    title: 'Imagem do servidor redonda de novo',
+    body: 'A imagem do servidor na barra lateral ficava oval; agora preenche o botão certinho. O visualizador de imagens também não fica mais por baixo dos botões da janela.',
+  },
+  {
+    date: '2026-10-30',
     time: '03:25',
     kind: 'novo',
     icon: 'link',
