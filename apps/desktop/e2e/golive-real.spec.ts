@@ -123,6 +123,17 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
   const dims = await v.evaluate((el: HTMLVideoElement) => ({ w: el.videoWidth, h: el.videoHeight }));
   console.warn('PERF_VIEWER', JSON.stringify(await perf(B.page)));
   console.warn('PERF_STREAMER', JSON.stringify(await perf(A.page)));
+  // diagnóstico de GPU (relato: transições lentas assistindo/transmitindo): aceleração e decoder do espectador
+  console.warn('GPU_STATUS', JSON.stringify(await B.app.evaluate(({ app }) => app.getGPUFeatureStatus())));
+  await B.page.waitForTimeout(2500);
+  console.warn(
+    'VIEWER_BADGE',
+    await B.page
+      .locator('.stream-stats')
+      .first()
+      .getAttribute('aria-label')
+      .catch(() => null),
+  );
   // o vídeo inteiro cabe no card (antes ficava mais alto que o card e o topo/rodapé da tela eram cortados)
   const fit = await v.evaluate((el: HTMLVideoElement) => {
     const r = el.getBoundingClientRect();

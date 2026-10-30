@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '01:05',
+    kind: 'correção',
+    icon: 'screen',
+    title: 'Live com jogo pesado: captura direto na GPU',
+    body: 'A captura da tela passa a entregar cada quadro direto na placa de vídeo, sem cópia intermediária. Com um jogo usando a GPU inteira, essa cópia ficava na fila e a live podia cair para poucos FPS.',
+  },
+  {
+    date: '2026-10-30',
+    time: '01:00',
+    kind: 'correção',
+    icon: 'server',
+    title: 'Barra de servidores: selo e imagens alinhados',
+    body: 'O número de menções no botão de mensagens diretas não fica mais cortado, e servidores com imagem não mostram mais um aro colorido torto em volta.',
+  },
+  {
+    date: '2026-10-30',
     time: '00:45',
     kind: 'melhoria',
     icon: 'signal',
