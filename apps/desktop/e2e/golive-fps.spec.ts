@@ -173,6 +173,37 @@ const num = (o: unknown, k: string) => {
   return typeof v === 'number' ? v : 0;
 };
 
+/**
+ * Latência real de interação em quem transmite: cliques de verdade (Playwright) e o Event Timing do Chromium,
+ * que mede do evento até a tela ser pintada de novo (inclui o atraso do compositor/GPU, não só o JavaScript).
+ */
+async function uiLatency(label: string) {
+  await A.page.evaluate(() => {
+    const w = window as unknown as { __evt: number[] };
+    w.__evt = [];
+    new PerformanceObserver((l) => {
+      for (const e of l.getEntries()) if (e.name === 'pointerup' || e.name === 'click') w.__evt.push(e.duration);
+    }).observe({ type: 'event', durationThreshold: 16, buffered: false } as PerformanceObserverInit);
+  });
+  const btn = A.page.locator('.dock').getByRole('button', { name: /^(Silenciar|Ativar) microfone$/ });
+  for (let i = 0; i < 10; i++) {
+    await btn.click();
+    await A.page.waitForTimeout(250);
+  }
+  await A.page.waitForTimeout(500);
+  const d = await A.page.evaluate(() => (window as unknown as { __evt: number[] }).__evt);
+  const sorted = [...d].sort((a, b) => a - b);
+  console.warn(
+    'UI_LAT',
+    label,
+    JSON.stringify({
+      slowEvents: d.length,
+      medianMs: sorted[Math.floor(sorted.length / 2)] ?? 0,
+      maxMs: sorted.at(-1) ?? 0,
+    }),
+  );
+}
+
 async function startLive(bitrate: string, scene: 'Sem cena' | 'Só a tela') {
   await A.page.locator('.dock').getByRole('button', { name: 'Transmitir', exact: true }).click();
   const dialog = A.page.getByRole('dialog', { name: 'Transmitir' });
@@ -255,6 +286,52 @@ async function measure(label: string, secs: number) {
     readerLast: (r1 as { last?: number } | null)?.last,
     readerSample: (r1 as { sample?: string } | null)?.sample,
   };
+  // fluidez da interface de quem transmite: quadros desenhados por segundo, tarefas longas e atraso de timers
+  const ui = await A.page.evaluate(
+    () =>
+      new Promise<{ rafFps: number; longTasks: number; longMs: number; maxLateMs: number }>((resolve) => {
+        let longTasks = 0;
+        let longMs = 0;
+        const po = new PerformanceObserver((l) => {
+          for (const e of l.getEntries()) {
+            longTasks++;
+            longMs += e.duration;
+          }
+        });
+        po.observe({ type: 'longtask', buffered: false });
+        let frames = 0;
+        let maxLate = 0;
+        let expected = performance.now() + 50;
+        const id = setInterval(() => {
+          maxLate = Math.max(maxLate, performance.now() - expected);
+          expected = performance.now() + 50;
+        }, 50);
+        const t0 = performance.now();
+        const tick = () => {
+          frames++;
+          if (performance.now() - t0 < 3000) requestAnimationFrame(tick);
+          else {
+            po.disconnect();
+            clearInterval(id);
+            resolve({
+              rafFps: Math.round((frames * 1000) / (performance.now() - t0)),
+              longTasks,
+              longMs: Math.round(longMs),
+              maxLateMs: Math.round(maxLate),
+            });
+          }
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  const cpu = await A.app.evaluate(({ app }) =>
+    app
+      .getAppMetrics()
+      .filter((m) => m.cpu.percentCPUUsage > 1)
+      .map((m) => `${m.type}:${Math.round(m.cpu.percentCPUUsage)}%`)
+      .join(' '),
+  );
+  console.warn('UI_A', label, JSON.stringify(ui), cpu);
   console.warn('FPS_ROW', JSON.stringify(row));
   return row;
 }
@@ -264,6 +341,7 @@ test('1080p60: medição por etapa (direta e com cena, bitrates)', async () => {
   await A.page.locator('.dock').getByRole('button', { name: 'Silenciar microfone', exact: true }).click();
   await joinVoice(A.page);
   await joinVoice(B.page);
+  await uiLatency('sem live');
   const rows = [];
   let patternOpen = false;
   // OC_FPS_PHASES="12:Sem cena,20:Só a tela" limita as fases (diagnóstico rápido)
@@ -297,6 +375,14 @@ test('1080p60: medição por etapa (direta e com cena, bitrates)', async () => {
     await A.page.waitForTimeout(8000);
     rows.push(await measure(`${scene} ${bitrate} Mbps`, 10));
     rows.push(await measure(`${scene} ${bitrate} Mbps (2)`, 10));
+    await uiLatency(`live ${scene} ${bitrate} (vendo a própria live)`);
+    if (rows.length === 2) {
+      // mesma live, mas quem transmite olha um canal de texto (nenhum vídeo na tela)
+      await A.page.getByRole('button', { name: /geral/ }).first().click();
+      await A.page.waitForTimeout(1500);
+      await uiLatency(`live ${scene} ${bitrate} (canal de texto)`);
+      await A.page.getByRole('button', { name: 'Sala' }).first().click();
+    }
     if (rows.length === 2) {
       // diagnóstico num clique (selo de quem assiste): mede 5 s e copia
       await B.app.evaluate(({ clipboard }) => clipboard.writeText(''));
