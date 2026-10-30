@@ -46,6 +46,8 @@ test('janela segura: sem Node no renderer e bridge mínima exposta', async () =>
     'notify',
     'on',
     'openExternal',
+    'prefs',
+    'relaunch',
     'secure',
     'setBadge',
     'setShortcuts',
@@ -72,6 +74,21 @@ test('IPC rejeita argumentos inválidos', async () => {
     }
   });
   expect(err).not.toBe('aceitou');
+  // preferências do app: schema estrito (campo extra ou tipo errado é recusado)
+  const prefsErr = await page.evaluate(async () => {
+    const b = (window as unknown as { opencord: { prefs: { set(p: unknown): Promise<unknown> } } }).opencord;
+    const out: string[] = [];
+    for (const bad of [{ hardwareAcceleration: 'sim' }, { hardwareAcceleration: true, extra: 1 }]) {
+      try {
+        await b.prefs.set(bad);
+        out.push('aceitou');
+      } catch {
+        out.push('recusou');
+      }
+    }
+    return out;
+  });
+  expect(prefsErr).toEqual(['recusou', 'recusou']);
 });
 
 test('entrar só com apelido → servidor padrão → canal → enviar mensagem', async () => {
