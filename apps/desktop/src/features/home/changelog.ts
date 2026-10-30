@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '19:15',
+    kind: 'melhoria',
+    icon: 'camera',
+    title: 'Clique na câmera para ampliar',
+    body: 'Na chamada, clicar no quadro da câmera de alguém agora coloca a câmera em destaque, como acontece com as transmissões; as outras pessoas ficam na faixa embaixo. Clique de novo para voltar à grade. Pelo teclado, Enter ou Espaço.',
+  },
+  {
+    date: '2026-10-30',
     time: '19:00',
     kind: 'novo',
     icon: 'speaker',

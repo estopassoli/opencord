@@ -72,12 +72,19 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   const streamers = participants.filter((p) => p.hasScreen);
   const focus = streamers.find((p) => p.identity === focused && p.watchingScreen) ?? null;
   const activityFocused = Boolean(activity) && focused === 'activity';
+  const camFocus = participants.find((p) => p.hasCamera && focused === camKey(p.identity)) ?? null;
 
   return (
     <section className="stage" aria-label={`Chamada em ${channel?.name ?? ''}`} ref={stageRef}>
       <StageHeader channelName={channel?.name ?? ''} focus={focus} activity={activityFocused} mobile />
       {activityFocused ? (
         <FocusLayout main={<ActivityTile large />} participants={participants} />
+      ) : camFocus ? (
+        <FocusLayout
+          main={<ParticipantTile p={camFocus} large />}
+          excludeCam={camFocus.identity}
+          participants={participants}
+        />
       ) : focus ? (
         <FocusLayout main={<StreamTile p={focus} large />} exclude={focus.identity} participants={participants} />
       ) : (
@@ -254,11 +261,14 @@ function WatchBadge({ identity }: { identity: string }) {
 function FocusLayout({
   main,
   exclude,
+  excludeCam,
   participants,
 }: {
   main: ReactNode;
   /** quem transmite não se repete na faixa (a não ser com câmera) */
   exclude?: string;
+  /** câmera em destaque: o quadro dela sai da faixa (a live da pessoa, se houver, continua) */
+  excludeCam?: string;
   participants: ParticipantView[];
 }) {
   const hidden = useUi((s) => s.stripHidden);
@@ -289,7 +299,7 @@ function FocusLayout({
               </li>
             ))}
           {participants
-            .filter((p) => (p.identity !== exclude || p.hasCamera) && ownTile(p))
+            .filter((p) => (p.identity !== exclude || p.hasCamera) && p.identity !== excludeCam && ownTile(p))
             .map((p) => (
               <li key={p.identity}>
                 <ParticipantTile p={p} compact />
@@ -403,7 +413,12 @@ function Video({ identity, source, mirrored }: { identity: string; source: 'came
   return <video ref={ref} autoPlay playsInline muted className={mirrored ? 'video mirrored' : 'video'} />;
 }
 
-function ParticipantTile({ p, compact }: { p: ParticipantView; compact?: boolean }) {
+/** Chave de destaque da câmera (o destaque da live usa o id da pessoa; o da atividade, 'activity'). */
+const camKey = (identity: string) => `cam:${identity}`;
+
+function ParticipantTile({ p, compact, large }: { p: ParticipantView; compact?: boolean; large?: boolean }) {
+  // câmera: clique amplia (destaque, como a live); em destaque, clique volta para a grade
+  const toggle = p.hasCamera ? () => useUi.getState().focusStream(large ? null : camKey(p.identity)) : undefined;
   // botão direito no card: o mesmo menu da pessoa na lista do canal (perfil, volume, silenciar, moderação)
   const menu = (e: React.MouseEvent) => {
     const serverId = useVoice.getState().serverId ?? undefined;
@@ -416,6 +431,23 @@ function ParticipantTile({ p, compact }: { p: ParticipantView; compact?: boolean
     <div
       className="tile"
       onContextMenu={menu}
+      data-large={large ? 'true' : undefined}
+      data-focusable={toggle ? 'true' : undefined}
+      role={toggle ? 'button' : undefined}
+      tabIndex={toggle ? 0 : undefined}
+      aria-label={
+        toggle ? (large ? `Voltar para a grade (câmera de ${p.name})` : `Ampliar a câmera de ${p.name}`) : undefined
+      }
+      onClick={toggle ? (e) => e.button === 0 && toggle() : undefined}
+      onKeyDown={
+        toggle
+          ? (e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              toggle();
+            }
+          : undefined
+      }
       data-speaking={p.speaking ? 'true' : undefined}
       data-compact={compact ? 'true' : undefined}
       style={p.hasCamera ? undefined : ({ '--tile-bg': avatarColor(p.identity) } as React.CSSProperties)}

@@ -3980,8 +3980,12 @@ a.rail-item {
     transition: none;
   }
 }
-.tile-stream[data-focusable='true'] {
+.tile-stream[data-focusable='true'],
+.tile[data-focusable='true'] {
   cursor: pointer;
+}
+.tile[role='button']:focus-visible {
+  outline-color: var(--focus-ring);
 }
 
 /* "Em atividade": prévias das lives (imagem publicada por quem transmite); um clique entra e assiste */
