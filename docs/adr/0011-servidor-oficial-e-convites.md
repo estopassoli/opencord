@@ -29,6 +29,19 @@ O mantenedor relatou que outros usuários viam o servidor que ele tinha acabado 
   - O app guarda o código (sessionStorage) e abre a tela de entrada já em "só apelido". Depois de entrar, mostra o convite e o botão Entrar.
   - Sem `PUBLIC_APP_URL`, volta a mostrar só o código. No desktop, colar o link em "Tenho um convite" também funciona.
 
+## Atualização (2026-10-30): ninguém sai do oficial e conteúdo inicial
+Pedido do mantenedor: "Ninguem pode sair desse servidor, todo membro novo, automaticamente entra nesse servidor", e o servidor bem populado.
+- `POST /servers/:id/leave` recusa (400) o servidor oficial para todos, e o app esconde "Sair do servidor" nele. Expulsar continua existindo como moderação; quem é expulso pode voltar pelo diretório.
+- A entrada automática de identidades novas continua por `joinAllServers`.
+- `packages/db/src/seed-official.ts` monta o oficial. É idempotente e pode rodar de novo a cada leva de novidades. Ele:
+  - cria as categorias Informações, Comunidade, OpenCord, Jogos e Voz, com canais de texto e voz;
+  - deixa os canais de Informações só para leitura (override no @everyone tirando SEND_MESSAGES);
+  - cria os cargos Equipe OpenCord (o dono), Moderação e Contribuidor;
+  - posta as mensagens fixas da equipe e uma mensagem por entrada do changelog em #novidades, com a data da entrada;
+  - coloca no oficial quem ainda não estava.
+- Ele escreve direto no banco, sem eventos em tempo real: quem está com o app aberto precisa recarregar.
+- Reversão: as mensagens do seed têm requestId determinístico, gerado por `stableId` no script. Canais, categorias e cargos são removidos pela interface.
+
 ## Consequências
 - **Deploy:** a migração precisa rodar em produção (`prisma migrate deploy`). Ela é aditiva (coluna com padrão e tabela nova), então pode rodar antes da API nova. Já a API nova falha nas consultas de servidor até a migração rodar.
 - **Reversão:** `DROP TABLE "Invite"; ALTER TABLE "Server" DROP COLUMN "official";` e voltar à versão anterior da API.

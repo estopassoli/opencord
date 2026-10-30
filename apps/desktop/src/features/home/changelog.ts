@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '19:30',
+    kind: 'melhoria',
+    icon: 'server',
+    title: 'Servidor oficial de casa nova',
+    body: 'O servidor OpenCord ganhou canais de boas-vindas, regras, anúncios e novidades, espaços para comunidade, ajuda, sugestões, bugs e jogos, e várias salas de voz. Todo mundo que entra no OpenCord já faz parte dele, e ele não pode mais ser deixado.',
+  },
+  {
+    date: '2026-10-30',
     time: '19:15',
     kind: 'melhoria',
     icon: 'camera',

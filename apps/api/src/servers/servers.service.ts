@@ -188,6 +188,9 @@ export class ServersService {
     const access = await this.perms.server(serverId, userId);
     if (access.ownerId === userId)
       throw new BadRequestException('o proprietário não pode sair; transfira ou exclua o servidor');
+    // o oficial é a casa de todo mundo na instância: entra-se automaticamente e não se sai (ADR-0011)
+    const server = await this.prisma.server.findUnique({ where: { id: serverId }, select: { official: true } });
+    if (server?.official) throw new BadRequestException('não é possível sair do servidor oficial');
     await this.prisma.serverMember.delete({ where: { serverId_userId: { serverId, userId } } });
     await this.audit.log(userId, serverId, 'member.leave', userId, {});
     this.events.emit({ type: 'member.removed', serverId, userId, reason: 'left' });

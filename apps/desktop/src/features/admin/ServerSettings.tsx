@@ -189,7 +189,7 @@ function OverviewTab({ detail, isOwner, onClose }: { detail: ServerDetail; isOwn
         )}
       </Section>
 
-      {!isOwner && (
+      {!isOwner && !detail.official && (
         <Section title="Sair do servidor" description="Você precisará de um novo convite para voltar.">
           <Button variant="danger" size="sm" disabled={busy} onClick={() => void leave()}>
             Sair do servidor

@@ -106,8 +106,8 @@ export async function register(http: Http, name?: string): Promise<Client> {
 /** Usuário que NÃO é membro de nenhum servidor (saiu de todos): para testar acesso negado. */
 export async function outsider(http: Http): Promise<Client> {
   const c = await register(http);
-  const servers = await http.req<{ id: string }[]>('GET', '/servers', { token: c.token });
-  for (const s of servers.body) await http.req('POST', `/servers/${s.id}/leave`, { token: c.token });
+  // ninguém sai do oficial pela API (ADR-0011): o "de fora" é montado direto no banco
+  await prisma.serverMember.deleteMany({ where: { userId: c.id } });
   return c;
 }
 

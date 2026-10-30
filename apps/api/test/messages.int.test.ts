@@ -253,9 +253,8 @@ describe('amigos, bloqueios e DMs (RF-04)', () => {
   it('DM exige amizade ou servidor em comum', async () => {
     const { alice } = await setup();
     const stranger = await outsider(http);
-    // alice também sai do servidor: sem servidor em comum e sem amizade
-    for (const sv of (await http.req<{ id: string }[]>('GET', '/servers', { token: alice.token })).body)
-      await http.req('POST', `/servers/${sv.id}/leave`, { token: alice.token });
+    // alice também fica sem servidor (do oficial não se sai pela API): sem servidor em comum e sem amizade
+    await prisma.serverMember.deleteMany({ where: { userId: alice.id } });
     expect(
       (await http.req('POST', '/conversations', { token: alice.token, body: { userIds: [stranger.id] } })).status,
     ).toBe(403);
