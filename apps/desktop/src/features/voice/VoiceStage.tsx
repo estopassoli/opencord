@@ -418,7 +418,8 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
       ) : watching ? (
         <Video identity={p.identity} source="screen" />
       ) : (
-        <div className="stream-cover">
+        <div className="stream-cover" data-preview={p.previewUrl ? 'true' : undefined}>
+          {p.previewUrl && <img className="stream-preview" src={p.previewUrl} alt="" draggable={false} />}
           <span className="live-pill">AO VIVO</span>
           <p>{p.name} está transmitindo</p>
           <Button icon="play" onClick={() => engineWatch(true)}>

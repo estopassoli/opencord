@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
+    time: '23:55',
+    kind: 'novo',
+    icon: 'screen',
+    title: 'Prévia das transmissões',
+    body: 'Antes de clicar em Assistir, o card da live mostra uma prévia da tela de quem transmite, atualizada a cada poucos segundos.',
+  },
+  {
+    date: '2026-10-29',
     time: '23:45',
     kind: 'novo',
     icon: 'verified',

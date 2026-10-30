@@ -3768,3 +3768,28 @@ a.rail-item {
 .sidebar-invite {
   flex: none;
 }
+
+/* prévia da transmissão (miniatura enviada por quem transmite, ADR-0012) atrás do "Assistir" */
+.stream-cover[data-preview='true'] {
+  position: absolute;
+  inset: 0;
+  align-content: center;
+  z-index: 0;
+}
+.stream-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  z-index: -1;
+  filter: brightness(0.55);
+  transition: filter var(--dur) var(--ease);
+}
+.tile-stream:hover .stream-preview {
+  filter: brightness(0.75);
+}
+.stream-cover[data-preview='true'] > p {
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.8);
+}
