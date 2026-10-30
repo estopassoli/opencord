@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '02:35',
+    kind: 'melhoria',
+    icon: 'screen',
+    title: 'Quem transmite vira uma bolha sobre a live',
+    body: 'Em vez de dois quadros (a live e o perfil), quem está transmitindo aparece só na própria live, com a foto numa bolha que acende quando a pessoa fala, mostra o mute e flutua de leve com o mouse.',
+  },
+  {
+    date: '2026-10-30',
     time: '02:20',
     kind: 'novo',
     icon: 'users',

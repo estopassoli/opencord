@@ -32,7 +32,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   // ref por estado: a grade monta e desmonta ao alternar com a live em destaque, e a medição precisa acompanhar
   const [gridEl, setGridEl] = useState<HTMLUListElement | null>(null);
   const tileCount = here
-    ? participants.filter((p) => p.hasScreen).length + participants.length + (activity ? 1 : 0)
+    ? participants.filter((p) => p.hasScreen).length + participants.filter(ownTile).length + (activity ? 1 : 0)
     : 0;
   useTileGrid(gridEl, tileCount);
 
@@ -87,7 +87,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
               <StreamTile p={p} />
             </li>
           ))}
-          {participants.map((p) => (
+          {participants.filter(ownTile).map((p) => (
             <li key={p.identity}>
               <ParticipantTile p={p} />
             </li>
@@ -274,7 +274,7 @@ function FocusLayout({
               </li>
             ))}
           {participants
-            .filter((p) => p.identity !== exclude || p.hasCamera)
+            .filter((p) => (p.identity !== exclude || p.hasCamera) && ownTile(p))
             .map((p) => (
               <li key={p.identity}>
                 <ParticipantTile p={p} compact />
@@ -285,6 +285,39 @@ function FocusLayout({
     </div>
   );
 }
+
+/** Quem transmite sem câmera não ganha quadro próprio: aparece como bolha sobre a live (menos quadros no canal). */
+const ownTile = (p: ParticipantView) => !p.hasScreen || p.hasCamera;
+
+/** Bolha do avatar de quem transmite, sobre a live: acende ao falar, mostra o mute e flutua com o mouse (parallax). */
+function StreamerBubble({ p, size = 44 }: { p: ParticipantView; size?: number }) {
+  return (
+    <span
+      className="streamer-bubble"
+      data-speaking={p.speaking ? 'true' : undefined}
+      aria-label={`${p.name}${p.micMuted ? ', microfone desligado' : ''}${p.speaking ? ', falando' : ''}`}
+      role="img"
+    >
+      <Avatar id={p.identity} name={p.name} size={size} speaking={p.speaking} />
+      {p.micMuted && (
+        <span className="streamer-bubble-muted">
+          <Icon name="microphone" size={12} slashed />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Parallax leve: a posição do mouse no card vira --px/--py (-1..1), sem re-renderizar. */
+const parallax = (e: React.PointerEvent<HTMLElement>) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty('--px', (((e.clientX - r.left) / r.width) * 2 - 1).toFixed(3));
+  e.currentTarget.style.setProperty('--py', (((e.clientY - r.top) / r.height) * 2 - 1).toFixed(3));
+};
+const parallaxReset = (e: React.PointerEvent<HTMLElement>) => {
+  e.currentTarget.style.setProperty('--px', '0');
+  e.currentTarget.style.setProperty('--py', '0');
+};
 
 /** Transmissão na faixa sob o destaque: miniatura "AO VIVO"; clique assiste e põe em destaque. */
 function StripStream({ p }: { p: ParticipantView }) {
@@ -300,6 +333,7 @@ function StripStream({ p }: { p: ParticipantView }) {
       onClick={open}
     >
       {p.watchingScreen ? <Video identity={p.identity} source="screen" /> : <Icon name="screen" size={28} />}
+      {!p.hasCamera && <StreamerBubble p={p} size={28} />}
       <span className="tile-label">
         <span className="live-pill">AO VIVO</span>
         <span className="truncate">{p.isLocal ? 'Sua transmissão' : p.name}</span>
@@ -438,7 +472,10 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
       ref={box}
       data-large={large ? 'true' : undefined}
       data-focusable={!inPopout && !elsewhere ? 'true' : undefined}
+      data-speaking={p.speaking && !p.hasCamera ? 'true' : undefined}
       onContextMenu={menu}
+      onPointerMove={parallax}
+      onPointerLeave={parallaxReset}
       // clique esquerdo: na grade, coloca a live em destaque (e começa a assistir, se ainda não estava); em destaque,
       // volta para a grade (fora da tela cheia). Os botões do card fazem o mesmo pelo teclado.
       onClick={
@@ -475,6 +512,7 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
           </Button>
         </div>
       )}
+      {!p.hasCamera && <StreamerBubble p={p} size={large ? 56 : 44} />}
       <div className="tile-label">
         <span className="live-pill">AO VIVO</span>
         <span className="truncate">{p.isLocal ? 'Sua transmissão' : p.name}</span>
