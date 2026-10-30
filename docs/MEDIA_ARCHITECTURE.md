@@ -178,3 +178,11 @@ Medido no E2E `golive-fps` com conteúdo determinístico e quadros distintos lid
 - A queda entre perfis agora é explícita e mantém o fps: 1440p60 → 1080p60 → 720p30.
 - 1440p60 com H.264 passa a ser tentado (antes nunca era, porque o encoder é desconhecido antes de publicar).
 - Se o encoder observado 4 s depois for por software, a live desce para 1080p60 no próprio envio (`setParameters`), sem reiniciar.
+
+**Piso de bitrate no começo da live** (opção do mantenedor "forçar taxa mínima", testada e revertida)
+- `x-google-min-bitrate` e `x-google-start-bitrate` (6000 kb/s) foram escritos na oferta local **e** na resposta do servidor, conferidos no SDP aceito (`local: 6000, remote: 6000`).
+- Mesmo assim, na primeira live da chamada o alvo do encoder ficou em 1,4 Mb/s (estimativa de subida 1,8 Mb/s) e o fps em 9 → 2 nos primeiros segundos.
+- Com a conexão já aberta pelo áudio, este Chromium não aplica mínimo nem taxa inicial vindos de renegociação.
+- Caminhos que restam:
+  - reduzir a resolução enquanto a estimativa sobe (controle nosso, via `setParameters`);
+  - flags experimentais de sondagem de banda do WebRTC.
