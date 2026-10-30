@@ -93,3 +93,43 @@ Monitorar ICE candidate failures, RTT, jitter, packet loss, bitrate, encode FPS,
 - Modo intermediário `ui-software` (`disable-gpu-compositing`): a interface é composta no processador, e o processo de GPU segue com o encoder e o decoder de vídeo.
 - E2E `gpu-mode.spec.ts`: em ui-software, `gpu_compositing=disabled_software` e `video_encode`/`video_decode=enabled`; em full, tudo `enabled`; o formato antigo `{hardwareAcceleration:false}` continua sem aceleração.
 - **Não validado no PC do relato** (NVIDIA com jogo). Para reverter, escolha "Placa de vídeo para tudo".
+
+## Fluidez da live 1080p60, etapa por etapa (2026-10-30)
+Relato: live 1080p60 chegando a ~31 fps a 11,2 Mb/s (bitrate "equilibrada", 12 Mb/s), com o jogo a ~65 fps.
+
+**Método** (E2E `golive-fps.spec.ts`; Windows 11, NVIDIA, H.264 MediaFoundation por hardware, mesma máquina):
+- Um terceiro processo (no papel do jogo) mostra um padrão determinístico com 60 quadros distintos por segundo. O número do quadro aparece em 16 blocos, e o padrão fica **no monitor que a live captura de fato**. Esse monitor é identificado pelo `deviceId` da trilha. A ordem do seletor não é a do Windows: com 3 monitores, a primeira medição pegou o monitor errado e mostrou falsos "15 fps distintos".
+- Quem assiste fica em outro monitor, descoberto, e lê o número em cada quadro apresentado (`requestVideoFrameCallback`). Assim contamos quadros **distintos** exibidos, não só decodificados.
+- Taxas por diferença de contadores em janelas de 10 s:
+  - captura: `media-source.frames`;
+  - cena: `written`;
+  - envio: `framesEncoded`/`framesSent`;
+  - recepção: `framesReceived`/`framesDecoded`/`framesDropped`;
+  - apresentação: rVFC.
+
+**Resultados** (quadros por segundo):
+
+| Caso | Conteúdo | Captura | Codificados = enviados | Decodificados | Exibidos | Distintos no espectador | Enviado (Mb/s) |
+|---|---|---|---|---|---|---|---|
+| Barras, sem cena, 12 Mb/s | 60 | 57,7 | 57,7 | 57,7 | 56,6 | 54,5 | 2,9 |
+| Barras, sem cena, 20 Mb/s | 60 | 57,7 | 57,7 | 57,7 | 57,0 | 55,0 | 2,9 |
+| Barras, cena "Só a tela", 12 Mb/s | 60 | 57,7 | 57,7 | 57,7 | 55,4 | 53,3 | 3,0 |
+| Textura pesada, sem cena, 12 Mb/s | 60 | 57,8 | 57,7 | 57,9 | 56,2 | 54,5 | 8,3 |
+| Textura pesada, sem cena, 20 Mb/s | 60 | 57,8 | 57,8 | 57,8 | 56,6 | 54,6 | 19,4 |
+| Textura pesada, cena, 12 Mb/s | 60 | 57,7 | 57,7 | 57,7 | 55,8 | 53,8 | 11,8 |
+
+Observações gerais:
+- 0 quadros descartados no espectador em todos os casos.
+- `qualityLimitationReason: none` em todos os casos.
+- Codificação de 4–5,7 ms por quadro.
+- Os itens 1–6 do plano do maintainer foram seguidos. A flag `WebRTC-FrameDropper/Disabled/` foi testada contra um padrão de ruído puro, que é um teste extremo e não representativo. Ela não mudou nada e foi revertida.
+
+**Conclusão:**
+- Nesta máquina, o caminho inteiro sustenta ~55 quadros distintos/s em 1080p, com e sem cena. Isso vale mesmo usando todo o bitrate (11,8 de 12 Mb/s; 19,4 de 20 Mb/s).
+- O teto de bitrate não derrubou o fps. `maintain-framerate-and-resolution` está aplicado.
+- A queda do relato acontece em algo que este teste não reproduz: jogo em foco na máquina de quem transmite, CPU/GPU dela, rede (estimativa de banda) ou a máquina de quem assiste.
+
+**Próximo passo:**
+- Clicar no selo da live (de quem transmite e de quem assiste) mede 5 s e copia as taxas por etapa: captura, cena, codificação, envio, banda, recepção, decodificação, descarte e apresentação.
+- O teste real exigido no gate F4 continua pendente: dois Windows, jogo em foco, 5 min, com e sem cena.
+- 16 Mb/s não é um nível do app (os níveis de 1080p60 são 8/12/20); foram medidos 12 e 20.

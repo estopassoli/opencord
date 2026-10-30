@@ -18,6 +18,7 @@ import { sceneMenu } from './sceneMenu';
 import { useActivity } from '../../store/activity';
 import { useIsMobile } from '../../lib/media';
 import { bestTileWidth } from './tileLayout';
+import { copyLiveDiagnostics } from './liveDiag';
 import { memberMenu } from '../shell/ProfileButton';
 
 const NO_MEMBERS: Member[] = [];
@@ -217,7 +218,12 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
     .filter(Boolean)
     .join(' · ');
   return (
-    <span className="live-badge stream-stats" data-tip={details} aria-label={details}>
+    <button
+      className="live-badge stream-stats"
+      data-tip={`${details} · clique para copiar o diagnóstico`}
+      aria-label={details}
+      onClick={() => void copyLiveDiagnostics()}
+    >
       <span className="live-badge-q">
         <Icon name="signal" size={14} />
         {stats.height ? `${stats.height}p` : '–'} {stats.fps ?? '–'} FPS
@@ -225,7 +231,7 @@ function LiveBadge({ focus }: { focus: ParticipantView | null }) {
       </span>
       {audioUnavailable && <span className="warn-text small">sem áudio</span>}
       <span className="live-pill">AO VIVO</span>
-    </span>
+    </button>
   );
 }
 
@@ -246,14 +252,19 @@ function WatchBadge({ identity }: { identity: string }) {
     .filter(Boolean)
     .join(' · ');
   return (
-    <span className="live-badge stream-stats" data-tip={details} aria-label={details}>
+    <button
+      className="live-badge stream-stats"
+      data-tip={`${details} · clique para copiar o diagnóstico`}
+      aria-label={details}
+      onClick={() => void copyLiveDiagnostics()}
+    >
       <span className="live-badge-q">
         <Icon name="signal" size={14} />
         {w.height}p {w.fps ?? '–'} FPS{w.kbps !== null ? ` · ${(w.kbps / 1000).toFixed(1)} Mb/s` : ''}
         {bad ? <Icon name="warning" size={14} /> : null}
       </span>
       <span className="live-pill">AO VIVO</span>
-    </span>
+    </button>
   );
 }
 
