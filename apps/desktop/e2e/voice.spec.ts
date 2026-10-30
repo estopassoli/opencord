@@ -260,10 +260,10 @@ test('imagem do servidor: dono envia e a barra de servidores dos dois mostra na 
   await A.page.keyboard.press('Escape');
 });
 
-test('cartão de voz: status, 5 ações (inclui efeitos sonoros) e atalhos funcionam', async () => {
+test('cartão de voz: status, supressão de ruído no topo e 4 ações (câmera, tela, atividades, efeitos)', async () => {
   const dock = A.page.locator('.voice-dock');
   await expect(dock.getByText('Voz conectada')).toBeVisible();
-  await expect(dock.locator('.dock-action')).toHaveCount(5);
+  await expect(dock.locator('.dock-action')).toHaveCount(4);
   await dock.screenshot({ path: shot('13-cartao-voz') });
   const noise = dock.getByRole('button', { name: 'Supressão de ruído' });
   const before = await noise.getAttribute('aria-pressed');
@@ -271,12 +271,11 @@ test('cartão de voz: status, 5 ações (inclui efeitos sonoros) e atalhos funci
   await expect(noise).not.toHaveAttribute('aria-pressed', before ?? 'true');
   await noise.click();
   await expect(noise).toHaveAttribute('aria-pressed', before ?? 'true');
-  await dock.getByRole('button', { name: 'Configurações de voz' }).click();
-  await expect(A.page.getByRole('dialog').getByRole('tab', { name: 'Voz e vídeo' })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  // atividades pelo cartão: leva ao palco e abre o painel
+  await dock.getByRole('button', { name: 'Atividades' }).click();
+  await expect(A.page.getByRole('dialog', { name: 'Atividades' })).toBeVisible();
   await A.page.keyboard.press('Escape');
+  await expect(A.page.getByRole('dialog', { name: 'Atividades' })).toHaveCount(0);
 });
 
 test('mute é refletido para o outro participante', async () => {
@@ -452,7 +451,7 @@ test('Efeitos sonoros: A envia um som pelo painel da chamada, toca e B ouve; apa
 
 test('Música na chamada: A abre e cola um link do YouTube Music, B ouve, fila e pausa valem para todos', async () => {
   // processo com --mute-audio: toca mudo
-  await A.page.getByRole('button', { name: 'Atividades' }).click();
+  await A.page.locator('.call-controls').getByRole('button', { name: 'Atividades' }).click();
   await A.page
     .getByRole('dialog', { name: 'Atividades' })
     .getByRole('button', { name: /Música/ })
@@ -485,7 +484,7 @@ test('Música na chamada: A abre e cola um link do YouTube Music, B ouve, fila e
 test('Assistir juntos: A abre um vídeo por link, B entra, pausa sincroniza e encerrar some para os dois', async () => {
   // processo com --mute-audio: o vídeo toca mudo
   // botão "Atividades" abre o painel; o YouTube é uma das atividades
-  await A.page.getByRole('button', { name: 'Atividades' }).click();
+  await A.page.locator('.call-controls').getByRole('button', { name: 'Atividades' }).click();
   const panel = A.page.getByRole('dialog', { name: 'Atividades' });
   await expect(panel).toBeVisible();
   await A.page.screenshot({ path: shot('14-atividades') });

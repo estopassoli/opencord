@@ -1,7 +1,5 @@
 import type { IconType } from 'react-icons';
 import {
-  HiOutlinePuzzlePiece,
-  HiPuzzlePiece,
   HiOutlinePause,
   HiPause,
   HiFilm,
@@ -98,6 +96,9 @@ import {
   HiOutlineServer,
   HiOutlineShieldCheck,
   HiOutlineCheckBadge,
+  HiOutlineMegaphone,
+  HiOutlineAdjustmentsVertical,
+  HiOutlineSquaresPlus,
   HiOutlineUserCircle,
   HiOutlineSignal,
   HiOutlineSpeakerWave,
@@ -123,6 +124,9 @@ import {
   HiServer,
   HiShieldCheck,
   HiCheckBadge,
+  HiMegaphone,
+  HiAdjustmentsVertical,
+  HiSquaresPlus,
   HiUserCircle,
   HiSignal,
   HiSpeakerWave,
@@ -179,7 +183,7 @@ const ICONS = {
   film: [HiOutlineFilm, HiFilm],
   pause: [HiOutlinePause, HiPause],
   /** atividades da chamada */
-  activities: [HiOutlinePuzzlePiece, HiPuzzlePiece],
+  activities: [HiOutlineSquaresPlus, HiSquaresPlus],
   /** abrir em janela separada */
   popout: [HiOutlineArrowTopRightOnSquare, HiArrowTopRightOnSquare],
   /** devolver da janela separada */
@@ -191,6 +195,8 @@ const ICONS = {
   logout: [HiOutlineArrowRightStartOnRectangle, HiArrowRightStartOnRectangle],
   shield: [HiOutlineShieldCheck, HiShieldCheck],
   verified: [HiOutlineCheckBadge, HiCheckBadge],
+  soundboard: [HiOutlineMegaphone, HiMegaphone],
+  noise: [HiOutlineAdjustmentsVertical, HiAdjustmentsVertical],
   user: [HiOutlineUserCircle, HiUserCircle],
   link: [HiOutlineLink, HiLink],
   more: [HiOutlineEllipsisHorizontal, HiEllipsisHorizontal],

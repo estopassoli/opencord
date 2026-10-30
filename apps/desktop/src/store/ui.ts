@@ -72,6 +72,9 @@ interface UiState {
   openMedia(items: MediaItem[], index: number): void;
   closeMedia(): void;
   showMembers: boolean;
+  /** painel de atividades do palco (abre também pelo painel "Voz conectada") */
+  activitiesOpen: boolean;
+  setActivitiesOpen(on: boolean): void;
   /** painel de amigos nas mensagens diretas: aberto, só avatares ou escondido (lembrado neste computador) */
   friendsPanel: FriendsPanelMode;
   /** painel de perfil da outra pessoa nas DMs (lembrado neste computador) */
@@ -124,6 +127,8 @@ export const useUi = create<UiState>()((set) => ({
   openMedia: (items, index) => set({ media: { items, index } }),
   closeMedia: () => set({ media: null }),
   showMembers: true,
+  activitiesOpen: false,
+  setActivitiesOpen: (on) => set({ activitiesOpen: on }),
   dmProfile: readFlag(DM_PROFILE_KEY, true),
   setDmProfile: (v) => {
     try {

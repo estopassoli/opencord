@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '14:30',
+    kind: 'melhoria',
+    icon: 'soundboard',
+    title: 'Painel da chamada reorganizado',
+    body: 'O cartão "Voz conectada" ganhou quatro botões: câmera, transmitir tela, atividades e efeitos sonoros. A supressão de ruído foi para o topo, ao lado do botão de sair, e a qualidade da conexão aparece ao passar o mouse no ícone de sinal.',
+  },
+  {
+    date: '2026-10-30',
     time: '14:10',
     kind: 'melhoria',
     icon: 'activities',

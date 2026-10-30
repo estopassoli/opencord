@@ -26,7 +26,9 @@ describe('Avatar', () => {
     expect(initials('Ana Souza')).toBe('AS');
     expect(initials('bob')).toBe('BO');
     expect(avatarColor('x')).toBe(avatarColor('x'));
-    const { getByTitle } = render(<Avatar id="1" name="Ana" status="dnd" />);
-    expect(getByTitle('Não perturbe')).toBeTruthy();
+    const { getByText, container } = render(<Avatar id="1" name="Ana" status="dnd" />);
+    // status: texto para leitores de tela e dica do app (data-tip), sem o title nativo
+    expect(getByText('Não perturbe')).toBeTruthy();
+    expect(container.querySelector('[data-tip="Não perturbe"]')).toBeTruthy();
   });
 });
