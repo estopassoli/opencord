@@ -71,7 +71,7 @@ export function TitleBar() {
         c?.name ??
         c?.members
           .filter((m) => m.id !== s.me?.id)
-          .map((m) => m.displayName)
+          .map((m) => s.settings?.friendNicknames[m.id] ?? m.displayName)
           .join(', ');
       return name || 'Mensagem direta';
     }

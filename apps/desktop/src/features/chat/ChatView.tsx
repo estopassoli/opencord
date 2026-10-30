@@ -10,6 +10,7 @@ import { Composer } from './Composer';
 import { useDmPeer } from '../shell/DmProfilePanel';
 import { MessageItem } from './MessageItem';
 import { PinnedMessages } from './PinnedMessages';
+import { useAliases } from '../../lib/names';
 
 export type ChatTarget =
   { channelId: string; conversationId?: undefined } | { conversationId: string; channelId?: undefined };
@@ -18,6 +19,7 @@ const GROUP_MS = 7 * 60 * 1000;
 const path = (t: ChatTarget) => (t.channelId ? `/channels/${t.channelId}` : `/conversations/${t.conversationId}`);
 
 export function ChatView({ target }: { target: ChatTarget }) {
+  const aliases = useAliases();
   const key: TargetKey = keyOf(target);
   const timeline = useMessages((s) => s.timelines[key]);
   const meId = useData((s) => s.me?.id ?? '');
@@ -53,7 +55,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
       ? (conv.name ??
         conv.members
           .filter((m) => m.id !== meId)
-          .map((m) => m.displayName)
+          .map((m) => aliases?.[m.id] ?? m.displayName)
           .join(', '))
       : '';
 
@@ -122,10 +124,10 @@ export function ChatView({ target }: { target: ChatTarget }) {
 
   const nameOf = useMemo(() => {
     const map = new Map<string, string>();
-    for (const m of members ?? []) map.set(m.user.id, m.nickname ?? m.user.displayName);
-    for (const u of conv?.members ?? []) map.set(u.id, u.displayName);
+    for (const m of members ?? []) map.set(m.user.id, aliases?.[m.user.id] ?? m.nickname ?? m.user.displayName);
+    for (const u of conv?.members ?? []) map.set(u.id, aliases?.[u.id] ?? u.displayName);
     return (id: string) => map.get(id) ?? 'alguém';
-  }, [members, conv]);
+  }, [members, conv, aliases]);
 
   const typers = Object.entries(typing ?? {})
     .filter(([id, until]) => id !== meId && until > Date.now())

@@ -21,6 +21,7 @@ import { playSound } from '../lib/sounds';
 import { useActivity } from './activity';
 import { useMusic } from './music';
 import { useScenes } from './scenes';
+import { nameFor } from '../lib/names';
 
 interface VoiceStore {
   machine: VoiceState;
@@ -125,7 +126,9 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     const s = get();
     engine ??= new VoiceEngine(
       {
-        onParticipants: (participants) => {
+        onParticipants: (raw) => {
+          // apelido que dei à pessoa (só eu vejo) no lugar do nome que veio da sala
+          const participants = raw.map((p) => ({ ...p, name: nameFor(p.identity, p.name) }));
           soundsFor(participants);
           set({ participants });
         },

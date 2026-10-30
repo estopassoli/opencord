@@ -2,12 +2,14 @@ import type { Member, PresenceStatus } from '@opencord/contracts';
 import { Avatar, Icon } from '@opencord/ui';
 import { useData } from '../../store/data';
 import { ProfileButton } from './ProfileButton';
+import { useAliases } from '../../lib/names';
 
 export function MemberList({ serverId }: { serverId: string }) {
   const detail = useData((s) => s.details[serverId]);
   const presence = useData((s) => s.presence);
   const meId = useData((s) => s.me?.id);
   const myStatus = useData((s) => s.myStatus);
+  const aliases = useAliases();
   if (!detail) return null;
 
   const status = (id: string): PresenceStatus =>
@@ -28,8 +30,8 @@ export function MemberList({ serverId }: { serverId: string }) {
   const rest = online.filter((m) => !placed.has(m.user.id));
   if (rest.length) groups.push({ title: 'Online', members: rest });
   if (offline.length) groups.push({ title: 'Offline', members: offline });
-  const sortByName = (a: Member, b: Member) =>
-    (a.nickname ?? a.user.displayName).localeCompare(b.nickname ?? b.user.displayName);
+  const shown = (m: Member) => aliases?.[m.user.id] ?? m.nickname ?? m.user.displayName;
+  const sortByName = (a: Member, b: Member) => shown(a).localeCompare(shown(b));
   const roleColor = (m: Member) => hoisted.find((r) => m.roleIds.includes(r.id) && r.color)?.color ?? undefined;
 
   return (
@@ -49,7 +51,7 @@ export function MemberList({ serverId }: { serverId: string }) {
                 <ProfileButton userId={m.user.id} serverId={serverId} className="member-row">
                   <Avatar id={m.user.id} name={m.user.displayName} size={32} status={status(m.user.id)} />
                   <span className="truncate" style={{ color: roleColor(m) }}>
-                    {m.nickname ?? m.user.displayName}
+                    {shown(m)}
                   </span>
                   {m === creator ? (
                     <span className="creator-tag" data-tip="Criador do OpenCord">

@@ -632,6 +632,10 @@ export const UserSettingsV1 = z.object({
     })
     .prefault({}),
   perUserVolume: z.record(z.string(), z.number().min(0).max(2)).default({}),
+  /** apelido que EU dei a alguém (só eu vejo; vale em todo lugar, inclusive acima do apelido do servidor) */
+  friendNicknames: z.record(z.string(), z.string().trim().min(1).max(32)).default({}),
+  /** conversas diretas fixadas no topo da lista, na ordem em que foram fixadas */
+  pinnedConversations: z.array(z.string()).max(50).default([]),
   sidebarWidth: z.number().int().min(200).max(480).default(240),
 });
 export type UserSettingsV1 = z.infer<typeof UserSettingsV1>;

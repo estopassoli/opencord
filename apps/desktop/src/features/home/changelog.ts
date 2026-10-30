@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '21:30',
+    kind: 'novo',
+    icon: 'edit',
+    title: 'Menu das conversas diretas e apelido de amigo',
+    body: 'Clique com o botão direito numa conversa direta para fixá-la no topo da lista, ver o perfil, dar um apelido, convidar a pessoa para um servidor seu (o convite vai na conversa), desfazer a amizade ou bloquear. O apelido de amigo só você vê e aparece no lugar do nome em todo o OpenCord: conversas, mensagens, lista de membros e chamadas de todos os servidores. Também dá para dar apelido pelo menu da pessoa nos servidores e na lista de amigos.',
+  },
+  {
+    date: '2026-10-30',
     time: '21:00',
     kind: 'melhoria',
     icon: 'signal',

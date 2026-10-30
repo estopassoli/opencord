@@ -10,6 +10,7 @@ import { renderRich } from './rich';
 import { InviteEmbed, inviteCodesIn } from './InviteEmbed';
 import { PollCard } from './Poll';
 import type { ChatTarget } from './ChatView';
+import { nameFor } from '../../lib/names';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 
@@ -184,7 +185,8 @@ export const MessageItem = memo(function MessageItem({
             <em className="muted">mensagem excluída</em>
           ) : (
             <>
-              <strong>{m.replyTo.author?.displayName}</strong> <span className="truncate">{m.replyTo.bodyPreview}</span>
+              <strong>{m.replyTo.author ? nameOf(m.replyTo.author.id) : null}</strong>{' '}
+              <span className="truncate">{m.replyTo.bodyPreview}</span>
             </>
           )}
         </div>
@@ -199,7 +201,7 @@ export const MessageItem = memo(function MessageItem({
       {!grouped && (
         <header className="msg-head">
           <strong className="msg-author">
-            {nameOf(m.author.id) === 'alguém' ? m.author.displayName : nameOf(m.author.id)}
+            {nameOf(m.author.id) === 'alguém' ? nameFor(m.author.id, m.author.displayName) : nameOf(m.author.id)}
           </strong>
           <time dateTime={m.createdAt} className="msg-time">
             {time.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}

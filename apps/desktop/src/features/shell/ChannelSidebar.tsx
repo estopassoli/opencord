@@ -11,6 +11,7 @@ import { ActivityHint } from '../voice/WatchTogether';
 import { Tooltip } from '../../components/Tooltip';
 import { moveToVoice } from './voiceMove';
 import { CHANNEL_ICON, CHANNEL_ORDER } from '../../lib/channels';
+import { useAliases } from '../../lib/names';
 
 /** Categorias recolhidas (por id de categoria), lembradas neste dispositivo. */
 const COLLAPSED_KEY = 'oc:collapsed-categories';
@@ -46,6 +47,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   const speaking = useVoice((s) => s.participants);
   const voiceChannel = useVoice((s) => s.machine.channelId);
   const me = useData((s) => s.me?.id);
+  const aliases = useAliases();
   // arrastar alguém da voz para outro canal de voz (MOVE_MEMBERS; a si mesmo, qualquer um)
   const [drag, setDrag] = useState<{ userId: string; from: string } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
@@ -264,7 +266,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                       <ul className="voice-members" aria-label={`Pessoas em ${c.name}`}>
                         {inVoice.map((v) => {
                           const m = memberName(v.userId);
-                          const name = m?.nickname ?? m?.user.displayName ?? 'Alguém';
+                          const name = aliases?.[v.userId] ?? m?.nickname ?? m?.user.displayName ?? 'Alguém';
                           const draggable = v.userId === me || canMove;
                           return (
                             <li

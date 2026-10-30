@@ -22,6 +22,7 @@ export type Modal =
   | { kind: 'join-invite'; code: string }
   | { kind: 'profile'; userId: string }
   | { kind: 'add-to-dm'; peerId: string }
+  | { kind: 'friend-nickname'; userId: string }
   | { kind: 'create-channel'; serverId: string; channelKind: ChannelKind; categoryId: string | null }
   | { kind: 'create-category'; serverId: string }
   | { kind: 'watch-together' }

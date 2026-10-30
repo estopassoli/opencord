@@ -6,6 +6,7 @@ import { useData } from '../../store/data';
 import { api } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { openDmWith } from './FriendsPanel';
+import { useNameAlias } from '../../lib/names';
 
 /** A outra pessoa de uma DM 1:1 (null em grupos ou fora de DM). */
 export function useDmPeer(conversationId: string | null): UserPublic | null {
@@ -47,6 +48,7 @@ export function DmProfilePanel({ conversationId }: { conversationId: string }) {
       alive = false;
     };
   }, [peer?.id]);
+  const alias = useNameAlias(peer?.id);
   if (!peer || !open) return null;
   return (
     <aside className="dm-profile" aria-label={`Perfil de ${peer.displayName}`}>
@@ -55,8 +57,10 @@ export function DmProfilePanel({ conversationId }: { conversationId: string }) {
         <Avatar id={peer.id} name={peer.displayName} size={80} status={status} />
       </div>
       <div className="dm-profile-body">
-        <h2 className="truncate">{peer.displayName}</h2>
-        <p className="muted small truncate">@{peer.username}</p>
+        <h2 className="truncate">{alias ?? peer.displayName}</h2>
+        <p className="muted small truncate">
+          {alias && `${peer.displayName} · `}@{peer.username}
+        </p>
         {voice ? (
           <button
             className="dm-profile-voice"

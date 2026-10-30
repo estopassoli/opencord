@@ -6,6 +6,7 @@ import { Dialog } from '../../components/Dialog';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
+import { nameFor } from '../../lib/names';
 
 interface Entry {
   id: string;
@@ -53,7 +54,7 @@ export function QuickSwitcher({ onClose }: { onClose: () => void }) {
         c.name ??
         c.members
           .filter((m) => m.id !== meId)
-          .map((m) => m.displayName)
+          .map((m) => nameFor(m.id, m.displayName))
           .join(', ');
       out.push({
         id: c.id,

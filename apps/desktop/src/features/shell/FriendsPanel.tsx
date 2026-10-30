@@ -5,6 +5,7 @@ import { Tooltip } from '../../components/Tooltip';
 import { useData, type FriendWithPresence } from '../../store/data';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
+import { useAliases } from '../../lib/names';
 
 export async function openDmWith(userId: string) {
   try {
@@ -27,6 +28,7 @@ export function FriendsPanel({ forceCompact }: { forceCompact?: boolean }) {
   const saved = useUi((s) => s.friendsPanel);
   const mode = forceCompact && saved === 'open' ? 'compact' : saved;
   const friends = useData((s) => s.friends);
+  const aliases = useAliases();
   const presence = useData((s) => s.presence);
   const voiceStates = useData((s) => s.voiceStates);
   const details = useData((s) => s.details);
@@ -89,16 +91,17 @@ export function FriendsPanel({ forceCompact }: { forceCompact?: boolean }) {
                 {(compact || !closed[sec.id]) && (
                   <ul>
                     {sec.list.map((f) => {
+                      const name = aliases?.[f.user.id] ?? f.user.displayName;
                       const row = (
                         <button
                           className="friends-panel-row"
-                          aria-label={`Conversar com ${f.user.displayName} (${sub(f)})`}
+                          aria-label={`Conversar com ${name} (${sub(f)})`}
                           onClick={() => void openDmWith(f.user.id)}
                         >
                           <Avatar id={f.user.id} name={f.user.displayName} size={32} status={statusOf(f)} />
                           {!compact && (
                             <span className="friends-panel-names">
-                              <strong className="truncate">{f.user.displayName}</strong>
+                              <strong className="truncate">{name}</strong>
                               <span className="truncate" data-voice={voiceStates[f.user.id] ? 'true' : undefined}>
                                 {sub(f)}
                               </span>
@@ -109,7 +112,7 @@ export function FriendsPanel({ forceCompact }: { forceCompact?: boolean }) {
                       return (
                         <li key={f.user.id}>
                           {compact ? (
-                            <Tooltip label={`${f.user.displayName} · ${sub(f)}`} side="left">
+                            <Tooltip label={`${name} · ${sub(f)}`} side="left">
                               {row}
                             </Tooltip>
                           ) : (
