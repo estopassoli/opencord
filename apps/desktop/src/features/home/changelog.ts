@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '04:45',
+    kind: 'novo',
+    icon: 'upload',
+    title: 'Compartilhe clipes de até 1 GB e escolha o som',
+    body: 'No visualizador de clipes, "Compartilhar" envia o clipe (ou o corte) para uma conversa ou canal, mesmo que ele passe do limite normal de anexos, até 1 GB. Os clipes novos guardam o som do computador, a voz da chamada e os efeitos sonoros separados: em "Áudio" você silencia cada um, e a exportação e o compartilhamento seguem essa escolha.',
+  },
+  {
+    date: '2026-10-31',
     time: '04:15',
     kind: 'novo',
     icon: 'film',

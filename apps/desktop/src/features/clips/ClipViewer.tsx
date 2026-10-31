@@ -6,7 +6,7 @@
 import { Button, Icon } from '@opencord/ui';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { ClipInfo } from '../../../electron/shared/ipc';
-import { exportRange } from '../../clips/edit';
+import { exportMixed, exportRange, loadSources, mixSources, type ClipSources } from '../../clips/edit';
 import { Tooltip } from '../../components/Tooltip';
 import { bridge } from '../../lib/bridge';
 import { useClips } from '../../store/clips';
@@ -16,6 +16,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { moveHandle, type TrimRange } from '../voice/soundTrim';
 import { UploadSoundDialog } from '../voice/Soundboard';
+import { ShareClipDialog } from './ShareClip';
 
 const THUMBS = 10;
 const MIN_MS = 1000;
@@ -82,6 +83,10 @@ function Viewer({ clip }: { clip: ClipInfo }) {
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [sound, setSound] = useState<File | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [sources, setSources] = useState<ClipSources | null>(null);
+  const [on, setOn] = useState<boolean[]>([]);
+  const player = useRef<{ ctx: AudioContext; nodes: AudioBufferSourceNode[] } | null>(null);
   const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
   const frames = useStrip(url, duration);
   // efeitos sonoros vão para o servidor da chamada ou o que está aberto
@@ -100,13 +105,71 @@ function Viewer({ clip }: { clip: ClipInfo }) {
     };
   }, [clip.file]);
   useEffect(() => () => (url ? URL.revokeObjectURL(url) : undefined), [url]);
+  // trilhas de som separadas (clipes novos): o vídeo fica mudo e as fontes ligadas tocam pelo Web Audio
+  useEffect(() => {
+    if (!blob) return;
+    let alive = true;
+    void loadSources(blob)
+      .then((src) => {
+        if (!alive || !src) return;
+        setSources(src);
+        setOn(src.buffers.map(() => true));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [blob]);
+  useEffect(() => {
+    const v = video.current;
+    if (!v || !sources) return;
+    v.muted = true;
+    const stop = () => {
+      for (const n of player.current?.nodes ?? []) n.stop();
+      if (player.current) player.current.nodes = [];
+    };
+    const start = () => {
+      stop();
+      if (v.paused) return;
+      const ctx = (player.current ??= { ctx: new AudioContext(), nodes: [] }).ctx;
+      void ctx.resume();
+      sources.buffers.forEach((b, i) => {
+        if (!on[i]) return;
+        const n = ctx.createBufferSource();
+        n.buffer = b;
+        n.connect(ctx.destination);
+        n.start(ctx.currentTime, v.currentTime);
+        player.current!.nodes.push(n);
+      });
+    };
+    start();
+    v.addEventListener('play', start);
+    v.addEventListener('seeked', start);
+    v.addEventListener('pause', stop);
+    return () => {
+      v.removeEventListener('play', start);
+      v.removeEventListener('seeked', start);
+      v.removeEventListener('pause', stop);
+      stop();
+    };
+  }, [sources, on, url]);
+  useEffect(() => () => void player.current?.ctx.close(), []);
+  const allOn = !sources || on.every(Boolean);
+  /** o arquivo do trecho, com só as fontes de som ligadas */
+  const render = async (kind: 'video' | 'audio'): Promise<Uint8Array<ArrayBuffer>> => {
+    if (!blob) throw new Error('clipe não carregado');
+    const r = { start: range.start / 1000, end: range.end / 1000 };
+    if (sources && !allOn) return exportMixed(blob, r, kind, await mixSources(sources, on, r.start, r.end));
+    if (kind === 'video' && !trimmed && !sources) return new Uint8Array(await blob.arrayBuffer());
+    return exportRange(blob, r, kind);
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !sound) close();
+      if (e.key === 'Escape' && !sound && !sharing) close();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [sound]);
+  }, [sound, sharing]);
 
   // toca só dentro do corte
   useEffect(() => {
@@ -177,17 +240,14 @@ function Viewer({ clip }: { clip: ClipInfo }) {
   const exportAs = (kind: 'video' | 'audio') =>
     run(kind === 'video' ? 'Exportando vídeo…' : 'Exportando áudio…', async () => {
       if (!blob || !bridge) return;
-      const data =
-        kind === 'video' && !trimmed
-          ? new Uint8Array(await blob.arrayBuffer())
-          : await exportRange(blob, { start: range.start / 1000, end: range.end / 1000 }, kind);
+      const data = await render(kind);
       const saved = await bridge.clips.exportFile({ kind, name: clip.name, data });
       if (saved) useUi.getState().toast('success', kind === 'video' ? 'Vídeo exportado.' : 'Áudio exportado.');
     });
   const toSound = () =>
     run('Preparando o som…', async () => {
       if (!blob) return;
-      const data = await exportRange(blob, { start: range.start / 1000, end: range.end / 1000 }, 'audio');
+      const data = await render('audio');
       setSound(new File([data], `${clip.game ?? 'Clipe'}.m4a`, { type: 'audio/mp4' }));
     });
 
@@ -326,6 +386,28 @@ function Viewer({ clip }: { clip: ClipInfo }) {
               </span>
             </span>
           </div>
+          {sources && (
+            <>
+              <h3 className="clip-side-title">Áudio</h3>
+              <ul className="clip-audio" aria-label="Fontes de som do clipe">
+                {sources.names.map((n, i) => (
+                  <li key={n}>
+                    <Icon name={SOURCE_ICON[n] ?? 'speaker'} size={16} />
+                    <span className="truncate">{n}</span>
+                    <button
+                      className="icon-btn"
+                      aria-pressed={!on[i]}
+                      aria-label={on[i] ? `Silenciar ${n}` : `Ativar ${n}`}
+                      data-tip={on[i] ? 'Silenciar (também na exportação)' : 'Ativar'}
+                      onClick={() => setOn((o) => o.map((x, j) => (j === i ? !x : x)))}
+                    >
+                      <Icon name={on[i] ? 'speaker' : 'speaker-off'} size={16} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <h3 className="clip-side-title">Exportar {trimmed ? 'o corte' : ''}</h3>
           <div className="clip-actions">
             <Button
@@ -372,14 +454,32 @@ function Viewer({ clip }: { clip: ClipInfo }) {
               Adicionar aos efeitos sonoros
             </Button>
           )}
+          <Button icon="upload" disabled={!blob || !!busy} onClick={() => setSharing(true)}>
+            Compartilhar
+          </Button>
         </aside>
       </section>
+      {sharing && blob && (
+        <ShareClipDialog
+          name={clip.name}
+          getData={async () =>
+            !trimmed && allOn && !sources ? blob : new Blob([await render('video')], { type: 'video/mp4' })
+          }
+          onClose={() => setSharing(false)}
+        />
+      )}
       {sound && soundServer && (
         <UploadSoundDialog serverId={soundServer} initialFile={sound} onClose={() => setSound(null)} />
       )}
     </div>
   );
 }
+
+const SOURCE_ICON: Record<string, 'screen' | 'microphone' | 'soundboard'> = {
+  Computador: 'screen',
+  Voz: 'microphone',
+  'Efeitos sonoros': 'soundboard',
+};
 
 const confirmDelete = () => window.confirm('Apagar este clipe do computador?');
 

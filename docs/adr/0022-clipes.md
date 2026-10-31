@@ -36,7 +36,18 @@ O mantenedor pediu o atalho "SHIFT F10 para clipar". Ao escolher entre as opçõ
   - toca só o trecho cortado, com linha do tempo de 10 miniaturas e bordas arrastáveis (mouse ou setas);
   - exporta o trecho como MP4 ou M4A com a **mediabunny 1.61.5** (MPL-2.0, compatível com a AGPL; copia o que dá e recodifica as bordas);
   - "Adicionar aos efeitos sonoros" abre o envio de som com o áudio do trecho, convertido para WAV.
-- **Fica para depois:** texto e imagem sobre o vídeo, áudio separado por fonte (jogo, voz, efeitos) e compartilhar numa conversa.
+- **Fica de fora** (decisão do mantenedor): texto e imagem sobre o vídeo.
+
+## Atualização (2026-10-31): som por fonte e compartilhar até 1 GB
+- **Som separado:** a captura usa o som do computador **sem o próprio OpenCord** (`restrictOwnAudio`). A voz da chamada (`callAudioTracks`) e os efeitos sonoros (cada `<audio>` do soundboard via `captureStream`) vão em trilhas próprias. `ClipAudio` mistura as três num `AudioContext`, com silêncio contínuo para nenhuma trilha ficar vazia.
+- **O MP4 tem quatro trilhas AAC,** montadas com a mediabunny (o `mp4-muxer` só grava uma): "Tudo", a padrão e a que qualquer player toca; "Computador"; "Voz"; "Efeitos sonoros".
+- **No visualizador:** as fontes são decodificadas e tocam pelo Web Audio, sincronizadas com o vídeo mudo, e cada uma pode ser silenciada. A exportação e o compartilhamento seguem a escolha: com todas ligadas, fica só a trilha "Tudo"; com alguma desligada, o vídeo do trecho é copiado e o som vira uma trilha única com a mistura das ligadas (`OfflineAudioContext` + AAC).
+- **Compartilhar:** escolhe a conversa ou o canal de texto e uma mensagem opcional.
+  - O arquivo, ou o corte, sobe em partes de 8 MB: `POST /attachments/large` → `parts` → `complete`.
+  - Só vídeo MP4/WebM, conferido pelos bytes da primeira parte, até 1 GB (`LARGE_UPLOAD_MAX_BYTES`), independente do limite de anexos comuns.
+  - O estado do envio fica no Redis (sem tabela nova) e vira um `Attachment` comum, que a mensagem usa.
+  - Envios abandonados são descartados a cada 10 min.
+  - O limite do multipart passa a ser `max(UPLOAD_MAX_BYTES, 8 MB)`; cada rota continua conferindo o próprio limite.
 
 ## Consequências
 - **Evidência:**
@@ -45,7 +56,9 @@ O mantenedor pediu o atalho "SHIFT F10 para clipar". Ao escolher entre as opçõ
     - o painel mostra o jogo e "SHIFT F10 para clipar";
     - o atalho grava um MP4 (`ftyp`/`moov`) com H.264 e AAC, 1920×1080, de 6 s;
     - o próprio Chromium decodifica o arquivo;
-    - a miniatura aparece no painel, o visualizador abre com a linha do tempo, um corte de 2 s exporta um MP4 de 5,4 s (de 7,4 s) e apagar remove os arquivos.
+    - a miniatura aparece no painel, o visualizador abre com a linha do tempo, um corte de 2 s exporta um MP4 de 5,4 s (de 7,4 s) e apagar remove os arquivos;
+    - o clipe sai com 4 trilhas de som; silenciar "Computador" e exportar gera um MP4 com uma trilha; "Compartilhar" no #geral sobe em partes e envia a mensagem;
+  - integração `large-upload.int.test.ts`: partes em ordem, só vídeo, tamanho conferido, 1 GB, a mensagem usa o anexo, e o arquivo baixado é igual ao enviado.
 - **Relógios:** a trilha da tela usa o relógio do sistema e a do som começa em zero (medido no E2E: 3798 s × 7,5 s). Cada trilha é levada a `performance.now()` no primeiro quadro ou amostra; sem isso o som ficava de fora do clipe.
 - **Custos:** enquanto um jogo está aberto, uma sessão de codificação na placa de vídeo, cerca de 90 MB de RAM e a captura da tela.
 - **Limitações:**

@@ -14,6 +14,7 @@ import { TokenService } from './auth/token.service.js';
 import { AuditService } from './audit/audit.service.js';
 import { AttachmentsController } from './attachments/attachments.controller.js';
 import { AttachmentsService } from './attachments/attachments.service.js';
+import { LargeUploadService } from './attachments/large-upload.service.js';
 import { StorageService } from './attachments/storage.service.js';
 import { BoardsController } from './boards/boards.controller.js';
 import { BoardsService } from './boards/boards.service.js';
@@ -87,6 +88,7 @@ export class AppModule {
         SoundsService,
         RecordingsService,
         AttachmentsService,
+        LargeUploadService,
         BoardsService,
         MessagesService,
         SocialService,

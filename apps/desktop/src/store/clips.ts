@@ -2,12 +2,14 @@ import type { UserSettings } from '@opencord/contracts';
 import { create } from 'zustand';
 import type { ClipInfo } from '../../electron/shared/ipc';
 import { encodeStream, webCodecsAvailable, type EncodeSession } from '../clips/encode';
-import { muxMp4 } from '../clips/mux';
+import { ClipAudio } from '../clips/audio';
+import { muxClip } from '../clips/mux';
 import { ChunkRing, type StoredChunk } from '../clips/ring';
 import { bridge } from '../lib/bridge';
 import { playSound } from '../lib/sounds';
 import { useData } from './data';
 import { useGames } from './games';
+import { setSoundTap } from './sounds';
 import { useUi } from './ui';
 
 /**
@@ -74,6 +76,7 @@ export const useClips = create<ClipsStore>()((set, get) => ({
 
 let stream: MediaStream | null = null;
 let session: EncodeSession | null = null;
+let clipAudio: ClipAudio | null = null;
 let ring = new ChunkRing(60e6);
 let fpsNow = 60;
 let running: string | null = null;
@@ -92,21 +95,33 @@ async function start() {
           ...(max ? { width: { max: max.width }, height: { max: max.height } } : {}),
           frameRate: { ideal: cfg.clipFps, max: cfg.clipFps },
         },
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } as MediaTrackConstraints,
+        // sem o som do próprio OpenCord (vozes e efeitos vão em trilhas separadas)
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          restrictOwnAudio: true,
+        } as MediaTrackConstraints,
       });
       const [v] = s.getVideoTracks();
       if (v) v.contentHint = 'motion';
       const { width = max?.width ?? 1920, height = max?.height ?? 1080 } = v?.getSettings() ?? {};
       stream = s;
+      const voice = await import('./voice');
+      clipAudio = new ClipAudio(
+        s.getAudioTracks()[0] ?? null,
+        () => voice.useVoice.getState().engine()?.callAudioTracks() ?? [],
+      );
+      setSoundTap((m) => clipAudio?.addEffect(m));
       fpsNow = cfg.clipFps;
       running = JSON.stringify(cfg);
       ring = new ChunkRing(cfg.clipSeconds * 1e6);
       session = encodeStream(
-        s,
+        new MediaStream([...(v ? [v] : []), ...clipAudio.tracks()]),
         { fps: cfg.clipFps, bitrate: clipBitrate(width, height, cfg.clipFps, cfg.clipQuality), keyEverySec: 2 },
         {
           video: (c) => ring.pushVideo(c),
-          audio: (c) => ring.pushAudio(c),
+          audio: (c, i) => ring.pushAudio(c, i),
         },
       );
       // a captura caiu (monitor desligado, permissão): fica inativo até o próximo jogo
@@ -130,6 +145,9 @@ async function stop() {
   useClips.setState({ active: false });
   await s?.stop().catch(() => undefined);
   st?.getTracks().forEach((t) => t.stop());
+  setSoundTap(null);
+  clipAudio?.stop();
+  clipAudio = null;
   ring.clear();
 }
 
@@ -198,7 +216,7 @@ export async function saveClip() {
   if (!snap) return ui.toast('info', 'Ainda não há nada gravado; tente de novo em alguns segundos.');
   useClips.setState({ saving: true });
   try {
-    const data = muxMp4(session, fpsNow, snap);
+    const data = await muxClip(session, fpsNow, snap);
     const g = useGames.getState().mine;
     const durationMs = Math.round((snap.video.at(-1)!.ts + snap.video.at(-1)!.dur - snap.base) / 1000);
     const thumb = await thumbnail(snap.video);

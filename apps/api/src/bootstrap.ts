@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { RECORDING_PART_BYTES } from '@opencord/contracts';
 import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
@@ -36,7 +37,10 @@ export async function createApp(cfg: AppConfig, opts: { logger?: boolean } = {})
   });
 
   await app.register(helmet, { contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } });
-  await app.register(multipart, { limits: { fileSize: cfg.UPLOAD_MAX_BYTES, files: 1, fields: 5 } });
+  // partes de gravações e vídeos grandes têm 8 MB mesmo com limite de anexos menor; cada rota confere o próprio limite
+  await app.register(multipart, {
+    limits: { fileSize: Math.max(cfg.UPLOAD_MAX_BYTES, RECORDING_PART_BYTES), files: 1, fields: 5 },
+  });
   if (!cfg.RATE_LIMIT_DISABLED) {
     const redis = new Redis(cfg.REDIS_URL, { keyPrefix: `${REDIS_PREFIX}rl:`, maxRetriesPerRequest: 1 });
     await app.register(rateLimit, {
