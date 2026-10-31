@@ -4,6 +4,7 @@ import {
   Permission,
   hasPermission,
   INVITE_CODE,
+  REACTION_ROLE_FORBIDDEN,
   rooms,
   type Category,
   type Channel,
@@ -438,14 +439,25 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     return member(m);
   }
 
+  /** Tudo que um cargo concede: bits base mais o que os overrides de canal liberam para ele. */
+  async reactionRoleGrants(roleId: string, permissions: number): Promise<number> {
+    const overrides = await this.prisma.channelPermissionOverride.findMany({
+      where: { subjectType: 'role', subjectId: roleId },
+      select: { allow: true },
+    });
+    return overrides.reduce((acc, o) => acc | o.allow, permissions);
+  }
+
   /**
-   * Cargo por reação (ADR-0019): a própria pessoa ganha/perde o cargo ao reagir. A regra de quem pode dar o cargo
-   * foi conferida quando a mensagem foi configurada (hierarquia e bits proibidos); aqui só aplica, idempotente.
+   * Cargo por reação (ADR-0019): a própria pessoa ganha/perde o cargo ao reagir. A hierarquia foi conferida quando a
+   * mensagem foi configurada; os bits proibidos são conferidos de novo aqui, porque o cargo (ou um override de canal
+   * dele) pode ter ganhado poder de moderação depois. Idempotente.
    */
   async applyReactionRole(serverId: string, userId: string, roleId: string, on: boolean) {
     const isMember = await this.prisma.serverMember.findUnique({ where: { serverId_userId: { serverId, userId } } });
     const role = await this.prisma.role.findFirst({ where: { id: roleId, serverId, isEveryone: false } });
     if (!isMember || !role) return;
+    if (on && (await this.reactionRoleGrants(role.id, role.permissions)) & REACTION_ROLE_FORBIDDEN) return;
     const changed = on
       ? (await this.prisma.memberRole.createMany({ data: [{ serverId, userId, roleId }], skipDuplicates: true })).count
       : (await this.prisma.memberRole.deleteMany({ where: { serverId, userId, roleId } })).count;
@@ -696,11 +708,8 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
   ): Promise<Channel> {
     const existing = await this.prisma.channel.findUnique({ where: { id: channelId } });
     if (!existing) throw notFound('canal');
-    const access = await this.perms
-      .requireServer(existing.serverId, actorId, Permission.MANAGE_CHANNELS)
-      .catch((e: unknown) => {
-        throw e instanceof Error && e.message.includes('não encontrado') ? notFound('canal') : e;
-      });
+    // permissão no próprio canal: quem não vê o canal (VIEW_CHANNEL negado) recebe 404, como em todo o resto
+    const access = await this.perms.requireChannel(channelId, actorId, Permission.MANAGE_CHANNELS);
     if (dto.overrides) {
       if (!hasPermission(access.base, Permission.MANAGE_ROLES))
         throw forbidden('MANAGE_ROLES necessário para alterar overrides');
@@ -716,6 +725,10 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
         where: { id: dto.boardId, serverId: existing.serverId, kind: 'board' },
       });
       if (!board || existing.kind !== 'text') throw new BadRequestException('quadro inválido');
+      // ligar a um quadro copia as mensagens novas para quem vê o quadro: é dar leitores ao canal, como um override
+      if (!hasPermission(access.base, Permission.MANAGE_ROLES))
+        throw forbidden('MANAGE_ROLES necessário para ligar o canal a um quadro');
+      await this.perms.requireChannel(dto.boardId, actorId, Permission.VIEW_CHANNEL);
     }
     await this.prisma.$transaction(async (tx) => {
       await tx.channel.update({
@@ -750,7 +763,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
   async deleteChannel(channelId: string, actorId: string) {
     const c = await this.prisma.channel.findUnique({ where: { id: channelId } });
     if (!c) throw notFound('canal');
-    await this.perms.requireServer(c.serverId, actorId, Permission.MANAGE_CHANNELS);
+    await this.perms.requireChannel(channelId, actorId, Permission.MANAGE_CHANNELS);
     this.events.emit({ type: 'channel.deleted', serverId: c.serverId, channelId });
     this.realtime.emit(rooms.server(c.serverId), 'channel:deleted', { serverId: c.serverId, channelId });
     await this.prisma.channel.delete({ where: { id: channelId } });

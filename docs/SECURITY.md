@@ -48,3 +48,19 @@ Testar IDOR, permissões por canal, tokens expirados, reuso de convites, rate li
 | Atualização | sem auto-update silencioso: o app baixa o instalador novo do próprio servidor (mesma origem, https, nome validado) e só executa no clique "Atualização pronta"; instalador não assinado (SmartScreen avisará) |
 
 Pendências: auditoria por terceiros, teste de abuso de banda com clientes reais, assinatura de código, política de retenção.
+
+## Auditoria — 2026-10-31 (skill `security-audit` da Cloudflare, perfil `quick`; parcial)
+Revisão de código + checagens locais em sandbox (bwrap, sem rede). Relatório completo fora do repositório (`~/security-audit-skill/opencord/run-1/`). Confirmados e corrigidos:
+
+| Achado | Gravidade | Correção / regressão |
+|---|---|---|
+| Trocar a senha revogava as outras sessões no banco, mas os sockets delas seguiam autenticados | média | `AuthService.changePassword` chama `disconnectSession`; `auth.int.test.ts` |
+| Envio grande abandonado deixava as partes no armazenamento (estado no Redis expirava antes da varredura) | média | estado vive 1 h além do prazo, que anda a cada parte; `large-upload.service.ts` |
+| Quem tinha só MANAGE_CHANNELS lia canal oculto ligando-o a um quadro (e renomeava/excluía canal que não via) | média | `updateChannel`/`deleteChannel` usam `requireChannel`; ligar a quadro exige MANAGE_ROLES e ver o quadro; `boards.int.test.ts` |
+| Silenciado pela moderação recuperava o microfone ao reentrar / sair e voltar | baixa | silenciamento persistido por servidor (`voice:muted:*`), filtrado no `join`; `voice.int.test.ts` |
+| `sound:play` ignorava SPEAK e o silenciamento | baixa | exige SPEAK e não estar silenciado; `sounds.int.test.ts` |
+| Estado de voz de canais ocultos visível para todo membro | baixa | `listServer` filtra por VIEW_CHANNEL; eventos de voz/atividade/música/som vão para a room do canal; `voice.int.test.ts` |
+| Texto de mensagem apagada continuava no card do quadro | baixa | `remove` apaga o texto do card na mesma transação; `boards.int.test.ts` |
+| Cargo por reação ganhava moderação via override de canal ou edição posterior | baixa | bits proibidos conferidos com overrides, também ao aplicar; `reaction-roles.int.test.ts` |
+
+Leads sem confirmação, já endurecidos: placeholders `CHANGE_ME` do LiveKit aceitos em produção (a API agora recusa `CHANGE_ME*`, `devkey` e segredo < 32; o CI gera chaves aleatórias), e aspas Unicode fechando literal no PowerShell (`copyClip`/`runningPath` agora passam o valor por variável de ambiente; validar em Windows real). Não cobertos nesta rodada: cota de gasto do YouTube/importação do Discord, fan-out de presença, CVEs de dependências (`pnpm audit`).

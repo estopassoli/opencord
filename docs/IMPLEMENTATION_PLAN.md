@@ -136,6 +136,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-10-29 | Cor da marca | `--brand` #4d56fd (fundo da logo), ADR-0006 atualizado | verde | — |
 | 2026-10-29 | Importar fonte (local) + flush das configurações ao fechar | unit `fonts.test` 11/11; E2E `fonts.spec` (arquivo falso recusado, importa, reabre, remove); suíte E2E 22/22 ×2 | verde | — |
 | 2026-10-29 | Layout de celular (web) | `styles/mobile.css` + `lib/media.ts`; gavetas de navegação/membros, gestos, `inert`, safe-area; E2E `mobile.spec` (Edge, 390×844 toque, 360/320, deitado 844×390) 6/6; suíte 35/35 ×2 | verde em emulação | aparelho real (iOS/Android) não testado |
+| 2026-10-31 | Auditoria de segurança (skill `security-audit`, quick) | 8 confirmados corrigidos + 2 leads endurecidos (ver `docs/SECURITY.md`); api typecheck/lint/unit 26/26; integração 19 arquivos, 136 testes verdes (novos de regressão em auth/boards/voice/sounds/reaction-roles); `attachments.int` trava no `app.close()` também sem estas mudanças | verde | PowerShell/Unicode e placeholders LiveKit sem validação em Windows/deploy real |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

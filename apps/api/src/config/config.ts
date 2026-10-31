@@ -93,6 +93,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       if (cfg[k].startsWith('dev-only')) throw new Error(`${k} de desenvolvimento não pode ser usado em produção`);
     }
     if (cfg.LIVEKIT_API_SECRET === 'secret') throw new Error('LIVEKIT_API_SECRET de desenvolvimento em produção');
+    // Os placeholders do repositório (infra/docker/livekit.yaml) são públicos: com eles qualquer um assina
+    // tokens LiveKit e webhooks. Recusa também o devkey e segredos curtos.
+    for (const k of ['JWT_ACCESS_SECRET', 'ATTACHMENT_URL_SECRET', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'] as const) {
+      if (/CHANGE_ME/i.test(cfg[k])) throw new Error(`${k} ainda é o placeholder do repositório; não use em produção`);
+    }
+    if (cfg.LIVEKIT_API_KEY === 'devkey') throw new Error('LIVEKIT_API_KEY de desenvolvimento em produção');
+    if (cfg.LIVEKIT_API_SECRET.length < 32)
+      throw new Error('LIVEKIT_API_SECRET precisa de ao menos 32 caracteres em produção');
   }
   return cfg;
 }

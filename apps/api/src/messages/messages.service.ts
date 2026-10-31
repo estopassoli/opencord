@@ -20,7 +20,7 @@ import { forbidden, notFound } from '../common/errors.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
 import { PermissionsService } from '../servers/permissions.service.js';
-import { BoardsService } from '../boards/boards.service.js';
+import { BoardsService, DELETED_CARD_TITLE } from '../boards/boards.service.js';
 import { ServersService } from '../servers/servers.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
@@ -404,7 +404,10 @@ export class MessagesService {
         },
       }),
       this.prisma.reaction.deleteMany({ where: { messageId } }),
+      // o card do quadro é uma cópia do texto: apagar a mensagem apaga a cópia (o card fica, sem o conteúdo)
+      this.prisma.boardCard.updateMany({ where: { messageId }, data: { title: DELETED_CARD_TITLE, body: '' } }),
     ]);
+    await this.boards.refreshFromMessage(messageId);
     this.realtime.emit(a.room, 'chat:message:deleted', {
       messageId,
       channelId: m.channelId,
@@ -465,7 +468,7 @@ export class MessagesService {
     for (const p of pairs) {
       const r = roles.find((x) => x.id === p.roleId);
       if (!r || r.isEveryone) throw new BadRequestException('cargo inválido');
-      if (r.permissions & REACTION_ROLE_FORBIDDEN)
+      if ((await this.servers.reactionRoleGrants(r.id, r.permissions)) & REACTION_ROLE_FORBIDDEN)
         throw new BadRequestException(`o cargo ${r.name} tem permissões de moderação e não pode ser dado por reação`);
       this.perms.assertAbove(actor, r.position);
     }

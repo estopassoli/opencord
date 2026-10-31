@@ -168,6 +168,9 @@ export class SoundsService {
   async play(userId: string, channelId: string, soundId: string): Promise<null> {
     const state = await this.voice.stateOf(userId);
     if (!state || state.channelId !== channelId) throw forbidden('entre na chamada para tocar um som');
+    // som na chamada é como falar: precisa de SPEAK e não pode estar silenciado pela moderação
+    if (state.serverMute) throw forbidden('você foi silenciado pela moderação');
+    await this.perms.requireChannel(channelId, userId, Permission.SPEAK);
     const s = await this.prisma.soundEffect.findUnique({
       where: { id: soundId },
       select: { serverId: true, volume: true },
@@ -181,7 +184,7 @@ export class SoundsService {
     if (!ok) throw new BadRequestException('espere um instante antes de tocar outro som');
     if (s.serverId !== state.serverId)
       await this.redis.client.set(heardKey(channelId, soundId), '1', 'PX', HEARD_GRANT_MS);
-    this.realtime.emit(rooms.server(state.serverId), 'sound:played', {
+    this.realtime.emit(rooms.channel(channelId), 'sound:played', {
       channelId,
       serverId: state.serverId,
       soundId,

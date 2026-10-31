@@ -86,7 +86,9 @@ jobs:
           gen() { openssl rand -base64 48 | tr -d '/+=\n' | cut -c1-48; }
           cp .env.example .env
           sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|;s|^JWT_ACCESS_SECRET=.*|JWT_ACCESS_SECRET=$(gen)|;s|^ATTACHMENT_URL_SECRET=.*|ATTACHMENT_URL_SECRET=$(gen)|" .env
-          sed -i "s|^LIVEKIT_API_KEY=.*|LIVEKIT_API_KEY=CHANGE_ME_API_KEY|;s|^LIVEKIT_API_SECRET=.*|LIVEKIT_API_SECRET=CHANGE_ME_SECRET_AT_LEAST_32_CHARACTERS_LONG|" .env
+          LK_KEY="lk$(openssl rand -hex 8)"; LK_SECRET="$(gen)"
+          sed -i "s|^LIVEKIT_API_KEY=.*|LIVEKIT_API_KEY=$LK_KEY|;s|^LIVEKIT_API_SECRET=.*|LIVEKIT_API_SECRET=$LK_SECRET|" .env
+          sed -i "s|CHANGE_ME_API_KEY: CHANGE_ME_SECRET_AT_LEAST_32_CHARACTERS_LONG|$LK_KEY: $LK_SECRET|;s|api_key: CHANGE_ME_API_KEY|api_key: $LK_KEY|" livekit.yaml
       - name: Subir postgres, redis, livekit, migrate, api e web
         run: docker compose up -d --build --wait --wait-timeout 300 postgres redis livekit api web
       - name: Saúde

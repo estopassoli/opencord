@@ -88,4 +88,36 @@ describe('cargos por reação', () => {
       ).status,
     ).toBe(400);
   });
+
+  it('cargo que ganha moderação depois (base ou override de canal) não é mais dado por reação', async () => {
+    const { owner, alice, serverId, channelId, gamer, messageId } = await setup();
+    await http.req('PUT', `/messages/${messageId}/reaction-roles`, {
+      token: owner.token,
+      body: { pairs: [{ emoji: '🎮', roleId: gamer.id }] },
+    });
+    // override de canal liberando MANAGE_MESSAGES para o cargo: reagir não dá mais o cargo
+    await http.req('PATCH', `/channels/${channelId}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'role', subjectId: gamer.id, allow: Permission.MANAGE_MESSAGES, deny: 0 }] },
+    });
+    const react = () =>
+      http.req('PUT', `/messages/${messageId}/reactions/${encodeURIComponent('🎮')}`, { token: alice.token });
+    expect((await react()).status).toBeLessThan(300);
+    expect(await rolesOf(serverId, alice.id)).toEqual([]);
+    // e configurar de novo com esse override é recusado
+    const again = await http.req('PUT', `/messages/${messageId}/reaction-roles`, {
+      token: owner.token,
+      body: { pairs: [{ emoji: '🎮', roleId: gamer.id }] },
+    });
+    expect(again.status).toBe(400);
+    // bit base adicionado depois: idem
+    await http.req('PATCH', `/channels/${channelId}`, { token: owner.token, body: { overrides: [] } });
+    await http.req('PATCH', `/roles/${gamer.id}`, {
+      token: owner.token,
+      body: { permissions: Permission.KICK_MEMBERS },
+    });
+    await http.req('DELETE', `/messages/${messageId}/reactions/${encodeURIComponent('🎮')}`, { token: alice.token });
+    expect((await react()).status).toBeLessThan(300);
+    expect(await rolesOf(serverId, alice.id)).toEqual([]);
+  });
 });

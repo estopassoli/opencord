@@ -1,7 +1,7 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthResponse, TokenPair } from '@opencord/contracts';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { bootstrapOwner, Http, prisma, register, resetDb, startApp } from './helpers.js';
+import { bootstrapOwner, connectSocket, Http, nextEvent, prisma, register, resetDb, startApp } from './helpers.js';
 
 let app: NestFastifyApplication;
 let http: Http;
@@ -165,5 +165,26 @@ describe('health', () => {
     const r = await http.req<{ checks: Record<string, string> }>('GET', '/health');
     expect(r.status).toBe(200);
     expect(r.body.checks).toEqual({ database: 'ok', redis: 'ok', livekit: 'ok' });
+  });
+});
+
+describe('trocar a senha', () => {
+  it('derruba os sockets das outras sessões (o socket só autentica no handshake)', async () => {
+    await bootstrapOwner(http);
+    const u = await register(http);
+    const other = await http.req<AuthResponse>('POST', '/auth/login', {
+      body: { login: u.nickname, password: 'password-123456' },
+    });
+    const stolen = await connectSocket(other.body.tokens.accessToken);
+    const revoked = nextEvent<{ reason: string }>(stolen, 'session:revoked');
+    const r = await http.req('POST', '/auth/password', {
+      token: u.token,
+      body: { currentPassword: 'password-123456', newPassword: 'outra-senha-123456' },
+    });
+    expect(r.status).toBe(204);
+    expect((await revoked).reason).toBe('password_changed');
+    await new Promise((res) => setTimeout(res, 100));
+    expect(stolen.connected).toBe(false);
+    stolen.disconnect();
   });
 });
