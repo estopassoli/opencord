@@ -76,12 +76,16 @@ describe('painel do super admin', () => {
     expect(s.body.disabledAt).not.toBeNull();
     expect(s.body.activeSessions).toBe(0);
     expect((await http.req('GET', '/me', { token: alice.token })).status).toBe(401);
-    const login = await http.req('POST', '/auth/login', { body: { login: alice.nickname, password: 'password-123456' } });
+    const login = await http.req('POST', '/auth/login', {
+      body: { login: alice.nickname, password: 'password-123456' },
+    });
     expect(login.status).toBe(401);
 
     const back = await http.req<AdminUser>('POST', `/admin/users/${alice.id}/unsuspend`, { token: owner.token });
     expect(back.body.disabledAt).toBeNull();
-    const again = await http.req('POST', '/auth/login', { body: { login: alice.nickname, password: 'password-123456' } });
+    const again = await http.req('POST', '/auth/login', {
+      body: { login: alice.nickname, password: 'password-123456' },
+    });
     expect(again.status).toBe(200);
 
     const audit = await http.req<AdminAuditPage>('GET', '/admin/audit', { token: owner.token });
@@ -109,9 +113,13 @@ describe('painel do super admin', () => {
     // admin não é suspenso sem antes perder o admin
     const bob = await register(http);
     await http.req('PUT', `/admin/users/${bob.id}/admin`, { token: owner.token, body: { admin: true } });
-    expect((await http.req('POST', `/admin/users/${bob.id}/suspend`, { token: alice.token, body: {} })).status).toBe(400);
+    expect((await http.req('POST', `/admin/users/${bob.id}/suspend`, { token: alice.token, body: {} })).status).toBe(
+      400,
+    );
     await http.req('PUT', `/admin/users/${bob.id}/admin`, { token: alice.token, body: { admin: false } });
-    expect((await http.req('POST', `/admin/users/${bob.id}/suspend`, { token: alice.token, body: {} })).status).toBe(201);
+    expect((await http.req('POST', `/admin/users/${bob.id}/suspend`, { token: alice.token, body: {} })).status).toBe(
+      201,
+    );
   });
 
   it('encerrar sessões desloga a pessoa sem suspender', async () => {
