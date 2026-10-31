@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '04:15',
+    kind: 'novo',
+    icon: 'film',
+    title: 'Seus clipes: ver, cortar e exportar',
+    body: 'Salvar um clipe agora toca um som e ele aparece em miniatura no painel do usuário. Clique para abrir: assista, arraste as bordas da linha do tempo para cortar e exporte o trecho como vídeo ou só o áudio, copie o arquivo, mostre na pasta, apague ou mande o som para os efeitos sonoros do servidor. Em Configurações → Jogos você escolhe duração (15 s a 2 min), fps, resolução, qualidade e a pasta dos clipes.',
+  },
+  {
+    date: '2026-10-31',
     time: '03:45',
     kind: 'melhoria',
     icon: 'gamepad',

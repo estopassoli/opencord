@@ -280,7 +280,16 @@ const SOURCE_MAX_BYTES = 25 * 1024 * 1024;
 const BARS = 96;
 const secs = (ms: number) => `${(ms / 1000).toFixed(2).replace('.', ',')} s`;
 
-export function UploadSoundDialog({ serverId, onClose }: { serverId: string; onClose: () => void }) {
+export function UploadSoundDialog({
+  serverId,
+  onClose,
+  initialFile,
+}: {
+  serverId: string;
+  onClose: () => void;
+  /** áudio já escolhido (ex.: o som de um clipe) */
+  initialFile?: File;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [audio, setAudio] = useState<AudioBuffer | null>(null);
@@ -308,6 +317,11 @@ export function UploadSoundDialog({ serverId, onClose }: { serverId: string; onC
     if (!name) setName(f.name.replace(/\.[^.]+$/, '').slice(0, 32));
   };
 
+  useEffect(() => {
+    if (initialFile) void pick(initialFile);
+    // só o arquivo inicial
+  }, [initialFile]);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!file || !audio) return setError('Escolha um arquivo de áudio.');
@@ -316,7 +330,9 @@ export function UploadSoundDialog({ serverId, onClose }: { serverId: string; onC
     preview.stop();
     try {
       // o arquivo original vai como está quando nada foi cortado e ele já cabe no limite
-      const whole = range.start === 0 && range.end === total && file.size <= SOUND_MAX_BYTES;
+      // o servidor aceita MP3/OGG/WAV: outros formatos (ex.: o M4A de um clipe) viram WAV
+      const whole =
+        range.start === 0 && range.end === total && file.size <= SOUND_MAX_BYTES && /\.(mp3|ogg|wav)$/i.test(file.name);
       const body = whole
         ? file
         : new File([await trimToWav(audio, range.start, range.end)], `${file.name.replace(/\.[^.]+$/, '')}.wav`, {

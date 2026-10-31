@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { bridge } from '../../lib/bridge';
 import { useData } from '../../store/data';
 import { useClips } from '../../store/clips';
+import { RecentClips } from '../clips/ClipViewer';
 import { useGames } from '../../store/games';
 
 /** Jogo que a pessoa está jogando, como eu vejo (o meu vem direto do detector, mesmo invisível). */
@@ -161,6 +162,7 @@ export function GameDock() {
           <span className="muted small">Jogando agora</span>
         )}
       </span>
+      {clipping && <RecentClips game={mine.name} />}
     </section>
   );
 }

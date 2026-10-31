@@ -719,12 +719,19 @@ export const UserSettingsV1 = z.object({
       showPlaying: z.boolean().default(true),
       /** clipes (ADR-0022): com um jogo aberto, guarda os últimos 60 s da tela na memória para salvar pelo atalho */
       clips: z.boolean().default(true),
+      /** duração de cada clipe (segundos guardados na memória) */
+      clipSeconds: z.union([z.literal(15), z.literal(30), z.literal(60), z.literal(120)]).default(60),
+      clipFps: z.union([z.literal(30), z.literal(60)]).default(60),
+      /** resolução máxima: a da tela (source) ou reduzida */
+      clipResolution: z.enum(['source', '1080p', '720p']).default('1080p'),
+      /** qualidade (porcentagem do bitrate de referência): mais alta = arquivo maior */
+      clipQuality: z.number().int().min(10).max(100).default(75),
       custom: z
         .array(z.object({ exe: z.string().trim().min(1).max(128), name: z.string().trim().min(1).max(64) }))
         .max(50)
         .default([]),
     })
-    .default({ showPlaying: true, clips: true, custom: [] }),
+    .prefault({}),
   /**
    * Ordem da barra de servidores: id de servidor solto ou pasta com vários servidores (só eu vejo).
    * Servidor fora da lista aparece no fim; id de servidor que saí é ignorado no cliente.

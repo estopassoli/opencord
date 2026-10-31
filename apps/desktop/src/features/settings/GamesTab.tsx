@@ -3,10 +3,10 @@
  * sozinho (escolhendo um programa aberto).
  */
 import type { UserSettings } from '@opencord/contracts';
-import { Button, Icon, Select, Switch, TextField } from '@opencord/ui';
-import { useState } from 'react';
+import { Button, Icon, Select, Slider, Switch, TextField } from '@opencord/ui';
+import { useEffect, useState } from 'react';
 import { bridge } from '../../lib/bridge';
-import { useClips } from '../../store/clips';
+import { clipBitrate, useClips } from '../../store/clips';
 import { useGames } from '../../store/games';
 import { updateSettings } from '../../store/settings';
 import { useElapsed } from '../shell/Playing';
@@ -42,13 +42,13 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
       {bridge && (
         <Section
           title="Clipes"
-          description="Com um jogo aberto, o OpenCord guarda na memória os últimos 60 s da tela principal e do som do computador (inclusive a chamada). O atalho salva um vídeo MP4 em Vídeos\OpenCord. Nada é enviado ao servidor."
+          description="Com um jogo aberto, o OpenCord guarda na memória os últimos segundos da tela principal e do som do computador (inclusive a chamada). O atalho salva um vídeo MP4 na pasta de clipes. Nada é enviado ao servidor."
         >
           <Switch
-            label="Guardar os últimos 60 s para clipes"
+            label="Criar clipes"
             description={
               settings.keybinds.saveClip
-                ? `Atalho: ${settings.keybinds.saveClip} (mude em Atalhos). Usa a placa de vídeo e cerca de 90 MB de memória enquanto o jogo está aberto.`
+                ? `Atalho: ${settings.keybinds.saveClip} (mude em Atalhos). Usa a placa de vídeo e memória enquanto o jogo está aberto.`
                 : 'Sem atalho definido: escolha um em Atalhos.'
             }
             checked={g.clips}
@@ -57,9 +57,55 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
           {g.clips && mine && (
             <p className="games-now small">
               <Icon name="record" size={16} />
-              {clipping ? 'Guardando os últimos 60 s agora.' : 'Preparando a captura…'}
+              {clipping ? `Guardando os últimos ${g.clipSeconds} s agora.` : 'Preparando a captura…'}
             </p>
           )}
+          <div className="games-clip-grid">
+            <Select
+              label="Duração do clipe"
+              value={String(g.clipSeconds)}
+              options={[
+                { value: '15', label: '15 segundos' },
+                { value: '30', label: '30 segundos' },
+                { value: '60', label: '1 minuto' },
+                { value: '120', label: '2 minutos' },
+              ]}
+              onChange={(v) => set({ clipSeconds: Number(v) as UserSettings['games']['clipSeconds'] })}
+            />
+            <Select
+              label="Quadros por segundo"
+              value={String(g.clipFps)}
+              options={[
+                { value: '60', label: '60 fps' },
+                { value: '30', label: '30 fps' },
+              ]}
+              onChange={(v) => set({ clipFps: Number(v) as UserSettings['games']['clipFps'] })}
+            />
+            <Select
+              label="Resolução"
+              value={g.clipResolution}
+              options={[
+                { value: 'source', label: 'A da tela' },
+                { value: '1080p', label: '1080p' },
+                { value: '720p', label: '720p' },
+              ]}
+              onChange={(v) => set({ clipResolution: v })}
+            />
+          </div>
+          <Slider
+            label="Qualidade do clipe"
+            hint="Mais alta deixa o arquivo maior."
+            min={10}
+            max={100}
+            step={5}
+            format={(v) => `${v}%`}
+            value={g.clipQuality}
+            onChange={(v) => set({ clipQuality: v })}
+          />
+          <p className="small muted">
+            Cerca de {estimateMb(g)} MB por clipe (e o mesmo de memória enquanto o jogo está aberto).
+          </p>
+          <ClipsFolder />
         </Section>
       )}
       {bridge && (
@@ -150,5 +196,37 @@ function AddCustomGame({
         </Button>
       </div>
     </form>
+  );
+}
+
+const RES = { source: [2560, 1440], '1080p': [1920, 1080], '720p': [1280, 720] } as const;
+/** tamanho aproximado de um clipe com estas opções (a tela de origem conta como 1440p) */
+function estimateMb(g: UserSettings['games']) {
+  const [w, h] = RES[g.clipResolution];
+  return Math.round((clipBitrate(w, h, g.clipFps, g.clipQuality) * g.clipSeconds) / 8 / 1024 / 1024);
+}
+
+/** Pasta onde os clipes são gravados (fica neste computador). */
+function ClipsFolder() {
+  const [dir, setDir] = useState<string | null>(null);
+  useEffect(() => {
+    void bridge?.clips.dir().then(setDir);
+  }, []);
+  return (
+    <div className="games-folder">
+      <TextField label="Pasta dos clipes" value={dir ?? ''} readOnly />
+      <Button
+        variant="secondary"
+        icon="folder"
+        onClick={() =>
+          void bridge?.clips.chooseDir().then((d) => {
+            setDir(d);
+            void useClips.getState().loadLibrary();
+          })
+        }
+      >
+        Trocar pasta
+      </Button>
+    </div>
   );
 }

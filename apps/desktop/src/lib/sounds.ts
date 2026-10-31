@@ -18,7 +18,8 @@ export type SoundName =
   | 'streamStart'
   | 'streamStop'
   | 'disconnect'
-  | 'reconnect';
+  | 'reconnect'
+  | 'clip';
 
 interface Note {
   /** Hz */
@@ -98,6 +99,12 @@ export const SOUNDS: Record<SoundName, Note[]> = {
     { f: E5, t: 0, d: 0.1, g: 0.7 },
     { f: E5, t: 0.12, d: 0.1, g: 0.7 },
     { f: A5, t: 0.24, d: 0.2, g: 0.7 },
+  ],
+  // clipe salvo: três notas subindo, rápidas (tipo "obturador")
+  clip: [
+    { f: A5, t: 0, d: 0.08, g: 0.7 },
+    { f: Cs6, t: 0.06, d: 0.08, g: 0.7 },
+    { f: E6, t: 0.12, d: 0.18, g: 0.7 },
   ],
 };
 

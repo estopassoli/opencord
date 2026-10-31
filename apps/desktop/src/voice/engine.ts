@@ -562,7 +562,7 @@ export class VoiceEngine {
     v.contentHint = 'motion';
     const [a] = stream.getAudioTracks();
     // com cena (ADR-0015): a live é a composição do canvas (tela + câmera + imagens + texto), não a captura crua
-    let published = v;
+    let published: MediaStreamTrack = v;
     if (scene) {
       this.compositor = new SceneCompositor(v, scene, profile.width, profile.height, profile.fps);
       published = await this.compositor.start();

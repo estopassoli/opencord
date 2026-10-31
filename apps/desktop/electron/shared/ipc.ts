@@ -118,11 +118,48 @@ export type GamesConfigureArgs = z.infer<typeof GamesConfigureArgs>;
 export const ClipSaveArgs = z.object({
   /** nome do jogo, vira parte do nome do arquivo */
   game: z.string().trim().max(64),
+  durationMs: z
+    .number()
+    .int()
+    .min(0)
+    .max(10 * 60_000),
+  icon: z
+    .string()
+    .max(16 * 1024)
+    .regex(/^data:image\/png;base64,/)
+    .optional(),
+  steamAppId: z.number().int().positive().optional(),
+  /** miniatura JPEG */
+  thumb: z
+    .instanceof(Uint8Array)
+    .refine((d) => d.byteLength <= 512 * 1024)
+    .optional(),
   data: z
     .instanceof(Uint8Array)
     .refine((d) => d.byteLength > 0 && d.byteLength <= 1024 * 1024 * 1024, 'tamanho inválido'),
 });
 export type ClipSaveArgs = z.infer<typeof ClipSaveArgs>;
+
+/** Clipe na pasta de clipes (com os dados que o OpenCord guardou ao lado). */
+export interface ClipInfo {
+  file: string;
+  name: string;
+  game: string | null;
+  icon: string | null;
+  steamAppId: number | null;
+  createdAt: number;
+  durationMs: number;
+  sizeBytes: number;
+  /** miniatura (data URL JPEG) */
+  thumb: string | null;
+}
+export const ClipPath = z.string().min(1).max(1024);
+export const ClipExportArgs = z.object({
+  kind: z.enum(['video', 'audio']),
+  name: z.string().trim().max(120),
+  data: z.instanceof(Uint8Array).refine((d) => d.byteLength > 0 && d.byteLength <= 1024 * 1024 * 1024),
+});
+export type ClipExportArgs = z.infer<typeof ClipExportArgs>;
 
 export interface AppInfo {
   version: string;
@@ -168,6 +205,15 @@ export interface OpenCordBridge {
     save(args: ClipSaveArgs): Promise<string>;
     /** abre a pasta com o arquivo selecionado (só dentro da pasta de clipes) */
     reveal(path: string): Promise<void>;
+    list(): Promise<ClipInfo[]>;
+    read(path: string): Promise<Uint8Array<ArrayBuffer>>;
+    remove(path: string): Promise<void>;
+    /** copia o arquivo para a área de transferência */
+    copy(path: string): Promise<void>;
+    /** "Salvar como" de um vídeo/áudio cortado; null se cancelou */
+    exportFile(args: ClipExportArgs): Promise<string | null>;
+    dir(): Promise<string>;
+    chooseDir(): Promise<string>;
   };
   games: {
     /** liga/desliga a detecção e informa os jogos que a pessoa cadastrou */

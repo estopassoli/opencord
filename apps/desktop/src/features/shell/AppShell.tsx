@@ -20,6 +20,7 @@ import { UserDock } from './UserDock';
 import { PopoutStage, VoiceStage } from '../voice/VoiceStage';
 import { PopoutPortal } from '../voice/popout';
 import { MusicPlayer } from '../voice/MusicPlayer';
+import { ClipViewer } from '../clips/ClipViewer';
 import { MediaViewer } from '../chat/MediaViewer';
 import { FriendsPanel } from './FriendsPanel';
 import { DmProfilePanel, useDmPeer } from './DmProfilePanel';
@@ -191,6 +192,7 @@ export function AppShell() {
       )}
       <Modals />
       <MediaViewer />
+      <ClipViewer />
       <ContextMenuHost />
       {popped && (
         <PopoutPortal key={popped}>
