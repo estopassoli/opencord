@@ -523,6 +523,9 @@ textarea:focus-visible {
   margin: 0;
   padding: 0;
   display: grid;
+  /* coluna presa à largura da barra: com a coluna automática, o nome da música (sem quebra) alargava o item além da
+     barra, ficava cortado pela borda e o letreiro nem percebia que não cabia */
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
 }
 .channel-row {
