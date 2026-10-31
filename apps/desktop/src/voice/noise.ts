@@ -35,6 +35,11 @@ export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
       await ctx.audioWorklet.addModule(workletUrl);
       const src = ctx.createMediaStreamSource(new MediaStream([track]));
       const node = new RnnoiseWorkletNode(ctx, { wasmBinary: binary, maxChannels: 1 });
+      // o RNNoise limpa só o 1º canal: com microfone estéreo o 2º saía mudo e a voz ficava só no lado esquerdo do fone
+      // nos clipes e gravações. Mistura em mono antes; a saída mono vai para os dois lados.
+      node.channelCount = 1;
+      node.channelCountMode = 'explicit';
+      node.channelInterpretation = 'speakers';
       const dest = ctx.createMediaStreamDestination();
       src.connect(node).connect(dest);
       if (ctx.state === 'suspended') await ctx.resume().catch(() => undefined);

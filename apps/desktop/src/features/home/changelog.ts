@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '08:30',
+    kind: 'correção',
+    icon: 'microphone',
+    title: 'Sua voz nos dois lados do fone nos clipes',
+    body: 'Com a supressão de ruído ligada e um microfone estéreo, a sua voz saía só do lado esquerdo nos clipes e nas gravações da chamada. Agora sai nos dois lados.',
+  },
+  {
+    date: '2026-10-31',
     time: '08:00',
     kind: 'melhoria',
     icon: 'shield',
