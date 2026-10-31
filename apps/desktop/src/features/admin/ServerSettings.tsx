@@ -1,3 +1,4 @@
+import { askConfirm } from '../../components/AskDialog';
 import {
   hasPermission,
   Permission,
@@ -147,7 +148,14 @@ function OverviewTab({ detail, isOwner, onClose }: { detail: ServerDetail; isOwn
   };
 
   const leave = async () => {
-    if (!window.confirm(`Sair do servidor “${detail.name}”?`)) return;
+    if (
+      !(await askConfirm(`Você sai de “${detail.name}”.`, {
+        title: 'Sair do servidor',
+        confirmLabel: 'Sair',
+        danger: true,
+      }))
+    )
+      return;
     setBusy(true);
     try {
       await api().request('POST', `/servers/${detail.id}/leave`);
@@ -320,7 +328,14 @@ function RoleEditor({ role, onDeleted }: { role: Role; onDeleted: () => void }) 
   };
 
   const remove = async () => {
-    if (!window.confirm(`Excluir o cargo “${role.name}”?`)) return;
+    if (
+      !(await askConfirm(`O cargo “${role.name}” será excluído.`, {
+        title: 'Excluir cargo',
+        confirmLabel: 'Excluir',
+        danger: true,
+      }))
+    )
+      return;
     setBusy(true);
     try {
       await api().request('DELETE', `/roles/${role.id}`);
@@ -423,7 +438,14 @@ function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
   };
 
   const kick = async (m: Member) => {
-    if (!window.confirm(`Expulsar ${m.nickname ?? m.user.displayName} do servidor?`)) return;
+    if (
+      !(await askConfirm(`${m.nickname ?? m.user.displayName} sai do servidor (pode voltar com um convite).`, {
+        title: 'Expulsar do servidor',
+        confirmLabel: 'Expulsar',
+        danger: true,
+      }))
+    )
+      return;
     try {
       await api().request('DELETE', `/servers/${detail.id}/members/${m.user.id}`);
       useData.getState().removeMember(detail.id, m.user.id);
@@ -627,7 +649,14 @@ function ChannelRow({ channel }: { channel: Channel }) {
   };
 
   const remove = async () => {
-    if (!window.confirm(`Excluir o canal “${channel.name}”? As mensagens serão perdidas.`)) return;
+    if (
+      !(await askConfirm(`O canal “${channel.name}” e as mensagens dele serão perdidos.`, {
+        title: 'Excluir canal',
+        confirmLabel: 'Excluir',
+        danger: true,
+      }))
+    )
+      return;
     setBusy(true);
     try {
       await api().request('DELETE', `/channels/${channel.id}`);

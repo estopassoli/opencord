@@ -126,6 +126,22 @@ test('entrar só com apelido → servidor padrão → canal → enviar mensagem'
   // sem duplicata otimista após a confirmação
   await expect(page.getByRole('log').getByText(text)).toHaveCount(1, { timeout: 3_000 });
   await page.screenshot({ path: shots('03-chat') });
+  // excluir pede confirmação no tema do app (não a caixa nativa do Windows): Esc cancela, "Excluir" apaga
+  const msg = page.getByRole('log').getByText(text);
+  const del = async () => {
+    await msg.hover();
+    await page.getByRole('log').getByRole('button', { name: 'Excluir', exact: true }).first().click();
+  };
+  await del();
+  const ask = page.getByRole('dialog', { name: 'Excluir mensagem' });
+  await expect(ask).toBeVisible();
+  await page.screenshot({ path: shots('03b-confirmar-exclusao') });
+  await page.keyboard.press('Escape');
+  await expect(ask).toHaveCount(0);
+  await expect(msg).toBeVisible();
+  await del();
+  await ask.getByRole('button', { name: 'Excluir', exact: true }).click();
+  await expect(msg).toHaveCount(0, { timeout: 10_000 });
 });
 
 test('perfil: cartão abre por cima do chat e inteiro na janela (avatar da mensagem e lista de membros)', async () => {

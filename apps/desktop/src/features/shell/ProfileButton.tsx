@@ -1,3 +1,4 @@
+import { askConfirm } from '../../components/AskDialog';
 import { hasPermission, Permission, type Conversation } from '@opencord/contracts';
 import { Avatar, Button, Icon, portalTarget, Slider, STATUS_LABEL } from '@opencord/ui';
 import { useEffect, useId, useRef, useState, type ReactNode, useLayoutEffect } from 'react';
@@ -11,6 +12,8 @@ import { useVoice } from '../../store/voice';
 import { StreamPreviewCard, watchStream } from '../../components/StreamPreview';
 import { moveTargets, moveToVoice } from './voiceMove';
 import { PlayingNow } from './Playing';
+
+const KICK = { title: 'Expulsar do servidor', confirmLabel: 'Expulsar', danger: true };
 
 /** Conversa aberta agora (canal de texto ou DM), onde "Mencionar" insere a menção. */
 function currentChatKey(): TargetKey | null {
@@ -183,8 +186,8 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
       label: `Expulsar ${user.displayName}`,
       icon: 'user-minus',
       danger: true,
-      onSelect: () => {
-        if (confirm(`Expulsar ${user.displayName} do servidor?`))
+      onSelect: async () => {
+        if (await askConfirm(`${user.displayName} sai do servidor (pode voltar com um convite).`, KICK))
           void api().request('DELETE', `/servers/${serverId}/members/${userId}`).catch(apiError);
       },
     });
@@ -458,8 +461,8 @@ function ProfileCard({
           {canKick && serverId && (
             <Button
               variant="danger"
-              onClick={() => {
-                if (confirm(`Expulsar ${user.displayName} do servidor?`))
+              onClick={async () => {
+                if (await askConfirm(`${user.displayName} sai do servidor (pode voltar com um convite).`, KICK))
                   run(() => api().request('DELETE', `/servers/${serverId}/members/${userId}`), 'Membro expulso.');
               }}
             >

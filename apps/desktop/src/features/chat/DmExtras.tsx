@@ -1,6 +1,7 @@
 /**
  * Extras das mensagens diretas: perfil completo de uma pessoa e "adicionar amigos à conversa" (cria um grupo).
  */
+import { askConfirm } from '../../components/AskDialog';
 import type { Conversation, UserProfile } from '@opencord/contracts';
 import { Avatar, avatarColor, Button, Checkbox, Icon, STATUS_LABEL, TextArea, TextField } from '@opencord/ui';
 import { useEffect, useMemo, useState } from 'react';
@@ -74,8 +75,16 @@ export function FullProfileDialog({ userId, onClose }: { userId: string; onClose
                 label: 'Remover amizade',
                 icon: 'user-minus' as const,
                 danger: true,
-                onSelect: () => {
-                  if (!profile || !confirm(`Remover ${profile.user.displayName} dos seus amigos?`)) return;
+                onSelect: async () => {
+                  if (
+                    !profile ||
+                    !(await askConfirm(`${profile.user.displayName} sai da sua lista de amigos.`, {
+                      title: 'Remover amizade',
+                      confirmLabel: 'Remover',
+                      danger: true,
+                    }))
+                  )
+                    return;
                   void api()
                     .request('DELETE', `/friends/${userId}`)
                     .then(

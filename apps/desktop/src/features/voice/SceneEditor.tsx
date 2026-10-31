@@ -2,6 +2,7 @@
  * Editor de cenas do Go Live (ADR-0015): lista de cenas, prévia 16:9 (arraste para mover, puxe o canto para
  * redimensionar) e camadas (tela, câmera, imagem, texto). Salvo neste computador; a live em andamento acompanha.
  */
+import { askConfirm } from '../../components/AskDialog';
 import { Button, Icon, Switch, TextField } from '@opencord/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Dialog } from '../../components/Dialog';
@@ -67,9 +68,16 @@ export function SceneEditor({ onClose }: { onClose: () => void }) {
     setSceneId(s.id);
     setLayerId(null);
   };
-  const removeScene = () => {
+  const removeScene = async () => {
     if (!scene || scenes.length <= 1) return;
-    if (!confirm(`Excluir a cena "${scene.name}"?`)) return;
+    if (
+      !(await askConfirm(`A cena "${scene.name}" será excluída.`, {
+        title: 'Excluir cena',
+        confirmLabel: 'Excluir',
+        danger: true,
+      }))
+    )
+      return;
     const rest = scenes.filter((s) => s.id !== scene.id);
     commit(rest);
     setSceneId(rest[0]!.id);

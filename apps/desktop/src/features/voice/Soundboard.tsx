@@ -2,6 +2,7 @@
  * Efeitos sonoros (ADR-0016): painel para tocar sons na chamada, envio de som com prévia e a lista nas
  * configurações do servidor. Qualquer membro envia; tocar avisa a chamada e cada um ouve no próprio app.
  */
+import { askConfirm } from '../../components/AskDialog';
 import { SOUND_MAX_BYTES, type SoundEffect } from '@opencord/contracts';
 import { Avatar, Button, Icon, Slider, TextField } from '@opencord/ui';
 import {
@@ -611,7 +612,14 @@ export function SoundsTab({ serverId, canManage, myId }: { serverId: string; can
     void useSounds.getState().load(serverId);
   }, [serverId]);
   const remove = async (s: SoundEffect) => {
-    if (!confirm(`Remover o som "${s.name}"?`)) return;
+    if (
+      !(await askConfirm(`O som "${s.name}" sai do servidor para todo mundo.`, {
+        title: 'Remover som',
+        confirmLabel: 'Remover',
+        danger: true,
+      }))
+    )
+      return;
     try {
       await api().request('DELETE', `/servers/${serverId}/sounds/${s.id}`);
       await useSounds.getState().load(serverId);

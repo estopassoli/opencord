@@ -1,3 +1,4 @@
+import { askConfirm } from '../../components/AskDialog';
 import type { Conversation, Invite } from '@opencord/contracts';
 import { Avatar, Icon, STATUS_LABEL } from '@opencord/ui';
 import { useMemo } from 'react';
@@ -75,8 +76,15 @@ function dmMenu(c: Conversation, meId: string | undefined): MenuEntry[] {
     items.push({
       label: 'Desfazer amizade',
       icon: 'user-minus',
-      onSelect: () => {
-        if (!confirm(`Desfazer a amizade com ${name}?`)) return;
+      onSelect: async () => {
+        if (
+          !(await askConfirm(`${name} sai da sua lista de amigos.`, {
+            title: 'Desfazer amizade',
+            confirmLabel: 'Desfazer',
+            danger: true,
+          }))
+        )
+          return;
         void api()
           .request('DELETE', `/friends/${other.id}`)
           .then(() => useUi.getState().toast('success', 'Amizade desfeita.'), toastError);
@@ -86,8 +94,15 @@ function dmMenu(c: Conversation, meId: string | undefined): MenuEntry[] {
     label: 'Bloquear',
     icon: 'block',
     danger: true,
-    onSelect: () => {
-      if (!confirm(`Bloquear ${name}? Vocês não poderão trocar mensagens diretas.`)) return;
+    onSelect: async () => {
+      if (
+        !(await askConfirm('Vocês não poderão trocar mensagens diretas.', {
+          title: `Bloquear ${name}`,
+          confirmLabel: 'Bloquear',
+          danger: true,
+        }))
+      )
+        return;
       void api()
         .request('PUT', `/blocks/${other.id}`)
         .then(() => useUi.getState().toast('success', 'Usuário bloqueado.'), toastError);

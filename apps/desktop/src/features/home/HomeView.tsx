@@ -1,3 +1,4 @@
+import { askConfirm } from '../../components/AskDialog';
 import { MobileNavButton } from '../../components/MobileNavButton';
 import type { Conversation, UserPublic } from '@opencord/contracts';
 import { Avatar, Button, Icon, STATUS_LABEL, TextField } from '@opencord/ui';
@@ -12,6 +13,9 @@ import { openContextMenu, useContextMenu, type MenuEntry } from '../../component
 import { Tooltip } from '../../components/Tooltip';
 import { StreamPreviewCard, watchStream } from '../../components/StreamPreview';
 import { useNameFor } from '../../lib/names';
+
+const UNFRIEND = { title: 'Remover amizade', confirmLabel: 'Remover', danger: true };
+const blockOpts = (name: string) => ({ title: `Bloquear ${name}`, confirmLabel: 'Bloquear', danger: true });
 
 type Tab = 'online' | 'all' | 'pending' | 'blocked' | 'add';
 const TABS: [Tab, string][] = [
@@ -198,8 +202,8 @@ function FriendRow({
           label: 'Remover amizade',
           icon: 'user-minus',
           danger: true,
-          onSelect: () => {
-            if (confirm(`Remover ${name} dos seus amigos?`))
+          onSelect: async () => {
+            if (await askConfirm(`${name} sai da sua lista de amigos.`, UNFRIEND))
               act(api().request('DELETE', `/friends/${f.user.id}`), 'Amizade removida.');
           },
         },
@@ -207,8 +211,8 @@ function FriendRow({
           label: 'Bloquear',
           icon: 'block',
           danger: true,
-          onSelect: () => {
-            if (confirm(`Bloquear ${name}? Vocês não poderão trocar mensagens diretas.`))
+          onSelect: async () => {
+            if (await askConfirm(`Vocês não poderão trocar mensagens diretas.`, blockOpts(name)))
               act(api().request('PUT', `/blocks/${f.user.id}`), 'Usuário bloqueado.');
           },
         },

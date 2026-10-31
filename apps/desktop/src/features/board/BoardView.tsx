@@ -1,3 +1,4 @@
+import { askConfirm } from '../../components/AskDialog';
 import {
   BOARD_COLUMNS,
   hasPermission,
@@ -14,6 +15,8 @@ import { MobileNavButton } from '../../components/MobileNavButton';
 import { useBoards } from '../../store/boards';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
+
+const CARD = { title: 'Excluir card', confirmLabel: 'Excluir', danger: true };
 
 const NO_CARDS: BoardCard[] = [];
 const date = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
@@ -156,8 +159,8 @@ function cardMenu(card: BoardCard, canManage: boolean, onOpen: () => void): Menu
         label: 'Excluir card',
         icon: 'trash',
         danger: true,
-        onSelect: () => {
-          if (confirm(`Excluir o card "${card.title}"?`)) void useBoards.getState().destroy(card);
+        onSelect: async () => {
+          if (await askConfirm(`O card "${card.title}" será excluído.`, CARD)) void useBoards.getState().destroy(card);
         },
       },
     );
@@ -273,8 +276,8 @@ function CardDialog({ card, canManage, onClose }: { card: BoardCard; canManage: 
             <Button
               variant="danger"
               size="sm"
-              onClick={() => {
-                if (!confirm(`Excluir o card "${card.title}"?`)) return;
+              onClick={async () => {
+                if (!(await askConfirm(`O card "${card.title}" será excluído.`, CARD))) return;
                 void useBoards.getState().destroy(card);
                 onClose();
               }}

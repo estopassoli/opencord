@@ -1,3 +1,4 @@
+import { AskHost } from './components/AskDialog';
 import { useEffect } from 'react';
 import { AvatarProvider } from './components/AvatarProvider';
 import { ErrorBoundary, reportError } from './components/ErrorBoundary';
@@ -74,6 +75,7 @@ export function App() {
         </AvatarProvider>
       )}
       <Toasts />
+      <AskHost />
       <GlobalTips />
     </ErrorBoundary>
   );

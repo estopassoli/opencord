@@ -1,3 +1,4 @@
+import { askConfirm } from '../../components/AskDialog';
 import { POLL_DURATIONS, POLL_MAX_OPTIONS, type Message, type Poll } from '@opencord/contracts';
 import { Button, Checkbox, Icon, Select, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -77,7 +78,8 @@ export function PollCard({
     else void send(poll.mine.includes(id) ? [] : [id]);
   };
   const close = async () => {
-    if (!confirm('Encerrar a enquete agora? Ninguém mais poderá votar.')) return;
+    if (!(await askConfirm('Ninguém mais poderá votar.', { title: 'Encerrar enquete', confirmLabel: 'Encerrar' })))
+      return;
     try {
       const p = await api().request<Poll>('POST', `/polls/${poll.id}/close`);
       useMessages.getState().setPoll(targetKey, messageId, p, false);

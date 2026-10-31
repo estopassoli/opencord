@@ -1,3 +1,4 @@
+import { askConfirm } from '../../components/AskDialog';
 import { hasPermission, Permission, type Channel } from '@opencord/contracts';
 import { Avatar, Icon } from '@opencord/ui';
 import { useMemo, useState } from 'react';
@@ -238,8 +239,17 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                                     label: 'Excluir canal',
                                     icon: 'trash' as const,
                                     danger: true,
-                                    onSelect: () => {
-                                      if (confirm(`Excluir o canal "${c.name}"? Esta ação não pode ser desfeita.`))
+                                    onSelect: async () => {
+                                      if (
+                                        await askConfirm(
+                                          `O canal "${c.name}" será excluído. Isso não pode ser desfeito.`,
+                                          {
+                                            title: 'Excluir canal',
+                                            confirmLabel: 'Excluir',
+                                            danger: true,
+                                          },
+                                        )
+                                      )
                                         void api()
                                           .request('DELETE', `/channels/${c.id}`)
                                           .catch((err: unknown) => useUi.getState().toast('error', describeError(err)));

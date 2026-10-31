@@ -1,3 +1,4 @@
+import { askConfirm, askText } from '../../components/AskDialog';
 import {
   ANNOUNCEMENT_TONES,
   type AdminAuditEntry,
@@ -158,7 +159,13 @@ function ServersTab({ onClose }: { onClose: () => void }) {
     onClose();
   };
   const join = async (s: AdminServerEntry) => {
-    if (!confirm(`Entrar em "${s.name}" como super admin? A entrada fica registrada e os membros veem você.`)) return;
+    if (
+      !(await askConfirm('A entrada fica registrada e os membros veem você.', {
+        title: `Entrar em "${s.name}" como super admin`,
+        confirmLabel: 'Entrar',
+      }))
+    )
+      return;
     setBusy(s.id);
     try {
       await api().request<ServerDetail>('POST', `/admin/servers/${s.id}/join`);
@@ -324,8 +331,15 @@ function UsersTab() {
         label: 'Encerrar todas as sessões',
         icon: 'logout',
         hint: u.activeSessions ? `${u.activeSessions} ativa(s)` : undefined,
-        onSelect: () => {
-          if (!confirm(`Encerrar todas as sessões de ${u.displayName}? O app volta para o login.`)) return;
+        onSelect: async () => {
+          if (
+            !(await askConfirm('O app da pessoa volta para o login.', {
+              title: `Encerrar as sessões de ${u.displayName}`,
+              confirmLabel: 'Encerrar',
+              danger: true,
+            }))
+          )
+            return;
           void act(u, 'logout', 'POST', undefined, 'Sessões encerradas.');
         },
       },
@@ -333,11 +347,18 @@ function UsersTab() {
         label: u.isInstanceAdmin ? 'Tirar super admin' : 'Tornar super admin',
         icon: 'shield',
         disabled: !u.isInstanceAdmin && Boolean(u.disabledAt),
-        onSelect: () => {
+        onSelect: async () => {
           const q = u.isInstanceAdmin
             ? `Tirar o super admin de ${u.displayName}?`
             : `Tornar ${u.displayName} super admin? A pessoa poderá entrar em qualquer servidor, suspender contas e mudar a configuração da instância.`;
-          if (!confirm(q)) return;
+          if (
+            !(await askConfirm(q, {
+              title: 'Super admin',
+              confirmLabel: u.isInstanceAdmin ? 'Tirar' : 'Tornar super admin',
+              danger: true,
+            }))
+          )
+            return;
           void act(
             u,
             'admin',
@@ -361,9 +382,15 @@ function UsersTab() {
         danger: true,
         disabled: u.isInstanceAdmin,
         hint: u.isInstanceAdmin ? 'Tire o admin antes' : undefined,
-        onSelect: () => {
-          const reason = prompt(
-            `Suspender ${u.displayName}? A pessoa sai de todas as sessões e chamadas e não entra mais até ser reativada.\n\nMotivo (opcional, fica na auditoria):`,
+        onSelect: async () => {
+          const reason = await askText(
+            'A pessoa sai de todas as sessões e chamadas e não entra mais até ser reativada.',
+            {
+              title: `Suspender ${u.displayName}`,
+              label: 'Motivo (opcional, fica na auditoria)',
+              confirmLabel: 'Suspender',
+              danger: true,
+            },
           );
           if (reason === null) return;
           void act(u, 'suspend', 'POST', { reason: reason.trim() || undefined }, 'Conta suspensa.');

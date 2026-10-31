@@ -6552,3 +6552,15 @@ textarea,
   z-index: 30;
   overflow: visible;
 }
+
+/* confirmações no tema do app (AskDialog, no lugar do confirm()/prompt() nativos) */
+.ask-body {
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+}
+.ask-message {
+  margin: 0;
+  color: var(--text-muted);
+  white-space: pre-line;
+}

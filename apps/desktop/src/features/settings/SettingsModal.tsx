@@ -1,3 +1,4 @@
+import { askConfirm } from '../../components/AskDialog';
 import type { Me, UserSettings } from '@opencord/contracts';
 import { Button, ColorSwatches, RadioGroup, Select, Slider, Switch, TextField, type SelectOption } from '@opencord/ui';
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
@@ -390,8 +391,15 @@ function AccountTab() {
         <Button
           variant="danger"
           size="sm"
-          onClick={() => {
-            if (me.hasAccount || confirm(`Sair e perder o acesso ao apelido "${me.displayName}" neste dispositivo?`))
+          onClick={async () => {
+            if (
+              me.hasAccount ||
+              (await askConfirm(`Você perde o acesso ao apelido "${me.displayName}" neste dispositivo.`, {
+                title: 'Sair',
+                confirmLabel: 'Sair',
+                danger: true,
+              }))
+            )
               void useSession.getState().logout();
           }}
         >

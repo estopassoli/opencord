@@ -3,6 +3,7 @@
  * exporta o trecho como vídeo ou áudio, copia o arquivo, mostra na pasta, apaga ou manda o som para os efeitos
  * sonoros do servidor.
  */
+import { askConfirm } from '../../components/AskDialog';
 import { Button, Icon } from '@opencord/ui';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { ClipInfo } from '../../../electron/shared/ipc';
@@ -362,8 +363,8 @@ function Viewer({ clip }: { clip: ClipInfo }) {
               <button
                 className="icon-btn"
                 aria-label="Apagar clipe"
-                onClick={() => {
-                  if (confirmDelete()) void useClips.getState().remove(clip);
+                onClick={async () => {
+                  if (await confirmDelete()) void useClips.getState().remove(clip);
                 }}
               >
                 <Icon name="trash" />
@@ -484,7 +485,12 @@ const SOURCE_ICON: Record<string, 'screen' | 'microphone' | 'soundboard' | 'user
   'Efeitos sonoros': 'soundboard',
 };
 
-const confirmDelete = () => window.confirm('Apagar este clipe do computador?');
+const confirmDelete = () =>
+  askConfirm('O arquivo do clipe é apagado deste computador.', {
+    title: 'Apagar clipe',
+    confirmLabel: 'Apagar',
+    danger: true,
+  });
 
 /** Miniaturas dos clipes recentes no painel do usuário (do jogo aberto, se houver). */
 export function RecentClips({ game }: { game: string | null }) {

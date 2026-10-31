@@ -1,3 +1,4 @@
+import { askConfirm } from '../../components/AskDialog';
 import { hasPermission, Permission, type Message } from '@opencord/contracts';
 import { Avatar, Icon, TextArea } from '@opencord/ui';
 import { memo, useEffect, useState, type KeyboardEvent } from 'react';
@@ -106,8 +107,15 @@ export const MessageItem = memo(function MessageItem({
     }
   };
 
-  const remove = () => {
-    if (!confirm('Excluir esta mensagem?')) return;
+  const remove = async () => {
+    if (
+      !(await askConfirm('A mensagem some para todo mundo.', {
+        title: 'Excluir mensagem',
+        confirmLabel: 'Excluir',
+        danger: true,
+      }))
+    )
+      return;
     void api()
       .request('DELETE', `/messages/${m.id}`)
       .catch((e: unknown) => useUi.getState().toast('error', describeError(e)));

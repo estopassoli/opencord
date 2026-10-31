@@ -183,8 +183,11 @@ test('jogo detectado, 60 s na memória e o atalho salva um MP4 com vídeo e som'
   await share.getByRole('button', { name: 'Enviar' }).click();
   await expect(A.page.getByRole('status').filter({ hasText: /Clipe enviado em/ })).toBeVisible({ timeout: 60_000 });
   // apagar pelo visualizador remove o arquivo e o fecha
-  A.page.once('dialog', (d) => void d.accept());
   await viewer.getByRole('button', { name: 'Apagar clipe' }).click();
+  // confirmação no tema do app (não a caixa nativa do Windows), por cima do visualizador
+  const ask = A.page.getByRole('dialog', { name: 'Apagar clipe' });
+  await expect(ask).toBeVisible();
+  await ask.getByRole('button', { name: 'Apagar', exact: true }).click();
   await expect(viewer).toHaveCount(0);
   expect(readdirSync(dir).filter((f) => f.startsWith(created[0]!.replace(/\.mp4$/, '')))).toEqual([]);
 });

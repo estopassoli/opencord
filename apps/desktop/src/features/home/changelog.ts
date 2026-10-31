@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '11:00',
+    kind: 'melhoria',
+    icon: 'check',
+    title: 'Confirmações no visual do app',
+    body: 'Apagar um clipe, excluir uma mensagem, um canal ou um card, expulsar alguém, desfazer amizade e outras confirmações agora aparecem numa janela no tema do OpenCord, em vez da caixa cinza do Windows. Enter confirma e Esc cancela.',
+  },
+  {
+    date: '2026-10-31',
     time: '10:30',
     kind: 'melhoria',
     icon: 'music',
