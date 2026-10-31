@@ -58,6 +58,12 @@ function fileUrl(soundId: string): Promise<string> {
   return p;
 }
 
+/** quem quer ouvir os efeitos tocados aqui (os clipes gravam numa trilha própria) */
+let soundTap: ((s: MediaStream) => void) | null = null;
+export function setSoundTap(tap: ((s: MediaStream) => void) | null) {
+  soundTap = tap;
+}
+
 async function playLocal(sound: Pick<SoundEffect, 'id' | 'volume'>, localVolume: number) {
   const url = await fileUrl(sound.id);
   const el = new Audio(url);
@@ -67,6 +73,10 @@ async function playLocal(sound: Pick<SoundEffect, 'id' | 'volume'>, localVolume:
   const sink = el as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
   if (out && sink.setSinkId) await sink.setSinkId(out).catch(() => undefined);
   await el.play().catch(() => undefined);
+  if (soundTap) {
+    const capture = (el as HTMLAudioElement & { captureStream?: () => MediaStream }).captureStream;
+    if (capture) soundTap(capture.call(el));
+  }
 }
 
 export const useSounds = create<SoundsStore>()((set, get) => ({

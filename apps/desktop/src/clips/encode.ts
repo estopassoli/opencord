@@ -22,7 +22,8 @@ export interface EncodeOptions {
 
 export interface EncodeSink {
   video(c: StoredChunk): void;
-  audio(c: StoredChunk): void;
+  /** `track`: posição da trilha de áudio no stream (0 = a primeira) */
+  audio(c: StoredChunk, track: number): void;
 }
 
 export interface EncodeSession {
@@ -77,20 +78,20 @@ export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: Encode
   const Processor = g.MediaStreamTrackProcessor;
   if (!Processor || !webCodecsAvailable()) throw new Error('WebCodecs indisponível');
   const [vTrack] = stream.getVideoTracks();
-  const [aTrack] = stream.getAudioTracks();
+  const aTracks = stream.getAudioTracks();
   if (!vTrack) throw new Error('nenhuma trilha de vídeo');
   let stopped = false;
   let forceKey = true;
   let lastKey = -Infinity;
   let vEnc: VideoEncoder | null = null;
-  let aEnc: AudioEncoder | null = null;
+  const aEncs: AudioEncoder[] = [];
   let vConfig: VideoDecoderConfig | undefined;
-  let aConfig: AudioDecoderConfig | undefined;
+
   // cada trilha tem seu relógio (medido: vídeo da tela no tempo do sistema, áudio começando em zero): a diferença para
   // performance.now() no primeiro quadro/amostra leva as duas ao mesmo relógio
   const now = () => Math.round(performance.now() * 1000);
   let vOffset: number | null = null;
-  let aOffset: number | null = null;
+
   const session: EncodeSession = {
     videoCodec: 'avc',
     audioCodec: null,
@@ -103,8 +104,8 @@ export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: Encode
     },
     stop: async () => {
       stopped = true;
-      await Promise.all([vEnc?.flush().catch(() => undefined), aEnc?.flush().catch(() => undefined)]);
-      for (const e of [vEnc, aEnc]) if (e && e.state !== 'closed') e.close();
+      await Promise.all([vEnc, ...aEncs].map((e) => e?.flush().catch(() => undefined)));
+      for (const e of [vEnc, ...aEncs]) if (e && e.state !== 'closed') e.close();
     },
   };
   const copy = (c: EncodedVideoChunk | EncodedAudioChunk) => {
@@ -171,46 +172,56 @@ export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: Encode
     }
   };
 
-  const runAudio = async () => {
-    if (!aTrack) return;
-    const reader = new Processor<AudioData>({ track: aTrack }).readable.getReader();
+  // cada trilha de áudio tem seu codificador e seu relógio
+  const runAudio = async (track: MediaStreamTrack, index: number) => {
+    const reader = new Processor<AudioData>({ track }).readable.getReader();
+    let enc: AudioEncoder | null = null;
+    let offset: number | null = null;
+    let config: AudioDecoderConfig | undefined;
     for (;;) {
       const { value: data, done } = await reader.read();
       if (done || stopped) {
         data?.close();
         break;
       }
-      aOffset ??= now() - data.timestamp;
-      if (!aEnc) {
+      offset ??= now() - data.timestamp;
+      if (!enc) {
         const cfg = await audioConfig(data.sampleRate, data.numberOfChannels);
         if (!cfg) {
           data.close();
           return;
         }
-        session.audioCodec = cfg.codec === 'opus' ? 'opus' : 'aac';
-        session.sampleRate = data.sampleRate;
-        session.channels = data.numberOfChannels;
-        aEnc = new AudioEncoder({
+        if (index === 0) {
+          session.audioCodec = cfg.codec === 'opus' ? 'opus' : 'aac';
+          session.sampleRate = data.sampleRate;
+          session.channels = data.numberOfChannels;
+        }
+        const off = offset;
+        enc = new AudioEncoder({
           output: (chunk, meta) => {
-            if (meta?.decoderConfig) aConfig = meta.decoderConfig;
-            sink.audio({
-              ts: chunk.timestamp + (aOffset ?? 0),
-              dur: chunk.duration ?? 0,
-              key: true,
-              data: copy(chunk),
-              ...(aConfig ? { config: aConfig } : {}),
-            });
+            if (meta?.decoderConfig) config = meta.decoderConfig;
+            sink.audio(
+              {
+                ts: chunk.timestamp + off,
+                dur: chunk.duration ?? 0,
+                key: true,
+                data: copy(chunk),
+                ...(config ? { config } : {}),
+              },
+              index,
+            );
           },
           error: () => undefined,
         });
-        aEnc.configure(cfg);
+        enc.configure(cfg);
+        aEncs.push(enc);
       }
-      if (aEnc.encodeQueueSize < 50) aEnc.encode(data);
+      if (enc.encodeQueueSize < 50) enc.encode(data);
       data.close();
     }
   };
 
   void runVideo().catch(() => undefined);
-  void runAudio().catch(() => undefined);
+  aTracks.forEach((t, i) => void runAudio(t, i).catch(() => undefined));
   return session;
 }

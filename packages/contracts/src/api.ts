@@ -840,6 +840,8 @@ export type AdminAuditPage = z.infer<typeof AdminAuditPage>;
 
 // ---------- Uploads ----------
 export const UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+/** vídeo compartilhado em partes (clipes): até 1 GB, independente do limite de anexos comuns */
+export const LARGE_UPLOAD_MAX_BYTES = 1024 * 1024 * 1024;
 export const UPLOAD_ALLOWED_MIME = [
   'image/png',
   'image/jpeg',

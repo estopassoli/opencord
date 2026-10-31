@@ -16,7 +16,8 @@ export interface StoredChunk {
 
 export class ChunkRing {
   private gops: StoredChunk[][] = [];
-  private audio: StoredChunk[] = [];
+  /** áudio por trilha (0 = a mistura; as outras, cada fonte) */
+  private audio: StoredChunk[][] = [];
 
   constructor(private readonly windowUs: number) {}
 
@@ -35,10 +36,12 @@ export class ChunkRing {
     this.trim(c.ts);
   }
 
-  pushAudio(c: StoredChunk) {
-    this.lastAudioTs = c.ts;
-    this.audioIn++;
-    this.audio.push(c);
+  pushAudio(c: StoredChunk, track = 0) {
+    if (track === 0) {
+      this.lastAudioTs = c.ts;
+      this.audioIn++;
+    }
+    (this.audio[track] ??= []).push(c);
     this.trim(c.ts);
   }
 
@@ -47,14 +50,15 @@ export class ChunkRing {
     const from = now - this.windowUs;
     while (this.gops.length > 1 && this.gops[1]![0]!.ts <= from) this.gops.shift();
     const start = this.gops[0]?.[0]?.ts ?? from;
-    while (this.audio.length && this.audio[0]!.ts + this.audio[0]!.dur < Math.min(from, start)) this.audio.shift();
+    const cut = Math.min(from, start);
+    for (const a of this.audio) while (a.length && a[0]!.ts + a[0]!.dur < cut) a.shift();
   }
 
   /** bytes guardados agora (para o limite de memória) */
   get bytes() {
     let n = 0;
     for (const g of this.gops) for (const c of g) n += c.data.byteLength;
-    for (const c of this.audio) n += c.data.byteLength;
+    for (const a of this.audio) for (const c of a) n += c.data.byteLength;
     return n;
   }
 
@@ -62,7 +66,7 @@ export class ChunkRing {
    * Fotografia do que há para o clipe: vídeo a partir do quadro-chave mais recente que ainda deixe a janela inteira
    * (ou o mais antigo guardado) e o áudio do mesmo trecho. `base` é o início do clipe.
    */
-  snapshot(): { base: number; video: StoredChunk[]; audio: StoredChunk[] } | null {
+  snapshot(): { base: number; video: StoredChunk[]; audio: StoredChunk[]; extra: StoredChunk[][] } | null {
     if (!this.gops.length) return null;
     const last = this.gops[this.gops.length - 1]!;
     const end = last[last.length - 1]!.ts;
@@ -70,7 +74,8 @@ export class ChunkRing {
     while (i < this.gops.length - 1 && this.gops[i + 1]![0]!.ts <= end - this.windowUs) i++;
     const video = this.gops.slice(i).flat();
     const base = video[0]!.ts;
-    return { base, video, audio: this.audio.filter((a) => a.ts >= base) };
+    const [mix = [], ...extra] = this.audio.map((a) => a.filter((c) => c.ts >= base));
+    return { base, video, audio: mix, extra };
   }
 
   clear() {

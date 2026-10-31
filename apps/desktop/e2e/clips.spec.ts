@@ -103,6 +103,9 @@ test('jogo detectado, 60 s na memória e o atalho salva um MP4 com vídeo e som'
   expect(info.avc).toBe(true);
   expect(info.aac || info.opus).toBe(true);
   expect(info.seconds).toBeGreaterThan(3);
+  // trilhas de som: a mistura + computador, voz e efeitos sonoros
+  const audioTracks = (buf: Buffer) => buf.toString('latin1').split('mp4a').length - 1;
+  expect(audioTracks(readFileSync(file))).toBe(4);
   // o arquivo toca: o próprio Chromium decodifica imagem e duração
   const played = await A.page.evaluate(async (b64) => {
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -133,6 +136,11 @@ test('jogo detectado, 60 s na memória e o atalho salva um MP4 com vídeo e som'
   await start.press('Shift+ArrowRight');
   await start.press('Shift+ArrowRight');
   await expect(viewer).toContainText('Corte:');
+  // fontes de som separadas: silenciar o computador vale na exportação (uma trilha só, a mistura das ligadas)
+  await expect(viewer.getByRole('list', { name: 'Fontes de som do clipe' })).toContainText('Computador', {
+    timeout: 20_000,
+  });
+  await viewer.getByRole('button', { name: 'Silenciar Computador' }).click();
   const out = path.join(os.tmpdir(), `opencord-corte-${Date.now()}.mp4`);
   await A.app.evaluate(({ dialog }, p) => {
     dialog.showSaveDialog = (async () => ({ canceled: false, filePath: p })) as typeof dialog.showSaveDialog;
@@ -143,7 +151,15 @@ test('jogo detectado, 60 s na memória e o atalho salva um MP4 com vídeo e som'
   console.warn('CUT', JSON.stringify(cut));
   expect(cut.avc).toBe(true);
   expect(cut.seconds).toBeLessThan(info.seconds - 1);
+  expect(audioTracks(readFileSync(out))).toBe(1);
   rmSync(out);
+  // compartilhar num canal: sobe em partes e vira mensagem com o vídeo
+  await viewer.getByRole('button', { name: 'Compartilhar' }).click();
+  const share = A.page.getByRole('dialog', { name: 'Compartilhar clipe' });
+  await share.getByRole('textbox', { name: 'Buscar conversa ou canal' }).fill('geral');
+  await share.getByRole('option').first().getByRole('button').click();
+  await share.getByRole('button', { name: 'Enviar' }).click();
+  await expect(A.page.getByRole('status').filter({ hasText: /Clipe enviado em/ })).toBeVisible({ timeout: 60_000 });
   // apagar pelo visualizador remove o arquivo e o fecha
   A.page.once('dialog', (d) => void d.accept());
   await viewer.getByRole('button', { name: 'Apagar clipe' }).click();
