@@ -119,6 +119,19 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # novidades da versão: o app instalado mostra a lista antes de atualizar (GET /downloads/desktop/notes)
+      - uses: actions/checkout@v4
+        if: env.SSH_KEY != ''
+        with:
+          path: repo
+          sparse-checkout: apps/desktop
+      - uses: actions/setup-node@v4
+        if: env.SSH_KEY != ''
+        with:
+          node-version: 24
+      - name: Novidades da versão
+        if: env.SSH_KEY != ''
+        run: node repo/apps/desktop/scripts/release-notes.mjs "dist/OpenCord-notes-${{ needs.version.outputs.version }}.json"
       - name: Enviar por SSH (rrsync só-escrita)
         if: env.SSH_KEY != ''
         shell: bash

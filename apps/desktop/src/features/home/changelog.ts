@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '03:30',
+    kind: 'melhoria',
+    icon: 'download',
+    title: 'Veja o que mudou antes de atualizar',
+    body: 'Ao clicar no botão de atualização, abre uma janela com as novidades da versão nova e você escolhe entre atualizar agora ou depois.',
+  },
+  {
+    date: '2026-10-31',
     time: '03:00',
     kind: 'novo',
     icon: 'record',

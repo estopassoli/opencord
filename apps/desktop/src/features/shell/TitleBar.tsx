@@ -6,7 +6,7 @@ import { ServerIcon } from '../../components/ServerIcon';
 import { bridge } from '../../lib/bridge';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
-import { useVoice } from '../../store/voice';
+import { UpdateDialog } from './UpdateDialog';
 
 function useUpdateStatus(): UpdateStatus {
   const [s, setS] = useState<UpdateStatus>({ state: 'idle' });
@@ -28,29 +28,26 @@ function UpdateButton() {
       : s.state === 'ready'
         ? `Atualização pronta! Clique para reiniciar e atualizar para a versão ${s.version}`
         : `Atualização ${s.version} disponível. Clique para baixar`;
+  const [dialog, setDialog] = useState(false);
   const install = () => {
     if (!bridge || s.state === 'downloading') return;
-    const inCall = useVoice.getState().machine.status !== 'disconnected';
-    if (
-      s.state === 'ready' &&
-      inCall &&
-      !confirm('Atualizar agora reinicia o OpenCord e encerra a chamada. Continuar?')
-    )
-      return;
-    void bridge.updates.install();
+    setDialog(true);
   };
   return (
-    <Tooltip label={label} side="bottom">
-      <button
-        className="titlebar-btn titlebar-update"
-        data-state={s.state}
-        aria-label={label}
-        aria-disabled={s.state === 'downloading' || undefined}
-        onClick={install}
-      >
-        <Icon name="download" size={16} />
-      </button>
-    </Tooltip>
+    <>
+      {dialog && s.state !== 'downloading' && <UpdateDialog status={s} onClose={() => setDialog(false)} />}
+      <Tooltip label={label} side="bottom">
+        <button
+          className="titlebar-btn titlebar-update"
+          data-state={s.state}
+          aria-label={label}
+          aria-disabled={s.state === 'downloading' || undefined}
+          onClick={install}
+        >
+          <Icon name="download" size={16} />
+        </button>
+      </Tooltip>
+    </>
   );
 }
 

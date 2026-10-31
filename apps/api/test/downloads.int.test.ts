@@ -25,6 +25,19 @@ beforeAll(() => {
   writeFileSync(path.join(DIR, 'OpenCord-0.2.0-linux-x86_64.AppImage'), Buffer.alloc(400, 4));
   writeFileSync(path.join(DIR, 'OpenCord-0.2.0-linux-amd64.deb'), Buffer.alloc(401, 4));
   writeFileSync(path.join(DIR, 'segredo.txt'), 'nao servir');
+  const note = (title: string) => ({
+    date: '2026-10-31',
+    time: '03:00',
+    kind: 'novo',
+    icon: 'record',
+    title,
+    body: 'texto',
+  });
+  writeFileSync(path.join(DIR, 'OpenCord-notes-0.2.9.json'), JSON.stringify({ entries: [note('velha')] }));
+  writeFileSync(
+    path.join(DIR, 'OpenCord-notes-0.2.10.json'),
+    JSON.stringify({ entries: [note('Nova'), { title: 'sem campos' }, { ...note('extra'), segredo: 'x' }] }),
+  );
   // 0.2.0 é o mais recente
   utimesSync(path.join(DIR, 'OpenCord Setup 0.1.0.exe'), new Date(2026, 0, 1), new Date(2026, 0, 1));
 });
@@ -97,4 +110,20 @@ describe('download do app desktop (para quem usa pelo navegador)', () => {
     expect((await h.req('GET', `/downloads/files/${encodeURIComponent('..\\x.exe')}`)).status).toBe(404);
     expect((await h.req('GET', '/downloads/files/inexistente.exe')).status).toBe(404);
   });
+
+  it('novidades da versão mais recente publicada, só com os campos esperados', async () => {
+    const h = await start({ DOWNLOADS_DIR: DIR });
+    const r = await h.req<{ version: string; entries: Record<string, unknown>[] }>('GET', '/downloads/desktop/notes');
+    expect(r.status).toBe(200);
+    expect(r.body.version).toBe('0.2.10');
+    expect(r.body.entries.map((e) => e.title)).toEqual(['Nova', 'extra']);
+    expect(r.body.entries[1]).not.toHaveProperty('segredo');
+    expect((await (await start2()).req('GET', '/downloads/desktop/notes')).status).toBe(404);
+  });
 });
+
+/** sem pasta de downloads */
+async function start2() {
+  await app?.close();
+  return start({});
+}

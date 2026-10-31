@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Controller, Get, Inject, NotFoundException, Param, Res } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
@@ -38,6 +38,40 @@ const FORMATS: Record<string, { platform: DesktopPlatform; format: DesktopFormat
 };
 
 const ORDER: DesktopPlatform[] = ['windows', 'mac', 'linux'];
+
+/** Novidades publicadas junto com os instaladores pelo CI: `OpenCord-notes-<versão>.json`. */
+const NOTES_NAME = /^OpenCord-notes-(\d+)\.(\d+)\.(\d+)\.json$/;
+
+export interface ReleaseNote {
+  date: string;
+  time?: string;
+  kind: string;
+  title: string;
+  body: string;
+}
+export interface ReleaseNotes {
+  version: string;
+  entries: ReleaseNote[];
+}
+
+const str = (v: unknown, max: number) => typeof v === 'string' && v.length > 0 && v.length <= max;
+/** só os campos esperados (o arquivo vem do CI, mas a API não repassa nada além disto) */
+export function cleanNotes(raw: unknown, version: string): ReleaseNotes {
+  const list = Array.isArray((raw as { entries?: unknown })?.entries) ? (raw as { entries: unknown[] }).entries : [];
+  const entries: ReleaseNote[] = [];
+  for (const e of list.slice(0, 200)) {
+    const o = e as Record<string, unknown>;
+    if (!str(o.date, 10) || !str(o.kind, 20) || !str(o.title, 200) || !str(o.body, 2000)) continue;
+    entries.push({
+      date: o.date as string,
+      ...(str(o.time, 5) ? { time: o.time as string } : {}),
+      kind: o.kind as string,
+      title: o.title as string,
+      body: o.body as string,
+    });
+  }
+  return { version, entries };
+}
 
 /** Plataforma/arquitetura pelo nome (padrão do electron-builder.yml; "OpenCord Setup x.y.z.exe" antigo = x64). */
 export function classify(name: string): Omit<DesktopFile, 'url' | 'sizeBytes'> | null {
@@ -105,6 +139,26 @@ export class DownloadsController {
       return { windows, files: [windows, ...files.filter((f) => f.platform !== 'windows')] };
     }
     return { windows: files.find((f) => f.platform === 'windows') ?? null, files };
+  }
+
+  /** Novidades da versão mais recente publicada (o app mostra antes de atualizar). */
+  @Public()
+  @Get('desktop/notes')
+  async notes(): Promise<ReleaseNotes> {
+    const dir = this.cfg.DOWNLOADS_DIR;
+    if (!dir) throw new NotFoundException();
+    const names = await readdir(dir).catch(() => [] as string[]);
+    let best: { name: string; v: number[] } | null = null;
+    for (const name of names) {
+      const m = NOTES_NAME.exec(name);
+      if (!m) continue;
+      const v = [Number(m[1]), Number(m[2]), Number(m[3])];
+      const cmp = best ? v[0]! - best.v[0]! || v[1]! - best.v[1]! || v[2]! - best.v[2]! : 1;
+      if (cmp > 0) best = { name, v };
+    }
+    if (!best) throw new NotFoundException();
+    const raw = JSON.parse(await readFile(path.join(dir, best.name), 'utf8')) as unknown;
+    return cleanNotes(raw, best.v.join('.'));
   }
 
   @Public()
