@@ -57,11 +57,22 @@ export class AttachmentsController {
   }
 
   @Post()
-  async upload(@CurrentUser() u: AuthUser, @Req() req: FastifyRequest) {
+  async upload(
+    @CurrentUser() u: AuthUser,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
     if (!req.isMultipart()) throw new BadRequestException('multipart/form-data esperado');
     const file = await req.file();
     if (!file) throw new BadRequestException('campo "file" ausente');
-    return { attachment: await this.attachments.upload(u.userId, file.file, file.filename, file.mimetype) };
+    try {
+      return { attachment: await this.attachments.upload(u.userId, file.file, file.filename, file.mimetype) };
+    } catch (e) {
+      // recusado no meio do envio (acima do limite): o resto do corpo não foi lido. Sem fechar a conexão, ela ficava
+      // presa e travava a próxima requisição reaproveitada nela (e o encerramento do servidor)
+      if (!file.file.readableEnded) reply.header('connection', 'close');
+      throw e;
+    }
   }
 
   /** A assinatura HMAC é a autorização: URLs só são emitidas a quem pode ver a mensagem. */
