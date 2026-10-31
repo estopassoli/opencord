@@ -84,6 +84,40 @@ function prefsFrom(s: UserSettings | null): AudioPrefs {
   };
 }
 
+// --- lembrado neste computador (localStorage; falhar só perde a lembrança) ---
+const SCREEN_VOLUME_KEY = 'oc-screen-volume';
+const LAST_CALL_KEY = 'oc-last-call';
+const readLocal = <T>(key: string, fallback: T): T => {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : (JSON.parse(v) as T);
+  } catch {
+    return fallback;
+  }
+};
+const writeLocal = (key: string, v: unknown) => {
+  try {
+    if (v === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(v));
+  } catch {
+    /* vale só nesta sessão */
+  }
+};
+
+/** Chamada em que eu estava quando o app fechou (para oferecer reconectar ao abrir de novo). */
+export interface LastCall {
+  serverId: string;
+  channelId: string;
+  at: number;
+}
+/** Some depois de 12 h: ninguém quer voltar para a chamada de ontem. */
+const LAST_CALL_MAX_AGE = 12 * 3600_000;
+export function readLastCall(): LastCall | null {
+  const c = readLocal<LastCall | null>(LAST_CALL_KEY, null);
+  return c && typeof c.channelId === 'string' && Date.now() - c.at < LAST_CALL_MAX_AGE ? c : null;
+}
+export const forgetLastCall = () => writeLocal(LAST_CALL_KEY, null);
+
 export const useVoice = create<VoiceStore>()((set, get) => {
   const dispatch = (e: VoiceEvent) => set((s) => ({ machine: voiceReducer(s.machine, e) }));
   const sdispatch = (e: StreamEvent) => set((s) => ({ stream: streamReducer(s.stream, e) }));
@@ -159,6 +193,9 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     const reconnecting = get().machine.status === 'reconnecting';
     await engine.connect(j.url, j.token, { canSpeak: j.canSpeak, selfMute: s.selfMute, selfDeaf: s.selfDeaf });
     dispatch({ type: 'CONNECTED', generation });
+    const { serverId: sid, machine: m } = get();
+    if (sid && m.channelId)
+      writeLocal(LAST_CALL_KEY, { serverId: sid, channelId: m.channelId, at: Date.now() } satisfies LastCall);
     // atividade já em andamento nesta chamada (Assistir juntos)
     if (j.channelId) void useActivity.getState().load(j.channelId);
     if (j.channelId) void useMusic.getState().load(j.channelId);
@@ -246,6 +283,8 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       await engine?.disconnect().catch(() => undefined);
       const wasIn = get().machine.status !== 'disconnected';
       dispatch({ type: 'LEAVE' });
+      // saiu por vontade própria: não oferece voltar ao reabrir
+      forgetLastCall();
       useActivity.getState().reset();
       useMusic.getState().reset();
       if (wasIn) playSound('leave');
@@ -258,6 +297,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       ptt?.reset();
       void engine?.disconnect();
       dispatch({ type: 'FORCED_OUT', reason });
+      forgetLastCall();
       playSound('leave');
       set({ serverId: null, participants: [], camera: false, stream: initialStreamState });
       useUi.getState().toast('error', reason);
@@ -309,9 +349,11 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       engine?.setUserVolume(userId, v);
     },
 
-    screenVolume: {},
+    // volume do áudio da transmissão de cada pessoa: lembrado neste computador
+    screenVolume: readLocal<Record<string, number>>(SCREEN_VOLUME_KEY, {}),
     setScreenVolume(userId, v) {
       set((s) => ({ screenVolume: { ...s.screenVolume, [userId]: v } }));
+      writeLocal(SCREEN_VOLUME_KEY, get().screenVolume);
       engine?.setScreenVolume(userId, v);
     },
 
