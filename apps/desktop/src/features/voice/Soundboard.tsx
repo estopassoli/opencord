@@ -2,7 +2,7 @@
  * Efeitos sonoros (ADR-0016): painel para tocar sons na chamada, envio de som com prévia e a lista nas
  * configurações do servidor. Qualquer membro envia; tocar avisa a chamada e cada um ouve no próprio app.
  */
-import { SOUND_MAX_BYTES, SOUND_MAX_MS, type SoundEffect } from '@opencord/contracts';
+import { SOUND_MAX_BYTES, type SoundEffect } from '@opencord/contracts';
 import { Avatar, Button, Icon, Slider, TextField } from '@opencord/ui';
 import {
   useCallback,
@@ -22,7 +22,7 @@ import { api, describeError } from '../../store/session';
 import { previewSound, useSounds } from '../../store/sounds';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
-import { decodeAudio, moveHandle, peaks, trimToWav, type TrimRange } from './soundTrim';
+import { decodeAudio, moveHandle, peaks, trimToOpus, type TrimRange } from './soundTrim';
 
 const NO_SOUNDS: SoundEffect[] = [];
 
@@ -34,6 +34,7 @@ export function SoundboardPanel({ anchor, onClose }: { anchor: DOMRect; onClose:
   const byServer = useSounds((s) => s.byServer);
   const usage = useSounds((s) => s.usage);
   const muted = useSounds((s) => s.muted);
+  const playing = useSounds((s) => s.playing);
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
   const [showVolume, setShowVolume] = useState(false);
@@ -103,6 +104,16 @@ export function SoundboardPanel({ anchor, onClose }: { anchor: DOMRect; onClose:
           placeholder="Encontre o som perfeito"
           aria-label="Buscar efeitos sonoros"
         />
+        {playing > 0 && (
+          <button
+            className="icon-btn"
+            aria-label="Parar os sons tocando"
+            data-tip="Parar os sons (só para você)"
+            onClick={() => useSounds.getState().stopAll()}
+          >
+            <Icon name="stop" size={20} />
+          </button>
+        )}
         <button
           className="icon-btn"
           aria-pressed={muted || showVolume}
@@ -275,10 +286,14 @@ function SoundGrid({
   );
 }
 
-/** Arquivos maiores que isto nem são lidos (o recorte enviado continua limitado a 1 MB e 10 s). */
+/** Arquivos maiores que isto nem são lidos (o trecho enviado vai em Opus e cabe nos 8 MB do servidor, uns 17 min). */
 const SOURCE_MAX_BYTES = 25 * 1024 * 1024;
 const BARS = 96;
-const secs = (ms: number) => `${(ms / 1000).toFixed(2).replace('.', ',')} s`;
+/** 4,25 s; a partir de 1 min, 2:05 */
+const secs = (ms: number) =>
+  ms < 60_000
+    ? `${(ms / 1000).toFixed(2).replace('.', ',')} s`
+    : `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
 
 export function UploadSoundDialog({
   serverId,
@@ -313,7 +328,7 @@ export function UploadSoundDialog({
     preview.stop();
     setFile(f);
     setAudio(buf);
-    setRange({ start: 0, end: Math.min(Math.round(buf.duration * 1000), SOUND_MAX_MS) });
+    setRange({ start: 0, end: Math.round(buf.duration * 1000) });
     if (!name) setName(f.name.replace(/\.[^.]+$/, '').slice(0, 32));
   };
 
@@ -335,10 +350,10 @@ export function UploadSoundDialog({
         range.start === 0 && range.end === total && file.size <= SOUND_MAX_BYTES && /\.(mp3|ogg|wav)$/i.test(file.name);
       const body = whole
         ? file
-        : new File([await trimToWav(audio, range.start, range.end)], `${file.name.replace(/\.[^.]+$/, '')}.wav`, {
-            type: 'audio/wav',
+        : new File([await trimToOpus(audio, range.start, range.end)], `${file.name.replace(/\.[^.]+$/, '')}.ogg`, {
+            type: 'audio/ogg',
           });
-      if (body.size > SOUND_MAX_BYTES) throw new Error('O trecho passa de 1 MB.');
+      if (body.size > SOUND_MAX_BYTES) throw new Error('O trecho passa de 8 MB (uns 17 min). Escolha um pedaço menor.');
       await api().upload<SoundEffect>(`/servers/${serverId}/sounds`, body, {
         name: name.trim(),
         ...(emoji.trim() ? { emoji: emoji.trim() } : {}),
@@ -390,9 +405,7 @@ export function UploadSoundDialog({
             </div>
             <SoundTrimmer audio={audio} range={range} total={total} playhead={preview.at} onChange={setRange} />
             <p className="muted small upload-sound-hint">
-              {total > SOUND_MAX_MS
-                ? `O áudio tem ${secs(total)}. Arraste as bordas para escolher um trecho de até 10 s.`
-                : 'Arraste as bordas para cortar o começo ou o fim.'}
+              Arraste as bordas para cortar o começo ou o fim.
             </p>
           </div>
         )}
@@ -400,7 +413,7 @@ export function UploadSoundDialog({
           <Button type="button" variant="secondary" icon="upload" onClick={() => input.current?.click()}>
             {file ? 'Trocar arquivo' : 'Escolher arquivo'}
           </Button>
-          <span className="muted small">MP3, OGG ou WAV · trecho de até 10 s</span>
+          <span className="muted small">MP3, OGG ou WAV · qualquer duração</span>
           <input
             ref={input}
             type="file"
@@ -504,7 +517,7 @@ function SoundTrimmer({
     const box = track.current?.getBoundingClientRect();
     return box ? ((clientX - box.left) / box.width) * total : 0;
   };
-  const move = (which: 'start' | 'end', ms: number) => onChange(moveHandle(range, which, ms, total, SOUND_MAX_MS));
+  const move = (which: 'start' | 'end', ms: number) => onChange(moveHandle(range, which, ms, total, total));
   const drag = (which: 'start' | 'end') => (e: ReactPointerEvent<HTMLElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -513,7 +526,7 @@ function SoundTrimmer({
     el.setPointerCapture(e.pointerId);
     let r = range;
     const onMove = (ev: PointerEvent) => {
-      r = moveHandle(r, which, msAt(ev.clientX), total, SOUND_MAX_MS);
+      r = moveHandle(r, which, msAt(ev.clientX), total, total);
       onChange(r);
     };
     const onUp = () => {
@@ -633,7 +646,7 @@ export function SoundsTab({ serverId, canManage, myId }: { serverId: string; can
               {s.emoji ?? ''}
             </span>
             <span className="truncate">{s.name}</span>
-            <span className="muted small">{(s.durationMs / 1000).toFixed(1)} s</span>
+            <span className="muted small">{secs(s.durationMs)}</span>
             <span className="sounds-by muted small">
               <Avatar id={s.createdBy.id} name={s.createdBy.displayName} size={18} />
               {s.createdBy.displayName}

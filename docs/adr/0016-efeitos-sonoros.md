@@ -6,7 +6,7 @@ O mantenedor pediu: "qualquer um consegue fazer upload de um arquivo mp3 e coloc
 
 ## Decisão
 - **Tabela `SoundEffect`** (migração `20261030120000_sound_effects`), uma lista por servidor: nome (até 32 caracteres), emoji opcional, volume do som (0–1), duração e quem enviou. Máximo de 48 sons por servidor.
-- **Arquivo:** MP3, OGG ou WAV, até 1 MB e 10 s.
+- **Arquivo:** MP3, OGG ou WAV, até 8 MB e sem limite de duração (2026-10-31; antes 1 MB e 10 s).
   - O tipo é detectado pelos bytes.
   - A duração é medida pelo decodificador do app e validada pelo contrato.
   - Fica no armazenamento configurado (R2 ou disco), em `sounds/<uuid>`.
@@ -19,7 +19,7 @@ O mantenedor pediu: "qualquer um consegue fazer upload de um arquivo mp3 e coloc
 - **Por pessoa:** volume dos efeitos e "silenciar efeitos", lembrados neste computador. Quem está ensurdecido não ouve. "Utilizados com frequência" usa o histórico local.
 
 ## Atualização (2026-10-30): recorte e sons entre servidores
-- **Recorte no envio:** o app decodifica o áudio (até 25 MB de origem), mostra a forma de onda e grava só o trecho escolhido (≤ 10 s) como WAV mono 16 bits até 48 kHz (10 s = 960 KB, abaixo de 1 MB). Sem recorte e já dentro do limite, o arquivo original vai como está. A API não mudou para isso: continua recebendo um arquivo de até 1 MB e 10 s.
+- **Recorte no envio:** o app decodifica o áudio (até 25 MB de origem), mostra a forma de onda e grava só o trecho escolhido como OGG/Opus mono a 64 kb/s (≈ 8 KB/s: os 8 MB cabem uns 17 min; medido: 90 s = 731 KB). Sem recorte e já dentro do limite, o arquivo original vai como está. Sem limite de duração, o painel ganha "Parar os sons" (para só para quem clica) e o clipe solta a trilha do efeito quando ele acaba ou é parado (antes cortava em 15 s).
 - **Sons de qualquer servidor:** `GET /sounds` lista os sons de todos os servidores de que a pessoa é membro; o painel agrupa por servidor (o da chamada primeiro).
   - `sound:play` aceita um som de qualquer servidor de que quem toca é membro (antes, só do servidor da chamada).
   - O aviso `sound:played` vai para a sala do servidor da chamada e traz o `volume` do som, para quem ouve não precisar da lista daquele servidor.
@@ -27,7 +27,7 @@ O mantenedor pediu: "qualquer um consegue fazer upload de um arquivo mp3 e coloc
 
 ## Consequências
 - **Evidência:**
-  - integração `sounds.int.test.ts`: membro comum envia; arquivo só para membros; tocar exige estar na chamada; o aviso chega; anti-flood; remoção; tipo pelos bytes; 1 MB;
+  - integração `sounds.int.test.ts`: membro comum envia; arquivo só para membros; tocar exige estar na chamada; o aviso chega; anti-flood; remoção; tipo pelos bytes (inclui `audio/ogg; codecs=opus`); 8 MB; som de 10 min aceito;
   - integração: som de outro servidor toca na chamada, quem ouve baixa o arquivo, quem não é membro do servidor do som não toca;
   - unidade `sound-trim.test.ts`: WAV, picos e limites das bordas do recorte;
   - E2E `voice.spec.ts`: A envia um WAV pelo painel da chamada e toca, e B ouve (contador de diagnóstico, já que o app de teste roda mudo).

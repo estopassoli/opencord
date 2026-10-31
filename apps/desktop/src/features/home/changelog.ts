@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '09:00',
+    kind: 'melhoria',
+    icon: 'speaker',
+    title: 'Efeitos sonoros de qualquer duração',
+    body: 'Os sons do painel de efeitos não têm mais limite de 10 s: envie o áudio inteiro ou corte o trecho que quiser (até uns 17 minutos). Enquanto algum som toca, o botão de parar no painel interrompe os sons para você.',
+  },
+  {
+    date: '2026-10-31',
     time: '08:30',
     kind: 'correção',
     icon: 'microphone',

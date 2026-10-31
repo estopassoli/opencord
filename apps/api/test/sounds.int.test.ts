@@ -39,11 +39,18 @@ const mp3 = () =>
     Buffer.alloc(413),
   ]);
 
-async function upload(token: string, serverId: string, data: Buffer, name = 'buzina', mime = 'audio/mpeg') {
+async function upload(
+  token: string,
+  serverId: string,
+  data: Buffer,
+  name = 'buzina',
+  mime = 'audio/mpeg',
+  durationMs = '1500',
+) {
   const form = new FormData();
   form.append('name', name);
   form.append('volume', '0.8');
-  form.append('durationMs', '1500');
+  form.append('durationMs', durationMs);
   form.append('file', new Blob([data], { type: mime }), 'som.mp3');
   const res = await fetch(`${base}/servers/${serverId}/sounds`, {
     method: 'POST',
@@ -132,11 +139,26 @@ describe('efeitos sonoros', () => {
     expect((await command(so!, 'sound:play', { channelId: voiceId, soundId: up.body.id })).ok).toBe(false);
   });
 
-  it('tipo pelos bytes, nome obrigatório e limite de 1 MB', async () => {
+  it('tipo pelos bytes, nome obrigatório e limite de 8 MB (qualquer duração)', async () => {
     const { owner, serverId } = await bootstrapOwner(http);
     expect((await upload(owner.token, serverId, Buffer.from('<svg/>'), 'x', 'audio/mpeg')).status).toBe(400);
     expect((await upload(owner.token, serverId, mp3(), '')).status).toBe(400);
-    expect((await upload(owner.token, serverId, Buffer.concat([mp3(), Buffer.alloc(1024 * 1024)]))).status).toBe(413);
+    expect((await upload(owner.token, serverId, Buffer.concat([mp3(), Buffer.alloc(8 * 1024 * 1024)]))).status).toBe(
+      413,
+    );
+    // som longo (10 min) é aceito; o corte feito no app vai como OGG/Opus (cabeçalho real gerado pelo mediabunny)
+    const opus = Buffer.from('T2dnUwACAAAAAAAAAAD5eyZNAAAAAHPb7SQBE09wdXNIZWFkAQE4AYC7AAAAAABPZ2dT', 'base64');
+    const cut = await upload(
+      owner.token,
+      serverId,
+      Buffer.concat([opus, Buffer.alloc(64)]),
+      'corte',
+      'audio/ogg',
+      '600000',
+    );
+    expect(cut.status).toBe(201);
+    expect(cut.body.durationMs).toBe(600_000);
+    expect((await upload(owner.token, serverId, mp3(), 'longo', 'audio/mpeg', String(10 * 60_000))).status).toBe(201);
   });
 
   it('quem foi silenciado pela moderação não toca som na chamada', async () => {

@@ -112,7 +112,7 @@ async function start() {
         s.getAudioTracks()[0] ?? null,
         () => voice.useVoice.getState().engine()?.callAudioTracks() ?? [],
       );
-      setSoundTap((m) => clipAudio?.addEffect(m));
+      setSoundTap((m, el) => clipAudio?.addEffect(m, el));
       fpsNow = cfg.clipFps;
       running = JSON.stringify(cfg);
       ring = new ChunkRing(cfg.clipSeconds * 1e6);

@@ -16,6 +16,10 @@ interface SoundsStore {
   usage: Record<string, number>;
   /** quantos efeitos de outras pessoas tocaram aqui (diagnóstico dos testes; o app de teste roda mudo) */
   heard: number;
+  /** efeitos tocando agora aqui (sem limite de duração, então dá para parar) */
+  playing: number;
+  /** para, só para mim, todos os efeitos que estão tocando */
+  stopAll(): void;
   /** se a lista de todos os servidores já veio (o painel mostra todos) */
   loadedAll: boolean;
   load(serverId: string): Promise<void>;
@@ -59,10 +63,13 @@ function fileUrl(soundId: string): Promise<string> {
 }
 
 /** quem quer ouvir os efeitos tocados aqui (os clipes gravam numa trilha própria) */
-let soundTap: ((s: MediaStream) => void) | null = null;
-export function setSoundTap(tap: ((s: MediaStream) => void) | null) {
+let soundTap: ((s: MediaStream, el: HTMLMediaElement) => void) | null = null;
+export function setSoundTap(tap: ((s: MediaStream, el: HTMLMediaElement) => void) | null) {
   soundTap = tap;
 }
+
+const playingNow = new Set<HTMLAudioElement>();
+const syncPlaying = () => useSounds.setState({ playing: playingNow.size });
 
 async function playLocal(sound: Pick<SoundEffect, 'id' | 'volume'>, localVolume: number) {
   const url = await fileUrl(sound.id);
@@ -72,10 +79,19 @@ async function playLocal(sound: Pick<SoundEffect, 'id' | 'volume'>, localVolume:
   const out = useData.getState().settings?.audio.outputDeviceId;
   const sink = el as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
   if (out && sink.setSinkId) await sink.setSinkId(out).catch(() => undefined);
-  await el.play().catch(() => undefined);
+  const done = () => {
+    playingNow.delete(el);
+    syncPlaying();
+  };
+  el.addEventListener('ended', done, { once: true });
+  el.addEventListener('pause', done, { once: true });
+  el.addEventListener('error', done, { once: true });
+  playingNow.add(el);
+  syncPlaying();
+  await el.play().catch(done);
   if (soundTap) {
     const capture = (el as HTMLAudioElement & { captureStream?: () => MediaStream }).captureStream;
-    if (capture) soundTap(capture.call(el));
+    if (capture) soundTap(capture.call(el), el);
   }
 }
 
@@ -85,7 +101,11 @@ export const useSounds = create<SoundsStore>()((set, get) => ({
   muted: read('oc-sound-muted', false),
   usage: read('oc-sound-usage', {} as Record<string, number>),
   heard: 0,
+  playing: 0,
   loadedAll: false,
+  stopAll() {
+    for (const el of [...playingNow]) el.pause();
+  },
   async loadAll() {
     try {
       const list = await api().request<SoundEffect[]>('GET', '/sounds');

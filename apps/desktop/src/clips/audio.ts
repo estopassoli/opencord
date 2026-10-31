@@ -53,13 +53,13 @@ export class ClipAudio {
   }
 
   /** um efeito sonoro tocando agora (o som do elemento vai para a trilha de efeitos) */
-  addEffect(stream: MediaStream) {
+  addEffect(stream: MediaStream, el: HTMLMediaElement) {
     if (!stream.getAudioTracks().length) return;
     const node = this.ctx.createMediaStreamSource(stream);
     this.route(node, this.fx);
+    // efeitos não têm limite de duração: solta quando o som acaba ou é parado
     const done = () => node.disconnect();
-    stream.getAudioTracks()[0]!.addEventListener('ended', done, { once: true });
-    setTimeout(done, 15_000);
+    for (const ev of ['ended', 'pause', 'error']) el.addEventListener(ev, done, { once: true });
   }
 
   /** na ordem de CLIP_AUDIO_NAMES: mistura, computador, voz, efeitos */

@@ -31,7 +31,7 @@ export class SoundsController {
     return this.sounds.list(serverId, u.userId);
   }
 
-  /** multipart: campos name, emoji?, volume, durationMs ANTES do arquivo "file" (MP3/OGG/WAV até 1 MB). */
+  /** multipart: campos name, emoji?, volume, durationMs ANTES do arquivo "file" (MP3/OGG/WAV até 8 MB, qualquer duração). */
   @Post('servers/:id/sounds')
   async upload(@CurrentUser() u: AuthUser, @Param('id', id) serverId: string, @Req() req: FastifyRequest) {
     if (!req.isMultipart()) throw new BadRequestException('multipart/form-data esperado');

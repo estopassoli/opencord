@@ -1,6 +1,6 @@
 /**
- * Recorte de som antes do envio: lê o áudio, desenha a forma de onda e grava só o trecho escolhido
- * como WAV mono (16 bits, até 48 kHz). 10 s nesse formato cabem em 960 KB, abaixo do limite de 1 MB.
+ * Recorte de som antes do envio: lê o áudio, desenha a forma de onda e grava só o trecho escolhido. Sem limite de
+ * duração: o trecho vai como Opus num OGG (mono, 64 kb/s ≈ 8 KB por segundo, uns 17 min nos 8 MB do servidor).
  */
 
 /** Menor trecho aceito (ms). */
@@ -74,6 +74,27 @@ export async function trimToWav(buf: AudioBuffer, startMs: number, endMs: number
   src.start(0, startMs / 1000, seconds);
   const out = await ctx.startRendering();
   return new Blob([encodeWav(out.getChannelData(0), rate)], { type: 'audio/wav' });
+}
+
+/** Trecho [startMs, endMs) como OGG/Opus mono (MP3/OGG/WAV são os formatos que o servidor aceita). */
+export async function trimToOpus(buf: AudioBuffer, startMs: number, endMs: number): Promise<Blob> {
+  const rate = 48_000; // o Opus trabalha em 48 kHz
+  const seconds = (endMs - startMs) / 1000;
+  const ctx = new OfflineAudioContext(1, Math.max(1, Math.round(seconds * rate)), rate);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start(0, startMs / 1000, seconds);
+  const pcm = await ctx.startRendering();
+  const { AudioBufferSource, BufferTarget, OggOutputFormat, Output } = await import('mediabunny');
+  const output = new Output({ format: new OggOutputFormat(), target: new BufferTarget() });
+  const audio = new AudioBufferSource({ codec: 'opus', bitrate: 64_000 });
+  output.addAudioTrack(audio);
+  await output.start();
+  await audio.add(pcm);
+  audio.close();
+  await output.finalize();
+  return new Blob([output.target.buffer!], { type: 'audio/ogg' });
 }
 
 export interface TrimRange {
