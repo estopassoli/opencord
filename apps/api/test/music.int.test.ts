@@ -38,21 +38,26 @@ const data = <T>(r: { ok: boolean; data?: unknown }) => {
 };
 
 describe('Música na chamada', () => {
-  it('quem começa é o DJ: só ele adiciona e controla; quem ouve é recusado; fim da faixa avança uma vez', async () => {
+  it('quem começa é o DJ: todos adicionam à fila, só o DJ controla; fim da faixa avança uma vez', async () => {
     const { owner, voiceId, so, sa } = await setup();
     const first = data<MusicState>(await command(so, 'music:add', { channelId: voiceId, videoId: 'dQw4w9WgXcQ' }));
     expect(first).toMatchObject({ index: 0, playing: true, positionSec: 0, djId: owner.id });
 
-    // alice ouve: não adiciona, não pausa, não pula, não encerra
-    expect((await command(sa, 'music:add', { channelId: voiceId, videoId: 'jNQXAC9IVRw' })).ok).toBe(false);
+    // alice ouve: adiciona à fila (o DJ continua o mesmo e todos recebem o estado)
+    const got = nextEvent<MusicState>(so, 'music:state', (s) => s.queue.length === 2);
+    const added = data<MusicState>(await command(sa, 'music:add', { channelId: voiceId, videoId: 'jNQXAC9IVRw' }));
+    expect(added).toMatchObject({ index: 0, playing: true, djId: owner.id });
+    expect((await got).queue.map((t) => t.videoId)).toEqual(['dQw4w9WgXcQ', 'jNQXAC9IVRw']);
+    // mas não tira da fila, não pausa, não pula, não encerra
+    const hers = added.queue[1]!.id;
+    expect((await command(sa, 'music:control', { channelId: voiceId, action: 'remove', trackId: hers })).ok).toBe(
+      false,
+    );
     for (const action of ['pause', 'next', 'seek'] as const)
       expect((await command(sa, 'music:control', { channelId: voiceId, action, positionSec: 3 })).ok).toBe(false);
     expect((await command(sa, 'music:stop', { channelId: voiceId })).ok).toBe(false);
 
-    // o DJ adiciona e todos recebem o estado
-    const got = nextEvent<MusicState>(sa, 'music:state', (s) => s.queue.length === 2);
-    data<MusicState>(await command(so, 'music:add', { channelId: voiceId, videoId: 'jNQXAC9IVRw' }));
-    expect((await got).queue.map((t) => t.videoId)).toEqual(['dQw4w9WgXcQ', 'jNQXAC9IVRw']);
+    // o DJ controla
     expect(data<MusicState>(await command(so, 'music:control', { channelId: voiceId, action: 'pause' })).playing).toBe(
       false,
     );

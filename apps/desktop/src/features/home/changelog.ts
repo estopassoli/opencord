@@ -28,6 +28,14 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
+    time: '23:59',
+    kind: 'melhoria',
+    icon: 'speaker',
+    title: 'Todos adicionam músicas à fila',
+    body: 'Na música da chamada, qualquer pessoa agora pode colar um link e colocar músicas ou playlists no fim da fila. Tocar, pausar, pular, tirar da fila e encerrar continuam só com o DJ.',
+  },
+  {
+    date: '2026-10-30',
     time: '23:58',
     kind: 'melhoria',
     icon: 'speaker',

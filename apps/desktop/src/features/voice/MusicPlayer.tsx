@@ -1,8 +1,8 @@
 /**
  * Música na chamada (ADR-0014): fila compartilhada de músicas do YouTube / YouTube Music. Cada pessoa ouve no
  * player oficial do YouTube (visível, como exigem os termos), dentro de um player do OpenCord: capa, título,
- * barra de progresso, anterior/tocar/próxima, fila e volume. Quem começa a música é o DJ: só ele mexe na fila e no
- * que toca para todos. Quem ouve controla só o próprio player: volume, pausar para si e voltar ao vivo.
+ * barra de progresso, anterior/tocar/próxima, fila e volume. Quem começa a música é o DJ: só ele controla o que toca
+ * para todos e tira da fila. Quem ouve adiciona à fila e controla o próprio player: volume, pausar para si e voltar ao vivo.
  */
 import { parseYouTubeId, parseYouTubePlaylistId, type MusicTrack } from '@opencord/contracts';
 import { Avatar, Button, Icon, Slider, TextField } from '@opencord/ui';
@@ -79,8 +79,6 @@ function MusicCard() {
   const isDj = useIsDj();
   const djName = useDjName();
   const track = s.queue[s.index];
-  // fila terminada: qualquer pessoa pode recomeçar (e vira o DJ)
-  const canAdd = isDj || !track;
   return (
     <section
       className="music-player"
@@ -95,7 +93,7 @@ function MusicCard() {
           <p className="muted small">A fila acabou. Adicione uma música ou playlist para continuar.</p>
         </div>
       )}
-      {!(minimized && track) && canAdd && <AddTrack channelId={s.channelId} />}
+      {!(minimized && track) && <AddTrack channelId={s.channelId} />}
       {!(minimized && track) && (
         <div className="music-foot">
           <button
@@ -116,7 +114,14 @@ function MusicCard() {
             <Icon name="menu" size={18} />
             <span className="small">{s.queue.length}</span>
           </button>
-          <span className="music-dj small" data-tip={isDj ? 'Você controla a fila' : `${djName} controla a fila`}>
+          <span
+            className="music-dj small"
+            data-tip={
+              isDj
+                ? 'Você controla a música; todos podem adicionar à fila'
+                : `${djName} controla a música; você pode adicionar à fila`
+            }
+          >
             <Icon name="crown" size={14} />
             {isDj ? 'Você é o DJ' : `DJ: ${djName}`}
           </span>

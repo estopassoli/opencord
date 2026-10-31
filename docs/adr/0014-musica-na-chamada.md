@@ -36,7 +36,8 @@ Status: Accepted (pedido do mantenedor, 2026-10-30)
 Pedido do mantenedor: "quando EU coloco a musica EU sou o DJ, entao o correto é apenas eu ter o controle geral da playlist, se eu saio, a pessoa que está mais tempo na call passa a ser o DJ, se todo mundo sai a musica para", e o link de uma playlist importava só a primeira música.
 - **DJ** (`MusicState.djId`):
   - Quem começa a música (fila vazia ou terminada) vira o DJ.
-  - Só o DJ adiciona, tira, pula, toca/pausa, muda a posição e encerra; os outros recebem 403.
+  - Só o DJ tira da fila, pula, toca/pausa, muda a posição e encerra; os outros recebem 403.
+  - Revisado em 2026-10-30 ("pode deixar para os outros users conseguirem colocar musicas na fila, mas quem gerencia o resto é sempre o DJ"): qualquer pessoa na chamada **adiciona** à fila (vai para o fim, o DJ não muda).
   - O aviso de fim da faixa (`ended`) continua aceito de qualquer player, porque só avança se a faixa ainda for a atual.
 - **Quem ouve** controla só o próprio player: volume, "Pausar só para mim" e "Voltar ao vivo" (volta para onde o DJ está) e "Parar de ouvir".
 - **DJ sai da chamada:** quem está nela há mais tempo (menor `joinedAt`) assume, em `VoiceService.handOffMusic`. Se a chamada esvazia, a música acaba, como antes.
