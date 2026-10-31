@@ -177,6 +177,62 @@ describe('Socket.IO: autenticação e chat em tempo real (F2.4)', () => {
     await offline;
   });
 
+  it('jogo atual (ADR-0021): outros veem e recebem; invisível esconde; fechar o app apaga', async () => {
+    const { alice, bob, serverId } = await setup();
+    const sb = await open(bob.token);
+    const sa = await open(alice.token);
+    await sleep(100);
+    const game = { name: 'Path of Exile 2', startedAt: Date.now(), steamAppId: 2694490 };
+    const playing = nextEvent<{ userId: string; game: unknown }>(
+      sb,
+      'presence:game:changed',
+      (e) => e.userId === alice.id,
+    );
+    expect((await command(sa, 'presence:game', { game })).ok).toBe(true);
+    expect((await playing).game).toEqual(game);
+    const games = await http.req<Record<string, unknown>>('GET', `/servers/${serverId}/games`, { token: bob.token });
+    expect(games.body[alice.id]).toEqual(game);
+    expect((await command(sa, 'presence:game', { game: { name: '', startedAt: 1 } })).ok).toBe(false);
+
+    // invisível: o jogo some para os outros; voltar mostra de novo
+    const hidden = nextEvent<{ userId: string; game: unknown }>(
+      sb,
+      'presence:game:changed',
+      (e) => e.userId === alice.id,
+    );
+    await command(sa, 'presence:heartbeat', { status: 'invisible' });
+    expect((await hidden).game).toBeNull();
+    expect(
+      (await http.req<Record<string, unknown>>('GET', `/servers/${serverId}/games`, { token: bob.token })).body[
+        alice.id
+      ],
+    ).toBeUndefined();
+    const back = nextEvent<{ userId: string; game: unknown }>(
+      sb,
+      'presence:game:changed',
+      (e) => e.userId === alice.id,
+    );
+    await command(sa, 'presence:heartbeat', { status: 'online' });
+    expect((await back).game).toEqual(game);
+
+    // fechou o app: o jogo acaba
+    const gone = nextEvent<{ userId: string; game: unknown }>(
+      sb,
+      'presence:game:changed',
+      (e) => e.userId === alice.id,
+    );
+    sa.disconnect();
+    expect((await gone).game).toBeNull();
+    const sa2 = await open(alice.token);
+    await sleep(100);
+    expect(
+      (await http.req<Record<string, unknown>>('GET', `/servers/${serverId}/games`, { token: bob.token })).body[
+        alice.id
+      ],
+    ).toBeUndefined();
+    sa2.disconnect();
+  });
+
   it('kick: cliente recebe server:removed e deixa de receber eventos do servidor', async () => {
     const { alice, owner, serverId, channelId } = await setup();
     const sa = await open(alice.token);

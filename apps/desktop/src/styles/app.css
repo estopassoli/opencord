@@ -6119,3 +6119,69 @@ section:first-child > .friends-panel-sep {
   display: flex;
   justify-content: space-between;
 }
+
+/* jogando agora (ADR-0021) */
+.game-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--success);
+}
+.game-badge {
+  color: var(--success);
+  flex: none;
+}
+.member-names {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+.playing {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--sidebar);
+}
+.playing-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-2);
+}
+.playing-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.playing-art {
+  flex: none;
+  width: 64px;
+  height: 30px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--interactive);
+}
+.playing-art-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+.playing-names {
+  display: grid;
+  min-width: 0;
+}
+.playing-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success);
+  font-variant-numeric: tabular-nums;
+}
+.playing-steam {
+  justify-self: stretch;
+}

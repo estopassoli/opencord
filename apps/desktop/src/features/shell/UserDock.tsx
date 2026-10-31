@@ -10,6 +10,7 @@ import { useUi } from '../../store/ui';
 import { isInCall, useVoice } from '../../store/voice';
 import { SoundboardPanel } from '../voice/Soundboard';
 import { deviceMenu } from '../voice/devices';
+import { GameLine, usePlaying } from './Playing';
 
 const STATUSES: Exclude<PresenceStatus, 'offline'>[] = ['online', 'idle', 'dnd', 'invisible'];
 
@@ -37,6 +38,7 @@ export function UserDock() {
   const [soundAnchor, setSoundAnchor] = useState<DOMRect | null>(null);
   const me = useData((s) => s.me);
   const myStatus = useData((s) => s.myStatus);
+  const playing = usePlaying(me?.id);
   const details = useData((s) => s.details);
   const v = useVoice();
   const [menu, setMenu] = useState(false);
@@ -204,7 +206,11 @@ export function UserDock() {
             />
             <span className="user-dock-names">
               <strong className="truncate">{me.displayName}</strong>
-              <span className="muted small truncate">{STATUS_LABEL[myStatus]}</span>
+              {playing ? (
+                <GameLine userId={me.id} className="small" />
+              ) : (
+                <span className="muted small truncate">{STATUS_LABEL[myStatus]}</span>
+              )}
             </span>
           </button>
           {menu && (

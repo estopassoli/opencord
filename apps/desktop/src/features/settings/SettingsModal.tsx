@@ -21,6 +21,7 @@ import { useUi } from '../../store/ui';
 import './settings.css';
 import { deviceLabel } from '../voice/devices';
 import { AvatarPicker } from './AvatarPicker';
+import { GamesTab } from './GamesTab';
 
 // ---------------------------------------------------------------------------
 // Layout de abas verticais (compartilhado com as configurações do servidor)
@@ -119,11 +120,12 @@ export function Section({
 // Modal de configurações do usuário
 // ---------------------------------------------------------------------------
 
-type UserTab = 'account' | 'voice' | 'keybinds' | 'appearance' | 'notifications' | 'about';
+type UserTab = 'account' | 'voice' | 'games' | 'keybinds' | 'appearance' | 'notifications' | 'about';
 
 const USER_TABS: readonly TabDef<UserTab>[] = [
   { id: 'account', label: 'Minha conta' },
   { id: 'voice', label: 'Voz e vídeo' },
+  { id: 'games', label: 'Jogos' },
   { id: 'keybinds', label: 'Atalhos' },
   { id: 'appearance', label: 'Aparência' },
   { id: 'notifications', label: 'Notificações' },
@@ -143,6 +145,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       <TabbedLayout tabs={USER_TABS} active={tab} onChange={setTab} label="Seções das configurações">
         {tab === 'account' && <AccountTab />}
         {tab === 'voice' && <VoiceTab settings={settings} />}
+        {tab === 'games' && <GamesTab settings={settings} />}
         {tab === 'keybinds' && <KeybindsTab settings={settings} />}
         {tab === 'appearance' && <AppearanceTab settings={settings} />}
         {tab === 'notifications' && <NotificationsTab settings={settings} />}

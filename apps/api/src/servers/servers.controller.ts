@@ -192,6 +192,13 @@ export class ServersController {
     return this.presence.visibleMany(await this.servers.listMemberIds(id));
   }
 
+  /** Jogo de cada membro que está jogando agora (ADR-0021). */
+  @Get('servers/:id/games')
+  async serverGames(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.perms.server(id, u.userId);
+    return this.presence.visibleGames(await this.servers.listMemberIds(id));
+  }
+
   @Get('servers/:id/audit-log')
   auditLog(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string, @Query('limit') limit?: string) {
     return this.audit.list(id, u.userId, limit ? Number(limit) || 100 : 100);

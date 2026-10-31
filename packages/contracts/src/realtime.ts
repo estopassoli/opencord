@@ -10,6 +10,7 @@ import {
   Message,
   MessageBody,
   PresenceStatus,
+  PlayingGame,
   Role,
   ServerSummary,
   Friend,
@@ -57,6 +58,8 @@ export const ClientCommands = {
   'chat:typing:stop': z.object({ channelId: Id.optional(), conversationId: Id.optional() }),
   'chat:read': z.object({ channelId: Id.optional(), conversationId: Id.optional(), messageId: Id }),
   'presence:heartbeat': z.object({ status: PresenceStatus.exclude(['offline']).optional() }),
+  /** jogo que estou jogando agora (null = parei ou escondi) */
+  'presence:game': z.object({ game: PlayingGame.nullable() }),
   'activity:get': z.object({ channelId: Id }),
   'activity:youtube:start': z.object({ channelId: Id, videoId: YouTubeVideoId }),
   'activity:youtube:control': ActivityControl,
@@ -88,6 +91,7 @@ export interface ClientCommandResults {
   'chat:typing:stop': null;
   'chat:read': null;
   'presence:heartbeat': { ttlSeconds: number };
+  'presence:game': null;
   'sync:resume': { missed: Message[]; truncated: boolean };
   'activity:get': ActivityState | null;
   'activity:youtube:start': ActivityState;
@@ -130,6 +134,8 @@ export interface ServerEvents {
     mention: boolean;
   };
   'presence:changed': { userId: string; status: z.infer<typeof PresenceStatus> };
+  /** jogo que a pessoa está jogando, como os outros veem (null quando parou, ficou invisível ou offline) */
+  'presence:game:changed': { userId: string; game: PlayingGame | null };
   'voice:member:joined': VoiceMemberState;
   'voice:state:changed': VoiceMemberState;
   'voice:member:left': {

@@ -28,6 +28,7 @@ export function applySettingsSideEffects(s: UserSettings) {
       .catch(() => useUi.getState().toast('error', 'Atalho inválido.'));
   }
   void import('./voice').then(({ useVoice }) => useVoice.getState().applySettings(s));
+  void import('./games').then(({ configureGames }) => configureGames(s));
 }
 
 /** Cor de destaque, tom de fundo, cantos e fonte: viram variáveis CSS no :root. */

@@ -21,6 +21,9 @@ export const IPC = {
   prefsGet: 'prefs:get',
   prefsSet: 'prefs:set',
   appRelaunch: 'app:relaunch',
+  gamesConfigure: 'games:configure',
+  gamesProcesses: 'games:processes',
+  gamesCurrent: 'games:current',
   // eventos main → renderer
   evShortcut: 'ev:shortcut',
   evNotificationClick: 'ev:notification-click',
@@ -28,4 +31,5 @@ export const IPC = {
   evTrayAction: 'ev:tray-action',
   evUpdate: 'ev:update',
   evWindowState: 'ev:window-state',
+  evGame: 'ev:game',
 } as const;

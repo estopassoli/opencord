@@ -13,6 +13,7 @@ const EVENT_CHANNELS = {
   'tray-action': IPC.evTrayAction,
   update: IPC.evUpdate,
   'window-state': IPC.evWindowState,
+  game: IPC.evGame,
 } as const;
 
 const bridge: OpenCordBridge = {
@@ -40,6 +41,11 @@ const bridge: OpenCordBridge = {
     set: (prefs) => ipcRenderer.invoke(IPC.prefsSet, prefs),
   },
   relaunch: () => ipcRenderer.invoke(IPC.appRelaunch),
+  games: {
+    configure: (args) => ipcRenderer.invoke(IPC.gamesConfigure, args),
+    processes: () => ipcRenderer.invoke(IPC.gamesProcesses),
+    current: () => ipcRenderer.invoke(IPC.gamesCurrent),
+  },
   updates: {
     status: () => ipcRenderer.invoke(IPC.updateStatus),
     check: () => ipcRenderer.invoke(IPC.updateCheck),
