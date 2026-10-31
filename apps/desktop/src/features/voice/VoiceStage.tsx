@@ -11,7 +11,6 @@ import { useUi } from '../../store/ui';
 import { isInCall, useVoice, type ParticipantView } from '../../store/voice';
 import { closeStreamWindow, openStreamWindow } from './popout';
 import { ActivitiesPanel, ActivityTile } from './WatchTogether';
-import { MusicPlayer } from './MusicPlayer';
 import { SoundboardPanel } from './Soundboard';
 import { SceneEditor } from './SceneEditor';
 import { sceneMenu } from './sceneMenu';
@@ -107,7 +106,6 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
           ))}
         </ul>
       )}
-      <MusicPlayer />
       <CallControls stageRef={stageRef} />
     </section>
   );

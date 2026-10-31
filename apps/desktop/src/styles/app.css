@@ -4805,9 +4805,18 @@ section:first-child > .friends-panel-sep {
   color: var(--text-muted);
 }
 
-/* música na chamada (ADR-0014): cartão flutuante no palco, com o player oficial visível */
-.stage {
+/* música na chamada (ADR-0014): cartão flutuante no palco, com o player oficial visível. Montado no conteúdo do app
+   para seguir tocando fora do palco; ali fica minimizado no canto de cima. */
+.stage,
+.content {
   position: relative;
+}
+.music-player[data-away='true'] {
+  top: 60px;
+  right: 16px;
+  bottom: auto;
+  left: auto;
+  width: min(280px, calc(100% - 32px));
 }
 .app-music .app-art {
   background: radial-gradient(circle at 30% 20%, #8be9c1, #1f9d6b 60%, #0b4d34);

@@ -19,6 +19,7 @@ import { TitleBar } from './TitleBar';
 import { UserDock } from './UserDock';
 import { PopoutStage, VoiceStage } from '../voice/VoiceStage';
 import { PopoutPortal } from '../voice/popout';
+import { MusicPlayer } from '../voice/MusicPlayer';
 import { MediaViewer } from '../chat/MediaViewer';
 import { FriendsPanel } from './FriendsPanel';
 import { DmProfilePanel, useDmPeer } from './DmProfilePanel';
@@ -134,6 +135,7 @@ export function AppShell() {
   }, [mobile]);
 
   const channel = view.kind === 'server' ? detail?.channels.find((c) => c.id === view.channelId) : undefined;
+  const myCall = useVoice((v) => v.machine.channelId);
   // fora da tela no celular = fora da ordem de foco e da árvore de acessibilidade
   const off = (p: typeof panel) => mobile && panel !== p;
 
@@ -177,6 +179,8 @@ export function AppShell() {
             <p>Nenhum canal disponível.</p>
           </div>
         )}
+        {/* aqui (e não no palco) para a música seguir tocando ao trocar de canal, servidor ou DM */}
+        <MusicPlayer onStage={channel?.kind === 'voice' && channel.id === myCall} />
       </main>
       {view.kind === 'dm' && !mobile && <DmProfilePanel conversationId={view.conversationId} />}
       {view.kind === 'dm' && !mobile && <FriendsPanel forceCompact={dmProfileShown} />}

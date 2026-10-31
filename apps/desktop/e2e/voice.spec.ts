@@ -545,6 +545,14 @@ test('Música na chamada: A abre e vira DJ, B ouve; só o DJ controla, B pausa s
   await mini.click();
   await expect(playerA.getByLabel(/Adicionar música/)).toBeVisible();
   expect(await playerA.locator('.music-video iframe').getAttribute('data-mark')).toBe('antes');
+  // sair do palco (outro canal) não desmonta o player: segue tocando, minimizado no canto; clicar volta à chamada
+  await A.page.locator('.sidebar').getByRole('button', { name: /geral/ }).first().click();
+  const away = A.page.locator('.music-player[data-away="true"]');
+  await expect(away.locator('.music-mini')).toBeVisible();
+  expect(await away.locator('.music-video iframe').getAttribute('data-mark')).toBe('antes');
+  await away.locator('.music-mini').click();
+  await expect(playerA.getByLabel(/Adicionar música/)).toBeVisible();
+  expect(await playerA.locator('.music-video iframe').getAttribute('data-mark')).toBe('antes');
   // B ouve: vê quem é o DJ e o campo de adicionar à fila, mas não os controles do grupo; pausa só para si
   await expect(playerB.getByText(/^DJ: /)).toBeVisible();
   await expect(playerB.getByRole('button', { name: 'Pausar para todos' })).toHaveCount(0);

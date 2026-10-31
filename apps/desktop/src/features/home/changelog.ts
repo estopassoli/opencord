@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '00:15',
+    kind: 'correção',
+    icon: 'speaker',
+    title: 'Música segue tocando ao sair da chamada na tela',
+    body: 'Ir para outro canal, servidor ou conversa pausava a música da chamada. Agora ela continua tocando e aparece minimizada no canto de cima; clique nela para voltar à chamada.',
+  },
+  {
+    date: '2026-10-31',
     time: '00:10',
     kind: 'novo',
     icon: 'folder',
