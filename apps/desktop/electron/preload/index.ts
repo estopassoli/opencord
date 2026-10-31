@@ -41,6 +41,11 @@ const bridge: OpenCordBridge = {
     set: (prefs) => ipcRenderer.invoke(IPC.prefsSet, prefs),
   },
   relaunch: () => ipcRenderer.invoke(IPC.appRelaunch),
+  clips: {
+    prepareCapture: () => ipcRenderer.invoke(IPC.clipsPrepare),
+    save: (args) => ipcRenderer.invoke(IPC.clipsSave, args),
+    reveal: (path) => ipcRenderer.invoke(IPC.clipsReveal, path),
+  },
   games: {
     configure: (args) => ipcRenderer.invoke(IPC.gamesConfigure, args),
     processes: () => ipcRenderer.invoke(IPC.gamesProcesses),

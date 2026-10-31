@@ -21,6 +21,8 @@ capturePendingInvite();
 
 // Diagnóstico somente leitura para suporte/E2E (não expõe tokens nem conteúdo).
 (window as unknown as { __opencordSoundsHeard: () => number }).__opencordSoundsHeard = () => useSounds.getState().heard;
+(window as unknown as { __opencordClips: () => unknown }).__opencordClips = () =>
+  import('./store/clips').then((m) => m.clipsDiag());
 (window as unknown as { __opencordDiag: () => unknown }).__opencordDiag = () => {
   const v = useVoice.getState();
   return (

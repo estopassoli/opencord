@@ -934,6 +934,12 @@ function KeybindsTab({ settings }: { settings: UserSettings }) {
           value={keybinds.toggleDeafen}
           onChange={(v) => setKeybind({ toggleDeafen: v })}
         />
+        <KeyCapture
+          label="Salvar clipe (últimos 60 s do jogo)"
+          mode="accelerator"
+          value={keybinds.saveClip}
+          onChange={(v) => setKeybind({ saveClip: v })}
+        />
       </Section>
     </>
   );

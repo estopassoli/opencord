@@ -22,6 +22,7 @@ import { z } from 'zod';
 import {
   AppPrefsSchema,
   CaptureSelectArgs,
+  ClipSaveArgs,
   ExternalUrl,
   GamesConfigureArgs,
   IPC,
@@ -41,6 +42,7 @@ import { appIcon, badgeIcon, trayIcon } from './icons';
 import { readAppPrefs, writeAppPrefs } from './app-prefs';
 import { checkForUpdate, checkIfStale, installUpdate, startUpdater, updateStatus } from './updater';
 import { GameDetector } from './games';
+import { prepareClipCapture, revealClip, saveClip } from './clips';
 
 /** nome da janela da transmissão desanexada (src/features/voice/popout.tsx) */
 const POPOUT_NAME = 'opencord-live';
@@ -319,6 +321,9 @@ function registerIpc() {
     writeAppPrefs(prefs);
     return prefsState();
   });
+  handle(IPC.clipsPrepare, [], () => prepareClipCapture());
+  handle(IPC.clipsSave, [ClipSaveArgs], (a) => saveClip(a));
+  handle(IPC.clipsReveal, [z.string().max(1024)], (p) => revealClip(p));
   handle(IPC.gamesConfigure, [GamesConfigureArgs], (a) => games.configure(a.enabled, a.custom));
   handle(IPC.gamesProcesses, [], () => games.processes());
   handle(IPC.gamesCurrent, [], () => games.game);

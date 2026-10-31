@@ -33,6 +33,7 @@ export function App() {
         if (a === 'toggleMute') void v.toggleMute();
         else if (a === 'toggleDeafen') void v.toggleDeafen();
         else if (a === 'pushToTalkToggle') v.setPtt(!v.pttActive);
+        else if (a === 'saveClip') void import('./store/clips').then(({ saveClip }) => saveClip());
       }),
       bridge.on('tray-action', (a) => {
         const v = useVoice.getState();

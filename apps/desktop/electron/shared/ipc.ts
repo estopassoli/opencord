@@ -41,6 +41,8 @@ export const ShortcutsArgs = z.object({
   toggleDeafen: Accelerator.nullable(),
   /** PTT global em modo alternância (globalShortcut não informa key-up; ver docs/adr/0005). */
   pushToTalkToggle: Accelerator.nullable(),
+  /** salvar clipe (ADR-0022) */
+  saveClip: Accelerator.nullable().optional(),
 });
 export type ShortcutsArgs = z.infer<typeof ShortcutsArgs>;
 
@@ -68,7 +70,7 @@ export interface CaptureSourceDto {
   displayId?: string;
 }
 
-export type ShortcutAction = 'toggleMute' | 'toggleDeafen' | 'pushToTalkToggle';
+export type ShortcutAction = 'toggleMute' | 'toggleDeafen' | 'pushToTalkToggle' | 'saveClip';
 export type TrayAction = 'toggleMute' | 'toggleDeafen' | 'disconnect' | 'show';
 
 /** Atualização "avisar e baixar": Windows baixa e fica `ready`; macOS/Linux ficam `available` (abre o download). */
@@ -110,6 +112,16 @@ export const GamesConfigureArgs = z.object({
 });
 export type GamesConfigureArgs = z.infer<typeof GamesConfigureArgs>;
 
+/** Clipe pronto para gravar em Vídeos\OpenCord (ADR-0022). */
+export const ClipSaveArgs = z.object({
+  /** nome do jogo, vira parte do nome do arquivo */
+  game: z.string().trim().max(64),
+  data: z
+    .instanceof(Uint8Array)
+    .refine((d) => d.byteLength > 0 && d.byteLength <= 1024 * 1024 * 1024, 'tamanho inválido'),
+});
+export type ClipSaveArgs = z.infer<typeof ClipSaveArgs>;
+
 export interface AppInfo {
   version: string;
   electron: string;
@@ -147,6 +159,14 @@ export interface OpenCordBridge {
   };
   /** Fecha e abre o app de novo (para aplicar preferências como a aceleração de hardware). */
   relaunch(): Promise<void>;
+  clips: {
+    /** autoriza a PRÓXIMA getDisplayMedia a capturar a tela principal com o som do computador */
+    prepareCapture(): Promise<boolean>;
+    /** grava o clipe e devolve o caminho do arquivo */
+    save(args: ClipSaveArgs): Promise<string>;
+    /** abre a pasta com o arquivo selecionado (só dentro da pasta de clipes) */
+    reveal(path: string): Promise<void>;
+  };
   games: {
     /** liga/desliga a detecção e informa os jogos que a pessoa cadastrou */
     configure(args: GamesConfigureArgs): Promise<void>;

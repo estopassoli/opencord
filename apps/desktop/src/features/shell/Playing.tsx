@@ -7,6 +7,7 @@ import { Button, Icon } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import { bridge } from '../../lib/bridge';
 import { useData } from '../../store/data';
+import { useClips } from '../../store/clips';
 import { useGames } from '../../store/games';
 
 /** Jogo que a pessoa está jogando, como eu vejo (o meu vem direto do detector, mesmo invisível). */
@@ -103,6 +104,46 @@ export function PlayingNow({ userId }: { userId: string }) {
           Ver na Steam
         </Button>
       )}
+    </section>
+  );
+}
+
+/** Teclas de um atalho do Electron ("Shift+F10") para mostrar ao usuário. */
+const keysOf = (accel: string) =>
+  accel
+    .split('+')
+    .map((k) => (k === 'CommandOrControl' ? 'Ctrl' : k).toUpperCase())
+    .filter(Boolean);
+
+/** Linha do jogo no painel do usuário: nome e, com clipes ativos, o atalho para clipar (ADR-0022). */
+export function GameDock() {
+  const mine = useGames((g) => g.mine);
+  const clipping = useClips((c) => c.active);
+  const saving = useClips((c) => c.saving);
+  const accel = useData((d) => d.settings?.keybinds.saveClip ?? null);
+  if (!mine) return null;
+  return (
+    <section className="game-dock" aria-label="Jogo aberto">
+      <GameArt game={mine} />
+      <span className="game-dock-names">
+        <strong className="truncate">{mine.name}</strong>
+        {clipping && accel ? (
+          <span className="game-dock-keys small">
+            {saving ? (
+              'Salvando clipe…'
+            ) : (
+              <>
+                {keysOf(accel).map((k) => (
+                  <kbd key={k}>{k}</kbd>
+                ))}{' '}
+                para clipar
+              </>
+            )}
+          </span>
+        ) : (
+          <span className="muted small">Jogando agora</span>
+        )}
+      </span>
     </section>
   );
 }

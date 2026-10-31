@@ -41,8 +41,10 @@ test('janela segura: sem Node no renderer e bridge mínima exposta', async () =>
   expect(info.bridgeKeys).toEqual([
     'appInfo',
     'capture',
+    'clips',
     'flashFrame',
     'focusWindow',
+    'games',
     'notify',
     'on',
     'openExternal',
@@ -53,6 +55,8 @@ test('janela segura: sem Node no renderer e bridge mínima exposta', async () =>
     'setShortcuts',
     'setTrayVoiceState',
     'updates',
+    'windowControl',
+    'windowState',
   ]);
   const prefs = await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0];
