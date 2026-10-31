@@ -545,10 +545,11 @@ test('Música na chamada: A abre e vira DJ, B ouve; só o DJ controla, B pausa s
   await mini.click();
   await expect(playerA.getByLabel(/Adicionar música/)).toBeVisible();
   expect(await playerA.locator('.music-video iframe').getAttribute('data-mark')).toBe('antes');
-  // B ouve: vê quem é o DJ, não tem os controles do grupo nem o campo de adicionar; pausa só para si
+  // B ouve: vê quem é o DJ e o campo de adicionar à fila, mas não os controles do grupo; pausa só para si
   await expect(playerB.getByText(/^DJ: /)).toBeVisible();
   await expect(playerB.getByRole('button', { name: 'Pausar para todos' })).toHaveCount(0);
-  await expect(playerB.getByLabel(/Adicionar música/)).toHaveCount(0);
+  await expect(playerB.getByLabel(/Adicionar música/)).toBeVisible();
+  await expect(playerB.getByRole('button', { name: /Tirar .* da fila/ })).toHaveCount(0);
   await playerB.getByRole('button', { name: 'Pausar só para mim' }).click();
   await expect(playerB.getByRole('button', { name: 'Voltar ao vivo' })).toBeVisible();
   await expect(playerA.getByRole('button', { name: 'Pausar para todos' })).toBeVisible(); // A segue tocando

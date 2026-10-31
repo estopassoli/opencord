@@ -15,8 +15,8 @@ type Stored = Omit<MusicState, 'serverNow'>;
 /**
  * Música na chamada (ADR-0014): fila compartilhada de vídeos do YouTube/YouTube Music. Como no "Assistir juntos",
  * o áudio não passa pelo OpenCord: cada pessoa toca no player oficial e aqui só se sincroniza o estado.
- * DJ (revisão do mantenedor): quem começa a música é o DJ e só ele mexe na fila (tocar/pausar, pular, adicionar,
- * tirar, encerrar). Quem ouve controla só o próprio player (volume, pausar para si) no app. Se o DJ sai da chamada,
+ * DJ (revisão do mantenedor): quem começa a música é o DJ e só ele controla (tocar/pausar, pular, tirar da fila,
+ * encerrar); qualquer pessoa na chamada adiciona à fila. Quem ouve controla só o próprio player (volume, pausar para si) no app. Se o DJ sai da chamada,
  * quem está nela há mais tempo assume (VoiceService); se todos saem, a música acaba.
  */
 @Injectable()
@@ -71,13 +71,12 @@ export class MusicService {
   /**
    * Adiciona um vídeo, uma playlist inteira ou um vídeo dentro de playlist (a fila começa por ele). Com a fila
    * parada (sem música ou terminada), quem adiciona vira o DJ e a primeira faixa nova começa a tocar; tocando,
-   * só o DJ adiciona.
+   * qualquer pessoa na chamada adiciona ao fim da fila e o DJ continua o mesmo.
    */
   async add(userId: string, channelId: string, src: { videoId?: string; playlistId?: string }): Promise<MusicState> {
     const serverId = await this.requireInCall(userId, channelId);
     const prev = await this.load(channelId);
     const idle = !prev || prev.index < 0 || prev.index >= prev.queue.length;
-    if (prev && !idle) this.requireDj(prev, userId);
     const room = MUSIC_QUEUE_MAX - (idle ? 0 : (prev?.queue.length ?? 0));
     if (room <= 0) throw new BadRequestException('a fila está cheia');
     let found: { videoId: string; title: string | null; author: string | null }[] = [];
