@@ -6479,3 +6479,23 @@ textarea,
   max-width: 640px;
   text-align: center;
 }
+
+/* reconectar à chamada em que eu estava quando o app fechou */
+.resume-call {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  min-width: 0;
+}
+.resume-call-names {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.resume-call-names strong {
+  color: var(--text);
+  font-size: 0.875rem;
+}

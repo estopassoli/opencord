@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '07:15',
+    kind: 'melhoria',
+    icon: 'speaker',
+    title: 'Volume da transmissão lembrado e "Reconectar" ao abrir o app',
+    body: 'O volume que você escolhe para a transmissão de cada pessoa (botão direito na live) fica guardado neste computador e vale toda vez que você abrir a transmissão dela, mesmo depois de reiniciar o app. E se você fechar o OpenCord numa chamada, ao abrir de novo aparece "Você estava em …" com o botão Reconectar (some se você sair da chamada pelo botão ou depois de 12 horas).',
+  },
+  {
+    date: '2026-10-31',
     time: '07:00',
     kind: 'melhoria',
     icon: 'download',
