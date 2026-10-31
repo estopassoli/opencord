@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '10:30',
+    kind: 'melhoria',
+    icon: 'play',
+    title: 'Nome da música rolando na lista de canais',
+    body: 'Quando o nome do que está tocando no canal de voz não cabe na lista de canais, ele agora rola da direita para a esquerda sem parar, em vez de ficar cortado. Com "reduzir movimento" ligado no sistema, fica parado e termina em "…".',
+  },
+  {
+    date: '2026-10-31',
     time: '10:00',
     kind: 'correção',
     icon: 'screen',

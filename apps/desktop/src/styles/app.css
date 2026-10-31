@@ -3640,6 +3640,48 @@ button.live-badge {
   font-size: 0.75rem;
   font-weight: 600;
 }
+.activity-hint > svg {
+  flex: none;
+}
+.marquee {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.marquee-text {
+  flex: none;
+}
+/* duas cópias lado a lado: ao rolar a largura de uma (texto + espaço), o laço emenda sem salto */
+.marquee[data-over] {
+  mask-image: linear-gradient(90deg, transparent, #000 8px, #000 calc(100% - 16px), transparent);
+}
+.marquee[data-over] .marquee-text {
+  padding-right: 32px;
+  animation: marquee-slide var(--marquee-s, 12s) linear infinite;
+}
+@keyframes marquee-slide {
+  to {
+    transform: translateX(-100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee[data-over] {
+    mask-image: none;
+  }
+  .marquee[data-over] .marquee-text {
+    animation: none;
+    padding-right: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .marquee[data-over] .marquee-text[aria-hidden] {
+    display: none;
+  }
+}
 @media (max-width: 640px) {
   .yt-volume {
     display: none;
