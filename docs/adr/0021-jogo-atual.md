@@ -21,6 +21,7 @@ O OpenCord não pode usar a lista de jogos do Discord: é conteúdo dele (`CLAUD
   - Invisível ou offline esconde o jogo; voltar a aparecer mostra de novo. Fechar o app (nenhum socket) apaga.
   - `GET /servers/:id/games` traz os jogos dos membros, e `GET /friends` passa a trazer `game` em cada amigo.
 - **Privacidade:** "Mostrar o jogo que estou jogando" vem ligado. Desligado, os outros não recebem nada, mas a detecção continua só no computador da pessoa, para os clipes. Só o nome do jogo e o início saem do computador; nunca a lista de programas.
+- **Ícone do jogo:** ao detectar, o processo principal acha o executável em execução (Steam: pasta `steamapps\common\<installdir>` das bibliotecas do `libraryfolders.vdf`; fora dela: o processo pelo nome, via `Get-Process`) e lê o ícone com `app.getFileIcon` (PNG 32×32). Ele vai na presença como data URL (só `data:image/png;base64`, até 16 KB, validado no contrato).
 - A capa de jogo da Steam vem do CDN da Steam (`cdn.cloudflare.steamstatic.com`). Sem capa, aparece um ícone de controle.
 
 ## Consequências

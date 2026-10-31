@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '03:45',
+    kind: 'melhoria',
+    icon: 'gamepad',
+    title: 'Ícone do jogo de verdade',
+    body: 'Quem está jogando aparece com o ícone do próprio jogo (lido do programa do jogo no computador de quem joga) na lista da voz, na lista de membros, no painel do usuário e no perfil, no lugar do controle genérico.',
+  },
+  {
+    date: '2026-10-31',
     time: '03:30',
     kind: 'melhoria',
     icon: 'download',

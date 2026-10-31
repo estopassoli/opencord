@@ -582,6 +582,12 @@ export const PlayingGame = z.object({
   name: z.string().trim().min(1).max(64),
   startedAt: z.number().int().positive(),
   steamAppId: z.number().int().positive().optional(),
+  /** ícone do executável do jogo, lido no computador de quem joga (PNG 32×32 em data URL) */
+  icon: z
+    .string()
+    .max(16 * 1024)
+    .regex(/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/)
+    .optional(),
 });
 export type PlayingGame = z.infer<typeof PlayingGame>;
 

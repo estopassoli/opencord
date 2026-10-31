@@ -105,6 +105,8 @@ export interface DetectedGameDto {
   startedAt: number;
   steamAppId?: number;
   exe?: string;
+  /** ícone do executável (PNG em data URL) */
+  icon?: string;
 }
 export const GamesConfigureArgs = z.object({
   enabled: z.boolean(),
