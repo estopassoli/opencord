@@ -19,6 +19,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-10-31',
+    time: '00:10',
+    kind: 'novo',
+    icon: 'folder',
+    title: 'Organize a barra de servidores e crie pastas',
+    body: 'Arraste um servidor para mudar a ordem na barra. Solte um servidor em cima de outro para juntar os dois numa pasta, e arraste mais servidores para dentro dela. Clique na pasta para abrir ou fechar; com o botão direito você dá nome, escolhe a cor ou desfaz a pasta. A organização vale nos seus outros aparelhos também.',
+  },
+  {
     date: '2026-10-30',
     time: '23:58',
     kind: 'melhoria',
