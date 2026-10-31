@@ -21,6 +21,8 @@ function useUpdateStatus(): UpdateStatus {
 /** Botão de atualização (só no app desktop): baixando → pronta (Windows) ou disponível (abre o download). */
 function UpdateButton() {
   const s = useUpdateStatus();
+  // hooks antes do return: o estado muda de "idle" para "pronta" com o componente montado
+  const [dialog, setDialog] = useState(false);
   if (s.state === 'idle') return null;
   const label =
     s.state === 'downloading'
@@ -28,7 +30,6 @@ function UpdateButton() {
       : s.state === 'ready'
         ? `Atualização pronta! Clique para reiniciar e atualizar para a versão ${s.version}`
         : `Atualização ${s.version} disponível. Clique para baixar`;
-  const [dialog, setDialog] = useState(false);
   const install = () => {
     if (!bridge || s.state === 'downloading') return;
     setDialog(true);
