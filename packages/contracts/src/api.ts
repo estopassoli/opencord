@@ -612,6 +612,21 @@ export const UpdateVoiceStateRequest = z.object({
 export type UpdateVoiceStateRequest = z.infer<typeof UpdateVoiceStateRequest>;
 
 // ---------- Configurações do usuário (versionadas) ----------
+/** Pasta de servidores na barra (criada arrastando um servidor sobre outro). */
+export const ServerFolder = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().trim().max(32).default(''),
+  /** cor da pasta (#rrggbb); null = cor de destaque */
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable()
+    .default(null),
+  serverIds: z.array(z.string().max(64)).max(200),
+  open: z.boolean().default(false),
+});
+export type ServerFolder = z.infer<typeof ServerFolder>;
+export type ServerLayoutItem = string | ServerFolder;
 export const UserSettingsV1 = z.object({
   version: z.literal(1),
   audio: z
@@ -680,6 +695,14 @@ export const UserSettingsV1 = z.object({
   friendNicknames: z.record(z.string(), z.string().trim().min(1).max(32)).default({}),
   /** conversas diretas fixadas no topo da lista, na ordem em que foram fixadas */
   pinnedConversations: z.array(z.string()).max(50).default([]),
+  /**
+   * Ordem da barra de servidores: id de servidor solto ou pasta com vários servidores (só eu vejo).
+   * Servidor fora da lista aparece no fim; id de servidor que saí é ignorado no cliente.
+   */
+  serverLayout: z
+    .array(z.union([z.string().max(64), ServerFolder]))
+    .max(500)
+    .default([]),
   sidebarWidth: z.number().int().min(200).max(480).default(240),
 });
 export type UserSettingsV1 = z.infer<typeof UserSettingsV1>;

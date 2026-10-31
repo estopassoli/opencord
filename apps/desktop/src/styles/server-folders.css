@@ -1,0 +1,102 @@
+/* ---------- barra de servidores: arrastar para reordenar e pastas ---------- */
+
+/* onde o item arrastado vai cair: linha acima/abaixo ou contorno (agrupar) */
+.rail-li[data-drop='before']::after,
+.rail-li[data-drop='after']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 40px;
+  height: 3px;
+  margin-left: -20px;
+  border-radius: 2px;
+  background: var(--brand);
+  pointer-events: none;
+}
+.rail-li[data-drop='before']::after {
+  top: -6px;
+}
+.rail-li[data-drop='after']::after {
+  bottom: -6px;
+}
+.rail-li[data-drop='into'] > * > .rail-item,
+.rail-li[data-drop='into'] > .rail-item {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: calc(16px * var(--radius-scale, 1));
+}
+.rail-li[draggable='true'] {
+  -webkit-user-drag: element;
+}
+
+/* pasta fechada: grade com até 4 servidores, fundo na cor da pasta */
+.rail-item.rail-item:has(> .rail-folder-grid),
+.rail-item.rail-item:has(> .rail-folder-icon) {
+  background: color-mix(in srgb, var(--folder-color, var(--brand)) 22%, var(--sidebar));
+  border-radius: calc(16px * var(--radius-scale, 1));
+}
+.rail-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 16px);
+  grid-auto-rows: 16px;
+  gap: 4px;
+}
+.rail-folder-cell {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--elevated);
+  font-size: 0.4375rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.rail-folder-cell > .server-icon-img {
+  position: absolute;
+  inset: 0;
+}
+.rail-folder-cell > .brand-mark-sm {
+  width: 12px;
+  height: 12px;
+}
+.rail-folder-icon {
+  color: var(--folder-color, var(--brand));
+  display: grid;
+  place-items: center;
+}
+.rail-folder-card {
+  display: block;
+  max-width: 220px;
+  font-weight: 700;
+  white-space: normal;
+}
+
+/* pasta aberta: os servidores ficam sobre uma faixa na cor da pasta */
+.rail-folder-open {
+  position: relative;
+  width: 100%;
+  list-style: none;
+}
+.rail-folder-open::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 48px;
+  margin-left: -24px;
+  border-radius: calc(16px * var(--radius-scale, 1));
+  background: color-mix(in srgb, var(--folder-color, var(--brand)) 14%, transparent);
+  pointer-events: none;
+}
+.rail-folder-list {
+  position: relative;
+}
+
+.folder-dialog {
+  display: grid;
+  gap: 16px;
+}
