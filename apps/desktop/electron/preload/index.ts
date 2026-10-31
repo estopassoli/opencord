@@ -45,6 +45,13 @@ const bridge: OpenCordBridge = {
     prepareCapture: () => ipcRenderer.invoke(IPC.clipsPrepare),
     save: (args) => ipcRenderer.invoke(IPC.clipsSave, args),
     reveal: (path) => ipcRenderer.invoke(IPC.clipsReveal, path),
+    list: () => ipcRenderer.invoke(IPC.clipsList),
+    read: (path) => ipcRenderer.invoke(IPC.clipsRead, path),
+    remove: (path) => ipcRenderer.invoke(IPC.clipsRemove, path),
+    copy: (path) => ipcRenderer.invoke(IPC.clipsCopy, path),
+    exportFile: (args) => ipcRenderer.invoke(IPC.clipsExport, args),
+    dir: () => ipcRenderer.invoke(IPC.clipsDir),
+    chooseDir: () => ipcRenderer.invoke(IPC.clipsChooseDir),
   },
   games: {
     configure: (args) => ipcRenderer.invoke(IPC.gamesConfigure, args),

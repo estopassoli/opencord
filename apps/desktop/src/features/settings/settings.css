@@ -682,3 +682,19 @@ button.admin-stat:focus-visible {
   gap: 8px;
   flex-wrap: wrap;
 }
+.games-clip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+.games-folder {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.games-folder > :first-child {
+  flex: 1;
+  min-width: 0;
+}

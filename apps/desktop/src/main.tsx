@@ -7,6 +7,7 @@ import './styles/app.css';
 import './styles/motion.css';
 import './styles/mobile.css';
 import './styles/server-folders.css';
+import './features/clips/clips.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';

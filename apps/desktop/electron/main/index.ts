@@ -22,6 +22,8 @@ import { z } from 'zod';
 import {
   AppPrefsSchema,
   CaptureSelectArgs,
+  ClipExportArgs,
+  ClipPath,
   ClipSaveArgs,
   ExternalUrl,
   GamesConfigureArgs,
@@ -42,7 +44,18 @@ import { appIcon, badgeIcon, trayIcon } from './icons';
 import { readAppPrefs, writeAppPrefs } from './app-prefs';
 import { checkForUpdate, checkIfStale, installUpdate, startUpdater, updateStatus } from './updater';
 import { GameDetector } from './games';
-import { prepareClipCapture, revealClip, saveClip } from './clips';
+import {
+  chooseClipsDir,
+  clipsDir,
+  copyClip,
+  deleteClip,
+  exportClip,
+  listClips,
+  prepareClipCapture,
+  readClip,
+  revealClip,
+  saveClip,
+} from './clips';
 
 /** nome da janela da transmissão desanexada (src/features/voice/popout.tsx) */
 const POPOUT_NAME = 'opencord-live';
@@ -323,7 +336,14 @@ function registerIpc() {
   });
   handle(IPC.clipsPrepare, [], () => prepareClipCapture());
   handle(IPC.clipsSave, [ClipSaveArgs], (a) => saveClip(a));
-  handle(IPC.clipsReveal, [z.string().max(1024)], (p) => revealClip(p));
+  handle(IPC.clipsReveal, [ClipPath], (p) => revealClip(p));
+  handle(IPC.clipsList, [], () => listClips());
+  handle(IPC.clipsRead, [ClipPath], (p) => readClip(p));
+  handle(IPC.clipsRemove, [ClipPath], (p) => deleteClip(p));
+  handle(IPC.clipsCopy, [ClipPath], (p) => copyClip(p));
+  handle(IPC.clipsExport, [ClipExportArgs], (a) => exportClip(a));
+  handle(IPC.clipsDir, [], () => clipsDir());
+  handle(IPC.clipsChooseDir, [], () => chooseClipsDir());
   handle(IPC.gamesConfigure, [GamesConfigureArgs], (a) => games.configure(a.enabled, a.custom));
   handle(IPC.gamesProcesses, [], () => games.processes());
   handle(IPC.gamesCurrent, [], () => games.game);
