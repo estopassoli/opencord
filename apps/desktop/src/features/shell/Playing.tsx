@@ -38,27 +38,44 @@ export function useElapsed(startedAt: number | undefined): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
 
-/** Linha "🎮 Path of Exile 2" (painel do usuário, lista de membros). */
+/** Ícone do jogo (lido do executável no computador de quem joga); sem ícone, um controle. */
+export function GameIcon({ game, size }: { game: Pick<PlayingGame, 'icon'>; size: number }) {
+  if (game.icon)
+    return <img className="game-icon" src={game.icon} alt="" width={size} height={size} draggable={false} />;
+  return <Icon name="gamepad" size={size} />;
+}
+
+/** Linha "[ícone] Path of Exile 2" (painel do usuário, lista de membros). */
 export function GameLine({ userId, className }: { userId: string; className?: string }) {
   const game = usePlaying(userId);
   if (!game) return null;
   return (
     <span className={`game-line truncate ${className ?? ''}`}>
-      <Icon name="gamepad" size={13} />
+      <GameIcon game={game} size={14} />
       <span className="truncate">{game.name}</span>
     </span>
   );
 }
 
-/** Ícone de controle ao lado de quem está jogando (lista da voz). */
+/** Ícone do jogo ao lado de quem está jogando (lista da voz). */
 export function GameBadge({ userId }: { userId: string }) {
   const game = usePlaying(userId);
   if (!game) return null;
-  return <Icon name="gamepad" size={14} label={`Jogando ${game.name}`} className="game-badge" />;
+  return (
+    <span className="game-badge" role="img" aria-label={`Jogando ${game.name}`} data-tip={`Jogando ${game.name}`}>
+      <GameIcon game={game} size={16} />
+    </span>
+  );
 }
 
 function GameArt({ game }: { game: PlayingGame }) {
   const [failed, setFailed] = useState(false);
+  if (game.icon)
+    return (
+      <span className="playing-art playing-art-icon" aria-hidden>
+        <GameIcon game={game} size={32} />
+      </span>
+    );
   if (game.steamAppId && !failed)
     return (
       <img

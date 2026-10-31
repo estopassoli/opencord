@@ -61,6 +61,8 @@ test('jogo detectado, 60 s na memória e o atalho salva um MP4 com vídeo e som'
   await expect(dock).toContainText('para clipar', { timeout: 40_000 });
   const game = (await dock.locator('strong').textContent())!.trim();
   console.warn('GAME', game);
+  // ícone do jogo lido do executável (Steam ou processo)
+  await expect(dock.locator('img.game-icon')).toBeVisible({ timeout: 20_000 });
   // alguns segundos de captura
   await A.page.waitForTimeout(6000);
   const diag = await A.page.evaluate(async () => ({

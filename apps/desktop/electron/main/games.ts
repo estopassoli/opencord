@@ -3,7 +3,13 @@
  * (`reg` e `tasklist`, sem módulo nativo) e avisa a janela quando o jogo muda. Fora do Windows não faz nada.
  */
 import { execFile } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { app } from 'electron';
 import {
+  GAME_ICON_MAX,
+  parseInstallDir,
+  parseLibraryFolders,
   parseRegDword,
   parseRegString,
   parseTasklist,
@@ -33,6 +39,62 @@ async function steamGame(): Promise<{ id: number; name: string | null }> {
   if (!id) return { id: 0, name: null };
   const name = parseRegString(await run('reg', ['query', `${STEAM_KEY}\\Apps\\${id}`, '/v', 'Name']), 'Name');
   return { id, name };
+}
+
+/** aspas simples escapadas para uma string literal do PowerShell */
+const psQuote = (s: string) => `'${s.replace(/'/g, "''")}'`;
+
+/** Caminho do executável em execução: pelo nome (fora da Steam) ou pela pasta do jogo (Steam). */
+async function runningPath(game: DetectedGame): Promise<string | null> {
+  let filter: string;
+  if (game.steamAppId) {
+    const dir = await steamGameDir(game.steamAppId);
+    if (!dir) return null;
+    filter = `Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith(${psQuote(dir + path.sep)}, 'OrdinalIgnoreCase') }`;
+  } else if (game.exe) {
+    filter = `Get-Process -Name ${psQuote(game.exe.replace(/\.exe$/i, ''))} -ErrorAction SilentlyContinue`;
+  } else return null;
+  const out = await run('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    `${filter} | Select-Object -First 1 -ExpandProperty Path`,
+  ]);
+  const p = out.trim().split(/\r?\n/)[0]?.trim();
+  return p && /\.exe$/i.test(p) ? p : null;
+}
+
+/** Pasta do jogo da Steam: bibliotecas do libraryfolders.vdf + installdir do appmanifest. */
+async function steamGameDir(appId: number): Promise<string | null> {
+  const steam = parseRegString(await run('reg', ['query', STEAM_KEY, '/v', 'SteamPath']), 'SteamPath');
+  if (!steam) return null;
+  const vdf = await readFile(path.join(steam, 'steamapps', 'libraryfolders.vdf'), 'utf8').catch(() => '');
+  for (const lib of [steam, ...parseLibraryFolders(vdf)]) {
+    const acf = await readFile(path.join(lib, 'steamapps', `appmanifest_${appId}.acf`), 'utf8').catch(() => null);
+    const dir = acf && parseInstallDir(acf);
+    if (dir) return path.join(lib, 'steamapps', 'common', dir);
+  }
+  return null;
+}
+
+const icons = new Map<string, string | null>();
+/** Ícone do executável do jogo (32×32), guardado por jogo. */
+async function iconOf(game: DetectedGame): Promise<string | null> {
+  const key = game.steamAppId ? `steam:${game.steamAppId}` : `exe:${game.exe ?? game.name}`;
+  if (icons.has(key)) return icons.get(key)!;
+  let icon: string | null = null;
+  try {
+    const exe = await runningPath(game);
+    if (exe) {
+      const img = await app.getFileIcon(exe, { size: 'normal' });
+      const url = img.isEmpty() ? '' : img.toDataURL();
+      if (url && url.length <= GAME_ICON_MAX) icon = url;
+    }
+  } catch {
+    /* sem ícone: a interface mostra o controle */
+  }
+  icons.set(key, icon);
+  return icon;
 }
 
 export interface GameUpdate {
@@ -88,7 +150,16 @@ export class GameDetector {
 
   private set(game: DetectedGame | null) {
     if (sameGame(game, this.current)) return;
-    this.current = game ? { ...game, startedAt: Date.now() } : null;
-    this.onChange({ game: this.current });
+    const cur = game ? { ...game, startedAt: Date.now() } : null;
+    this.current = cur;
+    this.onChange({ game: cur });
+    // o ícone vem depois (lê o executável): avisa de novo se o jogo ainda for o mesmo
+    if (cur)
+      void iconOf(cur).then((icon) => {
+        if (icon && this.current === cur) {
+          this.current = { ...cur, icon };
+          this.onChange({ game: this.current });
+        }
+      });
   }
 }

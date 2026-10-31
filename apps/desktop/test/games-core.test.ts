@@ -3,6 +3,8 @@ import {
   KNOWN_GAMES,
   parseRegDword,
   parseRegString,
+  parseInstallDir,
+  parseLibraryFolders,
   parseTasklist,
   pickableProcesses,
   pickGame,
@@ -40,5 +42,11 @@ describe('detecção do jogo (ADR-0021)', () => {
     expect(sameGame({ name: 'A', exe: 'a.exe' }, { name: 'A', exe: 'b.exe' })).toBe(true);
     expect(sameGame({ name: 'A' }, null)).toBe(false);
     for (const exe of Object.keys(KNOWN_GAMES)) expect(exe).toBe(exe.toLowerCase());
+  });
+  it('pasta do jogo da Steam pelas bibliotecas e pelo appmanifest', () => {
+    const vdf = '"libraryfolders"\n{\n\t"0"\n\t{\n\t\t"path"\t\t"C:\\\\Program Files (x86)\\\\Steam"\n\t}\n\t"1"\n\t{\n\t\t"path"\t\t"D:\\\\Jogos"\n\t}\n}';
+    expect(parseLibraryFolders(vdf)).toEqual(['C:\\Program Files (x86)\\Steam', 'D:\\Jogos']);
+    expect(parseInstallDir('"AppState"\n{\n\t"installdir"\t\t"Path of Exile 2"\n}')).toBe('Path of Exile 2');
+    expect(parseInstallDir('{}')).toBeNull();
   });
 });

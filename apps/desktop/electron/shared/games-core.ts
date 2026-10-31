@@ -10,6 +10,23 @@ export interface DetectedGame {
   steamAppId?: number;
   /** executável que identificou o jogo (fora da Steam) */
   exe?: string;
+  /** ícone do executável do jogo (PNG 32×32 em data URL), quando deu para ler */
+  icon?: string;
+}
+
+/** Ícone aceito na presença: só PNG em base64 e pequeno (vai para os outros pelo servidor). */
+export const GAME_ICON = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
+export const GAME_ICON_MAX = 16 * 1024;
+
+/** `"path"` de cada biblioteca no libraryfolders.vdf da Steam. */
+export function parseLibraryFolders(vdf: string): string[] {
+  return [...vdf.matchAll(/"path"\s+"([^"]+)"/g)].map((m) => m[1]!.replace(/\\\\/g, '\\'));
+}
+
+/** `"installdir"` do appmanifest_<id>.acf (pasta do jogo dentro de steamapps\common). */
+export function parseInstallDir(acf: string): string | null {
+  const m = /"installdir"\s+"([^"]+)"/.exec(acf);
+  return m ? m[1]!.replace(/\\\\/g, '\\') : null;
 }
 
 export interface CustomGame {

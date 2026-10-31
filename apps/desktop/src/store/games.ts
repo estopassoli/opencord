@@ -25,7 +25,12 @@ let lastSent: string | undefined;
 const shown = (): PlayingGame | null => {
   const g = useGames.getState().mine;
   if (!g || useData.getState().settings?.games.showPlaying === false) return null;
-  return { name: g.name, startedAt: g.startedAt, ...(g.steamAppId ? { steamAppId: g.steamAppId } : {}) };
+  return {
+    name: g.name,
+    startedAt: g.startedAt,
+    ...(g.steamAppId ? { steamAppId: g.steamAppId } : {}),
+    ...(g.icon ? { icon: g.icon } : {}),
+  };
 };
 
 /**
