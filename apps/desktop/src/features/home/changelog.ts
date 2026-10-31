@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '06:40',
+    kind: 'correção',
+    icon: 'speaker',
+    title: 'Lista da voz não corta mais nomes e ícones',
+    body: 'Quando alguém na chamada tinha vários selos (verificado, jogo, AO VIVO), a lista de quem está na voz ficava mais larga que a barra e cortava os ícones de todo mundo. Agora o nome encolhe e os selos ficam inteiros.',
+  },
+  {
+    date: '2026-10-31',
     time: '05:30',
     kind: 'correção',
     icon: 'download',
