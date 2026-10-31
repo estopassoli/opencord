@@ -21,6 +21,7 @@ export const IPC = {
   prefsGet: 'prefs:get',
   prefsSet: 'prefs:set',
   appRelaunch: 'app:relaunch',
+  errorReport: 'app:error-report',
   clipsPrepare: 'clips:prepare',
   clipsSave: 'clips:save',
   clipsReveal: 'clips:reveal',

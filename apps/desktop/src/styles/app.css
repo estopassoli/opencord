@@ -6450,3 +6450,32 @@ textarea,
 .md-spoiler:focus-visible {
   outline: 2px solid var(--brand);
 }
+
+/* erro numa área só (o resto do app continua) */
+.area-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 12%, var(--sidebar));
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+.area-error > span {
+  flex: 1;
+  min-width: 0;
+}
+.fatal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.fatal > p {
+  margin: 0;
+  max-width: 640px;
+  text-align: center;
+}

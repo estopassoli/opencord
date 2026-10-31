@@ -20,6 +20,7 @@ import { UserDock } from './UserDock';
 import { PopoutStage, VoiceStage } from '../voice/VoiceStage';
 import { PopoutPortal } from '../voice/popout';
 import { MusicPlayer } from '../voice/MusicPlayer';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { ClipViewer } from '../clips/ClipViewer';
 import { MediaViewer } from '../chat/MediaViewer';
 import { FriendsPanel } from './FriendsPanel';
@@ -153,12 +154,18 @@ export function AppShell() {
       </a>
       <TitleBar />
       <div className="slot" id="mobile-nav" inert={off('nav')}>
-        <ServerRail />
+        <ErrorBoundary area="a lista de servidores">
+          <ServerRail />
+        </ErrorBoundary>
         <aside className="sidebar" aria-label={view.kind === 'server' ? 'Canais' : 'Conversas'}>
-          {view.kind === 'server' ? <ChannelSidebar serverId={view.serverId} /> : <DmSidebar />}
+          <ErrorBoundary area="a lista de canais">
+            {view.kind === 'server' ? <ChannelSidebar serverId={view.serverId} /> : <DmSidebar />}
+          </ErrorBoundary>
         </aside>
         {/* painel do usuário/voz flutua sobre o rodapé do rail + sidebar */}
-        <UserDock />
+        <ErrorBoundary area="o painel do usuário">
+          <UserDock />
+        </ErrorBoundary>
       </div>
       {mobile && panel !== 'none' && (
         <button className="mobile-scrim" aria-label="Fechar painel" onClick={() => useUi.getState().setPanel('none')} />
@@ -166,33 +173,48 @@ export function AppShell() {
       <main id="main-content" className="content" tabIndex={-1} inert={mobile && panel !== 'none'}>
         <InstanceBanner />
         <ConnectionBanner />
-        {view.kind === 'home' && (view.tab === 'news' ? <NewsView /> : <HomeView />)}
-        {view.kind === 'dm' && <ChatView key={view.conversationId} target={{ conversationId: view.conversationId }} />}
-        {view.kind === 'server' && channel?.kind === 'text' && (
-          <ChatView key={channel.id} target={{ channelId: channel.id }} />
-        )}
-        {view.kind === 'server' && channel?.kind === 'board' && <BoardView key={channel.id} channel={channel} />}
-        {view.kind === 'server' && channel?.kind === 'voice' && (
-          <VoiceStage channelId={channel.id} serverId={view.serverId} />
-        )}
-        {view.kind === 'server' && !channel && (
-          <div className="empty-state">
-            <p>Nenhum canal disponível.</p>
-          </div>
-        )}
+        <ErrorBoundary
+          area="esta tela"
+          key={`${view.kind}-${view.kind === 'server' ? view.channelId : view.kind === 'dm' ? view.conversationId : ''}`}
+        >
+          {view.kind === 'home' && (view.tab === 'news' ? <NewsView /> : <HomeView />)}
+          {view.kind === 'dm' && (
+            <ChatView key={view.conversationId} target={{ conversationId: view.conversationId }} />
+          )}
+          {view.kind === 'server' && channel?.kind === 'text' && (
+            <ChatView key={channel.id} target={{ channelId: channel.id }} />
+          )}
+          {view.kind === 'server' && channel?.kind === 'board' && <BoardView key={channel.id} channel={channel} />}
+          {view.kind === 'server' && channel?.kind === 'voice' && (
+            <VoiceStage channelId={channel.id} serverId={view.serverId} />
+          )}
+          {view.kind === 'server' && !channel && (
+            <div className="empty-state">
+              <p>Nenhum canal disponível.</p>
+            </div>
+          )}
+        </ErrorBoundary>
         {/* aqui (e não no palco) para a música seguir tocando ao trocar de canal, servidor ou DM */}
-        <MusicPlayer onStage={channel?.kind === 'voice' && channel.id === myCall} />
+        <ErrorBoundary area="o player de música">
+          <MusicPlayer onStage={channel?.kind === 'voice' && channel.id === myCall} />
+        </ErrorBoundary>
       </main>
       {view.kind === 'dm' && !mobile && <DmProfilePanel conversationId={view.conversationId} />}
       {view.kind === 'dm' && !mobile && <FriendsPanel forceCompact={dmProfileShown} />}
       {view.kind === 'server' && channel?.kind === 'text' && (mobile || showMembers) && (
         <div className="slot" inert={off('members')}>
-          <MemberList serverId={view.serverId} />
+          <ErrorBoundary area="a lista de membros">
+            <MemberList serverId={view.serverId} />
+          </ErrorBoundary>
         </div>
       )}
-      <Modals />
-      <MediaViewer />
-      <ClipViewer />
+      <ErrorBoundary area="esta janela">
+        <Modals />
+      </ErrorBoundary>
+      <ErrorBoundary area="o visualizador">
+        <MediaViewer />
+        <ClipViewer />
+      </ErrorBoundary>
       <ContextMenuHost />
       {popped && (
         <PopoutPortal key={popped}>

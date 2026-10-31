@@ -161,6 +161,15 @@ export const ClipExportArgs = z.object({
 });
 export type ClipExportArgs = z.infer<typeof ClipExportArgs>;
 
+/** Erro da janela registrado no crash-log.txt (sem conteúdo do usuário). */
+export const ErrorReport = z.object({
+  where: z.enum(['boundary', 'window', 'promise']),
+  message: z.string().max(2000),
+  stack: z.string().max(8000).optional(),
+  componentStack: z.string().max(8000).optional(),
+});
+export type ErrorReport = z.infer<typeof ErrorReport>;
+
 export interface AppInfo {
   version: string;
   electron: string;
@@ -222,6 +231,8 @@ export interface OpenCordBridge {
     processes(): Promise<string[]>;
     current(): Promise<DetectedGameDto | null>;
   };
+  /** registra um erro da janela no crash-log.txt */
+  reportError(report: ErrorReport): Promise<void>;
   updates: {
     status(): Promise<UpdateStatus>;
     check(): Promise<UpdateStatus>;

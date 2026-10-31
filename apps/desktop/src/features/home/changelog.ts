@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '07:00',
+    kind: 'melhoria',
+    icon: 'download',
+    title: 'Erro não derruba mais o app inteiro, e dá para atualizar pela tela de erro',
+    body: 'Se uma parte do app der erro (uma mensagem, a lista de canais, a chamada…), só ela mostra um aviso com "Tentar de novo" e o resto continua funcionando. Na tela "Algo deu errado" agora há "Procurar atualização" e "Atualizar agora", que baixam a versão nova direto do servidor, sem precisar de outro instalador, e "Copiar detalhes". O menu do ícone do OpenCord perto do relógio também tem "Instalar atualização", que funciona mesmo com a janela travada. Os erros ficam registrados num arquivo para o suporte.',
+  },
+  {
+    date: '2026-10-31',
     time: '06:40',
     kind: 'correção',
     icon: 'speaker',

@@ -58,6 +58,7 @@ const bridge: OpenCordBridge = {
     processes: () => ipcRenderer.invoke(IPC.gamesProcesses),
     current: () => ipcRenderer.invoke(IPC.gamesCurrent),
   },
+  reportError: (report) => ipcRenderer.invoke(IPC.errorReport, report),
   updates: {
     status: () => ipcRenderer.invoke(IPC.updateStatus),
     check: () => ipcRenderer.invoke(IPC.updateCheck),

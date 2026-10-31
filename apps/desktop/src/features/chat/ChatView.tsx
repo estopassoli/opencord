@@ -9,6 +9,7 @@ import { useUi } from '../../store/ui';
 import { Composer } from './Composer';
 import { useDmPeer } from '../shell/DmProfilePanel';
 import { MessageItem } from './MessageItem';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { PinnedMessages } from './PinnedMessages';
 import { useAliases } from '../../lib/names';
 
@@ -260,15 +261,18 @@ export function ChatView({ target }: { target: ChatTarget }) {
                     <span>Novas</span>
                   </div>
                 )}
-                <MessageItem
-                  message={m}
-                  grouped={grouped}
-                  meId={meId}
-                  perms={perms}
-                  target={target}
-                  nameOf={nameOf}
-                  mentionsMe={m.mentions.includes(meId)}
-                />
+                {/* uma mensagem com problema mostra um aviso só nela; a conversa continua */}
+                <ErrorBoundary area="esta mensagem">
+                  <MessageItem
+                    message={m}
+                    grouped={grouped}
+                    meId={meId}
+                    perms={perms}
+                    target={target}
+                    nameOf={nameOf}
+                    mentionsMe={m.mentions.includes(meId)}
+                  />
+                </ErrorBoundary>
               </li>
             );
           })}
