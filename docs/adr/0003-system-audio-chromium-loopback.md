@@ -1,5 +1,5 @@
 # ADR-0003 — Áudio do sistema via loopback do Chromium (sem módulo nativo na V1)
-Status: Proposed (aguardando validação em duas máquinas)
+Status: Superseded no Windows pelo ADR-0025 (2026-10-31): o Go Live usa o process loopback do `oc-audio.exe`; este caminho fica como fallback
 Data: 2026-10-29
 
 ## Contexto

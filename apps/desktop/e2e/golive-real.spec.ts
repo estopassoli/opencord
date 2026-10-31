@@ -4,6 +4,7 @@
  * Privacidade: NÃO salva screenshots (mostrariam a tela do usuário); registra apenas métricas.
  */
 import { expect, test } from '@playwright/test';
+import { execSync } from 'node:child_process';
 import {
   FLAGS,
   joinVoice,
@@ -75,6 +76,16 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
     timeout: 20_000,
   });
   await expect(A.page.getByText('sem áudio do sistema')).toHaveCount(0);
+  // áudio do sistema pelo oc-audio.exe, sem a árvore de processos do OpenCord (ADR-0025: o restrictOwnAudio do
+  // Chromium deixava as vozes da chamada passarem para quem assistia)
+  const ocAudio = () =>
+    execSync(
+      'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name=\'oc-audio.exe\'\\" | % CommandLine"',
+    )
+      .toString()
+      .trim();
+  const mainPid = await A.app.evaluate(() => process.pid);
+  expect(ocAudio()).toContain(`except ${mainPid}`);
 
   await B.page.getByRole('button', { name: 'Assistir', exact: true }).click({ timeout: 15_000 });
   const v = B.page.locator('.tile-stream video');
@@ -467,6 +478,8 @@ test('captura real do monitor com áudio do sistema chega ao espectador', async 
 
   await A.page.locator('.dock').getByRole('button', { name: 'Parar', exact: true }).click();
   await expect(B.page.locator('.tile-stream')).toHaveCount(0, { timeout: 15_000 });
+  // parar a live encerra a captura do oc-audio.exe
+  await expect.poll(ocAudio, { timeout: 5000 }).not.toContain(`except ${mainPid}`);
   await A.page.locator('.dock').getByRole('button', { name: 'Sair da chamada', exact: true }).click();
   await B.page.locator('.dock').getByRole('button', { name: 'Sair da chamada', exact: true }).click();
 });

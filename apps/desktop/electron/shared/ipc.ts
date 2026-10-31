@@ -124,6 +124,11 @@ export interface WinAudioOutput {
   comm: boolean;
 }
 export const WinAudioId = z.string().min(1).max(256);
+/**
+ * "Saída" especial: o som de todos os programas MENOS o OpenCord (process loopback do Windows), para o áudio do Go Live
+ * não levar as vozes da chamada (ADR-0025). Precisa do Windows 10 build 20348+; sem ele, `start` devolve false.
+ */
+export const WIN_AUDIO_EXCEPT_SELF = 'except-self';
 /** PCM float32 estéreo 48 kHz de uma saída */
 export interface WinAudioChunk {
   id: string;
@@ -250,7 +255,7 @@ export interface OpenCordBridge {
   /** som de cada saída de áudio do Windows para os clipes (ADR-0024); vazio fora do Windows */
   winAudio: {
     list(): Promise<WinAudioOutput[]>;
-    /** começa a mandar o PCM da saída pelo evento 'win-audio' */
+    /** começa a mandar o PCM da saída pelo evento 'win-audio'; false se a captura não começou */
     start(id: string): Promise<boolean>;
     stop(id: string): Promise<void>;
   };

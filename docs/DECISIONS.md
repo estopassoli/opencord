@@ -76,3 +76,4 @@
 
 ## Modelo de registro
 `YYYY-MM-DD | decisão | alternativas | motivo | impacto | responsável`
+- 2026-10-31 | Áudio do sistema do Go Live pelo `oc-audio.exe except <pid>` (process loopback que exclui a árvore do OpenCord), com fallback para o loopback do Chromium (ADR-0025; revisa o ADR-0003) | manter `restrictOwnAudio` | relato real: quem assistia a live ouvia as vozes da chamada | precisa do Windows 10 build 20348+; validação com espectador real pendente | mantenedor (relato)

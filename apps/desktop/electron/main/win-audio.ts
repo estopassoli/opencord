@@ -1,13 +1,14 @@
 /**
  * Som de cada saída de áudio do Windows para os clipes (ADR-0024). O Chromium só grava o dispositivo padrão; fones com
  * duas saídas ("Game" e "Chat"/"Voice") deixavam a outra de fora. O `oc-audio.exe` (native/win-audio, WASAPI
- * loopback) lista as saídas e grava cada uma; o PCM (float32 estéreo 48 kHz) vai para a janela em pedaços.
+ * loopback) lista as saídas e grava cada uma; o PCM (float32 estéreo 48 kHz) vai para a janela em pedaços. Também grava
+ * "tudo menos o OpenCord" para o áudio do Go Live (ADR-0025).
  */
 import { app, type WebContents } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import type { WinAudioOutput } from '../shared/ipc';
+import { WIN_AUDIO_EXCEPT_SELF, type WinAudioOutput } from '../shared/ipc';
 
 const exe = () =>
   app.isPackaged
@@ -35,9 +36,13 @@ const running = new Map<string, ChildProcess>();
 /** 8 bytes por quadro estéreo float32 */
 const FRAME = 8;
 
-export function startOutput(id: string, to: WebContents, channel: string): boolean {
-  if (!winAudioAvailable() || running.has(id)) return running.has(id);
-  const child = spawn(exe(), ['capture', id], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+/** Resolve true quando o oc-audio avisa que a captura começou; false se ele falhar ou sair antes. */
+export function startOutput(id: string, to: WebContents, channel: string): Promise<boolean> {
+  if (running.has(id)) return Promise.resolve(true);
+  if (!winAudioAvailable()) return Promise.resolve(false);
+  // a árvore de processos do OpenCord parte do processo principal: renderers e o serviço de áudio são filhos dele
+  const args = id === WIN_AUDIO_EXCEPT_SELF ? ['except', String(process.pid)] : ['capture', id];
+  const child = spawn(exe(), args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   running.set(id, child);
   let rest: Buffer = Buffer.alloc(0);
   child.stdout.on('data', (b: Buffer) => {
@@ -48,12 +53,21 @@ export function startOutput(id: string, to: WebContents, channel: string): boole
     // cópia própria: o Buffer do Node pode ser uma fatia de um bloco compartilhado
     to.send(channel, { id, pcm: new Uint8Array(all.subarray(0, whole)) });
   });
-  const done = () => {
-    if (running.get(id) === child) running.delete(id);
-  };
-  child.on('exit', done);
-  child.on('error', done);
-  return true;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(running.get(id) === child), 5000);
+    child.stderr.on('data', (b: Buffer) => {
+      if (!b.toString().includes('ready')) return;
+      clearTimeout(timer);
+      resolve(true);
+    });
+    const done = () => {
+      if (running.get(id) === child) running.delete(id);
+      clearTimeout(timer);
+      resolve(false);
+    };
+    child.on('exit', done);
+    child.on('error', done);
+  });
 }
 
 export function stopOutput(id: string) {

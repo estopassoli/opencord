@@ -36,6 +36,7 @@ import {
 import { RNNOISE, RnnoiseProcessor } from './noise';
 import { PreviewReceiver, startPreviewSender } from './preview';
 import { SceneCompositor } from './compositor';
+import { SystemAudio } from './system-audio';
 import { screenLayer, type Scene } from '../lib/scenes';
 import { bridge } from '../lib/bridge';
 
@@ -158,7 +159,12 @@ export class VoiceEngine {
   private vadTimer: ReturnType<typeof setInterval> | null = null;
   private statsTimer: ReturnType<typeof setInterval> | null = null;
   private vadCtx: AudioContext | null = null;
-  private screen: { video: LocalVideoTrack; audio: LocalAudioTrack | null; stream: MediaStream } | null = null;
+  private screen: {
+    video: LocalVideoTrack;
+    audio: LocalAudioTrack | null;
+    stream: MediaStream;
+    system: SystemAudio | null;
+  } | null = null;
   private lastBytes: { t: number; bytes: number } | null = null;
   private lastVideoBytes: { t: number; bytes: number } | null = null;
   /** histórico da live (a cada 2 s, últimos 10 min): mostra rampas lentas no começo, não só o instante atual */
@@ -534,34 +540,46 @@ export class VoiceEngine {
     if (!this.room) throw new Error('não conectado');
     const profile = effectiveProfile(profileId, { hardware: codec === 'h264' ? null : false });
     const maxBitrate = streamBitrate(profile.id, bitrate);
-    if (bridge && sourceId) await bridge.capture.select({ sourceId, systemAudio: withAudio });
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        width: { ideal: profile.width },
-        height: { ideal: profile.height },
-        // captura no DOBRO do fps da live; o limite fica no envio (maxFramerate). Pedindo só 60, a captura olha a tela a
-        // cada 1/60 s e, com a variação de tempo, perde quadros novos: medido no E2E golive-fps, 57,7 quadros distintos
-        // no espectador com 60 pedidos × 59,5 com 120 (conteúdo a 60 e a 120 fps, com e sem cena).
-        frameRate: { ideal: profile.fps * 2, max: profile.fps * 2 },
-      },
-      // restrictOwnAudio: exclui as vozes da chamada tocadas pelo próprio OpenCord (evita eco para quem assiste)
-      audio: withAudio
-        ? ({
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-            restrictOwnAudio: true,
-          } as MediaTrackConstraints)
-        : false,
-      // navegador (sem bridge): pede o áudio do sistema já marcado no seletor do Chrome/Edge e esconde a própria aba
-      ...(bridge ? {} : { systemAudio: withAudio ? 'include' : 'exclude', selfBrowserSurface: 'exclude' }),
-    } as DisplayMediaStreamOptions);
+    // áudio do sistema: de preferência o oc-audio (tudo menos o OpenCord, ADR-0025); sem ele, o loopback do Chromium
+    const system = withAudio && bridge && sourceId ? await SystemAudio.start() : null;
+    const chromiumAudio = withAudio && !system;
+    if (bridge && sourceId) await bridge.capture.select({ sourceId, systemAudio: chromiumAudio });
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { ideal: profile.width },
+          height: { ideal: profile.height },
+          // captura no DOBRO do fps da live; o limite fica no envio (maxFramerate). Pedindo só 60, a captura olha a tela a
+          // cada 1/60 s e, com a variação de tempo, perde quadros novos: medido no E2E golive-fps, 57,7 quadros distintos
+          // no espectador com 60 pedidos × 59,5 com 120 (conteúdo a 60 e a 120 fps, com e sem cena).
+          frameRate: { ideal: profile.fps * 2, max: profile.fps * 2 },
+        },
+        // restrictOwnAudio: exclui as vozes da chamada tocadas pelo próprio OpenCord (evita eco para quem assiste)
+        audio: chromiumAudio
+          ? ({
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              restrictOwnAudio: true,
+            } as MediaTrackConstraints)
+          : false,
+        // navegador (sem bridge): pede o áudio do sistema já marcado no seletor do Chrome/Edge e esconde a própria aba
+        ...(bridge ? {} : { systemAudio: withAudio ? 'include' : 'exclude', selfBrowserSurface: 'exclude' }),
+      } as DisplayMediaStreamOptions);
+    } catch (e) {
+      system?.stop();
+      throw e;
+    }
     const [v] = stream.getVideoTracks();
-    if (!v) throw new Error('nenhuma trilha de vídeo capturada');
+    if (!v) {
+      system?.stop();
+      throw new Error('nenhuma trilha de vídeo capturada');
+    }
     // Pensado para jogos: 'motion' mantém o fps de captura ('detail' põe o WebRTC em modo de tela e limitou um jogo
     // a 16 fps); a nitidez vem de maintain-resolution + bitrate alto (abaixo).
     v.contentHint = 'motion';
-    const [a] = stream.getAudioTracks();
+    const a = system?.track ?? stream.getAudioTracks()[0];
     // com cena (ADR-0015): a live é a composição do canvas (tela + câmera + imagens + texto), não a captura crua
     let published: MediaStreamTrack = v;
     if (scene) {
@@ -571,7 +589,7 @@ export class VoiceEngine {
     }
     const video = new LocalVideoTrack(published, undefined, false);
     const audio = a ? new LocalAudioTrack(a, undefined, false) : null;
-    this.screen = { video, audio, stream };
+    this.screen = { video, audio, stream, system };
     // fonte encerrada (janela fechada/monitor removido) → parar a publicação imediatamente
     v.addEventListener('ended', () => this.cb.onStreamEnded(), { once: true });
     try {
@@ -652,6 +670,7 @@ export class VoiceEngine {
       if (s.audio) await lp.unpublishTrack(s.audio, true).catch(() => undefined);
     }
     for (const t of s.stream.getTracks()) t.stop();
+    s.system?.stop();
     this.emit();
   }
 

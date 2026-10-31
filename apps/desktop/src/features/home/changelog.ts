@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '10:00',
+    kind: 'correção',
+    icon: 'screen',
+    title: 'A live não leva mais as vozes da chamada',
+    body: 'Quem assistia a transmissão de alguém da chamada ouvia a voz de todo mundo junto com o som do jogo. Agora o OpenCord pede ao Windows o som de todos os programas menos o dele: vozes, efeitos sonoros e música da chamada ficam fora da live.',
+  },
+  {
+    date: '2026-10-31',
     time: '09:30',
     kind: 'novo',
     icon: 'record',

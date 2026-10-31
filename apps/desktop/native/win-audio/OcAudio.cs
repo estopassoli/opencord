@@ -4,6 +4,8 @@
 //
 //   oc-audio.exe list          → JSON com as saídas ativas: [{"id","name","default","comm"}]
 //   oc-audio.exe capture <id>  → PCM float32 LE estéreo 48 kHz intercalado no stdout, até o stdin fechar
+//   oc-audio.exe except <pid>  → idem, com o som de TODOS os processos menos <pid> e os filhos dele (process loopback,
+//                                Windows 10 build 20348+). Áudio do Go Live sem as vozes da chamada (ADR-0025).
 //
 // Compilado com o csc do .NET Framework 4 que vem no Windows (C# 5: sem interpolação de strings etc.).
 using System;
@@ -91,6 +93,39 @@ namespace OpenCord.WinAudio
         [PreserveSig] int GetNextPacketSize(out uint frames);
     }
 
+    [ComImport, Guid("72A22D78-CDE4-431D-B8CC-843A71199B6D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IActivateAudioInterfaceAsyncOperation
+    {
+        [PreserveSig] int GetActivateResult(out int activateResult, [MarshalAs(UnmanagedType.IUnknown)] out object activatedInterface);
+    }
+
+    [ComImport, Guid("41D949AB-9862-444A-80F6-C261334DA5EB"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IActivateAudioInterfaceCompletionHandler
+    {
+        [PreserveSig] int ActivateCompleted(IActivateAudioInterfaceAsyncOperation op);
+    }
+
+    // a ativação chama o handler de outra thread: ele precisa ser ágil
+    [ComImport, Guid("94ea2b94-e9cc-49e0-c0ff-ee64ca8f5b90"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IAgileObject { }
+
+    [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
+    class Activation : IActivateAudioInterfaceCompletionHandler, IAgileObject
+    {
+        public readonly ManualResetEvent Done = new ManualResetEvent(false);
+        public int Result = -1;
+        public object Client;
+
+        public int ActivateCompleted(IActivateAudioInterfaceAsyncOperation op)
+        {
+            int hr;
+            object o;
+            if (op.GetActivateResult(out hr, out o) == 0) { Result = hr; Client = o; }
+            Done.Set();
+            return 0;
+        }
+    }
+
     static class Program
     {
         const int eRender = 0;
@@ -100,6 +135,11 @@ namespace OpenCord.WinAudio
         const int CLSCTX_ALL = 23;
         const int AUDCLNT_SHAREMODE_SHARED = 0;
         const int AUDCLNT_STREAMFLAGS_LOOPBACK = 0x00020000;
+        const int AUDCLNT_STREAMFLAGS_EVENTCALLBACK = 0x00040000;
+        const int AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM = unchecked((int)0x80000000);
+        const int AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK = 1;
+        const int PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE = 1;
+        const ushort VT_BLOB = 65;
         const uint AUDCLNT_BUFFERFLAGS_SILENT = 2;
         const int OUT_RATE = 48000;
 
@@ -108,6 +148,11 @@ namespace OpenCord.WinAudio
         static readonly Guid SUBTYPE_FLOAT = new Guid("00000003-0000-0010-8000-00aa00389b71");
         static readonly Guid SUBTYPE_PCM = new Guid("00000001-0000-0010-8000-00aa00389b71");
 
+        [DllImport("Mmdevapi.dll", ExactSpelling = true)]
+        static extern int ActivateAudioInterfaceAsync([MarshalAs(UnmanagedType.LPWStr)] string deviceInterfacePath,
+            [MarshalAs(UnmanagedType.LPStruct)] Guid riid, IntPtr activationParams,
+            IActivateAudioInterfaceCompletionHandler completionHandler, out IActivateAudioInterfaceAsyncOperation op);
+
         [MTAThread]
         static int Main(string[] args)
         {
@@ -115,7 +160,9 @@ namespace OpenCord.WinAudio
             {
                 if (args.Length == 1 && args[0] == "list") return List();
                 if (args.Length == 2 && args[0] == "capture") return Capture(args[1]);
-                Console.Error.WriteLine("uso: oc-audio list | oc-audio capture <id>");
+                uint pid;
+                if (args.Length == 2 && args[0] == "except" && uint.TryParse(args[1], out pid)) return Except(pid);
+                Console.Error.WriteLine("uso: oc-audio list | oc-audio capture <id> | oc-audio except <pid>");
                 return 64;
             }
             catch (Exception e)
@@ -216,6 +263,56 @@ namespace OpenCord.WinAudio
                 throw new Exception("formato de áudio não suportado: " + bits + " bits");
             // 200 ms de buffer no modo compartilhado
             Marshal.ThrowExceptionForHR(client.Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, 2000000, 0, fmt, IntPtr.Zero));
+            return Pump(client, new Converter(channels, rate, bits / 8, isFloat), null);
+        }
+
+        static int Except(uint pid)
+        {
+            // AUDIOCLIENT_ACTIVATION_PARAMS { ActivationType, TargetProcessId, ProcessLoopbackMode } num PROPVARIANT VT_BLOB
+            IntPtr p = Marshal.AllocHGlobal(12);
+            IntPtr pv = Marshal.AllocHGlobal(8 + 2 * IntPtr.Size);
+            IntPtr fmt = Marshal.AllocHGlobal(18);
+            try
+            {
+                Marshal.WriteInt32(p, 0, AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK);
+                Marshal.WriteInt32(p, 4, unchecked((int)pid));
+                Marshal.WriteInt32(p, 8, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE);
+                for (int i = 0; i < 8 + 2 * IntPtr.Size; i++) Marshal.WriteByte(pv, i, 0);
+                Marshal.WriteInt16(pv, 0, unchecked((short)VT_BLOB));
+                Marshal.WriteInt32(pv, 8, 12);
+                Marshal.WriteIntPtr(pv, 8 + IntPtr.Size, p);
+                Activation act = new Activation();
+                IActivateAudioInterfaceAsyncOperation op;
+                Marshal.ThrowExceptionForHR(ActivateAudioInterfaceAsync("VAD\\Process_Loopback", IID_IAudioClient, pv, act, out op));
+                if (!act.Done.WaitOne(5000)) throw new Exception("ativação do process loopback não respondeu");
+                Marshal.ThrowExceptionForHR(act.Result);
+                IAudioClient client = (IAudioClient)act.Client;
+                // o process loopback não tem formato próprio (GetMixFormat falha): pede float estéreo 48 kHz direto
+                Marshal.WriteInt16(fmt, 0, 3);
+                Marshal.WriteInt16(fmt, 2, 2);
+                Marshal.WriteInt32(fmt, 4, OUT_RATE);
+                Marshal.WriteInt32(fmt, 8, OUT_RATE * 8);
+                Marshal.WriteInt16(fmt, 12, 8);
+                Marshal.WriteInt16(fmt, 14, 32);
+                Marshal.WriteInt16(fmt, 16, 0);
+                Marshal.ThrowExceptionForHR(client.Initialize(AUDCLNT_SHAREMODE_SHARED,
+                    AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
+                    2000000, 0, fmt, IntPtr.Zero));
+                AutoResetEvent ready = new AutoResetEvent(false);
+                Marshal.ThrowExceptionForHR(client.SetEventHandle(ready.SafeWaitHandle.DangerousGetHandle()));
+                return Pump(client, new Converter(2, OUT_RATE, 4, true), ready);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(fmt);
+                Marshal.FreeHGlobal(pv);
+                Marshal.FreeHGlobal(p);
+            }
+        }
+
+        /// <summary>Lê o cliente de captura até o stdin fechar e escreve estéreo float 48 kHz no stdout.</summary>
+        static int Pump(IAudioClient client, Converter conv, AutoResetEvent ready)
+        {
             Guid ciid = IID_IAudioCaptureClient;
             object co;
             Marshal.ThrowExceptionForHR(client.GetService(ref ciid, out co));
@@ -232,13 +329,16 @@ namespace OpenCord.WinAudio
             watch.Start();
 
             Stream stdout = Console.OpenStandardOutput();
-            Converter conv = new Converter(channels, rate, bits / 8, isFloat);
             Marshal.ThrowExceptionForHR(client.Start());
+            // avisa o processo principal que a captura começou (ou ele cai para a captura do Chromium)
+            Console.Error.WriteLine("ready");
+            Console.Error.Flush();
             try
             {
                 while (running)
                 {
-                    Thread.Sleep(10);
+                    if (ready != null) ready.WaitOne(50);
+                    else Thread.Sleep(10);
                     uint packet;
                     int hr = capture.GetNextPacketSize(out packet);
                     if (hr != 0) return 2; // dispositivo removido ou trocado
