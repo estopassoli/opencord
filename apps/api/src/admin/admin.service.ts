@@ -97,7 +97,11 @@ export class AdminService {
       where: { userId: r.id, revokedAt: null, expiresAt: { gt: new Date() } },
     });
     const last = r.sessions[0];
-    const lastSeen = last ? (last.rotatedAt && last.rotatedAt > last.createdAt ? last.rotatedAt : last.createdAt) : null;
+    const lastSeen = last
+      ? last.rotatedAt && last.rotatedAt > last.createdAt
+        ? last.rotatedAt
+        : last.createdAt
+      : null;
     return {
       id: r.id,
       username: r.username,
@@ -213,7 +217,10 @@ export class AdminService {
     if (t.isInstanceAdmin !== admin) {
       await this.prisma.user.update({ where: { id: targetId }, data: { isInstanceAdmin: admin } });
       await this.audit.log(actorId, null, admin ? 'admin.user.promote' : 'admin.user.demote', targetId, {});
-      const servers = await this.prisma.serverMember.findMany({ where: { userId: targetId }, select: { serverId: true } });
+      const servers = await this.prisma.serverMember.findMany({
+        where: { userId: targetId },
+        select: { serverId: true },
+      });
       for (const s of servers) await this.realtime.syncServer(s.serverId).catch(() => undefined);
       this.realtime.toUser(targetId, 'instance:updated', await this.instance.info());
     }
@@ -259,7 +266,10 @@ export class AdminService {
   }
 
   // ---------- Auditoria global ----------
-  async auditLog(actorId: string, query: { scope: 'admin' | 'all'; before?: string | undefined }): Promise<AdminAuditPage> {
+  async auditLog(
+    actorId: string,
+    query: { scope: 'admin' | 'all'; before?: string | undefined },
+  ): Promise<AdminAuditPage> {
     await this.requireAdmin(actorId);
     const and: Prisma.AuditLogWhereInput[] = [];
     if (query.scope === 'admin') and.push(ADMIN_ACTIONS);

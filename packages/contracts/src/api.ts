@@ -892,4 +892,10 @@ export const CallRecording = z.object({
 export type CallRecording = z.infer<typeof CallRecording>;
 export const ChannelRecordings = z.object({ active: ActiveRecording.nullable(), ready: z.array(CallRecording) });
 export type ChannelRecordings = z.infer<typeof ChannelRecordings>;
-export const CompleteRecordingRequest = z.object({ durationMs: z.number().int().min(0).max(RECORDING_MAX_MS + 60_000) });
+export const CompleteRecordingRequest = z.object({
+  durationMs: z
+    .number()
+    .int()
+    .min(0)
+    .max(RECORDING_MAX_MS + 60_000),
+});

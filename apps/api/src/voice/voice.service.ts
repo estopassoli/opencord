@@ -311,7 +311,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
   /** Quantas pessoas estão em chamada agora (painel do super admin). */
   async countInVoice(): Promise<number> {
     let n = 0;
-    for (const channelId of await this.r.smembers('voice:channels')) n += await this.r.scard(`voice:channel:${channelId}`);
+    for (const channelId of await this.r.smembers('voice:channels'))
+      n += await this.r.scard(`voice:channel:${channelId}`);
     return n;
   }
 
