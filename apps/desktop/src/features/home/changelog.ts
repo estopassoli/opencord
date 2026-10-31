@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '05:30',
+    kind: 'correção',
+    icon: 'download',
+    title: 'App não quebra mais quando chega uma atualização',
+    body: 'Na versão anterior, a tela "Algo deu errado" aparecia assim que uma atualização ficava pronta, e não dava nem para atualizar. Corrigido.',
+  },
+  {
+    date: '2026-10-31',
     time: '05:15',
     kind: 'novo',
     icon: 'chat',

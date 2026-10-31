@@ -250,7 +250,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       useMusic.getState().reset();
       if (wasIn) playSound('leave');
       set({ serverId: null, participants: [], camera: false, stream: initialStreamState, stats: null });
-      if (wasIn) await useApiSafe((a) => a.request('POST', '/voice/leave'));
+      if (wasIn) await withApiSafe((a) => a.request('POST', '/voice/leave'));
       syncTray();
     },
 
@@ -393,7 +393,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
   };
 });
 
-async function useApiSafe(fn: (a: ReturnType<typeof api>) => Promise<unknown>) {
+async function withApiSafe(fn: (a: ReturnType<typeof api>) => Promise<unknown>) {
   try {
     await fn(api());
   } catch {

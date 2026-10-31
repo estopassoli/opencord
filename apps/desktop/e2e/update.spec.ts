@@ -52,4 +52,11 @@ test('versão nova publicada → baixa e mostra "Atualização pronta"', async (
   });
   expect(statSync(dl('9.9.10')).size).toBe(32 * 1024);
   expect(existsSync(dl('9.9.9'))).toBe(false);
+  // clicar abre o diálogo com as novidades e a escolha; Cancelar não instala nada
+  await page.getByRole('button', { name: /^Atualização pronta! .* 9\.9\.10$/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Atualização 9.9.10' });
+  await expect(dialog.getByRole('button', { name: 'Atualizar' })).toBeVisible();
+  await page.screenshot({ path: path.join(__dirname, 'results', '41-dialogo-atualizacao.png') });
+  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(dialog).toHaveCount(0);
 });
