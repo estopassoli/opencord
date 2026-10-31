@@ -556,14 +556,22 @@ textarea:focus-visible {
   margin: 2px 0 6px;
   padding: 0 0 0 24px;
   display: grid;
+  /* coluna nunca maior que a barra: sem isto a linha mais cheia (selos, jogo, AO VIVO) alargava todas e cortava */
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
+}
+.voice-members > li,
+.voice-members .popover-anchor {
+  min-width: 0;
 }
 /* pessoa na voz: botão (clique abre o perfil, botão direito abre o menu) */
 .voice-member {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
   min-height: 32px;
   padding: 4px 8px;
   border: 0;
@@ -581,6 +589,10 @@ textarea:focus-visible {
 .voice-member > .truncate {
   flex: 1;
   min-width: 0;
+}
+/* o nome encolhe primeiro; os selos e ícones ficam inteiros */
+.voice-member > :not(.truncate) {
+  flex: none;
 }
 .voice-member:hover,
 .voice-member[aria-expanded='true'] {
