@@ -19,3 +19,4 @@ e2e/results/
 
 # Fontes de terceiros com licença que proíbe redistribuição (ex.: gg sans) — nunca versionar
 public/fonts/
+apps/desktop/resources/win/

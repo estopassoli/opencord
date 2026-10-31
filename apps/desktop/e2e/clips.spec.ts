@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { json, launch, login, uniqueNick, type App } from './helpers';
@@ -98,14 +98,35 @@ test('jogo detectado, 60 s na memória e o atalho salva um MP4 com vídeo e som'
   expect(created).toHaveLength(1);
   const file = path.join(dir, created[0]!);
   const info = inspectMp4(readFileSync(file));
+  // cópia para conferir o som de cada trilha fora do teste
+  writeFileSync(path.join(__dirname, 'results', 'last-clip.mp4'), readFileSync(file));
   console.warn('CLIP', created[0], statSync(file).size, JSON.stringify(info));
   expect(info.top.slice(0, 2)).toEqual(['ftyp', 'moov']);
   expect(info.avc).toBe(true);
   expect(info.aac || info.opus).toBe(true);
   expect(info.seconds).toBeGreaterThan(3);
-  // trilhas de som: a mistura + computador, voz e efeitos sonoros
+  // trilhas de som (ADR-0024): a mistura, a saída padrão, cada outra saída do Windows, microfone, vozes e efeitos
   const audioTracks = (buf: Buffer) => buf.toString('latin1').split('mp4a').length - 1;
-  expect(audioTracks(readFileSync(file))).toBe(4);
+  const outputs = await A.page.evaluate(() =>
+    (
+      window as unknown as {
+        opencord: { winAudio: { list(): Promise<{ id: string; name: string; default: boolean }[]> } };
+      }
+    ).opencord.winAudio.list(),
+  );
+  console.warn('OUTPUTS', JSON.stringify(outputs));
+  expect(outputs.length).toBeGreaterThan(0);
+  const extra = outputs.filter((o) => !o.default);
+  expect(audioTracks(readFileSync(file))).toBe(5 + extra.length);
+  const utf8 = readFileSync(file).toString('utf8');
+  for (const o of outputs) expect(utf8).toContain(o.name);
+  expect(utf8).toContain('Microfone');
+  // o som das saídas extras chega do oc-audio.exe (1 s de estéreo float 48 kHz = 384 KB). Saída parada (nenhum app
+  // tocando nela) não manda nada e a trilha fica em silêncio; nesta máquina o fone "Voice" sempre tem som
+  const got = (diag.clips as { outputsIn: Record<string, number> }).outputsIn;
+  const ids = new Set(extra.map((o) => o.id));
+  for (const id of Object.keys(got)) expect(ids.has(id)).toBe(true);
+  if (extra.length) expect(Math.max(...Object.values(got))).toBeGreaterThan(384_000);
   // o arquivo toca: o próprio Chromium decodifica imagem e duração
   const played = await A.page.evaluate(async (b64) => {
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -137,10 +158,11 @@ test('jogo detectado, 60 s na memória e o atalho salva um MP4 com vídeo e som'
   await start.press('Shift+ArrowRight');
   await expect(viewer).toContainText('Corte:');
   // fontes de som separadas: silenciar o computador vale na exportação (uma trilha só, a mistura das ligadas)
-  await expect(viewer.getByRole('list', { name: 'Fontes de som do clipe' })).toContainText('Computador', {
+  const def = outputs.find((o) => o.default)!.name;
+  await expect(viewer.getByRole('list', { name: 'Fontes de som do clipe' })).toContainText(def, {
     timeout: 20_000,
   });
-  await viewer.getByRole('button', { name: 'Silenciar Computador' }).click();
+  await viewer.getByRole('button', { name: `Silenciar ${def}` }).click();
   const out = path.join(os.tmpdir(), `opencord-corte-${Date.now()}.mp4`);
   await A.app.evaluate(({ dialog }, p) => {
     dialog.showSaveDialog = (async () => ({ canceled: false, filePath: p })) as typeof dialog.showSaveDialog;

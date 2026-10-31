@@ -114,6 +114,22 @@ export const GamesConfigureArgs = z.object({
 });
 export type GamesConfigureArgs = z.infer<typeof GamesConfigureArgs>;
 
+/** Uma saída de áudio do Windows (ADR-0024). */
+export interface WinAudioOutput {
+  id: string;
+  name: string;
+  /** dispositivo padrão (o que o Chromium já grava) */
+  default: boolean;
+  /** dispositivo de comunicação padrão */
+  comm: boolean;
+}
+export const WinAudioId = z.string().min(1).max(256);
+/** PCM float32 estéreo 48 kHz de uma saída */
+export interface WinAudioChunk {
+  id: string;
+  pcm: Uint8Array;
+}
+
 /** Clipe pronto para gravar em Vídeos\OpenCord (ADR-0022). */
 export const ClipSaveArgs = z.object({
   /** nome do jogo, vira parte do nome do arquivo */
@@ -231,6 +247,13 @@ export interface OpenCordBridge {
     processes(): Promise<string[]>;
     current(): Promise<DetectedGameDto | null>;
   };
+  /** som de cada saída de áudio do Windows para os clipes (ADR-0024); vazio fora do Windows */
+  winAudio: {
+    list(): Promise<WinAudioOutput[]>;
+    /** começa a mandar o PCM da saída pelo evento 'win-audio' */
+    start(id: string): Promise<boolean>;
+    stop(id: string): Promise<void>;
+  };
   /** registra um erro da janela no crash-log.txt */
   reportError(report: ErrorReport): Promise<void>;
   updates: {
@@ -246,4 +269,5 @@ export interface OpenCordBridge {
   on(event: 'update', cb: (status: UpdateStatus) => void): () => void;
   on(event: 'window-state', cb: (state: WindowState) => void): () => void;
   on(event: 'game', cb: (game: DetectedGameDto | null) => void): () => void;
+  on(event: 'win-audio', cb: (chunk: WinAudioChunk) => void): () => void;
 }

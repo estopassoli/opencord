@@ -35,6 +35,7 @@ import {
   ShortcutsArgs,
   TrayVoiceState,
   WindowControl,
+  WinAudioId,
   type AppInfo,
   type AppPrefsState,
   type ShortcutAction,
@@ -59,6 +60,7 @@ import {
   revealClip,
   saveClip,
 } from './clips';
+import { listOutputs, startOutput, stopAllOutputs, stopOutput } from './win-audio';
 
 /** nome da janela da transmissão desanexada (src/features/voice/popout.tsx) */
 const POPOUT_NAME = 'opencord-live';
@@ -184,9 +186,14 @@ function createWindow() {
     },
   });
   // a janela caiu (falta de memória, GPU): fica registrado para diagnóstico
-  win.webContents.on('render-process-gone', (_e, d) =>
-    logRendererError({ where: 'window', message: `processo da janela encerrado: ${d.reason} (código ${d.exitCode})` }),
-  );
+  win.webContents.on('render-process-gone', (_e, d) => {
+    logRendererError({ where: 'window', message: `processo da janela encerrado: ${d.reason} (código ${d.exitCode})` });
+    stopAllOutputs();
+  });
+  // recarregar a janela perde quem ouvia o som das saídas
+  win.webContents.on('did-start-navigation', (e) => {
+    if (e.isMainFrame && !e.isSameDocument) stopAllOutputs();
+  });
   win.removeMenu();
   win.once('ready-to-show', () => win?.show());
   win.on('focus', () => checkIfStale());
@@ -392,6 +399,9 @@ function registerIpc() {
   handle(IPC.gamesConfigure, [GamesConfigureArgs], (a) => games.configure(a.enabled, a.custom));
   handle(IPC.gamesProcesses, [], () => games.processes());
   handle(IPC.gamesCurrent, [], () => games.game);
+  handle(IPC.winAudioList, [], () => listOutputs());
+  handle(IPC.winAudioStart, [WinAudioId], (id) => (win ? startOutput(id, win.webContents, IPC.evWinAudio) : false));
+  handle(IPC.winAudioStop, [WinAudioId], (id) => stopOutput(id));
   handle(IPC.appRelaunch, [], () => {
     quitting = true;
     app.relaunch();
@@ -438,6 +448,7 @@ app.on('before-quit', () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   games.stop();
+  stopAllOutputs();
 });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

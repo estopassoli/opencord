@@ -726,6 +726,8 @@ export const UserSettingsV1 = z.object({
       clipResolution: z.enum(['source', '1080p', '720p']).default('1080p'),
       /** qualidade (porcentagem do bitrate de referência): mais alta = arquivo maior */
       clipQuality: z.number().int().min(10).max(100).default(75),
+      /** saídas de áudio do Windows que NÃO entram nos clipes (pelo nome; as outras entram, ADR-0024) */
+      clipOutputsOff: z.array(z.string().max(256)).max(32).default([]),
       custom: z
         .array(z.object({ exe: z.string().trim().min(1).max(128), name: z.string().trim().min(1).max(64) }))
         .max(50)

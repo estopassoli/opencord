@@ -19,6 +19,10 @@ files:
   - package.json
 asar: true
 win:
+  # captura de cada saída de áudio do Windows para os clipes (ADR-0024; scripts/build-win-audio.mjs)
+  extraResources:
+    - from: resources/win/oc-audio.exe
+      to: oc-audio.exe
   target:
     - target: nsis
       arch: [x64]

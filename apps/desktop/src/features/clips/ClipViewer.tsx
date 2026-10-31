@@ -475,9 +475,12 @@ function Viewer({ clip }: { clip: ClipInfo }) {
   );
 }
 
-const SOURCE_ICON: Record<string, 'screen' | 'microphone' | 'soundboard'> = {
+// trilhas com outro nome são saídas de áudio do Windows (ADR-0024): ícone de alto-falante
+const SOURCE_ICON: Record<string, 'screen' | 'microphone' | 'soundboard' | 'users'> = {
   Computador: 'screen',
   Voz: 'microphone',
+  Microfone: 'microphone',
+  'Vozes da chamada': 'users',
   'Efeitos sonoros': 'soundboard',
 };
 

@@ -713,6 +713,18 @@ export class VoiceEngine {
     return out;
   }
 
+  /** Clipes (ADR-0024): o meu microfone (já processado) e, à parte, todo o som que chega dos outros. */
+  micAudioTrack(): MediaStreamTrack | null {
+    return this.micTrack?.mediaStreamTrack ?? null;
+  }
+  remoteAudioTracks(): MediaStreamTrack[] {
+    const out: MediaStreamTrack[] = [];
+    for (const p of this.room?.remoteParticipants.values() ?? [])
+      for (const pub of p.trackPublications.values())
+        if (pub.kind === Track.Kind.Audio && pub.isSubscribed && pub.track) out.push(pub.track.mediaStreamTrack);
+    return out;
+  }
+
   // ---------- trilhas para a UI ----------
   videoTrack(identity: string, source: 'camera' | 'screen'): MediaStreamTrack | null {
     const room = this.room;

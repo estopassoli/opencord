@@ -8,7 +8,7 @@
   "type": "module",
   "main": "dist-electron/main.cjs",
   "scripts": {
-    "build": "vite build && node scripts/build-electron.mjs",
+    "build": "vite build && node scripts/build-electron.mjs && node scripts/build-win-audio.mjs",
     "build:renderer": "vite build",
     "build:electron": "node scripts/build-electron.mjs",
     "dev:renderer": "vite",

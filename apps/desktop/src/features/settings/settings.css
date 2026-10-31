@@ -682,6 +682,19 @@ button.admin-stat:focus-visible {
   gap: 8px;
   flex-wrap: wrap;
 }
+.games-outputs {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.games-outputs legend {
+  padding: 0;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
 .games-clip-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

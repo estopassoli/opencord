@@ -5,6 +5,7 @@
 import type { UserSettings } from '@opencord/contracts';
 import { Button, Icon, Select, Slider, Switch, TextField } from '@opencord/ui';
 import { useEffect, useState } from 'react';
+import type { WinAudioOutput } from '../../../electron/shared/ipc';
 import { bridge } from '../../lib/bridge';
 import { clipBitrate, useClips } from '../../store/clips';
 import { useGames } from '../../store/games';
@@ -105,6 +106,7 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
           <p className="small muted">
             Cerca de {estimateMb(g)} MB por clipe (e o mesmo de memória enquanto o jogo está aberto).
           </p>
+          <ClipOutputs off={g.clipOutputsOff ?? []} onChange={(clipOutputsOff) => set({ clipOutputsOff })} />
           <ClipsFolder />
         </Section>
       )}
@@ -228,5 +230,37 @@ function ClipsFolder() {
         Trocar pasta
       </Button>
     </div>
+  );
+}
+
+/**
+ * Saídas de áudio do Windows gravadas nos clipes (ADR-0024): fones com duas saídas ("Game" e "Chat") entram as
+ * duas. O microfone, as vozes da chamada e os efeitos entram sempre, cada um na sua trilha.
+ */
+function ClipOutputs({ off, onChange }: { off: string[]; onChange: (off: string[]) => void }) {
+  const [list, setList] = useState<WinAudioOutput[] | null>(null);
+  useEffect(() => {
+    void bridge?.winAudio
+      .list()
+      .then(setList)
+      .catch(() => setList([]));
+  }, []);
+  if (!list?.length) return null;
+  return (
+    <fieldset className="games-outputs">
+      <legend className="small">Som gravado nos clipes</legend>
+      <p className="small muted">
+        Cada saída ligada vira uma trilha no clipe, junto com o seu microfone, as vozes da chamada e os efeitos.
+      </p>
+      {list.map((d) => (
+        <Switch
+          key={d.id}
+          label={d.name}
+          description={d.default ? 'Saída padrão do Windows' : d.comm ? 'Dispositivo de comunicação do Windows' : undefined}
+          checked={!off.includes(d.name)}
+          onChange={(v) => onChange(v ? off.filter((n) => n !== d.name) : [...off, d.name])}
+        />
+      ))}
+    </fieldset>
   );
 }

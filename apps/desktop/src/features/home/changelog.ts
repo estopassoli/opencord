@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '09:30',
+    kind: 'novo',
+    icon: 'record',
+    title: 'Clipes com o som de todas as saídas do fone',
+    body: 'Fones com duas saídas (como "Game" e "Chat"/"Voice") agora entram inteiros no clipe: cada saída de áudio do Windows vira uma trilha, junto com o seu microfone, as vozes da chamada e os efeitos sonoros. No visualizador do clipe dá para ligar e desligar cada uma. Escolha quais saídas gravar em Configurações → Jogos → Clipes.',
+  },
+  {
+    date: '2026-10-31',
     time: '09:00',
     kind: 'melhoria',
     icon: 'speaker',

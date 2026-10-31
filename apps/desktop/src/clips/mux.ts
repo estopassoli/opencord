@@ -14,13 +14,12 @@ import {
 import type { EncodeSession } from './encode';
 import type { StoredChunk } from './ring';
 
-/** nomes das trilhas de som do clipe, na ordem em que são gravadas */
-export const CLIP_AUDIO_NAMES = ['Tudo', 'Computador', 'Voz', 'Efeitos sonoros'] as const;
-
 export async function muxClip(
   s: Pick<EncodeSession, 'audioCodec'>,
   fps: number,
   clip: { base: number; video: StoredChunk[]; audio: StoredChunk[]; extra?: StoredChunk[][] },
+  /** nome de cada trilha de som, na ordem gravada (a 1ª é a mistura) */
+  names: string[] = [],
 ): Promise<Uint8Array<ArrayBuffer>> {
   const first = clip.video[0];
   if (!first) throw new Error('nada gravado ainda');
@@ -29,7 +28,7 @@ export async function muxClip(
   output.addVideoTrack(video, { frameRate: fps });
   // o nome vem da posição original (uma trilha vazia não pode trocar os nomes das outras)
   const tracks = [clip.audio, ...(clip.extra ?? [])]
-    .map((chunks, i) => ({ chunks, name: CLIP_AUDIO_NAMES[i] ?? `Áudio ${i + 1}` }))
+    .map((chunks, i) => ({ chunks, name: names[i] ?? `Áudio ${i + 1}` }))
     .filter((t) => t.chunks.length);
   const audio = s.audioCodec
     ? tracks.map((t, i) => {

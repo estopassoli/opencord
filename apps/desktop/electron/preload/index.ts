@@ -14,6 +14,7 @@ const EVENT_CHANNELS = {
   update: IPC.evUpdate,
   'window-state': IPC.evWindowState,
   game: IPC.evGame,
+  'win-audio': IPC.evWinAudio,
 } as const;
 
 const bridge: OpenCordBridge = {
@@ -57,6 +58,11 @@ const bridge: OpenCordBridge = {
     configure: (args) => ipcRenderer.invoke(IPC.gamesConfigure, args),
     processes: () => ipcRenderer.invoke(IPC.gamesProcesses),
     current: () => ipcRenderer.invoke(IPC.gamesCurrent),
+  },
+  winAudio: {
+    list: () => ipcRenderer.invoke(IPC.winAudioList),
+    start: (id) => ipcRenderer.invoke(IPC.winAudioStart, id),
+    stop: (id) => ipcRenderer.invoke(IPC.winAudioStop, id),
   },
   reportError: (report) => ipcRenderer.invoke(IPC.errorReport, report),
   updates: {

@@ -20,7 +20,10 @@ import { useUi } from './ui';
 /** depois de fechar o jogo, segura a captura um pouco (trocar de partida, reabrir) antes de liberar memória */
 const STOP_GRACE_MS = 30_000;
 
-type ClipSettings = Pick<UserSettings['games'], 'clipSeconds' | 'clipFps' | 'clipResolution' | 'clipQuality'>;
+type ClipSettings = Pick<
+  UserSettings['games'],
+  'clipSeconds' | 'clipFps' | 'clipResolution' | 'clipQuality' | 'clipOutputsOff'
+>;
 const settingsOf = (): ClipSettings => {
   const g = useData.getState().settings?.games;
   return {
@@ -28,6 +31,7 @@ const settingsOf = (): ClipSettings => {
     clipFps: g?.clipFps ?? 60,
     clipResolution: g?.clipResolution ?? '1080p',
     clipQuality: g?.clipQuality ?? 75,
+    clipOutputsOff: g?.clipOutputsOff ?? [],
   };
 };
 const MAX_SIZE: Record<ClipSettings['clipResolution'], { width: number; height: number } | null> = {
@@ -77,6 +81,37 @@ export const useClips = create<ClipsStore>()((set, get) => ({
 let stream: MediaStream | null = null;
 let session: EncodeSession | null = null;
 let clipAudio: ClipAudio | null = null;
+/** nomes das trilhas de som do clipe em gravação (a 1ª é a mistura) */
+let audioNames: string[] = [];
+
+/** "Fones de ouvido (A50 X Game)" e o rótulo do Chromium ("Padrão - …", "Comunicação - …") viram o mesmo nome */
+const deviceName = (label: string) => label.replace(/^(Padrão|Default|Comunicação|Communications)\s+-\s+/i, '').trim();
+
+/**
+ * Saídas do Windows nos clipes (ADR-0024): a padrão vem da captura do Chromium (sem o OpenCord); as outras, do
+ * oc-audio.exe. Também descobre se o OpenCord toca numa dessas outras (as vozes já estariam no som dela).
+ */
+async function clipOutputs(off: string[]) {
+  const list = (await bridge?.winAudio.list().catch(() => [])) ?? [];
+  const def = list.find((d) => d.default);
+  const outputs = list.filter((d) => !d.default && !off.includes(d.name)).map(({ id, name }) => ({ id, name }));
+  const want = useData.getState().settings?.audio.outputDeviceId ?? '';
+  let mine: string | undefined;
+  if (!want || want === 'default') mine = def?.id;
+  else if (want === 'communications') mine = list.find((d) => d.comm)?.id;
+  else {
+    const label = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).find(
+      (d) => d.kind === 'audiooutput' && d.deviceId === want,
+    )?.label;
+    mine = label ? list.find((d) => d.name === deviceName(label))?.id : def?.id;
+  }
+  return {
+    systemName: def?.name ?? 'Computador',
+    systemOn: !def || !off.includes(def.name),
+    outputs,
+    opencordInOutputs: outputs.some((o) => o.id === mine),
+  };
+}
 let ring = new ChunkRing(60e6);
 let fpsNow = 60;
 let running: string | null = null;
@@ -108,16 +143,24 @@ async function start() {
       const { width = max?.width ?? 1920, height = max?.height ?? 1080 } = v?.getSettings() ?? {};
       stream = s;
       const voice = await import('./voice');
-      clipAudio = new ClipAudio(
-        s.getAudioTracks()[0] ?? null,
-        () => voice.useVoice.getState().engine()?.callAudioTracks() ?? [],
-      );
+      const eng = () => voice.useVoice.getState().engine();
+      const outs = await clipOutputs(cfg.clipOutputsOff);
+      const audio = await ClipAudio.create({
+        system: outs.systemOn ? (s.getAudioTracks()[0] ?? null) : null,
+        systemName: outs.systemName,
+        outputs: outs.outputs,
+        opencordInOutputs: outs.opencordInOutputs,
+        mic: () => eng()?.micAudioTrack() ?? null,
+        voices: () => eng()?.remoteAudioTracks() ?? [],
+      });
+      clipAudio = audio;
+      audioNames = audio.names();
       setSoundTap((m, el) => clipAudio?.addEffect(m, el));
       fpsNow = cfg.clipFps;
       running = JSON.stringify(cfg);
       ring = new ChunkRing(cfg.clipSeconds * 1e6);
       session = encodeStream(
-        new MediaStream([...(v ? [v] : []), ...clipAudio.tracks()]),
+        new MediaStream([...(v ? [v] : []), ...audio.tracks()]),
         { fps: cfg.clipFps, bitrate: clipBitrate(width, height, cfg.clipFps, cfg.clipQuality), keyEverySec: 2 },
         {
           video: (c) => ring.pushVideo(c),
@@ -216,7 +259,7 @@ export async function saveClip() {
   if (!snap) return ui.toast('info', 'Ainda não há nada gravado; tente de novo em alguns segundos.');
   useClips.setState({ saving: true });
   try {
-    const data = await muxClip(session, fpsNow, snap);
+    const data = await muxClip(session, fpsNow, snap, audioNames);
     const g = useGames.getState().mine;
     const durationMs = Math.round((snap.video.at(-1)!.ts + snap.video.at(-1)!.dur - snap.base) / 1000);
     const thumb = await thumbnail(snap.video);
@@ -267,5 +310,8 @@ export function clipsDiag() {
     lastVideoTs: ring.lastVideoTs,
     lastAudioTs: ring.lastAudioTs,
     audioIn: ring.audioIn,
+    audioNames,
+    /** bytes de PCM recebidos de cada saída do Windows */
+    outputsIn: clipAudio?.received() ?? {},
   };
 }

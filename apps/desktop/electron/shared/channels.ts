@@ -35,6 +35,9 @@ export const IPC = {
   gamesConfigure: 'games:configure',
   gamesProcesses: 'games:processes',
   gamesCurrent: 'games:current',
+  winAudioList: 'win-audio:list',
+  winAudioStart: 'win-audio:start',
+  winAudioStop: 'win-audio:stop',
   // eventos main → renderer
   evShortcut: 'ev:shortcut',
   evNotificationClick: 'ev:notification-click',
@@ -43,4 +46,5 @@ export const IPC = {
   evUpdate: 'ev:update',
   evWindowState: 'ev:window-state',
   evGame: 'ev:game',
+  evWinAudio: 'ev:win-audio',
 } as const;

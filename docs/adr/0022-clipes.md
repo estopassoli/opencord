@@ -65,3 +65,6 @@ O mantenedor pediu o atalho "SHIFT F10 para clipar". Ao escolher entre as opçõ
   - Só a tela principal; o jogo em outro monitor não entra.
   - Jogos em tela cheia exclusiva podem sair pretos, como no Go Live.
   - O microfone da própria pessoa não entra no clipe; só o som do computador.
+
+## Atualização (2026-10-31): todas as saídas do Windows
+- As trilhas passam a ser: Tudo, a saída padrão, cada outra saída do Windows, Microfone, Vozes da chamada e Efeitos (ADR-0024). Os nomes vão no MP4 e o visualizador os lê de lá.
