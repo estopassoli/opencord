@@ -95,8 +95,7 @@ export class SoundsService {
   ): Promise<SoundEffect> {
     await this.perms.server(serverId, userId);
     const meta = SoundEffectUpload.safeParse(fields);
-    if (!meta.success)
-      throw new BadRequestException('dê um nome ao som (até 32 caracteres) e envie um áudio');
+    if (!meta.success) throw new BadRequestException('dê um nome ao som (até 32 caracteres) e envie um áudio');
     if ((await this.prisma.soundEffect.count({ where: { serverId } })) >= SOUNDS_PER_SERVER)
       throw new BadRequestException(`o servidor já tem ${SOUNDS_PER_SERVER} sons; remova algum antes`);
     const chunks: Buffer[] = [];

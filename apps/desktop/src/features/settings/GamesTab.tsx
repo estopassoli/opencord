@@ -256,7 +256,9 @@ function ClipOutputs({ off, onChange }: { off: string[]; onChange: (off: string[
         <Switch
           key={d.id}
           label={d.name}
-          description={d.default ? 'Saída padrão do Windows' : d.comm ? 'Dispositivo de comunicação do Windows' : undefined}
+          description={
+            d.default ? 'Saída padrão do Windows' : d.comm ? 'Dispositivo de comunicação do Windows' : undefined
+          }
           checked={!off.includes(d.name)}
           onChange={(v) => onChange(v ? off.filter((n) => n !== d.name) : [...off, d.name])}
         />

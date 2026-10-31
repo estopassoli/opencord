@@ -404,9 +404,7 @@ export function UploadSoundDialog({
               </span>
             </div>
             <SoundTrimmer audio={audio} range={range} total={total} playhead={preview.at} onChange={setRange} />
-            <p className="muted small upload-sound-hint">
-              Arraste as bordas para cortar o começo ou o fim.
-            </p>
+            <p className="muted small upload-sound-hint">Arraste as bordas para cortar o começo ou o fim.</p>
           </div>
         )}
         <div className="upload-sound-file">

@@ -119,8 +119,7 @@ export class ClipAudio {
     const want = new Map<string, [MediaStreamTrack, Lane]>();
     const mic = this.opts.mic();
     if (mic?.readyState === 'live') want.set(mic.id, [mic, this.mic]);
-    if (this.voices)
-      for (const t of this.opts.voices()) if (t.readyState === 'live') want.set(t.id, [t, this.voices]);
+    if (this.voices) for (const t of this.opts.voices()) if (t.readyState === 'live') want.set(t.id, [t, this.voices]);
     for (const [id, node] of this.live)
       if (!want.has(id)) {
         node.disconnect();
