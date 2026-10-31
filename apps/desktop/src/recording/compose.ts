@@ -23,6 +23,30 @@ export const composeAvailable = () => Boolean(g.MediaStreamTrackProcessor && g.M
 export interface CallSource {
   participants(): ParticipantView[];
   videoTrack(identity: string, source: 'camera' | 'screen'): MediaStreamTrack | null;
+  /**
+   * Anexa o vídeo remoto a um elemento: o LiveKit (adaptiveStream) escolhe a qualidade pelo tamanho do elemento na
+   * tela; sem nenhum, manda a camada mais baixa ou pausa. A gravação mantém um elemento invisível do tamanho certo.
+   */
+  attach?(identity: string, source: 'camera' | 'screen', el: HTMLVideoElement): () => void;
+}
+
+/** Elementos invisíveis (dentro da tela, transparentes) que seguram a qualidade alta dos vídeos gravados. */
+let keepersBox: HTMLDivElement | null = null;
+function keeper(width: number, height: number): HTMLVideoElement {
+  if (!keepersBox) {
+    keepersBox = document.createElement('div');
+    keepersBox.setAttribute('aria-hidden', 'true');
+    keepersBox.style.cssText =
+      'position:fixed;left:0;top:0;width:1px;height:1px;overflow:visible;opacity:0;pointer-events:none;z-index:-1';
+    document.body.append(keepersBox);
+  }
+  const v = document.createElement('video');
+  v.muted = true;
+  v.autoplay = true;
+  v.playsInline = true;
+  v.style.cssText = `position:absolute;left:0;top:0;width:${width}px;height:${height}px`;
+  keepersBox.append(v);
+  return v;
 }
 
 const BG = '#111214';
@@ -35,6 +59,7 @@ interface Feed {
   track: MediaStreamTrack;
   frame: VideoFrame | null;
   stopped: boolean;
+  release?: () => void;
 }
 
 export class CallCompositor {
@@ -48,8 +73,8 @@ export class CallCompositor {
 
   constructor(
     private readonly src: CallSource,
-    private readonly width = 1280,
-    private readonly height = 720,
+    private readonly width = 1920,
+    private readonly height = 1080,
     private readonly fps = 30,
   ) {
     this.canvas = new OffscreenCanvas(width, height);
@@ -76,7 +101,11 @@ export class CallCompositor {
   }
 
   /** mantém um leitor por trilha de vídeo em uso, guardando só o quadro mais recente */
-  private feed(key: string, track: MediaStreamTrack | null): VideoFrame | null {
+  private feed(
+    key: string,
+    track: MediaStreamTrack | null,
+    hold?: { identity: string; source: 'camera' | 'screen' },
+  ): VideoFrame | null {
     let f = this.feeds.get(key);
     if (f && (!track || f.track !== track || track.readyState === 'ended')) {
       this.drop(f);
@@ -86,6 +115,15 @@ export class CallCompositor {
     if (!track || track.readyState === 'ended' || !g.MediaStreamTrackProcessor) return null;
     if (!f) {
       const feed: Feed = { track, frame: null, stopped: false };
+      if (hold && this.src.attach) {
+        const [w, h] = hold.source === 'screen' ? [1920, 1080] : [640, 360];
+        const el = keeper(w, h);
+        const detach = this.src.attach(hold.identity, hold.source, el);
+        feed.release = () => {
+          detach();
+          el.remove();
+        };
+      }
       this.feeds.set(key, feed);
       void (async () => {
         const reader = new g.MediaStreamTrackProcessor!({ track }).readable.getReader();
@@ -112,6 +150,8 @@ export class CallCompositor {
   }
 
   private drop(f: Feed) {
+    f.release?.();
+    f.release = undefined;
     f.stopped = true;
     f.frame?.close();
     f.frame = null;
@@ -133,14 +173,20 @@ export class CallCompositor {
     for (const s of layout.screens) {
       const key = `${s.id}:screen`;
       used.add(key);
-      const frame = this.feed(key, this.src.videoTrack(s.id, 'screen'));
+      const frame = this.feed(key, this.src.videoTrack(s.id, 'screen'), { identity: s.id, source: 'screen' });
       this.tile(s.rect, null, frame, 'contain');
     }
     for (const p of layout.people) {
       const view = people.find((x) => x.identity === p.id)!;
       const key = `${p.id}:camera`;
       used.add(key);
-      const frame = view.hasCamera ? this.feed(key, this.src.videoTrack(p.id, 'camera')) : this.feed(key, null);
+      const frame = view.hasCamera
+        ? this.feed(
+            key,
+            this.src.videoTrack(p.id, 'camera'),
+            view.isLocal ? undefined : { identity: p.id, source: 'camera' },
+          )
+        : this.feed(key, null);
       this.tile(p.rect, view, frame, 'cover');
     }
     for (const [key, f] of this.feeds)

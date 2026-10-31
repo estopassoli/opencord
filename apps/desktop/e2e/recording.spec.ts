@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test';
-import { joinVoice, joinWithNickname, json, launch, OWNER, TONE, uniqueNick, writeTone, type App } from './helpers';
+import {
+  shot as shotPath,
+  joinVoice,
+  joinWithNickname,
+  json,
+  launch,
+  OWNER,
+  TONE,
+  uniqueNick,
+  writeTone,
+  type App,
+} from './helpers';
 
 /**
  * Gravação da chamada (ADR-0023) no Windows real: A entra na chamada, grava ~10 s (selo GRAVANDO), para, e a
@@ -42,7 +53,30 @@ test('grava a chamada, mostra GRAVANDO a todos e a gravação baixa e toca', asy
   await A.page.getByRole('button', { name: 'Parar de gravar' }).click();
   await expect(A.page.getByRole('status').filter({ hasText: 'Gravação encerrada' })).toBeVisible({ timeout: 30_000 });
   await expect(A.page.locator('.rec-badge')).toHaveCount(0);
-  await expect(A.page.getByRole('button', { name: /^Gravações \(\d+\)$/ })).toBeVisible();
+  const listBtn = A.page.getByRole('button', { name: /^Gravações \(\d+\)$/ });
+  await expect(listBtn).toBeVisible();
+  // a lista abre por cima do palco (antes ficava atrás do card da transmissão)
+  await listBtn.click();
+  const popup = A.page.getByRole('dialog', { name: 'Gravações da chamada' });
+  await expect(popup).toBeVisible();
+  const top = await popup.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    let chain = '';
+    for (let e: Element | null = hit; e; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      chain += ` < ${e.tagName.toLowerCase()}.${[...e.classList].join('.')}[z=${cs.zIndex},pos=${cs.position},ov=${cs.overflow}]`;
+    }
+    let mine = '';
+    for (let e: Element | null = el; e; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      mine += ` < ${e.tagName.toLowerCase()}.${[...e.classList].join('.')}[z=${cs.zIndex},pos=${cs.position},ov=${cs.overflow},cont=${cs.contain},tr=${cs.transform}]`;
+    }
+    return { ok: Boolean(hit && el.contains(hit)), chain, mine };
+  });
+  expect(top.ok).toBe(true);
+  await A.page.screenshot({ path: shotPath('rec-lista') });
+  await listBtn.click();
 
   const list = await json<{ ready: { id: string; durationMs: number; sizeBytes: number }[] }>(
     'GET',
@@ -86,8 +120,8 @@ test('grava a chamada, mostra GRAVANDO a todos e a gravação baixa e toca', asy
     return { w: v.videoWidth, h: v.videoHeight, d: v.duration, end: v.currentTime };
   }, buf.toString('base64'));
   console.warn('PLAYED', JSON.stringify(played));
-  expect(played.w).toBe(1280);
-  expect(played.h).toBe(720);
+  expect(played.w).toBe(1920);
+  expect(played.h).toBe(1080);
   expect(Math.max(played.end, Number.isFinite(played.d) ? played.d : 0)).toBeGreaterThan(7);
   // limpeza: apaga a gravação de teste
   await json('DELETE', `/recordings/${rec.id}`, undefined, ownerToken).catch(() => undefined);

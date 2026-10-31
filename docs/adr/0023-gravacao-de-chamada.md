@@ -30,6 +30,10 @@ Entre montar o vídeo no servidor (LiveKit Egress, um container com Chrome e 2 a
 - **24 h:** uma varredura a cada minuto apaga o arquivo e a linha das gravações vencidas.
 - **Banco:** tabela `CallRecording`, migração aditiva `20261031020000_call_recordings`.
 
+## Atualização (2026-10-31): qualidade
+- **Gravação:** 1080p30 a 8 Mb/s, com `latencyMode: 'quality'` (antes 720p a 2,5 Mb/s, em modo de tempo real). Limite de 16 GB, que cabe 4 h nessa qualidade.
+- **Vídeos recebidos:** o `adaptiveStream` do LiveKit escolhe a camada pelo tamanho do elemento na tela, e a gravação lia a trilha sem elemento nenhum, então recebia a camada mais baixa ou o vídeo pausado. Agora cada vídeo remoto gravado fica anexado a um `<video>` invisível dentro da janela, de 1920×1080 para telas e 640×360 para câmeras. O `adaptiveStream` passou a usar `pauseVideoInBackground: false`, para o app minimizado não pausar.
+
 ## Consequências
 - **Evidência:**
   - unidade `recording-layout.test.ts`;

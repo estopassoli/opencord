@@ -18,6 +18,8 @@ export interface EncodeOptions {
   bitrate: number;
   /** quadro-chave a cada N segundos (o clipe só pode começar num quadro-chave) */
   keyEverySec: number;
+  /** 'quality' (gravação da chamada) gasta mais da placa para ficar mais nítido; padrão 'realtime' */
+  latencyMode?: 'realtime' | 'quality';
 }
 
 export interface EncodeSink {
@@ -55,7 +57,7 @@ async function videoConfig(width: number, height: number, o: EncodeOptions): Pro
         bitrate: o.bitrate,
         framerate: o.fps,
         hardwareAcceleration,
-        latencyMode: 'realtime',
+        latencyMode: o.latencyMode ?? 'realtime',
         bitrateMode: 'variable',
         avc: { format: 'avc' },
       };

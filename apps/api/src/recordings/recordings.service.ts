@@ -158,7 +158,7 @@ export class RecordingsService implements OnModuleInit, OnModuleDestroy {
     if (n !== parts.length + 1) throw new BadRequestException(`parte fora de ordem (esperada ${parts.length + 1})`);
     if (!data.length || data.length > RECORDING_PART_BYTES) throw new BadRequestException('parte com tamanho inválido');
     const size = Number(row.sizeBytes) + data.length;
-    if (size > RECORDING_MAX_BYTES) throw new PayloadTooLargeException('a gravação passou do limite de 4 GB');
+    if (size > RECORDING_MAX_BYTES) throw new PayloadTooLargeException('a gravação passou do limite de 16 GB');
     const etag = await this.storage.partsPut(row.storageKey, row.uploadId, n, data);
     await this.prisma.callRecording.update({
       where: { id },
