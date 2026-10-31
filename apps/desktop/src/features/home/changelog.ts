@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '05:15',
+    kind: 'novo',
+    icon: 'chat',
+    title: 'Markdown nas mensagens',
+    body: 'Escreva # título (até ###), > citação, >>> citação longa, - lista, 1. lista numerada, ```bloco de código```, -# texto pequeno, **negrito**, *itálico*, __sublinhado__, ~~tachado~~, ||spoiler|| (clique para ver) e [texto](https://link). Use \\ antes de um símbolo para escrevê-lo sem formatar.',
+  },
+  {
+    date: '2026-10-31',
+    time: '05:10',
+    kind: 'correção',
+    icon: 'chat',
+    title: 'Selecionar texto só nas mensagens',
+    body: 'Ctrl+A ou arrastar o mouse não pinta mais a interface inteira de azul: só o texto das mensagens e os campos de digitação podem ser selecionados.',
+  },
+  {
+    date: '2026-10-31',
     time: '04:45',
     kind: 'novo',
     icon: 'upload',

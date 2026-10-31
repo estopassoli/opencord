@@ -6356,3 +6356,85 @@ section:first-child > .friends-panel-sep {
   display: inline-grid;
   place-items: center;
 }
+
+/* seleção de texto: só no conteúdo das mensagens e nos campos (Ctrl+A não pinta a interface inteira) */
+body {
+  user-select: none;
+}
+input,
+textarea,
+[contenteditable='true'],
+.msg-body,
+.pin-body,
+.msg-body *,
+.pin-body * {
+  user-select: text;
+}
+
+/* markdown das mensagens */
+.md-h {
+  margin: 6px 0 2px;
+  line-height: 1.25;
+  white-space: normal;
+}
+.md-h1 {
+  font-size: 1.5rem;
+}
+.md-h2 {
+  font-size: 1.25rem;
+}
+.md-h3 {
+  font-size: 1.0625rem;
+}
+.md-sub {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.md-quote {
+  margin: 2px 0;
+  padding: 0 0 0 12px;
+  border-left: 4px solid var(--interactive-hover);
+  white-space: pre-wrap;
+}
+.md-list {
+  margin: 2px 0;
+  padding-left: 1.5em;
+  white-space: normal;
+}
+.md-list > li {
+  white-space: pre-wrap;
+}
+.msg-body pre.md-pre,
+.pin-body pre.md-pre {
+  margin: 4px 0;
+  padding: 8px 10px;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: var(--rail);
+  border: 1px solid var(--border);
+  white-space: pre;
+}
+.msg-body pre.md-pre code,
+.pin-body pre.md-pre code {
+  padding: 0;
+  background: none;
+  font-size: 0.85rem;
+}
+.md-spoiler {
+  border-radius: 4px;
+  background: var(--interactive-hover);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+.md-spoiler:not([data-shown]) > span {
+  opacity: 0;
+}
+.md-spoiler[data-shown] {
+  background: color-mix(in srgb, var(--interactive-hover) 45%, transparent);
+  cursor: auto;
+}
+.md-spoiler:focus-visible {
+  outline: 2px solid var(--brand);
+}
