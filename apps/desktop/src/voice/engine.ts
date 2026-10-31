@@ -190,7 +190,8 @@ export class VoiceEngine {
     this.intentional = false;
     preferHardwareH264();
     const room = new Room({
-      adaptiveStream: true,
+      // a qualidade segue o tamanho do vídeo na tela; minimizado não pausa (a gravação da chamada segue recebendo)
+      adaptiveStream: { pauseVideoInBackground: false },
       dynacast: true,
       webAudioMix: true,
       disconnectOnPageLeave: true,

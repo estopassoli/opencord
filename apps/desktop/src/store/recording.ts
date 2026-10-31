@@ -74,6 +74,8 @@ export const useRecording = create<RecordingStore>()((set, get) => ({
       videoTrack: (id: string, src: 'camera' | 'screen') => eng()?.videoTrack(id, src) ?? null,
       callAudioTracks: () => eng()?.callAudioTracks() ?? [],
       setRecordAll: (on: boolean) => eng()?.setRecordAll(on),
+      attach: (id: string, src: 'camera' | 'screen', el: HTMLVideoElement) =>
+        eng()?.attach(id, src, el) ?? (() => undefined),
     };
     const rec = new CallRecorder(recorderApi, source, ({ ok, reason }) => {
       recorder = null;

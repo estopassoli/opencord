@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '07:30',
+    kind: 'correção',
+    icon: 'record',
+    title: 'Gravação da chamada em 1080p e lista de gravações visível',
+    body: 'A gravação agora sai em 1080p com bem mais qualidade, e as transmissões entram na qualidade alta (antes chegavam na versão mais baixa, porque a gravação não as mostrava na tela). Minimizar o app não pausa mais o vídeo gravado. A lista "Gravações" no topo da chamada não fica mais escondida atrás da transmissão.',
+  },
+  {
+    date: '2026-10-31',
     time: '07:15',
     kind: 'melhoria',
     icon: 'speaker',

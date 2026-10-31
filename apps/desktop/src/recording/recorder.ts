@@ -10,7 +10,10 @@ import type { StoredChunk } from '../clips/ring';
 import { CallCompositor, type CallSource } from './compose';
 
 const FPS = 30;
-const BITRATE = 2_500_000;
+/** 1080p30: telas de jogo e texto pequeno precisam de bitrate (2,5 Mb/s em 720p ficava borrado) */
+const WIDTH = 1920;
+const HEIGHT = 1080;
+const BITRATE = 8_000_000;
 const ALIVE_MS = 30_000;
 /** sem áudio depois disto, o arquivo sai só com vídeo */
 const AUDIO_WAIT_US = 3_000_000;
@@ -24,6 +27,7 @@ export interface RecorderApi {
 }
 
 export interface RecorderEngine extends CallSource {
+  attach?(identity: string, source: 'camera' | 'screen', el: HTMLVideoElement): () => void;
   callAudioTracks(): MediaStreamTrack[];
   setRecordAll(on: boolean): void;
 }
@@ -162,7 +166,7 @@ export class CallRecorder {
     this.startedAt = Date.now();
     try {
       this.engine.setRecordAll(true);
-      this.compositor = new CallCompositor(this.engine, 1280, 720, FPS);
+      this.compositor = new CallCompositor(this.engine, WIDTH, HEIGHT, FPS);
       this.mix = new AudioMix(() => this.engine.callAudioTracks());
       const stream = new MediaStream([this.compositor.start(), this.mix.start()]);
       this.uploader = new PartUploader(

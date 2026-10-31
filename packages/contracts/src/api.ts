@@ -883,7 +883,8 @@ export const SoundEffectUpload = z.object({
 // ---------- Gravação de chamada (ADR-0023) ----------
 /** cada parte enviada durante a gravação (o arquivo vai subindo enquanto a chamada acontece) */
 export const RECORDING_PART_BYTES = 8 * 1024 * 1024;
-export const RECORDING_MAX_BYTES = 4 * 1024 * 1024 * 1024;
+/** 1080p30 a 8 Mb/s ≈ 3,6 GB por hora: cabe o limite de 4 h */
+export const RECORDING_MAX_BYTES = 16 * 1024 * 1024 * 1024;
 export const RECORDING_MAX_MS = 4 * 60 * 60 * 1000;
 /** por quanto tempo a gravação pronta pode ser baixada */
 export const RECORDING_TTL_MS = 24 * 60 * 60 * 1000;

@@ -6499,3 +6499,11 @@ textarea,
   color: var(--text);
   font-size: 0.875rem;
 }
+
+/* cabeçalho do palco: as listas que abrem dele (como "Gravações") passam da altura dele e ficam por cima das
+   transmissões e dos cards (o overflow escondido do cabeçalho cortava a lista) */
+.stage-header {
+  position: relative;
+  z-index: 30;
+  overflow: visible;
+}
