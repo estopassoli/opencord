@@ -666,6 +666,8 @@ export const UserSettingsV1 = z.object({
       pushToTalk: z.string().max(64).nullable().default(null),
       toggleMute: z.string().max(64).nullable().default('CommandOrControl+Shift+M'),
       toggleDeafen: z.string().max(64).nullable().default('CommandOrControl+Shift+D'),
+      /** salva os últimos 60 s do jogo como clipe (ADR-0022) */
+      saveClip: z.string().max(64).nullable().default('Shift+F10'),
     })
     .prefault({}),
   appearance: z
@@ -709,12 +711,14 @@ export const UserSettingsV1 = z.object({
   games: z
     .object({
       showPlaying: z.boolean().default(true),
+      /** clipes (ADR-0022): com um jogo aberto, guarda os últimos 60 s da tela na memória para salvar pelo atalho */
+      clips: z.boolean().default(true),
       custom: z
         .array(z.object({ exe: z.string().trim().min(1).max(128), name: z.string().trim().min(1).max(64) }))
         .max(50)
         .default([]),
     })
-    .default({ showPlaying: true, custom: [] }),
+    .default({ showPlaying: true, clips: true, custom: [] }),
   /**
    * Ordem da barra de servidores: id de servidor solto ou pasta com vários servidores (só eu vejo).
    * Servidor fora da lista aparece no fim; id de servidor que saí é ignorado no cliente.

@@ -6,6 +6,7 @@ import type { UserSettings } from '@opencord/contracts';
 import { Button, Icon, Select, Switch, TextField } from '@opencord/ui';
 import { useState } from 'react';
 import { bridge } from '../../lib/bridge';
+import { useClips } from '../../store/clips';
 import { useGames } from '../../store/games';
 import { updateSettings } from '../../store/settings';
 import { useElapsed } from '../shell/Playing';
@@ -14,6 +15,7 @@ import { Section } from './SettingsModal';
 export function GamesTab({ settings }: { settings: UserSettings }) {
   const g = settings.games;
   const mine = useGames((s) => s.mine);
+  const clipping = useClips((s) => s.active);
   const elapsed = useElapsed(mine?.startedAt);
   const set = (patch: Partial<UserSettings['games']>) =>
     updateSettings((s) => ({ ...s, games: { ...s.games, ...patch } }));
@@ -37,6 +39,29 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
               : 'Nenhum jogo aberto agora.'}
         </p>
       </Section>
+      {bridge && (
+        <Section
+          title="Clipes"
+          description="Com um jogo aberto, o OpenCord guarda na memória os últimos 60 s da tela principal e do som do computador (inclusive a chamada). O atalho salva um vídeo MP4 em Vídeos\OpenCord. Nada é enviado ao servidor."
+        >
+          <Switch
+            label="Guardar os últimos 60 s para clipes"
+            description={
+              settings.keybinds.saveClip
+                ? `Atalho: ${settings.keybinds.saveClip} (mude em Atalhos). Usa a placa de vídeo e cerca de 90 MB de memória enquanto o jogo está aberto.`
+                : 'Sem atalho definido: escolha um em Atalhos.'
+            }
+            checked={g.clips}
+            onChange={(v) => set({ clips: v })}
+          />
+          {g.clips && mine && (
+            <p className="games-now small">
+              <Icon name="record" size={16} />
+              {clipping ? 'Guardando os últimos 60 s agora.' : 'Preparando a captura…'}
+            </p>
+          )}
+        </Section>
+      )}
       {bridge && (
         <Section
           title="Jogos adicionados por você"

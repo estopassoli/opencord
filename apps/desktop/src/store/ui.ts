@@ -11,6 +11,8 @@ export interface Toast {
   id: number;
   kind: 'info' | 'error' | 'success';
   text: string;
+  /** botão no aviso (ex.: "Mostrar na pasta") */
+  action?: { label: string; run: () => void };
 }
 
 export type Modal =
@@ -114,7 +116,7 @@ interface UiState {
   setPoppedStream(id: string | null): void;
   toggleStrip(): void;
   setEditing(id: string | null): void;
-  toast(kind: Toast['kind'], text: string): void;
+  toast(kind: Toast['kind'], text: string, action?: Toast['action']): void;
   dismissToast(id: number): void;
   setConnection(c: UiState['connection']): void;
 }
@@ -192,10 +194,13 @@ export const useUi = create<UiState>()((set) => ({
   setPoppedStream: (id) => set({ poppedStream: id }),
   toggleStrip: () => set((s) => ({ stripHidden: !s.stripHidden })),
   setEditing: (editing) => set({ editing }),
-  toast: (kind, text) => {
+  toast: (kind, text, action) => {
     const id = ++toastSeq;
-    set((s) => ({ toasts: [...s.toasts.slice(-3), { id, kind, text }] }));
-    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), kind === 'error' ? 7000 : 4000);
+    set((s) => ({ toasts: [...s.toasts.slice(-3), { id, kind, text, ...(action ? { action } : {}) }] }));
+    setTimeout(
+      () => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+      kind === 'error' || action ? 7000 : 4000,
+    );
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setConnection: (connection) => set({ connection }),

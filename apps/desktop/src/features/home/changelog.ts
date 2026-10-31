@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '02:30',
+    kind: 'novo',
+    icon: 'record',
+    title: 'Clipes do seu jogo com Shift+F10',
+    body: 'Com um jogo aberto, o OpenCord guarda os últimos 60 segundos da sua tela principal e do som do computador. Aperte Shift+F10 para salvar um vídeo em Vídeos\\OpenCord. O atalho aparece no painel do usuário, junto com o nome do jogo. Dá para desligar ou trocar o atalho em Configurações → Jogos e Atalhos. Nada é enviado ao servidor.',
+  },
+  {
+    date: '2026-10-31',
     time: '01:30',
     kind: 'novo',
     icon: 'gamepad',

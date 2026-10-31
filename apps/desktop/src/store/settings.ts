@@ -20,6 +20,7 @@ export function applySettingsSideEffects(s: UserSettings) {
         toggleMute: s.keybinds.toggleMute,
         toggleDeafen: s.keybinds.toggleDeafen,
         pushToTalkToggle: s.audio.inputMode === 'ptt' ? s.keybinds.pushToTalk : null,
+        saveClip: s.games.clips ? s.keybinds.saveClip : null,
       })
       .then((r) => {
         if (r.failed.length)
@@ -29,6 +30,10 @@ export function applySettingsSideEffects(s: UserSettings) {
   }
   void import('./voice').then(({ useVoice }) => useVoice.getState().applySettings(s));
   void import('./games').then(({ configureGames }) => configureGames(s));
+  void import('./clips').then(({ wireClips, syncClips }) => {
+    wireClips();
+    syncClips();
+  });
 }
 
 /** Cor de destaque, tom de fundo, cantos e fonte: viram variáveis CSS no :root. */

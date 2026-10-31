@@ -10,7 +10,7 @@ import { useUi } from '../../store/ui';
 import { isInCall, useVoice } from '../../store/voice';
 import { SoundboardPanel } from '../voice/Soundboard';
 import { deviceMenu } from '../voice/devices';
-import { GameLine, usePlaying } from './Playing';
+import { GameDock, GameLine, usePlaying } from './Playing';
 
 const STATUSES: Exclude<PresenceStatus, 'offline'>[] = ['online', 'idle', 'dnd', 'invisible'];
 
@@ -68,6 +68,7 @@ export function UserDock() {
 
   return (
     <div className="dock" ref={ref}>
+      <GameDock />
       {(inCall || v.machine.status === 'failed') && (
         <section className="voice-dock" aria-label="Chamada de voz">
           <div className="voice-dock-row">
