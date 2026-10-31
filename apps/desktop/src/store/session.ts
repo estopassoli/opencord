@@ -351,12 +351,13 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('sound:played', (e) => {
       void Promise.all([import('./sounds'), import('./voice')]).then(([{ useSounds }, { useVoice }]) => {
         if (useVoice.getState().machine.channelId === e.channelId)
-          void useSounds.getState().hear(e.serverId, e.soundId);
+          void useSounds.getState().hear(e.soundId, e.volume);
       });
     });
     rt.on('sound:list:changed', (e) => {
       void import('./sounds').then(({ useSounds }) => {
-        if (useSounds.getState().byServer[e.serverId]) void useSounds.getState().load(e.serverId);
+        const st = useSounds.getState();
+        if (st.byServer[e.serverId] || st.loadedAll) void st.load(e.serverId);
       });
     });
     rt.on('voice:member:left', (e) => {

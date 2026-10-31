@@ -5012,8 +5012,8 @@ section:first-child > .friends-panel-sep {
 .soundboard {
   position: fixed;
   z-index: 1300;
-  width: min(520px, calc(100vw - 16px));
-  max-height: min(520px, calc(100vh - 80px));
+  width: min(580px, calc(100vw - 16px));
+  height: min(520px, calc(100vh - 80px));
   display: flex;
   flex-direction: column;
   background: var(--elevated, #1e1f22);
@@ -5023,6 +5023,7 @@ section:first-child > .friends-panel-sep {
   overflow: hidden;
 }
 .soundboard-head {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -5034,28 +5035,109 @@ section:first-child > .friends-panel-sep {
   min-width: 0;
 }
 .soundboard-volume {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% - 6px);
+  right: 8px;
+  width: 260px;
   display: grid;
   gap: 6px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 12px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
 }
 .soundboard-volume > .oc-btn {
   justify-self: start;
 }
+.soundboard-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.soundboard-rail {
+  flex: none;
+  width: 52px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+  border-right: 1px solid var(--border);
+}
+.soundboard-rail-btn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--interactive);
+  color: var(--text-2);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  transition:
+    border-radius var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+.soundboard-rail-btn:hover,
+.soundboard-rail-btn:focus-visible {
+  border-radius: 10px;
+  background: var(--interactive-hover);
+  color: var(--text);
+}
+.soundboard-rail-btn img,
+.soundboard-section-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .soundboard-body {
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: 4px 12px 12px;
   display: grid;
+  align-content: start;
   gap: 4px;
 }
 .soundboard-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   margin: 10px 0 6px;
   font-size: 0.8125rem;
   font-weight: 700;
   color: var(--text-2);
+}
+.soundboard-title > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.soundboard-title > button:hover,
+.soundboard-title > button:focus-visible {
+  color: var(--text);
+}
+.soundboard-section-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--interactive);
+  font-size: 0.5rem;
 }
 .sound-grid {
   list-style: none;
@@ -5933,4 +6015,98 @@ section:first-child > .friends-panel-sep {
   .reaction-role {
     transition: none;
   }
+}
+
+/* recorte do som antes do envio */
+.upload-sound-preview {
+  flex-direction: column;
+  align-items: stretch;
+}
+.upload-sound-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.upload-sound-head > .truncate {
+  flex: 1;
+}
+.upload-sound-hint {
+  margin: 0;
+}
+.trim {
+  display: grid;
+  gap: 4px;
+  padding: 0 7px;
+}
+.trim-track {
+  position: relative;
+  height: 56px;
+  cursor: pointer;
+  touch-action: none;
+}
+.trim-wave {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.trim-wave > span {
+  flex: 1;
+  border-radius: 1px;
+  background: var(--text-muted);
+  opacity: 0.35;
+}
+.trim-wave > span.on {
+  background: var(--brand);
+  opacity: 1;
+}
+.trim-sel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  box-shadow: inset 0 0 0 2px var(--brand);
+  pointer-events: none;
+}
+.trim-playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+  pointer-events: none;
+}
+.trim-handle {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 14px;
+  margin-left: -7px;
+  border-radius: 4px;
+  background: var(--brand);
+  cursor: ew-resize;
+  touch-action: none;
+}
+.trim-handle::after {
+  content: '';
+  position: absolute;
+  inset: 35% 5px;
+  border-left: 2px solid var(--text-on-brand);
+  border-right: 2px solid var(--text-on-brand);
+}
+.trim-handle:hover,
+.trim-handle:focus-visible {
+  background: var(--brand-hover);
+}
+.trim-handle:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+.trim-times {
+  display: flex;
+  justify-content: space-between;
 }

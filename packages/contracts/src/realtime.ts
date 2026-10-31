@@ -180,7 +180,8 @@ export interface ServerEvents {
   'music:state': MusicState;
   'music:ended': { channelId: string; serverId: string };
   /** alguém tocou um efeito sonoro na chamada: quem está nela toca no próprio app */
-  'sound:played': { channelId: string; serverId: string; soundId: string; userId: string };
+  /** serverId é o da chamada; o som pode ser de outro servidor de quem tocou (volume vem junto) */
+  'sound:played': { channelId: string; serverId: string; soundId: string; userId: string; volume: number };
   /** lista de efeitos do servidor mudou (envio/remoção) */
   'sound:list:changed': { serverId: string };
   /** perfil público mudou (foto, apelido): enviado a quem compartilha servidor com a pessoa */

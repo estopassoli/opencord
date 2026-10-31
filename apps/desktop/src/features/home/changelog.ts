@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    time: '23:58',
+    kind: 'melhoria',
+    icon: 'speaker',
+    title: 'Sons de todos os seus servidores em qualquer chamada',
+    body: 'O painel de efeitos sonoros agora mostra os sons de todos os servidores em que você está, separados por servidor, com atalhos na lateral. Dá para tocar um som de outro servidor na chamada em que você estiver, e todo mundo nela ouve. O volume dos efeitos abre num balão ao lado do botão do alto-falante.',
+  },
+  {
+    date: '2026-10-30',
+    time: '23:55',
+    kind: 'novo',
+    icon: 'upload',
+    title: 'Recorte o som antes de enviar',
+    body: 'Ao enviar um som, aparece a forma de onda do áudio com duas bordas para arrastar e escolher o trecho. O áudio pode ter mais de 10 s: você escolhe o pedaço de até 10 s que quer, ouve só ele e envia.',
+  },
+  {
+    date: '2026-10-30',
     time: '23:50',
     kind: 'correção',
     icon: 'verified',

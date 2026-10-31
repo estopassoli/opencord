@@ -24,10 +24,14 @@ import { VoiceService } from '../voice/voice.service.js';
 const AUDIO = new Set(['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/vnd.wave']);
 /** intervalo mínimo entre dois efeitos da mesma pessoa (contra flood na chamada) */
 const PLAY_GAP_MS = 1500;
+/** por quanto tempo quem está na chamada pode baixar um som de outro servidor tocado nela */
+const HEARD_GRANT_MS = 10 * 60_000;
+const heardKey = (channelId: string, soundId: string) => `sound:heard:${channelId}:${soundId}`;
 
 /**
  * Efeitos sonoros do servidor (ADR-0016). Qualquer membro envia; remove quem enviou ou quem gerencia o servidor.
  * Tocar só manda um aviso para a chamada (Socket.IO); cada pessoa nela toca o arquivo no próprio app.
+ * Quem é membro de vários servidores toca os sons de qualquer um deles em qualquer chamada.
  */
 @Injectable()
 export class SoundsService {
@@ -67,6 +71,16 @@ export class SoundsService {
     await this.perms.server(serverId, userId);
     const rows = await this.prisma.soundEffect.findMany({
       where: { serverId },
+      include: { createdBy: { select: USER_PUBLIC_SELECT } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map((r) => this.dto(r));
+  }
+
+  /** Sons de todos os servidores de que a pessoa é membro (o painel agrupa por servidor). */
+  async mine(userId: string): Promise<SoundEffect[]> {
+    const rows = await this.prisma.soundEffect.findMany({
+      where: { server: { members: { some: { userId } } } },
       include: { createdBy: { select: USER_PUBLIC_SELECT } },
       orderBy: { createdAt: 'asc' },
     });
@@ -129,29 +143,50 @@ export class SoundsService {
     this.realtime.emit(rooms.server(serverId), 'sound:list:changed', { serverId });
   }
 
-  /** Arquivo do som, para quem é membro do servidor dele. */
+  /**
+   * Arquivo do som, para quem é membro do servidor dele ou está numa chamada em que ele foi tocado
+   * há pouco (som de outro servidor, trazido por alguém da chamada).
+   */
   async open(soundId: string, userId: string): Promise<{ mime: string; size: number; stream: Readable }> {
     const s = await this.prisma.soundEffect.findUnique({ where: { id: soundId } });
     if (!s) throw notFound('som');
-    await this.perms.server(s.serverId, userId).catch(() => {
-      throw notFound('som');
-    });
+    const member = await this.perms.server(s.serverId, userId).then(
+      () => true,
+      () => false,
+    );
+    if (!member) {
+      const state = await this.voice.stateOf(userId);
+      if (!state || !(await this.redis.client.exists(heardKey(state.channelId, soundId)))) throw notFound('som');
+    }
     return { mime: s.mime, size: s.sizeBytes, stream: await this.storage.read(s.storageKey) };
   }
 
-  /** Toca na chamada em que a pessoa está: só um aviso; cada um toca o arquivo no próprio app. */
+  /**
+   * Toca na chamada em que a pessoa está: só um aviso; cada um toca o arquivo no próprio app.
+   * O som pode ser de qualquer servidor de que ela é membro.
+   */
   async play(userId: string, channelId: string, soundId: string): Promise<null> {
     const state = await this.voice.stateOf(userId);
     if (!state || state.channelId !== channelId) throw forbidden('entre na chamada para tocar um som');
-    const s = await this.prisma.soundEffect.findUnique({ where: { id: soundId }, select: { serverId: true } });
-    if (!s || s.serverId !== state.serverId) throw notFound('som');
+    const s = await this.prisma.soundEffect.findUnique({
+      where: { id: soundId },
+      select: { serverId: true, volume: true },
+    });
+    if (!s) throw notFound('som');
+    if (s.serverId !== state.serverId)
+      await this.perms.server(s.serverId, userId).catch(() => {
+        throw notFound('som');
+      });
     const ok = await this.redis.client.set(`sound:gap:${userId}`, '1', 'PX', PLAY_GAP_MS, 'NX');
     if (!ok) throw new BadRequestException('espere um instante antes de tocar outro som');
+    if (s.serverId !== state.serverId)
+      await this.redis.client.set(heardKey(channelId, soundId), '1', 'PX', HEARD_GRANT_MS);
     this.realtime.emit(rooms.server(state.serverId), 'sound:played', {
       channelId,
       serverId: state.serverId,
       soundId,
       userId,
+      volume: s.volume,
     });
     return null;
   }

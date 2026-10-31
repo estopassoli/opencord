@@ -5,7 +5,7 @@ import { api, describeError, useSession } from './session';
 import { useUi } from './ui';
 
 /**
- * Efeitos sonoros (ADR-0016): lista por servidor, arquivos em cache e reprodução local quando alguém na minha
+ * Efeitos sonoros (ADR-0016): sons de todos os meus servidores (tocáveis em qualquer chamada), agrupados por servidor, arquivos em cache e reprodução local quando alguém na minha
  * chamada toca um som. Volume e "silenciar efeitos" são só meus (lembrados neste computador).
  */
 interface SoundsStore {
@@ -16,10 +16,14 @@ interface SoundsStore {
   usage: Record<string, number>;
   /** quantos efeitos de outras pessoas tocaram aqui (diagnóstico dos testes; o app de teste roda mudo) */
   heard: number;
+  /** se a lista de todos os servidores já veio (o painel mostra todos) */
+  loadedAll: boolean;
   load(serverId: string): Promise<void>;
+  /** sons de todos os meus servidores */
+  loadAll(): Promise<void>;
   play(channelId: string, sound: SoundEffect): Promise<void>;
-  /** alguém na chamada tocou: toca aqui (se não estou ensurdecido nem com efeitos silenciados) */
-  hear(serverId: string, soundId: string): Promise<void>;
+  /** alguém na chamada tocou (o som pode ser de outro servidor): toca aqui, se não estou ensurdecido nem silenciei */
+  hear(soundId: string, volume: number): Promise<void>;
   setVolume(v: number): void;
   setMuted(m: boolean): void;
 }
@@ -54,7 +58,7 @@ function fileUrl(soundId: string): Promise<string> {
   return p;
 }
 
-async function playLocal(sound: SoundEffect, localVolume: number) {
+async function playLocal(sound: Pick<SoundEffect, 'id' | 'volume'>, localVolume: number) {
   const url = await fileUrl(sound.id);
   const el = new Audio(url);
   el.volume = Math.max(0, Math.min(1, sound.volume * localVolume));
@@ -71,6 +75,17 @@ export const useSounds = create<SoundsStore>()((set, get) => ({
   muted: read('oc-sound-muted', false),
   usage: read('oc-sound-usage', {} as Record<string, number>),
   heard: 0,
+  loadedAll: false,
+  async loadAll() {
+    try {
+      const list = await api().request<SoundEffect[]>('GET', '/sounds');
+      const byServer: Record<string, SoundEffect[]> = {};
+      for (const s of list) (byServer[s.serverId] ??= []).push(s);
+      set({ byServer, loadedAll: true });
+    } catch {
+      /* sem conexão: fica o que já havia */
+    }
+  },
   async load(serverId) {
     try {
       const list = await api().request<SoundEffect[]>('GET', `/servers/${serverId}/sounds`);
@@ -91,16 +106,12 @@ export const useSounds = create<SoundsStore>()((set, get) => ({
       useUi.getState().toast('error', describeError(e));
     }
   },
-  async hear(serverId, soundId) {
+  async hear(soundId, soundVolume) {
     const { muted, volume } = get();
     const { useVoice } = await import('./voice');
     if (muted || useVoice.getState().selfDeaf) return;
-    if (!get().byServer[serverId]) await get().load(serverId);
-    const sound = get().byServer[serverId]?.find((s) => s.id === soundId);
-    if (sound) {
-      set((s) => ({ heard: s.heard + 1 }));
-      await playLocal(sound, volume);
-    }
+    set((s) => ({ heard: s.heard + 1 }));
+    await playLocal({ id: soundId, volume: soundVolume }, volume).catch(() => undefined);
   },
   setVolume(v) {
     set({ volume: v });
