@@ -332,6 +332,20 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('chat:typing', (e) => d().setTyping(keyOf(e), e.userId, e.active));
     rt.on('presence:changed', (e) => useData.setState((s) => ({ presence: { ...s.presence, [e.userId]: e.status } })));
     rt.on('presence:game:changed', (e) => useData.getState().setGame(e.userId, e.game));
+    rt.on(
+      'recording:state',
+      (e) =>
+        void import('./recording').then(({ useRecording }) =>
+          useRecording.getState().onState(e.channelId, e.recording),
+        ),
+    );
+    rt.on(
+      'recording:ready',
+      (e) =>
+        void import('./recording').then(({ useRecording }) =>
+          useRecording.getState().onReady(e.channelId, e.recording),
+        ),
+    );
     rt.on('voice:member:joined', (v) => {
       d().setVoiceState(v);
       // participante ainda não está na lista de membros carregada (ex.: acabou de entrar): recarrega para ter o nome

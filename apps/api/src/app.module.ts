@@ -17,6 +17,8 @@ import { AttachmentsService } from './attachments/attachments.service.js';
 import { StorageService } from './attachments/storage.service.js';
 import { BoardsController } from './boards/boards.controller.js';
 import { BoardsService } from './boards/boards.service.js';
+import { RecordingsController } from './recordings/recordings.controller.js';
+import { RecordingsService } from './recordings/recordings.service.js';
 import { SoundsController } from './sounds/sounds.controller.js';
 import { SoundsService } from './sounds/sounds.service.js';
 import { DownloadsController } from './downloads/downloads.controller.js';
@@ -48,6 +50,7 @@ export class AppModule {
       controllers: [
         AdminController,
         SoundsController,
+        RecordingsController,
         BoardsController,
         HealthController,
         DownloadsController,
@@ -82,6 +85,7 @@ export class AppModule {
         RealtimeGateway,
         StorageService,
         SoundsService,
+        RecordingsService,
         AttachmentsService,
         BoardsService,
         MessagesService,

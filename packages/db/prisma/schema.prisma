@@ -30,6 +30,7 @@ model User {
   ownedServers      Server[]             @relation("ServerOwner")
   invites           Invite[]
   sounds            SoundEffect[]
+  recordings        CallRecording[]
   boardCards        BoardCard[]
   pollVotes         PollVote[]
   memberships       ServerMember[]
@@ -112,6 +113,7 @@ model Server {
   owner      User           @relation("ServerOwner", fields: [ownerId], references: [id])
   invites    Invite[]
   sounds     SoundEffect[]
+  recordings CallRecording[]
   members    ServerMember[]
   roles      Role[]
   categories Category[]
@@ -197,6 +199,7 @@ model Channel {
   feeds      Channel[]                   @relation("BoardFeed")
   cards      BoardCard[]                 @relation("BoardCards")
   sourced    BoardCard[]                 @relation("BoardCardSource")
+  recordings CallRecording[]
 
   @@index([serverId])
 }
@@ -477,4 +480,32 @@ model SoundEffect {
   createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([serverId])
+}
+
+/// Gravação de uma chamada de voz (ADR-0023): montada no app de quem grava e enviada em partes durante a gravação.
+/// Pronta, fica disponível para download por 24 h e depois é apagada (arquivo e linha).
+model CallRecording {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  serverId    String    @db.Uuid
+  channelId   String    @db.Uuid
+  createdById String    @db.Uuid
+  /// recording | ready
+  status      String    @default("recording")
+  storageKey  String
+  /// envio em partes do armazenamento (S3 multipart); null no disco local
+  uploadId    String?
+  /// etiquetas das partes já enviadas, na ordem ([{ n, etag }])
+  parts       Json      @default("[]")
+  sizeBytes   BigInt    @default(0)
+  durationMs  Int       @default(0)
+  startedAt   DateTime  @default(now()) @db.Timestamptz(3)
+  endedAt     DateTime? @db.Timestamptz(3)
+  /// quando o arquivo some (pronta: fim + 24 h)
+  expiresAt   DateTime  @db.Timestamptz(3)
+  server      Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([channelId, status])
+  @@index([expiresAt])
 }

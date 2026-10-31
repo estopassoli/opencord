@@ -864,3 +864,32 @@ export const SoundEffectUpload = z.object({
   volume: z.coerce.number().min(0).max(1).default(1),
   durationMs: z.coerce.number().int().min(100).max(SOUND_MAX_MS),
 });
+
+// ---------- Gravação de chamada (ADR-0023) ----------
+/** cada parte enviada durante a gravação (o arquivo vai subindo enquanto a chamada acontece) */
+export const RECORDING_PART_BYTES = 8 * 1024 * 1024;
+export const RECORDING_MAX_BYTES = 4 * 1024 * 1024 * 1024;
+export const RECORDING_MAX_MS = 4 * 60 * 60 * 1000;
+/** por quanto tempo a gravação pronta pode ser baixada */
+export const RECORDING_TTL_MS = 24 * 60 * 60 * 1000;
+export const ActiveRecording = z.object({
+  id: Id,
+  channelId: Id,
+  userId: Id,
+  startedAt: IsoDate,
+});
+export type ActiveRecording = z.infer<typeof ActiveRecording>;
+export const CallRecording = z.object({
+  id: Id,
+  channelId: Id,
+  createdBy: UserPublic,
+  startedAt: IsoDate,
+  endedAt: IsoDate,
+  expiresAt: IsoDate,
+  durationMs: z.number().int(),
+  sizeBytes: z.number().int(),
+});
+export type CallRecording = z.infer<typeof CallRecording>;
+export const ChannelRecordings = z.object({ active: ActiveRecording.nullable(), ready: z.array(CallRecording) });
+export type ChannelRecordings = z.infer<typeof ChannelRecordings>;
+export const CompleteRecordingRequest = z.object({ durationMs: z.number().int().min(0).max(RECORDING_MAX_MS + 60_000) });
