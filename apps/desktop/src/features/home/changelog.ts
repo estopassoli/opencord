@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '08:00',
+    kind: 'melhoria',
+    icon: 'shield',
+    title: 'Mais proteção para a sua conta',
+    body: 'Errar a senha muitas vezes de outro lugar não tranca mais a sua conta para você. Sair da conta também sai da chamada, e sessões encerradas param de receber mensagens em até um minuto. Quem não pode escrever num canal não aparece mais como "digitando".',
+  },
+  {
+    date: '2026-10-31',
     time: '07:30',
     kind: 'correção',
     icon: 'record',

@@ -16,6 +16,7 @@ import { StorageService } from './storage.service.js';
 
 const SIGNED_URL_BUCKET_S = 3600;
 const ORPHAN_TTL_MS = 24 * 3600 * 1000;
+const MAX_UNCLAIMED_PER_USER = 50;
 const INLINE_MIME = /^(image\/(png|jpeg|gif|webp)|video\/(mp4|webm)|audio\/(mpeg|ogg))$/;
 
 export function sanitizeFilename(name: string): string {
@@ -148,6 +149,13 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
     }
     if (file.truncated) throw new PayloadTooLargeException('arquivo excede o limite');
     if (size === 0) throw new BadRequestException('arquivo vazio');
+    // anexos ainda não usados em mensagem ficam 24 h ocupando espaço: limita quantos cada pessoa acumula
+    // (conferido depois de ler o corpo: recusar no meio do envio deixa o upload pendurado)
+    const pending = await this.prisma.attachment.count({
+      where: { uploaderId: userId, messageId: null, createdAt: { gte: new Date(Date.now() - ORPHAN_TTL_MS) } },
+    });
+    if (pending >= MAX_UNCLAIMED_PER_USER)
+      throw new BadRequestException('muitos anexos enviados e ainda não usados; envie as mensagens ou espere');
     const buf = Buffer.concat(chunks);
 
     // MIME real pelos magic bytes; o MIME declarado pelo cliente não é confiável.

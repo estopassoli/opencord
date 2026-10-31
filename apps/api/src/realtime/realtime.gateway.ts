@@ -1,4 +1,4 @@
-import { HttpException, Logger } from '@nestjs/common';
+import { HttpException, Logger, type OnModuleDestroy } from '@nestjs/common';
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -9,6 +9,8 @@ import {
 import {
   ClientCommands,
   envelope,
+  hasPermission,
+  Permission,
   SOCKET_MAX_PAYLOAD,
   SOCKET_PATH,
   type Ack,
@@ -29,6 +31,8 @@ import { HEARTBEAT_INTERVAL_MS, PresenceService } from './presence.service.js';
 import { RealtimeService, type AppSocket } from './realtime.service.js';
 
 const TYPING_TTL_S = 8;
+/** a cada quanto os sockets abertos têm a sessão conferida de novo */
+const SOCKET_REVALIDATE_MS = 60_000;
 
 /** Token bucket por socket: rajada de 30 comandos, recarga de 5/s. */
 class Bucket {
@@ -56,8 +60,9 @@ function targetOf(p: { channelId?: string | undefined; conversationId?: string |
   cors: { origin: true, credentials: false },
   serveClient: false,
 })
-export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
   private readonly log = new Logger('Gateway');
+  private revalidateTimer: NodeJS.Timeout | null = null;
   @WebSocketServer() io!: Server;
 
   constructor(
@@ -71,8 +76,19 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     private readonly sounds: SoundsService,
   ) {}
 
+  onModuleDestroy() {
+    if (this.revalidateTimer) clearInterval(this.revalidateTimer);
+  }
+
   afterInit(io: Server) {
     this.realtime.attach(io);
+    // O socket só autentica no handshake: de tempos em tempos confere se a sessão ainda vale (revogada por qualquer
+    // caminho, conta suspensa) e derruba o que não vale mais.
+    this.revalidateTimer = setInterval(
+      () => void this.revalidate(io).catch((e: unknown) => this.log.warn(`revalidar: ${String(e)}`)),
+      SOCKET_REVALIDATE_MS,
+    );
+    this.revalidateTimer.unref();
     // Autenticação no handshake: sem token válido a conexão é recusada.
     io.use((socket, next) => {
       const token = (socket.handshake.auth as { token?: unknown } | undefined)?.token;
@@ -85,6 +101,18 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         () => next(new Error('unauthorized')),
       );
     });
+  }
+
+  private async revalidate(io: Server) {
+    const sockets = [...io.of('/').sockets.values()] as AppSocket[];
+    const ids = [...new Set(sockets.map((s) => s.data?.sessionId).filter((id): id is string => !!id))];
+    const valid = await this.tokens.stillValid(ids);
+    for (const s of sockets) {
+      const sid = s.data?.sessionId;
+      if (!sid || valid.has(sid)) continue;
+      s.emit('session:revoked', envelope(randomUUID(), { reason: 'session_ended' }));
+      s.disconnect(true);
+    }
   }
 
   async handleConnection(socket: AppSocket) {
@@ -167,6 +195,9 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         const t = targetOf(d);
         const a = await this.messages.access(userId, t);
         const active = name === 'chat:typing:start';
+        // "digitando" só para quem pode escrever ali (quem só lê não anuncia)
+        if (active && !hasPermission(a.perms, Permission.SEND_MESSAGES))
+          throw new HttpException('sem permissão para enviar mensagens aqui', 403);
         const key = `typing:${a.channelId ?? a.conversationId}:${userId}`;
         if (active) await this.redis.client.set(key, '1', 'EX', TYPING_TTL_S);
         else await this.redis.client.del(key);

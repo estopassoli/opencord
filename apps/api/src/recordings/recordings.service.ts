@@ -34,6 +34,8 @@ import { VoiceService } from '../voice/voice.service.js';
 
 /** a gravação "viva" some se o app de quem grava parar de avisar (caiu, fechou) */
 const ALIVE_TTL_S = 120;
+/** trava de uma parte em envio (o envio de 8 MB não leva mais que isso) */
+const PART_LOCK_MS = 120_000;
 const activeKey = (channelId: string) => `recording:active:${channelId}`;
 const SWEEP_MS = 60_000;
 /** gravação que ficou no meio (app caiu e não voltou) é descartada depois disto */
@@ -152,8 +154,22 @@ export class RecordingsService implements OnModuleInit, OnModuleDestroy {
 
   /** Parte `n` (em ordem). Cada parte também renova o "estou gravando". */
   async part(userId: string, id: string, n: number, data: Buffer) {
+    // uma parte por vez: duas com o mesmo número em paralelo passariam juntas pela checagem de ordem e de tamanho
+    const lock = `rec:partlock:${id}`;
+    if (!(await this.r.set(lock, '1', 'PX', PART_LOCK_MS, 'NX')))
+      throw new ConflictException('a parte anterior desta gravação ainda está sendo enviada');
+    try {
+      return await this.putPart(userId, id, n, data);
+    } finally {
+      await this.r.del(lock);
+    }
+  }
+
+  private async putPart(userId: string, id: string, n: number, data: Buffer) {
     const row = await this.mine(userId, id);
     if (row.status !== 'recording') throw new BadRequestException('a gravação já terminou');
+    // quem saiu ou foi expulso (ou perdeu acesso à chamada) para de gravar ali
+    await this.perms.requireChannel(row.channelId, userId, Permission.CONNECT);
     const parts = row.parts as Part[];
     if (n !== parts.length + 1) throw new BadRequestException(`parte fora de ordem (esperada ${parts.length + 1})`);
     if (!data.length || data.length > RECORDING_PART_BYTES) throw new BadRequestException('parte com tamanho inválido');

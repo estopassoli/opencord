@@ -287,4 +287,17 @@ describe('Socket.IO: autenticação e chat em tempo real (F2.4)', () => {
     );
     expect(results.some((r) => r.error?.code === 'rate_limited')).toBe(true);
   });
+
+  it('quem não pode enviar mensagens não anuncia "digitando"', async () => {
+    const { owner, alice, serverId, channelId } = await setup();
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const everyone = d.body.roles.find((r) => r.isEveryone) as Role;
+    await http.req('PATCH', `/channels/${channelId}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'role', subjectId: everyone.id, allow: 0, deny: Permission.SEND_MESSAGES }] },
+    });
+    const sa = await open(alice.token);
+    expect((await command(sa, 'chat:typing:start', { channelId })).ok).toBe(false);
+    expect((await command(sa, 'chat:typing:stop', { channelId })).ok).toBe(true);
+  });
 });

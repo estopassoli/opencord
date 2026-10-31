@@ -24,12 +24,16 @@ import { PrismaService } from '../common/prisma.service.js';
 import { RedisService } from '../common/redis.service.js';
 import { InstanceService } from '../admin/instance.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
+import { VoiceService } from '../voice/voice.service.js';
 import { randomToken, sha256, TokenService } from './token.service.js';
 
 // Argon2id (algorithm 2) com parâmetros OWASP (m=19 MiB, t=2, p=1).
 const ARGON = { algorithm: 2, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
 
+/** tentativas por conta e por IP na janela: um estranho não tranca a conta de alguém de outro IP */
 const LOGIN_MAX_FAILS = 10;
+/** teto por conta somando todos os IPs (força bruta distribuída) */
+const LOGIN_MAX_FAILS_ACCOUNT = 100;
 const LOGIN_WINDOW_S = 15 * 60;
 
 export interface ClientInfo {
@@ -50,6 +54,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly realtime: RealtimeService,
     private readonly instance: InstanceService,
+    private readonly voice: VoiceService,
   ) {}
 
   toMe(u: {
@@ -220,18 +225,29 @@ export class AuthService {
   /** Login de conta: `login` é o apelido ou o e-mail. */
   async login(dto: LoginRequest, client: ClientInfo): Promise<AuthResponse> {
     const login = dto.login.trim();
-    const failKey = `login:fail:${sha256(nickKeyOf(login))}`;
-    const fails = Number((await this.redis.client.get(failKey)) ?? 0);
-    if (fails >= LOGIN_MAX_FAILS) throw new UnauthorizedException('muitas tentativas; tente mais tarde');
     const user = login.includes('@')
       ? await this.prisma.user.findUnique({ where: { email: login.toLowerCase() } })
       : await this.prisma.user.findUnique({ where: { nickKey: nickKeyOf(login) } });
+    // contador pela conta (apelido e e-mail somam juntos); identificador sem conta usa o próprio texto
+    const subject = user ? `u:${user.id}` : `k:${sha256(login.includes('@') ? login.toLowerCase() : nickKeyOf(login))}`;
+    const acctKey = `login:fail:${subject}`;
+    const ipKey = `${acctKey}:${sha256(client.ip ?? 'unknown')}`;
+    // reserva a tentativa ANTES de verificar a senha: pedidos em paralelo não passam do limite
+    const res = await this.redis.client
+      .multi()
+      .incr(ipKey)
+      .expire(ipKey, LOGIN_WINDOW_S, 'NX')
+      .incr(acctKey)
+      .expire(acctKey, LOGIN_WINDOW_S, 'NX')
+      .exec();
+    const byIp = Number(res?.[0]?.[1] ?? 0);
+    const byAcct = Number(res?.[2]?.[1] ?? 0);
+    if (byIp > LOGIN_MAX_FAILS || byAcct > LOGIN_MAX_FAILS_ACCOUNT)
+      throw new UnauthorizedException('muitas tentativas; tente mais tarde');
     const ok = await verify(user?.passwordHash ?? (await this.dummyHash), dto.password).catch(() => false);
-    if (!user || !user.passwordHash || !ok || user.disabledAt) {
-      await this.redis.client.multi().incr(failKey).expire(failKey, LOGIN_WINDOW_S).exec();
+    if (!user || !user.passwordHash || !ok || user.disabledAt)
       throw new UnauthorizedException('apelido/e-mail ou senha incorretos');
-    }
-    await this.redis.client.del(failKey);
+    await this.redis.client.del(ipKey, acctKey);
     const tokens = await this.issueSession(user.id, randomUUID(), {
       ...client,
       deviceId: dto.deviceId ?? client.deviceId,
@@ -295,6 +311,14 @@ export class AuthService {
     await this.prisma.session.updateMany({ where: { familyId, revokedAt: null }, data: { revokedAt: new Date() } });
     this.tokens.invalidateCache(sessions.map((s) => s.id));
     for (const s of sessions) this.realtime.disconnectSession(s.userId, s.id, reason);
+    const userId = sessions[0]?.userId;
+    if (userId) await this.leaveVoiceIfNoSession(userId);
+  }
+
+  /** A chamada é do usuário, não da sessão: sem nenhuma sessão ativa, sai da voz (o token LiveKit ainda valeria). */
+  private async leaveVoiceIfNoSession(userId: string) {
+    const active = await this.prisma.session.count({ where: { userId, revokedAt: null } });
+    if (!active) await this.voice.forceLeave(userId).catch(() => undefined);
   }
 
   async revokeAllForUser(userId: string, reason: string) {
@@ -302,6 +326,7 @@ export class AuthService {
     await this.prisma.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
     this.tokens.invalidateCache(sessions.map((s) => s.id));
     for (const s of sessions) this.realtime.disconnectSession(userId, s.id, reason);
+    await this.voice.forceLeave(userId).catch(() => undefined);
   }
 
   async changePassword(userId: string, current: string, next: string, keepSessionId: string) {

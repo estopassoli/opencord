@@ -323,4 +323,38 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     const dir = await http.req<ServerDirectoryEntry[]>('GET', '/servers/directory', { token: alice.token });
     expect(dir.body.map((d) => d.id)).not.toContain(priv.body.id);
   });
+
+  it('dar cargo não entrega bits que o ator não tem; overrides do expulso somem', async () => {
+    const { serverId, alice, owner } = await setup();
+    const mk = (name: string, permissions: number) =>
+      http.req<Role>('POST', `/servers/${serverId}/roles`, { token: owner.token, body: { name, permissions } });
+    const vip = (await mk('VIP', Permission.MENTION_EVERYONE)).body;
+    const rolemod = (await mk('RoleMod', Permission.MANAGE_ROLES | Permission.KICK_MEMBERS)).body;
+    await http.req('PUT', `/servers/${serverId}/members/${alice.id}/roles`, {
+      token: owner.token,
+      body: { roleIds: [rolemod.id] },
+    });
+    const bob = await register(http);
+    // VIP está abaixo de alice, mas tem um bit que ela não tem
+    expect(
+      (
+        await http.req('PUT', `/servers/${serverId}/members/${bob.id}/roles`, {
+          token: alice.token,
+          body: { roleIds: [vip.id] },
+        })
+      ).status,
+    ).toBe(403);
+    // override de membro para bob num canal; expulso, o override não fica para trás
+    const channel = await prisma.channel.findFirstOrThrow({ where: { serverId, kind: 'text' } });
+    await http.req('PATCH', `/channels/${channel.id}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'member', subjectId: bob.id, allow: Permission.ATTACH_FILES, deny: 0 }] },
+    });
+    expect((await http.req('DELETE', `/servers/${serverId}/members/${bob.id}`, { token: owner.token })).status).toBe(
+      204,
+    );
+    expect(await prisma.channelPermissionOverride.count({ where: { subjectType: 'member', subjectId: bob.id } })).toBe(
+      0,
+    );
+  });
 });

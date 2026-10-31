@@ -64,3 +64,13 @@ Revisão de código + checagens locais em sandbox (bwrap, sem rede). Relatório 
 | Cargo por reação ganhava moderação via override de canal ou edição posterior | baixa | bits proibidos conferidos com overrides, também ao aplicar; `reaction-roles.int.test.ts` |
 
 Leads sem confirmação, já endurecidos: placeholders `CHANGE_ME` do LiveKit aceitos em produção (a API agora recusa `CHANGE_ME*`, `devkey` e segredo < 32; o CI gera chaves aleatórias), e aspas Unicode fechando literal no PowerShell (`copyClip`/`runningPath` agora passam o valor por variável de ambiente; validar em Windows real). Não cobertos nesta rodada: cota de gasto do YouTube/importação do Discord, fan-out de presença, CVEs de dependências (`pnpm audit`).
+
+### Endurecimento aplicado depois da auditoria (2026-10-31)
+- Login: tentativa reservada no Redis antes de verificar a senha (sem corrida); apelido e e-mail somam no mesmo contador da conta; bloqueio por conta+IP (10/15 min) com teto por conta (100/15 min), então um estranho não tranca a conta de outro.
+- Sessões: suspensão pelo admin limpa o cache de sessão; sockets abertos têm a sessão conferida a cada 60 s (`RealtimeGateway.revalidate`); sair da última sessão tira da chamada.
+- Permissões: `chat:typing:start` exige SEND_MESSAGES; dar cargo exige ter os bits dele; trocar overrides exige ter os bits dos que forem removidos/alterados; overrides de membro somem ao expulsar/sair; parte de gravação exige ainda ter CONNECT no canal.
+- Envios: uma parte por vez (trava no Redis) em envio grande e gravação; envio grande grava o anexo antes de soltar o estado (sem órfão se o insert falhar) e no máximo 3 abertos por pessoa; no máximo 50 anexos não usados por pessoa em 24 h; troca de avatar/ícone por compare-and-swap (sem arquivo órfão).
+- Desktop: IPC aceita só o `index.html` empacotado (não qualquer `file://`); permissões de mídia/notificação só para a página do app; player do YouTube em iframe com `sandbox`.
+- Infra/CI: nginx envia `frame-ancestors 'none'`/`X-Frame-Options` na interface; coturn não sobe com o segredo de exemplo e bloqueia relay para link-local/metadados de nuvem, CGNAT e faixas IPv6 privadas; Actions fixadas por SHA; versão passa por variável de ambiente no workflow do desktop.
+
+Mantidos de propósito: links assinados de anexo valem 1–2 h mesmo após perder acesso ao canal (encurtar quebraria vídeos longos pausados; mesmo modelo do Discord); o token de acesso da sessão rotacionada vale até expirar (no máximo `ACCESS_TOKEN_TTL_SECONDS`); e-mail sem verificação (não há recuperação de conta por e-mail); instalador sem assinatura de código (depende de certificado, DECISIONS.md).

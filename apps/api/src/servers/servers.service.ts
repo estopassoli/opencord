@@ -192,7 +192,7 @@ export class ServersService {
     // o oficial é a casa de todo mundo na instância: entra-se automaticamente e não se sai (ADR-0011)
     const server = await this.prisma.server.findUnique({ where: { id: serverId }, select: { official: true } });
     if (server?.official) throw new BadRequestException('não é possível sair do servidor oficial');
-    await this.prisma.serverMember.delete({ where: { serverId_userId: { serverId, userId } } });
+    await this.removeMembership(serverId, userId);
     await this.audit.log(userId, serverId, 'member.leave', userId, {});
     this.events.emit({ type: 'member.removed', serverId, userId, reason: 'left' });
     await this.realtime.memberRemoved(serverId, userId, 'left');
@@ -394,11 +394,21 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     return Math.max(0, ...m.roles.map((r) => r.role.position));
   }
 
+  /** Tira do servidor junto com os overrides de canal da pessoa (senão voltariam a valer se ela entrasse de novo). */
+  private async removeMembership(serverId: string, userId: string) {
+    await this.prisma.$transaction([
+      this.prisma.serverMember.delete({ where: { serverId_userId: { serverId, userId } } }),
+      this.prisma.channelPermissionOverride.deleteMany({
+        where: { subjectType: 'member', subjectId: userId, channel: { serverId } },
+      }),
+    ]);
+  }
+
   async kick(serverId: string, actorId: string, targetId: string, reason?: string) {
     if (actorId === targetId) throw new BadRequestException('use "sair do servidor"');
     const actor = await this.perms.requireServer(serverId, actorId, Permission.KICK_MEMBERS);
     this.perms.assertAbove(actor, await this.targetTop(serverId, targetId, actor.ownerId));
-    await this.prisma.serverMember.delete({ where: { serverId_userId: { serverId, userId: targetId } } });
+    await this.removeMembership(serverId, targetId);
     await this.audit.log(actorId, serverId, 'member.kick', targetId, { reason: reason ?? null });
     // Revogação ativa: voz (SFU) é encerrada pelo VoiceService ao receber o evento.
     this.events.emit({ type: 'member.removed', serverId, userId: targetId, reason: 'kicked' });
@@ -424,6 +434,8 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     ];
     // Só pode adicionar/remover cargos abaixo do seu; e não pode alterar alguém acima ou igual (exceto a si mesmo, para cargos abaixo).
     for (const id of changed) this.perms.assertAbove(actor, byId.get(id)?.position ?? Number.POSITIVE_INFINITY);
+    // dar um cargo é dar os bits dele: não pode entregar permissão que o próprio ator não tem
+    for (const id of unique) if (!currentIds.has(id)) this.perms.assertGrantable(actor, byId.get(id)?.permissions ?? 0);
     if (targetId !== actorId) this.perms.assertAbove(actor, await this.targetTop(serverId, targetId, actor.ownerId));
     await this.prisma.$transaction([
       this.prisma.memberRole.deleteMany({ where: { serverId, userId: targetId } }),
@@ -629,7 +641,18 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     }
   }
 
-  private async validateOverrides(access: ServerAccess, overrides: PermissionOverrideDto[]) {
+  private async validateOverrides(
+    access: ServerAccess,
+    overrides: PermissionOverrideDto[],
+    existing: PermissionOverrideDto[] = [],
+  ) {
+    // trocar a lista apaga os overrides atuais: remover ou mudar um override também exige ter os bits dele
+    const key = (o: PermissionOverrideDto) => `${o.subjectType}:${o.subjectId}`;
+    const next = new Map(overrides.map((o) => [key(o), o]));
+    for (const old of existing) {
+      const n = next.get(key(old));
+      if (!n || n.allow !== old.allow || n.deny !== old.deny) this.perms.assertGrantable(access, old.allow | old.deny);
+    }
     const roles = await this.prisma.role.findMany({ where: { serverId: access.serverId }, select: { id: true } });
     const roleIds = new Set(roles.map((r) => r.id));
     const memberIds = new Set(
@@ -713,7 +736,8 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     if (dto.overrides) {
       if (!hasPermission(access.base, Permission.MANAGE_ROLES))
         throw forbidden('MANAGE_ROLES necessário para alterar overrides');
-      await this.validateOverrides(access, dto.overrides);
+      const current = await this.prisma.channelPermissionOverride.findMany({ where: { channelId } });
+      await this.validateOverrides(access, dto.overrides, current);
     }
     if (dto.categoryId) {
       const cat = await this.prisma.category.findFirst({ where: { id: dto.categoryId, serverId: existing.serverId } });
