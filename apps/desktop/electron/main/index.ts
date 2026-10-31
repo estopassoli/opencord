@@ -23,6 +23,7 @@ import {
   AppPrefsSchema,
   CaptureSelectArgs,
   ClipExportArgs,
+  ErrorReport,
   ClipPath,
   ClipSaveArgs,
   ExternalUrl,
@@ -44,6 +45,7 @@ import { appIcon, badgeIcon, trayIcon } from './icons';
 import { readAppPrefs, writeAppPrefs } from './app-prefs';
 import { checkForUpdate, checkIfStale, installUpdate, startUpdater, updateStatus } from './updater';
 import { GameDetector } from './games';
+import { logRendererError } from './crash-log';
 import {
   chooseClipsDir,
   clipsDir,
@@ -159,6 +161,10 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
+  // a janela caiu (falta de memória, GPU): fica registrado para diagnóstico
+  win.webContents.on('render-process-gone', (_e, d) =>
+    logRendererError({ where: 'window', message: `processo da janela encerrado: ${d.reason} (código ${d.exitCode})` }),
+  );
   win.removeMenu();
   win.once('ready-to-show', () => win?.show());
   win.on('focus', () => checkIfStale());
@@ -215,6 +221,19 @@ function createWindow() {
   else void win.loadFile(RENDERER_INDEX);
 }
 
+const quitForUpdate = () => {
+  quitting = true;
+  app.quit();
+};
+
+function updateMenuItem(): Electron.MenuItemConstructorOptions {
+  const u = updateStatus();
+  if (u.state === 'ready' || u.state === 'available')
+    return { label: `Instalar atualização ${u.version}`, click: () => void installUpdate(quitForUpdate) };
+  if (u.state === 'downloading') return { label: `Baixando atualização ${u.version}… ${u.progress}%`, enabled: false };
+  return { label: 'Procurar atualização', click: () => void checkForUpdate().then(buildTrayMenu) };
+}
+
 function buildTrayMenu() {
   if (!tray) return;
   const act = (a: TrayAction) => () => {
@@ -232,6 +251,9 @@ function buildTrayMenu() {
       },
       { label: voice.deafened ? 'Ativar áudio' : 'Ensurdecer', enabled: voice.inVoice, click: act('toggleDeafen') },
       { label: 'Sair da chamada', enabled: voice.inVoice, click: act('disconnect') },
+      { type: 'separator' },
+      // pelo processo principal: funciona mesmo se a janela travar ou mostrar "Algo deu errado"
+      updateMenuItem(),
       { type: 'separator' },
       {
         label: 'Encerrar OpenCord',
@@ -344,6 +366,7 @@ function registerIpc() {
   handle(IPC.clipsExport, [ClipExportArgs], (a) => exportClip(a));
   handle(IPC.clipsDir, [], () => clipsDir());
   handle(IPC.clipsChooseDir, [], () => chooseClipsDir());
+  handle(IPC.errorReport, [ErrorReport], (r) => logRendererError(r));
   handle(IPC.gamesConfigure, [GamesConfigureArgs], (a) => games.configure(a.enabled, a.custom));
   handle(IPC.gamesProcesses, [], () => games.processes());
   handle(IPC.gamesCurrent, [], () => games.game);
@@ -354,12 +377,7 @@ function registerIpc() {
   });
   handle(IPC.updateStatus, [], () => updateStatus());
   handle(IPC.updateCheck, [], () => checkForUpdate());
-  handle(IPC.updateInstall, [], () =>
-    installUpdate(() => {
-      quitting = true;
-      app.quit();
-    }),
-  );
+  handle(IPC.updateInstall, [], () => installUpdate(quitForUpdate));
 }
 
 app.whenReady().then(() => {
@@ -383,7 +401,11 @@ app.whenReady().then(() => {
     send(IPC.evPowerResume);
     checkIfStale();
   });
-  startUpdater((s) => send(IPC.evUpdate, s));
+  startUpdater((s) => {
+    send(IPC.evUpdate, s);
+    // o menu da bandeja acompanha (rebaixa o progresso só a cada mudança de estado/10%)
+    if (s.state !== 'downloading' || s.progress % 10 === 0) buildTrayMenu();
+  });
 });
 
 app.on('before-quit', () => {

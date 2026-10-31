@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { AvatarProvider } from './components/AvatarProvider';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { ErrorBoundary, reportError } from './components/ErrorBoundary';
 import { Toasts } from './components/Toasts';
 import { GlobalTips } from './components/GlobalTips';
 import { AuthScreen } from './features/auth/AuthScreen';
@@ -23,6 +23,18 @@ export function App() {
     clearPendingInvite();
     useUi.getState().openModal({ kind: 'join-invite', code });
   }, [status]);
+
+  // erros fora do React (eventos, promessas) também vão para o crash-log.txt
+  useEffect(() => {
+    const onError = (e: ErrorEvent) => reportError('window', e.error ?? e.message);
+    const onRejection = (e: PromiseRejectionEvent) => reportError('promise', e.reason);
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+  }, []);
 
   useEffect(() => {
     void useSession.getState().restore();

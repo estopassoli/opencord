@@ -50,6 +50,7 @@ test('janela segura: sem Node no renderer e bridge mínima exposta', async () =>
     'openExternal',
     'prefs',
     'relaunch',
+    'reportError',
     'secure',
     'setBadge',
     'setShortcuts',
