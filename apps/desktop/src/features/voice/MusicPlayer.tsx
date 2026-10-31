@@ -9,6 +9,7 @@ import { Avatar, Button, Icon, Slider, TextField } from '@opencord/ui';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useData } from '../../store/data';
 import { useMusic } from '../../store/music';
+import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { fmt, thumb, useYouTubeFrame } from './WatchTogether';
 
@@ -26,14 +27,17 @@ const useDjName = () => {
   return useVoice((v) => v.participants.find((p) => p.identity === dj)?.name ?? 'alguém');
 };
 
-/** Cartão flutuante no palco da chamada. */
-export function MusicPlayer() {
+/**
+ * Cartão flutuante da música. Fica montado no conteúdo do app (não no palco) para seguir tocando ao ir para outro
+ * canal, servidor ou DM: fora do palco da chamada aparece só minimizado, no canto, e clicar volta para a chamada.
+ */
+export function MusicPlayer({ onStage }: { onStage: boolean }) {
   const s = useMusic((m) => m.state);
   const joined = useMusic((m) => m.joined);
   const open = useMusic((m) => m.open);
   const myCall = useVoice((v) => v.machine.channelId);
   // sem fila ainda: o card "Música" em Atividades abre o player vazio, com o campo para o primeiro link
-  if (!s && open && myCall)
+  if (!s && open && myCall && onStage)
     return (
       <section className="music-player" aria-label="Música da chamada">
         <div className="music-empty">
@@ -57,6 +61,7 @@ export function MusicPlayer() {
     );
   if (!s || s.channelId !== myCall) return null;
   const track = s.queue[s.index];
+  if (!joined && !onStage) return null;
   if (!joined)
     return (
       <div className="music-pill" role="region" aria-label="Música da chamada">
@@ -69,24 +74,27 @@ export function MusicPlayer() {
         </Button>
       </div>
     );
-  return <MusicCard />;
+  return <MusicCard onStage={onStage} />;
 }
 
-function MusicCard() {
+function MusicCard({ onStage }: { onStage: boolean }) {
   const s = useMusic((m) => m.state)!;
   const [showQueue, setShowQueue] = useState(false);
-  const minimized = useMusic((m) => m.minimized);
+  // fora do palco fica sempre minimizado (sem mudar a escolha de quem minimizou ou não)
+  const minimized = useMusic((m) => m.minimized) || !onStage;
   const isDj = useIsDj();
   const djName = useDjName();
   const track = s.queue[s.index];
+  if (!onStage && !track) return null;
   return (
     <section
       className="music-player"
       data-minimized={minimized && track ? 'true' : undefined}
+      data-away={onStage ? undefined : 'true'}
       aria-label="Música da chamada"
     >
       {track ? (
-        <SyncedTrack key={track.id} track={track} minimized={minimized} />
+        <SyncedTrack key={track.id} track={track} minimized={minimized} onStage={onStage} />
       ) : (
         <div className="music-empty">
           <Icon name="speaker" size={22} />
@@ -151,7 +159,7 @@ function MusicCard() {
   );
 }
 
-function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boolean }) {
+function SyncedTrack({ track, minimized, onStage }: { track: MusicTrack; minimized: boolean; onStage: boolean }) {
   const s = useMusic((m) => m.state)!;
   const volume = useMusic((m) => m.volume);
   const localPaused = useMusic((m) => m.localPaused);
@@ -226,8 +234,9 @@ function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boole
         </div>
         <button
           className="music-mini"
-          aria-label={`Expandir o player: ${track.title ?? 'música'}, ${fmt(position)} de ${duration ? fmt(duration) : '–'}`}
-          onClick={() => useMusic.getState().setMinimized(false)}
+          aria-label={`${onStage ? 'Expandir o player' : 'Voltar para a chamada'}: ${track.title ?? 'música'}, ${fmt(position)} de ${duration ? fmt(duration) : '–'}`}
+          data-tip={onStage ? undefined : 'Voltar para a chamada'}
+          onClick={() => (onStage ? useMusic.getState().setMinimized(false) : goToCall())}
         >
           <img src={thumb(track.videoId)} alt="" draggable={false} />
           <span className="music-mini-names">
@@ -327,6 +336,12 @@ function SyncedTrack({ track, minimized }: { track: MusicTrack; minimized: boole
       </div>
     </>
   );
+}
+
+/** vai para o palco da chamada em que estou */
+function goToCall() {
+  const { serverId, machine } = useVoice.getState();
+  if (serverId && machine.channelId) useUi.getState().go({ kind: 'server', serverId, channelId: machine.channelId });
 }
 
 function AddTrack({ channelId }: { channelId: string }) {
