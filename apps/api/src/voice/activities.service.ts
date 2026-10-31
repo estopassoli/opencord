@@ -53,7 +53,7 @@ export class ActivitiesService {
   private async publish(s: Omit<ActivityState, 'serverNow'>): Promise<ActivityState> {
     await this.r.set(key(s.channelId), JSON.stringify(s), 'EX', TTL_S);
     const out = { ...s, serverNow: Date.now() };
-    this.realtime.emit(rooms.server(s.serverId), 'activity:state', out);
+    this.realtime.emit(rooms.channel(s.channelId), 'activity:state', out);
     return out;
   }
 
@@ -116,7 +116,7 @@ export class ActivitiesService {
   /** Encerra (também chamado quando a chamada esvazia). */
   async end(channelId: string, serverId: string) {
     if ((await this.r.del(key(channelId))) > 0)
-      this.realtime.emit(rooms.server(serverId), 'activity:ended', { channelId, serverId });
+      this.realtime.emit(rooms.channel(channelId), 'activity:ended', { channelId, serverId });
   }
 
   /** Título/canal pelo oEmbed público do YouTube (sem chave). Falha = segue sem título. */

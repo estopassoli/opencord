@@ -8,7 +8,7 @@
 - Portas expostas na internet: 443/TCP (proxy → API 3000 e LiveKit 7880), **7881/TCP e 50000-50100/UDP direto para o LiveKit** (mídia não passa pelo proxy HTTP), 3478/UDP+TCP e 5349/TCP (coturn).
 
 ## Produção com Docker Compose
-1. `cp infra/docker/.env.example infra/docker/.env` e preencha. Gere segredos com `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`. A API recusa segredos `dev-only*` e o secret `secret` do LiveKit em produção.
+1. `cp infra/docker/.env.example infra/docker/.env` e preencha. Gere segredos com `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`. Em produção a API recusa segredos `dev-only*`, qualquer valor com `CHANGE_ME` (os placeholders do repositório são públicos), o `devkey`/`secret` do LiveKit e `LIVEKIT_API_SECRET` com menos de 32 caracteres.
 2. Em `infra/docker/livekit.yaml`, troque a chave e o segredo (≥ 32 caracteres, os mesmos de `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`).
 3. Em `infra/coturn/turnserver.conf`, troque `static-auth-secret`, `realm` e os certificados TLS.
 4. `docker compose -f infra/docker/docker-compose.yml up -d --build` (o serviço `migrate` aplica `prisma migrate deploy`).

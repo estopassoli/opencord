@@ -30,6 +30,7 @@ import {
   connectSocket,
   Http,
   nextEvent,
+  noEvent,
   outsider,
   prisma,
   register,
@@ -348,5 +349,54 @@ describe('voz com LiveKit real', () => {
       headers: { authorization: `Bearer ${stranger.token}` },
     });
     expect(denied.status).toBe(404);
+  });
+
+  it('silenciado pela moderação continua sem microfone ao reentrar ou sair e voltar', async () => {
+    const { owner, alice, voiceId } = await setup();
+    const join = () => http.req<VoiceJoinResponse>('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    const mic = (j: VoiceJoinResponse) =>
+      ((decodeJwt(j.token) as { video: { canPublishSources?: string[] } }).video.canPublishSources ?? []).includes(
+        'microphone',
+      );
+    expect(mic((await join()).body)).toBe(true);
+    const mute = (muted: boolean) =>
+      http.req('PUT', `/voice/members/${alice.id}/server-mute`, { token: owner.token, body: { muted } });
+    expect((await mute(true)).status).toBe(204);
+    const again = (await join()).body;
+    expect(again.canSpeak).toBe(false);
+    expect(mic(again)).toBe(false);
+    await http.req('POST', '/voice/leave', { token: alice.token });
+    const back = (await join()).body;
+    expect(mic(back)).toBe(false);
+    expect((await mute(false)).status).toBe(204);
+    const unmuted = (await join()).body;
+    expect(unmuted.canSpeak).toBe(true);
+    expect(mic(unmuted)).toBe(true);
+  });
+
+  it('canal de voz oculto não revela quem está nele', async () => {
+    const { owner, alice, serverId } = await setup();
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const everyone = d.body.roles.find((r) => r.isEveryone) as Role;
+    const priv = await http.req<{ id: string }>('POST', `/servers/${serverId}/channels`, {
+      token: owner.token,
+      body: { name: 'reservada', kind: 'voice' },
+    });
+    await http.req('PATCH', `/channels/${priv.body.id}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'role', subjectId: everyone.id, allow: 0, deny: Permission.VIEW_CHANNEL }] },
+    });
+    const sa = await sock(alice.token);
+    const silent = noEvent(sa, 'voice:member:joined');
+    await http.req('POST', `/voice/channels/${priv.body.id}/join`, { token: owner.token });
+    await silent;
+    const forAlice = await http.req<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`, {
+      token: alice.token,
+    });
+    expect(forAlice.body.find((s) => s.channelId === priv.body.id)).toBeUndefined();
+    const forOwner = await http.req<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`, {
+      token: owner.token,
+    });
+    expect(forOwner.body.find((s) => s.channelId === priv.body.id)?.userId).toBe(owner.id);
   });
 });

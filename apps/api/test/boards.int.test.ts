@@ -125,4 +125,62 @@ describe('quadros kanban', () => {
         .status,
     ).toBe(400);
   });
+
+  it('apagar a mensagem apaga o texto copiado para o card', async () => {
+    const { owner, alice, boardId, reportsId } = await setup();
+    const sent = await http.req<{ id: string }>('POST', `/channels/${reportsId}/messages`, {
+      token: alice.token,
+      body: { requestId: rid(), body: 'segredo que vai ser apagado' },
+    });
+    expect((await http.req('DELETE', `/messages/${sent.body.id}`, { token: alice.token })).status).toBe(204);
+    const list = await http.req<BoardCard[]>('GET', `/channels/${boardId}/cards`, { token: owner.token });
+    expect(list.body).toHaveLength(1);
+    expect(list.body[0]).toMatchObject({ title: '(mensagem apagada)', body: '', messageId: sent.body.id });
+  });
+
+  it('quem não vê o canal não o liga a um quadro; ligar exige MANAGE_ROLES', async () => {
+    const { owner, alice, serverId } = await setup();
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const everyone = d.body.roles.find((r) => r.isEveryone) as Role;
+    const chMod = await http.req<Role>('POST', `/servers/${serverId}/roles`, {
+      token: owner.token,
+      body: { name: 'Canais', permissions: Permission.MANAGE_CHANNELS },
+    });
+    await http.req('PUT', `/servers/${serverId}/members/${alice.id}/roles`, {
+      token: owner.token,
+      body: { roleIds: [chMod.body.id] },
+    });
+    // quadro que alice vê e canal da equipe que ela não vê
+    const myBoard = await http.req<Channel>('POST', `/servers/${serverId}/channels`, {
+      token: owner.token,
+      body: { name: 'meu-quadro', kind: 'board' },
+    });
+    const staff = await http.req<Channel>('POST', `/servers/${serverId}/channels`, {
+      token: owner.token,
+      body: { name: 'equipe', kind: 'text' },
+    });
+    await http.req('PATCH', `/channels/${staff.body.id}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'role', subjectId: everyone.id, allow: 0, deny: Permission.VIEW_CHANNEL }] },
+    });
+    const hidden = await http.req('PATCH', `/channels/${staff.body.id}`, {
+      token: alice.token,
+      body: { boardId: myBoard.body.id },
+    });
+    expect(hidden.status).toBe(404);
+    expect((await http.req('DELETE', `/channels/${staff.body.id}`, { token: alice.token })).status).toBe(404);
+    // canal visível: MANAGE_CHANNELS sozinho não basta para criar leitores via quadro
+    const open = await http.req<Channel>('POST', `/servers/${serverId}/channels`, {
+      token: owner.token,
+      body: { name: 'aberto', kind: 'text' },
+    });
+    expect(
+      (await http.req('PATCH', `/channels/${open.body.id}`, { token: alice.token, body: { boardId: myBoard.body.id } }))
+        .status,
+    ).toBe(403);
+    expect(
+      (await http.req('PATCH', `/channels/${open.body.id}`, { token: alice.token, body: { name: 'renomeado' } }))
+        .status,
+    ).toBe(200);
+  });
 });

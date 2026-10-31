@@ -28,6 +28,14 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-31',
+    time: '06:30',
+    kind: 'correção',
+    icon: 'shield',
+    title: 'Revisão de segurança: permissões e moderação mais firmes',
+    body: 'Quem foi silenciado pela moderação continua sem microfone e sem efeitos sonoros mesmo saindo e voltando para a chamada. Canais de voz ocultos não mostram mais quem está neles para quem não os vê. Trocar a senha desconecta na hora as outras sessões abertas. Apagar uma mensagem também apaga o texto copiado para o quadro. Ligar um canal a um quadro passou a exigir "Gerenciar cargos" e acesso ao canal.',
+  },
+  {
+    date: '2026-10-31',
     time: '05:30',
     kind: 'correção',
     icon: 'download',

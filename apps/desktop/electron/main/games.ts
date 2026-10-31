@@ -23,10 +23,18 @@ import {
 const POLL_MS = 15_000;
 const STEAM_KEY = 'HKCU\\Software\\Valve\\Steam';
 
-const run = (cmd: string, args: string[]) =>
+const run = (cmd: string, args: string[], env?: Record<string, string>) =>
   new Promise<string>((resolve) =>
-    execFile(cmd, args, { windowsHide: true, timeout: 5000, maxBuffer: 4 * 1024 * 1024 }, (err, out) =>
-      resolve(err ? '' : out),
+    execFile(
+      cmd,
+      args,
+      {
+        windowsHide: true,
+        timeout: 5000,
+        maxBuffer: 4 * 1024 * 1024,
+        ...(env ? { env: { ...process.env, ...env } } : {}),
+      },
+      (err, out) => resolve(err ? '' : out),
     ),
   );
 
@@ -41,25 +49,26 @@ async function steamGame(): Promise<{ id: number; name: string | null }> {
   return { id, name };
 }
 
-/** aspas simples escapadas para uma string literal do PowerShell */
-const psQuote = (s: string) => `'${s.replace(/'/g, "''")}'`;
-
 /** Caminho do executável em execução: pelo nome (fora da Steam) ou pela pasta do jogo (Steam). */
 async function runningPath(game: DetectedGame): Promise<string | null> {
+  // o valor vai por variável de ambiente, nunca dentro do script: nomes vêm da Steam/das configurações e podem ter
+  // aspas (inclusive as Unicode, que o PowerShell também aceita como delimitador)
   let filter: string;
+  let arg: string;
   if (game.steamAppId) {
     const dir = await steamGameDir(game.steamAppId);
     if (!dir) return null;
-    filter = `Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith(${psQuote(dir + path.sep)}, 'OrdinalIgnoreCase') }`;
+    arg = dir + path.sep;
+    filter = `Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith($env:OPENCORD_ARG, 'OrdinalIgnoreCase') }`;
   } else if (game.exe) {
-    filter = `Get-Process -Name ${psQuote(game.exe.replace(/\.exe$/i, ''))} -ErrorAction SilentlyContinue`;
+    arg = game.exe.replace(/\.exe$/i, '');
+    filter = `Get-Process -Name $env:OPENCORD_ARG -ErrorAction SilentlyContinue`;
   } else return null;
-  const out = await run('powershell.exe', [
-    '-NoProfile',
-    '-NonInteractive',
-    '-Command',
-    `${filter} | Select-Object -First 1 -ExpandProperty Path`,
-  ]);
+  const out = await run(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', `${filter} | Select-Object -First 1 -ExpandProperty Path`],
+    { OPENCORD_ARG: arg },
+  );
   const p = out.trim().split(/\r?\n/)[0]?.trim();
   return p && /\.exe$/i.test(p) ? p : null;
 }

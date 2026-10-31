@@ -37,6 +37,8 @@ type CardRow = {
 
 const MAX_CARDS_PER_BOARD = 2000;
 const TITLE_MAX = 200;
+/** título do card cuja mensagem de origem foi apagada */
+export const DELETED_CARD_TITLE = '(mensagem apagada)';
 
 /**
  * Quadros kanban (ADR-0017): canal do tipo "board" com cards em colunas fixas. Ver o quadro = VIEW_CHANNEL nele
@@ -154,6 +156,12 @@ export class BoardsService {
     const { boardId } = await this.card(cardId, userId);
     await this.prisma.boardCard.delete({ where: { id: cardId } });
     this.realtime.emit(rooms.channel(boardId), 'board:card:deleted', { boardId, cardId });
+  }
+
+  /** Reenvia aos quadros os cards que vieram desta mensagem (ex.: depois de apagada). */
+  async refreshFromMessage(messageId: string) {
+    const rows = await this.prisma.boardCard.findMany({ where: { messageId }, include: CARD_INCLUDE });
+    for (const row of rows) this.emit(this.serialize(row));
   }
 
   /**

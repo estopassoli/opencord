@@ -77,6 +77,19 @@ describe('loadConfig', () => {
       loadConfig({ ...baseEnv, NODE_ENV: 'production', LIVEKIT_API_SECRET: 'secret' } as NodeJS.ProcessEnv),
     ).toThrow(/produção/);
   });
+  it('recusa os placeholders públicos do LiveKit em produção', () => {
+    const prod = { ...baseEnv, NODE_ENV: 'production' };
+    expect(() =>
+      loadConfig({
+        ...prod,
+        LIVEKIT_API_KEY: 'CHANGE_ME_API_KEY',
+        LIVEKIT_API_SECRET: 'CHANGE_ME_SECRET_AT_LEAST_32_CHARACTERS_LONG',
+      } as NodeJS.ProcessEnv),
+    ).toThrow(/placeholder/);
+    expect(() => loadConfig({ ...prod, LIVEKIT_API_KEY: 'devkey' } as NodeJS.ProcessEnv)).toThrow(/produção/);
+    expect(() => loadConfig({ ...prod, LIVEKIT_API_SECRET: 's'.repeat(20) } as NodeJS.ProcessEnv)).toThrow(/32/);
+    expect(loadConfig(prod as NodeJS.ProcessEnv).NODE_ENV).toBe('production');
+  });
 });
 
 describe('clientIp', () => {

@@ -319,5 +319,7 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     this.tokens.invalidateCache(others.map((o) => o.id));
+    // O socket só autentica no handshake: sem isso a sessão revogada continua recebendo e enviando eventos.
+    for (const o of others) this.realtime.disconnectSession(userId, o.id, 'password_changed');
   }
 }

@@ -49,7 +49,7 @@ export class MusicService {
   private async publish(s: Stored): Promise<MusicState> {
     await this.r.set(key(s.channelId), JSON.stringify(s), 'EX', TTL_S);
     const out = { ...s, serverNow: Date.now() };
-    this.realtime.emit(rooms.server(s.serverId), 'music:state', out);
+    this.realtime.emit(rooms.channel(s.channelId), 'music:state', out);
     return out;
   }
 
@@ -204,6 +204,6 @@ export class MusicService {
   /** Encerra (também quando a chamada esvazia). */
   async end(channelId: string, serverId: string) {
     if ((await this.r.del(key(channelId))) > 0)
-      this.realtime.emit(rooms.server(serverId), 'music:ended', { channelId, serverId });
+      this.realtime.emit(rooms.channel(channelId), 'music:ended', { channelId, serverId });
   }
 }

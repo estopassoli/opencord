@@ -16,6 +16,8 @@ import { StorageService } from './storage.service.js';
 
 /** envio pela metade some depois disto (partes já gravadas são descartadas) */
 const PENDING_TTL_S = 6 * 3600;
+/** o estado vive além do prazo da varredura, para ela sempre achar as partes a descartar */
+const STATE_GRACE_S = 3600;
 const key = (id: string) => `attup:${id}`;
 const PENDING_SET = 'attup:pending';
 /** só vídeo (clipes compartilhados); confirmado pelos bytes da primeira parte */
@@ -72,8 +74,13 @@ export class LargeUploadService implements OnModuleInit, OnModuleDestroy {
     return p;
   }
 
+  /** Grava o estado e empurra o prazo da varredura; o estado expira só depois desse prazo. */
   private async save(id: string, p: Pending) {
-    await this.r.set(key(id), JSON.stringify(p), 'EX', PENDING_TTL_S);
+    await this.r
+      .multi()
+      .set(key(id), JSON.stringify(p), 'EX', PENDING_TTL_S + STATE_GRACE_S)
+      .zadd(PENDING_SET, Date.now() + PENDING_TTL_S * 1000, id)
+      .exec();
   }
 
   async start(userId: string, name: string, size: number): Promise<{ id: string; partBytes: number }> {
@@ -94,7 +101,6 @@ export class LargeUploadService implements OnModuleInit, OnModuleDestroy {
       bytes: 0,
       hashes: [],
     });
-    await this.r.zadd(PENDING_SET, Date.now() + PENDING_TTL_S * 1000, id);
     return { id, partBytes: RECORDING_PART_BYTES };
   }
 

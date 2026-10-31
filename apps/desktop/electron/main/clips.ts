@@ -151,8 +151,9 @@ export async function copyClip(file: string) {
   await new Promise<void>((resolve, reject) =>
     execFile(
       'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', `Set-Clipboard -LiteralPath '${f.replace(/'/g, "''")}'`],
-      { windowsHide: true, timeout: 10_000 },
+      // o caminho vai por variável de ambiente, nunca dentro do script (aspas Unicode também fecham string no PowerShell)
+      ['-NoProfile', '-NonInteractive', '-Command', 'Set-Clipboard -LiteralPath $env:OPENCORD_CLIP'],
+      { windowsHide: true, timeout: 10_000, env: { ...process.env, OPENCORD_CLIP: f } },
       (err) => (err ? reject(err) : resolve()),
     ),
   );

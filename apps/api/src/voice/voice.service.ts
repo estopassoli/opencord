@@ -33,6 +33,8 @@ const PREVIEW_TTL_SECONDS = 15 * 60;
 /** Tempo para o cliente conectar à SFU após receber o token antes de ser considerado ausente. */
 const CONNECT_GRACE_MS = 30_000;
 const MOVE_GRACE_MS = 10_000;
+/** quem a moderação silenciou neste servidor (não some ao sair da chamada; só MUTE_MEMBERS tira) */
+const mutedKey = (serverId: string) => `voice:muted:${serverId}`;
 
 interface StoredState extends VoiceMemberState {
   roomName: string;
@@ -157,7 +159,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       serverNow: now,
     };
     await this.r.set(`activity:${s.channelId}`, JSON.stringify(out), 'KEEPTTL');
-    this.realtime.emit(rooms.server(s.serverId), 'activity:state', out);
+    this.realtime.emit(rooms.channel(s.channelId), 'activity:state', out);
   }
 
   /** DJ da música saiu: quem está na chamada há mais tempo assume a fila (decisão do mantenedor, ADR-0014). */
@@ -183,7 +185,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       revision: m.revision + 1,
     };
     await this.r.set(`music:${s.channelId}`, JSON.stringify(out), 'KEEPTTL');
-    this.realtime.emit(rooms.server(s.serverId), 'music:state', { ...out, serverNow: now });
+    this.realtime.emit(rooms.channel(s.channelId), 'music:state', { ...out, serverNow: now });
   }
 
   private async clear(s: StoredState) {
@@ -194,12 +196,12 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       await this.r.srem('voice:channels', s.channelId);
       // chamada vazia: as atividades (Assistir juntos e música) acabam junto
       if ((await this.r.del(`activity:${s.channelId}`)) > 0)
-        this.realtime.emit(rooms.server(s.serverId), 'activity:ended', {
+        this.realtime.emit(rooms.channel(s.channelId), 'activity:ended', {
           channelId: s.channelId,
           serverId: s.serverId,
         });
       if ((await this.r.del(`music:${s.channelId}`)) > 0)
-        this.realtime.emit(rooms.server(s.serverId), 'music:ended', { channelId: s.channelId, serverId: s.serverId });
+        this.realtime.emit(rooms.channel(s.channelId), 'music:ended', { channelId: s.channelId, serverId: s.serverId });
     }
   }
 
@@ -222,7 +224,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     await this.r.set(`voice:preview:${userId}`, buf, 'EX', PREVIEW_TTL_SECONDS);
     s.previewAt = new Date().toISOString();
     await this.save(s);
-    this.realtime.emit(rooms.server(s.serverId), 'voice:state:changed', this.publicState(s));
+    this.realtime.emit(rooms.channel(s.channelId), 'voice:state:changed', this.publicState(s));
   }
 
   /** Prévia de alguém: só para quem pode ver o canal em que a pessoa está transmitindo. */
@@ -252,7 +254,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
 
     const roomName = this.roomNameFor(channelId);
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { displayName: true } });
-    const sources = sourcesFor(access.perms);
+    // o silenciamento da moderação vale no servidor todo e sobrevive a sair e entrar de novo
+    const serverMuted = await this.isServerMuted(access.serverId, userId);
+    const sources = sourcesFor(access.perms).filter((src) => !(serverMuted && src === TrackSource.MICROPHONE));
     const at = new AccessToken(this.cfg.LIVEKIT_API_KEY, this.cfg.LIVEKIT_API_SECRET, {
       identity: userId,
       name: user.displayName,
@@ -274,7 +278,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       serverId: access.serverId,
       selfMute: current?.channelId === channelId ? current.selfMute : false,
       selfDeaf: current?.channelId === channelId ? current.selfDeaf : false,
-      serverMute: current?.channelId === channelId ? current.serverMute : false,
+      serverMute: serverMuted,
       video: false,
       streaming: false,
       previewAt: null,
@@ -284,17 +288,21 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     };
     await this.save(state);
     if (current?.channelId !== channelId)
-      this.realtime.emit(rooms.server(access.serverId), 'voice:member:joined', this.publicState(state));
+      this.realtime.emit(rooms.channel(channelId), 'voice:member:joined', this.publicState(state));
     return {
       url: this.cfg.LIVEKIT_URL,
       token,
       roomName,
       expiresAt: new Date(Date.now() + this.cfg.LIVEKIT_TOKEN_TTL_SECONDS * 1000).toISOString(),
       channelId,
-      canSpeak: sources.includes(TrackSource.MICROPHONE) && !state.serverMute,
+      canSpeak: sources.includes(TrackSource.MICROPHONE),
       canVideo: sources.includes(TrackSource.CAMERA),
       canStream: sources.includes(TrackSource.SCREEN_SHARE),
     };
+  }
+
+  async isServerMuted(serverId: string, userId: string): Promise<boolean> {
+    return (await this.r.sismember(mutedKey(serverId), userId)) === 1;
   }
 
   async leave(userId: string) {
@@ -324,7 +332,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
   ) {
     await this.clear(s);
     await this.rooms.removeParticipant(s.roomName, s.userId).catch(() => undefined);
-    this.realtime.emit(rooms.server(s.serverId), 'voice:member:left', {
+    this.realtime.emit(rooms.channel(s.channelId), 'voice:member:left', {
       userId: s.userId,
       channelId: s.channelId,
       serverId: s.serverId,
@@ -346,7 +354,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       if (dto.selfDeaf) s.selfMute = true;
     }
     await this.save(s);
-    this.realtime.emit(rooms.server(s.serverId), 'voice:state:changed', this.publicState(s));
+    this.realtime.emit(rooms.channel(s.channelId), 'voice:state:changed', this.publicState(s));
     return this.publicState(s);
   }
 
@@ -357,6 +365,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     void actor;
     s.serverMute = muted;
     await this.save(s);
+    if (muted) await this.r.sadd(mutedKey(s.serverId), targetId);
+    else await this.r.srem(mutedKey(s.serverId), targetId);
     const access = await this.perms.channel(s.channelId, targetId);
     const sources = sourcesFor(access.perms).filter((src) => !(muted && src === TrackSource.MICROPHONE));
     await this.rooms
@@ -364,7 +374,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
         permission: permissionFor(sources),
       })
       .catch((e: unknown) => this.log.warn(`serverMute: ${String(e)}`));
-    this.realtime.emit(rooms.server(s.serverId), 'voice:state:changed', this.publicState(s));
+    this.realtime.emit(rooms.channel(s.channelId), 'voice:state:changed', this.publicState(s));
   }
 
   async disconnectMember(actorId: string, targetId: string) {
@@ -409,11 +419,17 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     this.moveTimers.add(t);
   }
 
+  /** Quem está em cada canal de voz que a pessoa pode ver (canal oculto não revela quem está nele). */
   async listServer(userId: string, serverId: string): Promise<VoiceMemberState[]> {
-    await this.perms.server(serverId, userId);
-    const channels = await this.prisma.channel.findMany({ where: { serverId, kind: 'voice' }, select: { id: true } });
+    const access = await this.perms.server(serverId, userId);
+    const channels = await this.prisma.channel.findMany({
+      where: { serverId, kind: 'voice' },
+      select: { id: true, overrides: true },
+    });
+    const visible = await this.perms.channelsFor(access, channels);
     const out: VoiceMemberState[] = [];
     for (const c of channels) {
+      if (!hasPermission(visible.get(c.id) ?? 0, Permission.VIEW_CHANNEL)) continue;
       for (const uid of await this.r.smembers(`voice:channel:${c.id}`)) {
         const s = await this.stateOf(uid);
         if (s && s.channelId === c.id) out.push(this.publicState(s));
@@ -541,7 +557,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
           }
         } else break;
         await this.save(s);
-        this.realtime.emit(rooms.server(s.serverId), 'voice:state:changed', this.publicState(s));
+        this.realtime.emit(rooms.channel(s.channelId), 'voice:state:changed', this.publicState(s));
         break;
       }
       default:

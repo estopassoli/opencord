@@ -138,4 +138,19 @@ describe('efeitos sonoros', () => {
     expect((await upload(owner.token, serverId, mp3(), '')).status).toBe(400);
     expect((await upload(owner.token, serverId, Buffer.concat([mp3(), Buffer.alloc(1024 * 1024)]))).status).toBe(413);
   });
+
+  it('quem foi silenciado pela moderação não toca som na chamada', async () => {
+    const { owner, serverId } = await bootstrapOwner(http);
+    const alice = await register(http);
+    const up = await upload(alice.token, serverId, mp3());
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const voiceId = d.body.channels.find((c) => c.kind === 'voice')!.id;
+    const sa = await connectSocket(alice.token);
+    sockets.push(sa);
+    await http.req('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    await http.req('PUT', `/voice/members/${alice.id}/server-mute`, { token: owner.token, body: { muted: true } });
+    const r = await command(sa, 'sound:play', { channelId: voiceId, soundId: up.body.id });
+    expect(r.ok).toBe(false);
+    expect(r.error?.message).toMatch(/silenciad/);
+  });
 });
