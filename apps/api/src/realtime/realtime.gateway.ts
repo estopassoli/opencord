@@ -15,6 +15,7 @@ import {
   type ClientCommandName,
   type ClientCommandResults,
   type MusicControl,
+  type PlayingGame,
 } from '@opencord/contracts';
 import type { Server } from 'socket.io';
 import { randomUUID } from 'node:crypto';
@@ -185,6 +186,11 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       case 'presence:heartbeat': {
         const d = p as { status?: 'online' | 'idle' | 'dnd' | 'invisible' };
         return (await this.presence.heartbeat(userId, socket.id, d.status)) as R;
+      }
+      case 'presence:game': {
+        const d = p as { game: PlayingGame | null };
+        await this.presence.setGame(userId, d.game);
+        return null as R;
       }
       case 'activity:get': {
         const d = p as { channelId: string };

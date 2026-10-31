@@ -23,6 +23,7 @@ import {
   AppPrefsSchema,
   CaptureSelectArgs,
   ExternalUrl,
+  GamesConfigureArgs,
   IPC,
   NotifyArgs,
   SecureKey,
@@ -39,6 +40,7 @@ import { secureAvailable, secureDelete, secureGet, secureSet } from './secure-st
 import { appIcon, badgeIcon, trayIcon } from './icons';
 import { readAppPrefs, writeAppPrefs } from './app-prefs';
 import { checkForUpdate, checkIfStale, installUpdate, startUpdater, updateStatus } from './updater';
+import { GameDetector } from './games';
 
 /** nome da janela da transmissão desanexada (src/features/voice/popout.tsx) */
 const POPOUT_NAME = 'opencord-live';
@@ -244,6 +246,8 @@ function boostMediaPriority() {
   }
 }
 
+const games = new GameDetector(({ game }) => send(IPC.evGame, game));
+
 function registerIpc() {
   handle(IPC.captureListSources, [], () => listSources());
   handle(IPC.captureSelect, [CaptureSelectArgs], (args) => {
@@ -315,6 +319,9 @@ function registerIpc() {
     writeAppPrefs(prefs);
     return prefsState();
   });
+  handle(IPC.gamesConfigure, [GamesConfigureArgs], (a) => games.configure(a.enabled, a.custom));
+  handle(IPC.gamesProcesses, [], () => games.processes());
+  handle(IPC.gamesCurrent, [], () => games.game);
   handle(IPC.appRelaunch, [], () => {
     quitting = true;
     app.relaunch();
@@ -357,7 +364,10 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   quitting = true;
 });
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  games.stop();
+});
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

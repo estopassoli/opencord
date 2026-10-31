@@ -6,6 +6,7 @@ import {
   type Me,
   type Message,
   type PresenceStatus,
+  type PlayingGame,
   type ServerDetail,
   type ServerSummary,
   type UnreadState,
@@ -83,7 +84,10 @@ export const useSession = create<SessionState>()((set, get) => {
     if (auth) useData.setState({ me: auth.user });
     wireRealtime(rt);
     rt.onState = (s) => useUi.getState().setConnection(s);
-    rt.onReady = (reconnect) => void (reconnect ? resync() : undefined);
+    rt.onReady = (reconnect) => {
+      if (reconnect) void resync();
+      void import('./games').then(({ publishGame }) => publishGame(true));
+    };
     rt.connect();
     await bootstrap();
   }
@@ -197,16 +201,20 @@ export const api = (): ApiClient => {
 
 // ---------- Carga inicial e ressincronização ----------
 export async function loadServer(serverId: string): Promise<ServerDetail> {
-  const [detail, voices, presence] = await Promise.all([
+  const [detail, voices, presence, games] = await Promise.all([
     api().request<ServerDetail>('GET', `/servers/${serverId}`),
     api().request<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`),
     api().request<Record<string, PresenceStatus>>('GET', `/servers/${serverId}/presence`),
+    // API antiga não tem a rota: segue sem jogos
+    api()
+      .request<Record<string, PlayingGame>>('GET', `/servers/${serverId}/games`)
+      .catch(() => ({}) as Record<string, PlayingGame>),
   ]);
   const data = useData.getState();
   data.setServerDetail(detail);
   for (const v of Object.values(data.voiceStates)) if (v.serverId === serverId) data.removeVoiceState(v.userId);
   for (const v of voices) useData.getState().setVoiceState(v);
-  useData.setState((s) => ({ presence: { ...s.presence, ...presence } }));
+  useData.setState((s) => ({ presence: { ...s.presence, ...presence }, games: { ...s.games, ...games } }));
   return detail;
 }
 
@@ -217,6 +225,10 @@ export async function loadFriends() {
     presence: {
       ...s.presence,
       ...Object.fromEntries(friends.filter((f) => f.presence).map((f) => [f.user.id, f.presence as PresenceStatus])),
+    },
+    games: {
+      ...s.games,
+      ...Object.fromEntries(friends.filter((f) => f.game).map((f) => [f.user.id, f.game as PlayingGame])),
     },
   }));
 }
@@ -319,6 +331,7 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('chat:reaction:changed', (e) => m().reaction(keyOf(e), e.messageId, e.emoji, e.userId, e.on, e.count, me()));
     rt.on('chat:typing', (e) => d().setTyping(keyOf(e), e.userId, e.active));
     rt.on('presence:changed', (e) => useData.setState((s) => ({ presence: { ...s.presence, [e.userId]: e.status } })));
+    rt.on('presence:game:changed', (e) => useData.getState().setGame(e.userId, e.game));
     rt.on('voice:member:joined', (v) => {
       d().setVoiceState(v);
       // participante ainda não está na lista de membros carregada (ex.: acabou de entrar): recarrega para ter o nome
@@ -350,8 +363,7 @@ function wireRealtime(rt: RealtimeClient) {
     // efeitos sonoros: alguém na minha chamada tocou um som; a lista de um servidor mudou
     rt.on('sound:played', (e) => {
       void Promise.all([import('./sounds'), import('./voice')]).then(([{ useSounds }, { useVoice }]) => {
-        if (useVoice.getState().machine.channelId === e.channelId)
-          void useSounds.getState().hear(e.soundId, e.volume);
+        if (useVoice.getState().machine.channelId === e.channelId) void useSounds.getState().hear(e.soundId, e.volume);
       });
     });
     rt.on('sound:list:changed', (e) => {

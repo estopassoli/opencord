@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '01:30',
+    kind: 'novo',
+    icon: 'gamepad',
+    title: 'Mostre o jogo que você está jogando',
+    body: 'O OpenCord reconhece o jogo aberto (todos os da Steam e os mais conhecidos fora dela) e mostra o nome dele embaixo do seu nome, na lista da voz e na lista de membros. No seu perfil aparece "Jogando agora", com o tempo de jogo e um botão para a página da Steam. Em Configurações → Jogos você esconde o jogo ou adiciona um que não foi reconhecido. Ficar invisível também esconde.',
+  },
+  {
+    date: '2026-10-31',
     time: '00:15',
     kind: 'correção',
     icon: 'speaker',

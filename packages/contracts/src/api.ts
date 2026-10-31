@@ -574,6 +574,16 @@ export type CreateConversationRequest = z.infer<typeof CreateConversationRequest
 export const PresenceStatus = z.enum(['online', 'idle', 'dnd', 'invisible', 'offline']);
 export type PresenceStatus = z.infer<typeof PresenceStatus>;
 export const SetPresenceRequest = z.object({ status: PresenceStatus.exclude(['offline']) });
+/**
+ * Jogo que a pessoa está jogando (ADR-0021), detectado pelo app desktop. Só o nome e quando começou; some quando
+ * ela fica offline ou invisível. `steamAppId` quando o jogo veio da Steam (abre a página da loja).
+ */
+export const PlayingGame = z.object({
+  name: z.string().trim().min(1).max(64),
+  startedAt: z.number().int().positive(),
+  steamAppId: z.number().int().positive().optional(),
+});
+export type PlayingGame = z.infer<typeof PlayingGame>;
 
 // ---------- Voz / mídia ----------
 export const VoiceJoinResponse = z.object({
@@ -695,6 +705,16 @@ export const UserSettingsV1 = z.object({
   friendNicknames: z.record(z.string(), z.string().trim().min(1).max(32)).default({}),
   /** conversas diretas fixadas no topo da lista, na ordem em que foram fixadas */
   pinnedConversations: z.array(z.string()).max(50).default([]),
+  /** Jogo que estou jogando (ADR-0021): mostrar para os outros e jogos que eu mesmo cadastrei (executável → nome). */
+  games: z
+    .object({
+      showPlaying: z.boolean().default(true),
+      custom: z
+        .array(z.object({ exe: z.string().trim().min(1).max(128), name: z.string().trim().min(1).max(64) }))
+        .max(50)
+        .default([]),
+    })
+    .default({ showPlaying: true, custom: [] }),
   /**
    * Ordem da barra de servidores: id de servidor solto ou pasta com vários servidores (só eu vejo).
    * Servidor fora da lista aparece no fim; id de servidor que saí é ignorado no cliente.

@@ -13,6 +13,7 @@ import { Tooltip } from '../../components/Tooltip';
 import { moveToVoice } from './voiceMove';
 import { CHANNEL_ICON, CHANNEL_ORDER } from '../../lib/channels';
 import { useAliases } from '../../lib/names';
+import { GameBadge } from './Playing';
 
 /** Categorias recolhidas (por id de categoria), lembradas neste dispositivo. */
 const COLLAPSED_KEY = 'oc:collapsed-categories';
@@ -294,6 +295,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                                   {name}
                                 </span>
                                 {creator && <CreatorTag iconOnly />}
+                                <GameBadge userId={v.userId} />
                                 {v.streaming && <span className="live-pill">AO VIVO</span>}
                                 {v.video && <Icon name="camera" size={14} label="Câmera ligada" />}
                                 {(v.selfMute || v.serverMute) && (

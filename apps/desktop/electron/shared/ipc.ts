@@ -97,6 +97,19 @@ export interface AppPrefsState {
   activeGpuMode: GpuMode;
 }
 
+/** Jogo detectado no computador (ADR-0021). */
+export interface DetectedGameDto {
+  name: string;
+  startedAt: number;
+  steamAppId?: number;
+  exe?: string;
+}
+export const GamesConfigureArgs = z.object({
+  enabled: z.boolean(),
+  custom: z.array(z.object({ exe: z.string().trim().min(1).max(128), name: z.string().trim().min(1).max(64) })).max(50),
+});
+export type GamesConfigureArgs = z.infer<typeof GamesConfigureArgs>;
+
 export interface AppInfo {
   version: string;
   electron: string;
@@ -134,6 +147,13 @@ export interface OpenCordBridge {
   };
   /** Fecha e abre o app de novo (para aplicar preferências como a aceleração de hardware). */
   relaunch(): Promise<void>;
+  games: {
+    /** liga/desliga a detecção e informa os jogos que a pessoa cadastrou */
+    configure(args: GamesConfigureArgs): Promise<void>;
+    /** programas abertos agora (executáveis), para cadastrar um jogo */
+    processes(): Promise<string[]>;
+    current(): Promise<DetectedGameDto | null>;
+  };
   updates: {
     status(): Promise<UpdateStatus>;
     check(): Promise<UpdateStatus>;
@@ -146,4 +166,5 @@ export interface OpenCordBridge {
   on(event: 'tray-action', cb: (action: TrayAction) => void): () => void;
   on(event: 'update', cb: (status: UpdateStatus) => void): () => void;
   on(event: 'window-state', cb: (state: WindowState) => void): () => void;
+  on(event: 'game', cb: (game: DetectedGameDto | null) => void): () => void;
 }

@@ -9,6 +9,7 @@ import type {
   Message,
   Poll,
   PresenceStatus,
+  PlayingGame,
   Role,
   ServerDetail,
   ServerSummary,
@@ -25,6 +26,7 @@ export const keyOf = (t: { channelId?: string | null; conversationId?: string | 
 
 export interface FriendWithPresence extends Friend {
   presence?: PresenceStatus;
+  game?: PlayingGame | null;
 }
 
 interface DataState {
@@ -37,6 +39,8 @@ interface DataState {
   conversations: Conversation[];
   friends: FriendWithPresence[];
   presence: Record<string, PresenceStatus>;
+  /** jogo que cada pessoa está jogando agora (ADR-0021) */
+  games: Record<string, PlayingGame>;
   myStatus: Exclude<PresenceStatus, 'offline'>;
   voiceStates: Record<string, VoiceMemberState>;
   unread: Record<string, UnreadState>;
@@ -55,6 +59,7 @@ interface DataState {
   removeMember(serverId: string, userId: string): void;
   setVoiceState(s: VoiceMemberState): void;
   removeVoiceState(userId: string): void;
+  setGame(userId: string, game: PlayingGame | null): void;
   setUnread(u: UnreadState): void;
   bumpUnread(key: TargetKey, lastMessageId: string, mention: boolean, mine: boolean): void;
   markRead(key: TargetKey, messageId: string): void;
@@ -73,6 +78,7 @@ const empty = {
   conversations: [],
   friends: [],
   presence: {},
+  games: {},
   myStatus: 'online' as const,
   voiceStates: {},
   unread: {},
@@ -173,6 +179,13 @@ export const useData = create<DataState>()((set) => ({
       const v = { ...s.voiceStates };
       delete v[userId];
       return { voiceStates: v };
+    }),
+  setGame: (userId, game) =>
+    set((s) => {
+      const games = { ...s.games };
+      if (game) games[userId] = game;
+      else delete games[userId];
+      return { games };
     }),
   setUnread: (u) => set((s) => ({ unread: { ...s.unread, [keyOf(u)]: u } })),
   bumpUnread: (key, lastMessageId, mention, mine) =>

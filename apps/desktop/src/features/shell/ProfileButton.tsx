@@ -10,6 +10,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { StreamPreviewCard, watchStream } from '../../components/StreamPreview';
 import { moveTargets, moveToVoice } from './voiceMove';
+import { PlayingNow } from './Playing';
 
 /** Conversa aberta agora (canal de texto ou DM), onde "Mencionar" insere a menção. */
 function currentChatKey(): TargetKey | null {
@@ -353,6 +354,7 @@ function ProfileCard({
           {!isMe && <div className="muted small">{STATUS_LABEL[presence]}</div>}
         </div>
       </div>
+      <PlayingNow userId={userId} />
       {member && detail && (
         <div className="profile-roles">
           {member.roleIds.map((rid) => {

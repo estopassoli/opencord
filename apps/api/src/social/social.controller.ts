@@ -23,8 +23,12 @@ export class SocialController {
   @Get('friends')
   async friends(@CurrentUser() u: AuthUser) {
     const list = await this.social.listFriends(u.userId);
-    const statuses = await this.presence.visibleMany(list.filter((f) => f.status === 'accepted').map((f) => f.user.id));
-    return list.map((f) => ({ ...f, presence: statuses[f.user.id] ?? 'offline' }));
+    const accepted = list.filter((f) => f.status === 'accepted').map((f) => f.user.id);
+    const [statuses, games] = await Promise.all([
+      this.presence.visibleMany(accepted),
+      this.presence.visibleGames(accepted),
+    ]);
+    return list.map((f) => ({ ...f, presence: statuses[f.user.id] ?? 'offline', game: games[f.user.id] ?? null }));
   }
 
   @Post('friends/requests')
