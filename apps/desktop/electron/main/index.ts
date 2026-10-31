@@ -18,6 +18,7 @@ import {
 } from 'electron';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
   AppPrefsSchema,
@@ -104,10 +105,31 @@ app.commandLine.appendSwitch(
 // NÃO ativar WebRtcAllowWgcUsingTexture: medido no E2E golive-real com animação na tela, a captura travava em ~12 fps
 // com o conteúdo a 47 fps; sem a flag a captura acompanha o conteúdo (docs/MEDIA_ARCHITECTURE.md).
 
+/** A página do próprio app: em produção, exatamente o index.html empacotado (não qualquer file://). */
+function isAppPage(url: string): boolean {
+  if (DEV_URL) return url.startsWith(DEV_URL);
+  if (!url.startsWith('file://')) return false;
+  try {
+    const p = path.resolve(fileURLToPath(url.split(/[?#]/)[0] ?? ''));
+    const want = path.resolve(RENDERER_INDEX);
+    return process.platform === 'win32' ? p.toLowerCase() === want.toLowerCase() : p === want;
+  } catch {
+    return false;
+  }
+}
+
 function isTrustedSender(e: IpcMainInvokeEvent): boolean {
-  const url = e.senderFrame?.url ?? '';
   if (!win || e.sender.id !== win.webContents.id) return false;
-  return DEV_URL ? url.startsWith(DEV_URL) : url.startsWith('file://');
+  return isAppPage(e.senderFrame?.url ?? '');
+}
+
+/** Permissões só para a página do app (e o popout dela, about:blank); tela cheia também para o player embutido. */
+function permissionAllowed(permission: string, url: string): boolean {
+  if (!ALLOWED_PERMISSIONS.has(permission)) return false;
+  // a checagem recebe só a origem: para file:// ela vem como "file://" ou "file:///"
+  return (
+    permission === 'fullscreen' || url === 'about:blank' || isAppPage(url) || (!DEV_URL && /^file:\/\/\/?$/.test(url))
+  );
 }
 
 /** Registra handler IPC validando remetente e argumentos. */
@@ -382,8 +404,10 @@ function registerIpc() {
 
 app.whenReady().then(() => {
   // Permissões mínimas: só mídia/notificações/clipboard; geolocalização, HID, USB etc. negados.
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(ALLOWED_PERMISSIONS.has(permission)));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb, details) =>
+    cb(permissionAllowed(permission, details.requestingUrl)),
+  );
+  session.defaultSession.setPermissionCheckHandler((_wc, permission, origin) => permissionAllowed(permission, origin));
   session.defaultSession.setDevicePermissionHandler(() => false);
   // Assistir juntos: o player embutido do YouTube exige Referer (sem ele, "erro 153"); páginas file:// não enviam.
   // Só para o player do YouTube, identificando o app.

@@ -10,7 +10,7 @@
 ## Produção com Docker Compose
 1. `cp infra/docker/.env.example infra/docker/.env` e preencha. Gere segredos com `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`. Em produção a API recusa segredos `dev-only*`, qualquer valor com `CHANGE_ME` (os placeholders do repositório são públicos), o `devkey`/`secret` do LiveKit e `LIVEKIT_API_SECRET` com menos de 32 caracteres.
 2. Em `infra/docker/livekit.yaml`, troque a chave e o segredo (≥ 32 caracteres, os mesmos de `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`).
-3. Em `infra/coturn/turnserver.conf`, troque `static-auth-secret`, `realm` e os certificados TLS.
+3. Em `infra/coturn/turnserver.conf`, troque `static-auth-secret`, `realm` e os certificados TLS (o coturn não sobe com o segredo de exemplo).
 4. `docker compose -f infra/docker/docker-compose.yml up -d --build` (o serviço `migrate` aplica `prisma migrate deploy`).
 5. Primeiro proprietário: `docker compose -f infra/docker/docker-compose.yml run --rm -e OWNER_EMAIL=... -e OWNER_USERNAME=... -e OWNER_PASSWORD=... api node node_modules/@opencord/db/dist/create-owner.js`. Ele cria a conta do dono e o primeiro servidor (aberto a todos).
 6. Proxy reverso: `https://chat.exemplo.com` → `127.0.0.1:3000` (incluindo WebSocket em `/realtime`); `wss://rtc.exemplo.com` → `livekit:7880`; `https://app.exemplo.com` (`APP_HOST`, interface no navegador) e o domínio da landing → `127.0.0.1:8080` (serviço `web`). Defina `TRUST_PROXY=true` só atrás do proxy.

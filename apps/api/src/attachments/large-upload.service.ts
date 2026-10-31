@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   PayloadTooLargeException,
@@ -18,8 +19,12 @@ import { StorageService } from './storage.service.js';
 const PENDING_TTL_S = 6 * 3600;
 /** o estado vive além do prazo da varredura, para ela sempre achar as partes a descartar */
 const STATE_GRACE_S = 3600;
+/** trava de uma parte em envio (o envio de 8 MB não leva mais que isso) */
+const PART_LOCK_MS = 120_000;
 const key = (id: string) => `attup:${id}`;
 const PENDING_SET = 'attup:pending';
+const userKey = (userId: string) => `attup:user:${userId}`;
+const MAX_OPEN_PER_USER = 3;
 /** só vídeo (clipes compartilhados); confirmado pelos bytes da primeira parte */
 const VIDEO = new Set(['video/mp4', 'video/webm']);
 
@@ -86,6 +91,15 @@ export class LargeUploadService implements OnModuleInit, OnModuleDestroy {
   async start(userId: string, name: string, size: number): Promise<{ id: string; partBytes: number }> {
     if (!Number.isInteger(size) || size <= 0) throw new BadRequestException('tamanho inválido');
     if (size > LARGE_UPLOAD_MAX_BYTES) throw new PayloadTooLargeException('o vídeo passa de 1 GB');
+    // poucos envios grandes abertos por pessoa (cada um pode reservar até 1 GB)
+    const mine = await this.r.smembers(userKey(userId));
+    let open = 0;
+    for (const other of mine) {
+      if (await this.r.exists(key(other))) open++;
+      else await this.r.srem(userKey(userId), other);
+    }
+    if (open >= MAX_OPEN_PER_USER)
+      throw new BadRequestException('você já tem envios grandes em andamento; termine ou cancele um antes');
     const id = randomUUID();
     const d = new Date();
     const storageKey = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${id}`;
@@ -101,10 +115,23 @@ export class LargeUploadService implements OnModuleInit, OnModuleDestroy {
       bytes: 0,
       hashes: [],
     });
+    await this.r.sadd(userKey(userId), id);
     return { id, partBytes: RECORDING_PART_BYTES };
   }
 
   async part(userId: string, id: string, n: number, data: Buffer) {
+    // uma parte por vez: duas com o mesmo número em paralelo passariam juntas pela checagem de ordem e de tamanho
+    const lock = `attup:lock:${id}`;
+    if (!(await this.r.set(lock, '1', 'PX', PART_LOCK_MS, 'NX')))
+      throw new ConflictException('a parte anterior ainda está sendo enviada');
+    try {
+      return await this.putPart(userId, id, n, data);
+    } finally {
+      await this.r.del(lock);
+    }
+  }
+
+  private async putPart(userId: string, id: string, n: number, data: Buffer) {
     const p = await this.load(userId, id);
     if (n !== p.parts.length + 1) throw new BadRequestException(`parte fora de ordem (esperada ${p.parts.length + 1})`);
     if (!data.length || data.length > RECORDING_PART_BYTES) throw new BadRequestException('parte com tamanho inválido');
@@ -131,28 +158,39 @@ export class LargeUploadService implements OnModuleInit, OnModuleDestroy {
     const size = await this.storage.size(p.storageKey);
     if (size !== p.size) {
       await this.storage.remove(p.storageKey).catch(() => undefined);
-      await this.r.del(key(id));
+      await this.forget(userId, id);
       throw new BadRequestException('o arquivo chegou com tamanho diferente do informado');
     }
-    await this.r.multi().del(key(id)).zrem(PENDING_SET, id).exec();
-    const row = await this.prisma.attachment.create({
-      data: {
-        uploaderId: userId,
-        storageKey: p.storageKey,
-        mime: p.mime,
-        sizeBytes: size,
-        originalName: p.name,
-        sha256: createHash('sha256').update(p.hashes.join('')).digest('hex'),
-      },
-    });
+    // grava o anexo antes de soltar o estado; se falhar, apaga o arquivo para não ficar órfão
+    const row = await this.prisma.attachment
+      .create({
+        data: {
+          uploaderId: userId,
+          storageKey: p.storageKey,
+          mime: p.mime,
+          sizeBytes: size,
+          originalName: p.name,
+          sha256: createHash('sha256').update(p.hashes.join('')).digest('hex'),
+        },
+      })
+      .catch(async (e: unknown) => {
+        await this.storage.remove(p.storageKey).catch(() => undefined);
+        await this.forget(userId, id);
+        throw e;
+      });
+    await this.forget(userId, id);
     return this.attachments.serialize(row);
   }
 
   async abort(userId: string, id: string) {
     const p = await this.load(userId, id);
     await this.storage.partsAbort(p.storageKey, p.uploadId).catch(() => undefined);
-    await this.r.multi().del(key(id)).zrem(PENDING_SET, id).exec();
+    await this.forget(userId, id);
     return null;
+  }
+
+  private async forget(userId: string, id: string) {
+    await this.r.multi().del(key(id)).zrem(PENDING_SET, id).srem(userKey(userId), id).exec();
   }
 
   /** Envios abandonados: descarta as partes já gravadas. */
@@ -163,7 +201,7 @@ export class LargeUploadService implements OnModuleInit, OnModuleDestroy {
       if (raw) {
         const p = JSON.parse(raw) as Pending;
         await this.storage.partsAbort(p.storageKey, p.uploadId).catch(() => undefined);
-        await this.r.del(key(id));
+        await this.r.multi().del(key(id)).srem(userKey(p.userId), id).exec();
       }
       await this.r.zrem(PENDING_SET, id);
     }

@@ -68,6 +68,16 @@ export class TokenService {
     return { userId: sub, sessionId: sid };
   }
 
+  /** Das sessões informadas, as que ainda valem (não revogadas, conta ativa). Para revalidar sockets abertos. */
+  async stillValid(sessionIds: string[]): Promise<Set<string>> {
+    if (!sessionIds.length) return new Set();
+    const rows = await this.prisma.session.findMany({
+      where: { id: { in: sessionIds }, revokedAt: null, user: { disabledAt: null } },
+      select: { id: true },
+    });
+    return new Set(rows.map((r) => r.id));
+  }
+
   invalidateCache(sessionIds: string[]) {
     for (const id of sessionIds) this.sessionCache.delete(id);
   }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -25,6 +26,21 @@ const TYPES: Record<string, string> = {
 /** nome guardado em users.avatarKey e servido em GET /avatars/:name (aleatório: muda a cada troca → cache eterno) */
 export const AVATAR_NAME = /^[0-9a-f-]{36}-(png|jpeg|webp|gif)$/;
 
+/**
+ * Troca a chave da imagem só se ela ainda for a que foi lida (dois envios ao mesmo tempo não deixam arquivo órfão).
+ * Devolve a chave anterior, que pode ser apagada.
+ */
+async function swapKey(
+  read: () => Promise<string | null>,
+  write: (old: string | null) => Promise<number>,
+): Promise<string | null> {
+  for (let i = 0; i < 5; i++) {
+    const old = await read();
+    if ((await write(old)) === 1) return old;
+  }
+  throw new ConflictException('a imagem foi alterada ao mesmo tempo; tente de novo');
+}
+
 @Injectable()
 export class AvatarService {
   private readonly log = new Logger('Imagens');
@@ -48,10 +64,13 @@ export class AvatarService {
   }
 
   private async applyServer(serverId: string, name: string | null) {
-    const before = await this.prisma.server.findUniqueOrThrow({ where: { id: serverId }, select: { iconKey: true } });
-    const server = await this.prisma.server.update({ where: { id: serverId }, data: { iconKey: name } });
-    if (before.iconKey && AVATAR_NAME.test(before.iconKey))
-      await this.storage.remove(`server-icons/${before.iconKey}`).catch(() => undefined);
+    const prev = await swapKey(
+      async () => (await this.prisma.server.findUniqueOrThrow({ where: { id: serverId } })).iconKey,
+      async (old) =>
+        (await this.prisma.server.updateMany({ where: { id: serverId, iconKey: old }, data: { iconKey: name } })).count,
+    );
+    const server = await this.prisma.server.findUniqueOrThrow({ where: { id: serverId } });
+    if (prev && AVATAR_NAME.test(prev)) await this.storage.remove(`server-icons/${prev}`).catch(() => undefined);
     this.realtime.emit(rooms.server(serverId), 'server:updated', serverSummary(server));
     return server;
   }
@@ -99,10 +118,13 @@ export class AvatarService {
   }
 
   private async apply(userId: string, name: string | null) {
-    const before = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { avatarKey: true } });
-    const user = await this.prisma.user.update({ where: { id: userId }, data: { avatarKey: name } });
-    if (before.avatarKey && AVATAR_NAME.test(before.avatarKey))
-      await this.storage.remove(`avatars/${before.avatarKey}`).catch(() => undefined);
+    const prev = await swapKey(
+      async () => (await this.prisma.user.findUniqueOrThrow({ where: { id: userId } })).avatarKey,
+      async (old) =>
+        (await this.prisma.user.updateMany({ where: { id: userId, avatarKey: old }, data: { avatarKey: name } })).count,
+    );
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (prev && AVATAR_NAME.test(prev)) await this.storage.remove(`avatars/${prev}`).catch(() => undefined);
     await this.announce(userId);
     return user;
   }

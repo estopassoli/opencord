@@ -33,6 +33,11 @@ services:
     restart: unless-stopped
     network_mode: host
     volumes: ['../coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro']
+    # recusa subir com o segredo de exemplo do repositório (público)
+    entrypoint:
+      - sh
+      - -c
+      - 'if grep -q CHANGE_ME_TURN_SECRET /etc/coturn/turnserver.conf; then echo "troque static-auth-secret em infra/coturn/turnserver.conf" >&2; exit 1; fi; exec turnserver -c /etc/coturn/turnserver.conf'
 
   # Opcional: S3 local para testar STORAGE_DRIVER=s3 (S3_ENDPOINT=http://minio:9000, S3_FORCE_PATH_STYLE=true; ADR-0010).
   minio:

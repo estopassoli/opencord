@@ -39,7 +39,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - id: v
         shell: bash
         run: |
@@ -67,10 +67,12 @@ jobs:
     env:
       VITE_OPENCORD_SERVER_URL: ${{ inputs.server_url || vars.OPENCORD_SERVER_URL || 'https://api.opencord.pro' }}
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # vem do nome da tag: vai por variável de ambiente, nunca interpolado direto no script
+      APP_VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
@@ -79,7 +81,7 @@ jobs:
       - name: Versão
         shell: bash
         working-directory: apps/desktop
-        run: npm pkg set version="${{ needs.version.outputs.version }}"
+        run: npm pkg set version="$APP_VERSION"
       # Dependências pelo turbo; o app fora dele, porque o turbo não repassa VITE_OPENCORD_SERVER_URL ao vite.
       - run: pnpm turbo run build --filter "@opencord/desktop^..."
       - run: pnpm --filter @opencord/desktop build
@@ -87,7 +89,7 @@ jobs:
       - name: Empacotar
         working-directory: apps/desktop
         run: npx --yes electron-builder@26.17.0 ${{ matrix.flag }} --config electron-builder.yml --publish never
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: opencord-${{ matrix.name }}
           path: |
@@ -110,28 +112,29 @@ jobs:
       SSH_HOST: ${{ secrets.DOWNLOADS_SSH_HOST }}
       SSH_USER: ${{ secrets.DOWNLOADS_SSH_USER }}
       SSH_KNOWN_HOSTS: ${{ secrets.DOWNLOADS_SSH_KNOWN_HOSTS }}
+      APP_VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Sem secret de entrega
         if: env.SSH_KEY == ''
         run: echo "::notice::DOWNLOADS_SSH_KEY não configurado; instaladores ficam só como artefatos do run."
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: env.SSH_KEY != ''
         with:
           path: dist
           merge-multiple: true
       # novidades da versão: o app instalado mostra a lista antes de atualizar (GET /downloads/desktop/notes)
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: env.SSH_KEY != ''
         with:
           path: repo
           sparse-checkout: apps/desktop
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: env.SSH_KEY != ''
         with:
           node-version: 24
       - name: Novidades da versão
         if: env.SSH_KEY != ''
-        run: node repo/apps/desktop/scripts/release-notes.mjs "dist/OpenCord-notes-${{ needs.version.outputs.version }}.json"
+        run: node repo/apps/desktop/scripts/release-notes.mjs "dist/OpenCord-notes-$APP_VERSION.json"
       - name: Enviar por SSH (rrsync só-escrita)
         if: env.SSH_KEY != ''
         shell: bash
@@ -147,4 +150,4 @@ jobs:
           # --omit-dir-times: a pasta do volume é do root; o usuário só grava arquivos (não muda a data da pasta)
           rsync -rt --omit-dir-times --chmod=F644 -e "ssh -i ~/.ssh/id_downloads -o StrictHostKeyChecking=yes -o BatchMode=yes" \
             dist/ "$SSH_USER@$SSH_HOST:"
-          echo "Publicado ${{ needs.version.outputs.version }} em $SSH_HOST" >> "$GITHUB_STEP_SUMMARY"
+          echo "Publicado $APP_VERSION em $SSH_HOST" >> "$GITHUB_STEP_SUMMARY"

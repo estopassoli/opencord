@@ -10,6 +10,7 @@ import type {
 } from '@opencord/contracts';
 import type { Prisma } from '@opencord/db';
 import { AuditService } from '../audit/audit.service.js';
+import { TokenService } from '../auth/token.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { notFound } from '../common/errors.js';
 import { PrismaService } from '../common/prisma.service.js';
@@ -61,6 +62,7 @@ export class AdminService {
     private readonly realtime: RealtimeService,
     private readonly voice: VoiceService,
     private readonly instance: InstanceService,
+    private readonly tokens: TokenService,
   ) {}
 
   private async requireAdmin(userId: string) {
@@ -173,10 +175,13 @@ export class AdminService {
 
   /** Encerra todas as sessões e derruba as conexões (o app da pessoa volta para o login). */
   private async revokeAll(userId: string, reason: string) {
+    const sessions = await this.prisma.session.findMany({ where: { userId, revokedAt: null }, select: { id: true } });
     const r = await this.prisma.session.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    // sem isso o token de acesso ainda passa pelo cache de sessão (alguns segundos) em cada processo da API
+    this.tokens.invalidateCache(sessions.map((s) => s.id));
     await this.voice.forceLeave(userId).catch(() => undefined);
     await this.realtime.disconnectUser(userId, reason);
     return r.count;

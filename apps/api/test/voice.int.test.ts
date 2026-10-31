@@ -399,4 +399,14 @@ describe('voz com LiveKit real', () => {
     });
     expect(forOwner.body.find((s) => s.channelId === priv.body.id)?.userId).toBe(owner.id);
   });
+
+  it('sair da conta (última sessão) também tira da chamada', async () => {
+    const { alice, voiceId, serverId, owner } = await setup();
+    expect((await http.req('POST', `/voice/channels/${voiceId}/join`, { token: alice.token })).status).toBe(201);
+    expect((await http.req('POST', '/auth/logout', { token: alice.token })).status).toBeLessThan(300);
+    const states = await http.req<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`, {
+      token: owner.token,
+    });
+    expect(states.body.find((s) => s.userId === alice.id)).toBeUndefined();
+  });
 });

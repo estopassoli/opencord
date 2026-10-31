@@ -228,6 +228,8 @@ function SyncedTrack({ track, minimized, onStage }: { track: MusicTrack; minimiz
             src={src}
             title={track.title ?? 'Música do YouTube'}
             allow="autoplay; encrypted-media"
+            // player de terceiro: sem navegar a janela do app, sem formulários nem diálogos
+            sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
             referrerPolicy="strict-origin-when-cross-origin"
             tabIndex={-1}
           />
@@ -258,6 +260,8 @@ function SyncedTrack({ track, minimized, onStage }: { track: MusicTrack; minimiz
           src={src}
           title={track.title ?? 'Música do YouTube'}
           allow="autoplay; encrypted-media"
+          // player de terceiro: sem navegar a janela do app, sem formulários nem diálogos
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
           referrerPolicy="strict-origin-when-cross-origin"
         />
       </div>

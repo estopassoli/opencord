@@ -196,6 +196,8 @@ function SyncedPlayer({ videoId, large }: { videoId: string; large?: boolean }) 
         src={src}
         title={s.title ?? 'Vídeo do YouTube'}
         allow="autoplay; encrypted-media; picture-in-picture"
+        // player de terceiro: sem navegar a janela do app, sem formulários nem diálogos
+        sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
         referrerPolicy="strict-origin-when-cross-origin"
       />
       {/* camada transparente: cliques no vídeo viram play/pausa do grupo (o player não tem controles próprios) */}
