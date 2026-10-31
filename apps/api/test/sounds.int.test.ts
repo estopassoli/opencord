@@ -96,6 +96,42 @@ describe('efeitos sonoros', () => {
     );
   });
 
+  it('som de outro servidor toca em qualquer chamada; quem ouve baixa o arquivo enquanto vale o aviso', async () => {
+    const { owner, serverId } = await bootstrapOwner(http);
+    const alice = await register(http);
+    // alice tem um servidor próprio, de que o dono não é membro
+    const other = await http.req<ServerDetail>('POST', '/servers', { token: alice.token, body: { name: 'Sons' } });
+    const up = await upload(alice.token, other.body.id, mp3(), 'risada');
+    expect(up.status).toBe(201);
+    const mine = await http.req<SoundEffect[]>('GET', '/sounds', { token: alice.token });
+    expect(mine.body.map((s) => s.id)).toContain(up.body.id);
+    expect(
+      (await http.req<SoundEffect[]>('GET', '/sounds', { token: owner.token })).body.map((s) => s.id),
+    ).not.toContain(up.body.id);
+    const file = (token: string) =>
+      fetch(`${base}/sounds/${up.body.id}/file`, { headers: { authorization: `Bearer ${token}` } }).then(
+        (r) => r.status,
+      );
+    expect(await file(owner.token)).toBe(404);
+
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const voiceId = d.body.channels.find((c) => c.kind === 'voice')!.id;
+    const [so, sa] = await Promise.all([owner, alice].map((u) => connectSocket(u.token)));
+    sockets.push(so!, sa!);
+    for (const u of [owner, alice]) await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token });
+    const heard = nextEvent<{ soundId: string; serverId: string; volume: number }>(
+      so!,
+      'sound:played',
+      (e) => e.soundId === up.body.id,
+    );
+    expect((await command(sa!, 'sound:play', { channelId: voiceId, soundId: up.body.id })).ok).toBe(true);
+    expect(await heard).toMatchObject({ serverId, volume: 0.8 });
+    // quem está na chamada baixa o som tocado nela; o dono não consegue tocar som de servidor alheio
+    expect(await file(owner.token)).toBe(200);
+    await new Promise((r) => setTimeout(r, 1600));
+    expect((await command(so!, 'sound:play', { channelId: voiceId, soundId: up.body.id })).ok).toBe(false);
+  });
+
   it('tipo pelos bytes, nome obrigatório e limite de 1 MB', async () => {
     const { owner, serverId } = await bootstrapOwner(http);
     expect((await upload(owner.token, serverId, Buffer.from('<svg/>'), 'x', 'audio/mpeg')).status).toBe(400);

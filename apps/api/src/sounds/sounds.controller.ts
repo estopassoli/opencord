@@ -20,6 +20,12 @@ const id = new ParseUUIDPipe();
 export class SoundsController {
   constructor(private readonly sounds: SoundsService) {}
 
+  /** Sons de todos os meus servidores. */
+  @Get('sounds')
+  mine(@CurrentUser() u: AuthUser) {
+    return this.sounds.mine(u.userId);
+  }
+
   @Get('servers/:id/sounds')
   list(@CurrentUser() u: AuthUser, @Param('id', id) serverId: string) {
     return this.sounds.list(serverId, u.userId);
