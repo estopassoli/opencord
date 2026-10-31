@@ -8,7 +8,7 @@
  */
 import { parseYouTubeId, type YouTubeSearchResult } from '@opencord/contracts';
 import { Button, Icon, Slider, TextField } from '@opencord/ui';
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { useActivity } from '../../store/activity';
 import { useMusic } from '../../store/music';
@@ -384,52 +384,6 @@ export function WatchTogetherDialog({ onClose }: { onClose: () => void }) {
 }
 
 /** Indicador na barra lateral: o canal de voz está assistindo algo. */
-export function ActivityHint({ channelId }: { channelId: string }) {
-  const a = useActivity((s) => s.channels[channelId]);
-  if (!a) return null;
-  const title = a.title ?? 'Assistindo juntos';
-  return (
-    <span className="activity-hint" data-tip={a.title ?? 'Assistir juntos'}>
-      <Icon name="play" size={12} />
-      <Marquee text={title} />
-    </span>
-  );
-}
-
-/** Texto que não cabe rola da direita para a esquerda sem parar; com movimento reduzido, fica cortado com "…". */
-function Marquee({ text }: { text: string }) {
-  const box = useRef<HTMLSpanElement>(null);
-  // duração em s pela largura do texto: velocidade constante (~40 px/s), seja o título curto ou longo
-  const [over, setOver] = useState<number | null>(null);
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const check = () => {
-      const first = el.firstElementChild as HTMLElement | null;
-      setOver(first && first.scrollWidth > el.clientWidth + 1 ? Math.max(6, first.scrollWidth / 40) : null);
-    };
-    check();
-    const ro = new ResizeObserver(check);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [text]);
-  return (
-    <span
-      ref={box}
-      className="marquee"
-      data-over={over !== null || undefined}
-      style={over !== null ? ({ '--marquee-s': `${over.toFixed(1)}s` } as CSSProperties) : undefined}
-    >
-      <span className="marquee-text">{text}</span>
-      {over !== null && (
-        <span className="marquee-text" aria-hidden="true">
-          {text}
-        </span>
-      )}
-    </span>
-  );
-}
-
 /**
  * Painel "Atividades" (aberto pelo botão da chamada): cartões das atividades disponíveis. Por ora, o YouTube.
  * Arte própria (sem logotipos de terceiros).

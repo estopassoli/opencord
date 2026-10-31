@@ -6,7 +6,7 @@
  */
 import { parseYouTubeId, parseYouTubePlaylistId, type MusicTrack } from '@opencord/contracts';
 import { Avatar, Button, Icon, Slider, TextField } from '@opencord/ui';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { useData } from '../../store/data';
 import { useMusic } from '../../store/music';
 import { useUi } from '../../store/ui';
@@ -422,5 +422,52 @@ function Queue() {
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Música tocando no canal de voz, embaixo do nome dele na lista de canais (só música; o "Assistir juntos" não entra). */
+export function MusicHint({ channelId }: { channelId: string }) {
+  const m = useMusic((s) => s.channels[channelId]);
+  if (!m) return null;
+  const title = m.title ?? 'Música';
+  return (
+    <span className="activity-hint" data-tip={title}>
+      <Icon name="music" size={12} />
+      <Marquee text={title} />
+    </span>
+  );
+}
+
+/** Texto que não cabe rola da direita para a esquerda sem parar; com movimento reduzido, fica cortado com "…". */
+function Marquee({ text }: { text: string }) {
+  const box = useRef<HTMLSpanElement>(null);
+  // duração em s pela largura do texto: velocidade constante (~40 px/s), seja o título curto ou longo
+  const [over, setOver] = useState<number | null>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const check = () => {
+      const first = el.firstElementChild as HTMLElement | null;
+      setOver(first && first.scrollWidth > el.clientWidth + 1 ? Math.max(6, first.scrollWidth / 40) : null);
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+  return (
+    <span
+      ref={box}
+      className="marquee"
+      data-over={over !== null || undefined}
+      style={over !== null ? ({ '--marquee-s': `${over.toFixed(1)}s` } as CSSProperties) : undefined}
+    >
+      <span className="marquee-text">{text}</span>
+      {over !== null && (
+        <span className="marquee-text" aria-hidden="true">
+          {text}
+        </span>
+      )}
+    </span>
   );
 }

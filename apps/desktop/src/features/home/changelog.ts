@@ -22,9 +22,9 @@ export const CHANGELOG: ChangeEntry[] = [
     date: '2026-10-31',
     time: '10:30',
     kind: 'melhoria',
-    icon: 'play',
-    title: 'Nome da música rolando na lista de canais',
-    body: 'Quando o nome do que está tocando no canal de voz não cabe na lista de canais, ele agora rola da direita para a esquerda sem parar, em vez de ficar cortado. Com "reduzir movimento" ligado no sistema, fica parado e termina em "…".',
+    icon: 'music',
+    title: 'Música tocando embaixo do canal de voz',
+    body: 'Embaixo do canal de voz aparece só a música da chamada, com o nome da faixa que está tocando (antes aparecia também o vídeo do "Assistir juntos"). Se o nome não cabe, ele rola da direita para a esquerda sem parar; com "reduzir movimento" ligado no sistema, fica parado e termina em "…".',
   },
   {
     date: '2026-10-31',

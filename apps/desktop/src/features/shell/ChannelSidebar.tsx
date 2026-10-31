@@ -8,7 +8,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { CreatorTag, roleColorOf, useCreatorId } from './MemberList';
 import { ProfileButton } from './ProfileButton';
-import { ActivityHint } from '../voice/WatchTogether';
+import { MusicHint } from '../voice/MusicPlayer';
 import { Tooltip } from '../../components/Tooltip';
 import { moveToVoice } from './voiceMove';
 import { CHANNEL_ICON, CHANNEL_ORDER } from '../../lib/channels';
@@ -264,7 +264,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                       )}
                       {(u?.mentionCount ?? 0) > 0 && <span className="badge badge-inline">{u?.mentionCount}</span>}
                     </button>
-                    {c.kind === 'voice' && <ActivityHint channelId={c.id} />}
+                    {c.kind === 'voice' && <MusicHint channelId={c.id} />}
                     {c.kind === 'voice' && inVoice.length > 0 && (
                       <ul className="voice-members" aria-label={`Pessoas em ${c.name}`}>
                         {inVoice.map((v) => {

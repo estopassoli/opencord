@@ -9,8 +9,8 @@ import { useUi } from './ui';
  */
 interface MusicStore {
   state: MusicState | null;
-  /** canais de voz com música tocando (indicador, inclusive de chamadas em que não estou) */
-  channels: Record<string, true>;
+  /** canais de voz com música tocando e o nome da faixa atual (indicador, inclusive de chamadas em que não estou) */
+  channels: Record<string, { title: string | null }>;
   offsetMs: number;
   /** entrei para ouvir: o player só carrega depois de um clique (navegadores exigem gesto para tocar som) */
   joined: boolean;
@@ -84,7 +84,12 @@ export const useMusic = create<MusicStore>()((set, get) => ({
     set({ localPaused: on });
   },
   observe(s) {
-    set((st) => ({ channels: { ...st.channels, [s.channelId]: true } }));
+    const cur = s.queue[s.index];
+    set((st) => {
+      const { [s.channelId]: _old, ...rest } = st.channels;
+      // fila terminou: nada tocando, sem indicador
+      return { channels: cur ? { ...rest, [s.channelId]: { title: cur.title } } : rest };
+    });
   },
   apply(s) {
     get().observe(s);
