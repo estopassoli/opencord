@@ -1,13 +1,17 @@
 import { createReadStream } from 'node:fs';
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { Inject, Injectable } from '@nestjs/common';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
@@ -75,6 +79,64 @@ export class StorageService {
       return r.ContentLength ?? 0;
     }
     return (await stat(this.resolve(key))).size;
+  }
+
+  // ---------- envio em partes (gravações de chamada, ADR-0023) ----------
+  // S3: multipart (cada parte ≥ 5 MB, menos a última). Disco: as partes chegam em ordem e são anexadas ao arquivo.
+
+  /** Começa um envio em partes; devolve o id do envio no S3 (null no disco). */
+  async partsBegin(key: string, contentType: string): Promise<string | null> {
+    if (this.s3) {
+      const r = await this.s3.send(
+        new CreateMultipartUploadCommand({ Bucket: this.bucket, Key: this.check(key), ContentType: contentType }),
+      );
+      if (!r.UploadId) throw new Error('armazenamento não abriu o envio em partes');
+      return r.UploadId;
+    }
+    const p = this.resolve(key);
+    await mkdir(path.dirname(p), { recursive: true });
+    await writeFile(p, Buffer.alloc(0), { flag: 'wx' });
+    return null;
+  }
+
+  /** Envia a parte `n` (1, 2, 3…, sempre em ordem); devolve a etiqueta que o S3 pede no fim. */
+  async partsPut(key: string, uploadId: string | null, n: number, data: Buffer): Promise<string> {
+    if (this.s3) {
+      const r = await this.s3.send(
+        new UploadPartCommand({
+          Bucket: this.bucket,
+          Key: this.check(key),
+          UploadId: uploadId ?? '',
+          PartNumber: n,
+          Body: data,
+        }),
+      );
+      return r.ETag ?? '';
+    }
+    await appendFile(this.resolve(key), data);
+    return '';
+  }
+
+  async partsComplete(key: string, uploadId: string | null, parts: { n: number; etag: string }[]): Promise<void> {
+    if (!this.s3) return;
+    await this.s3.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: this.check(key),
+        UploadId: uploadId ?? '',
+        MultipartUpload: { Parts: parts.map((p) => ({ PartNumber: p.n, ETag: p.etag })) },
+      }),
+    );
+  }
+
+  async partsAbort(key: string, uploadId: string | null): Promise<void> {
+    if (this.s3) {
+      await this.s3.send(
+        new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: this.check(key), UploadId: uploadId ?? '' }),
+      );
+      return;
+    }
+    await rm(this.resolve(key), { force: true });
   }
 
   async remove(key: string): Promise<void> {

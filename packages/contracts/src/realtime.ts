@@ -11,6 +11,8 @@ import {
   MessageBody,
   PresenceStatus,
   PlayingGame,
+  ActiveRecording,
+  CallRecording,
   Role,
   ServerSummary,
   Friend,
@@ -134,6 +136,10 @@ export interface ServerEvents {
     mention: boolean;
   };
   'presence:changed': { userId: string; status: z.infer<typeof PresenceStatus> };
+  /** gravação da chamada começou (recording) ou terminou (null) — todos no servidor veem o aviso (ADR-0023) */
+  'recording:state': { channelId: string; serverId: string; recording: ActiveRecording | null };
+  /** gravação pronta para baixar por 24 h */
+  'recording:ready': { channelId: string; serverId: string; recording: CallRecording };
   /** jogo que a pessoa está jogando, como os outros veem (null quando parou, ficou invisível ou offline) */
   'presence:game:changed': { userId: string; game: PlayingGame | null };
   'voice:member:joined': VoiceMemberState;

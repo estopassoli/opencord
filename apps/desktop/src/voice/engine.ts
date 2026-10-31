@@ -143,6 +143,8 @@ export class VoiceEngine {
   private localLoud = false;
   private vadClone: MediaStreamTrack | null = null;
   private watching = new Set<string>();
+  /** gravando a chamada (ADR-0023): recebe todas as transmissões, mesmo as que eu não estou assistindo */
+  private recordAll = false;
   private volumes = new Map<string, number>();
   /** silenciados só para mim (não afeta os outros participantes) */
   private mutedUsers = new Set<string>();
@@ -345,7 +347,7 @@ export class VoiceEngine {
 
   private autoSubscribe(pub: RemoteTrackPublication, p: RemoteParticipant) {
     const isStream = pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio;
-    pub.setSubscribed(isStream ? this.watching.has(p.identity) : true);
+    pub.setSubscribed(isStream ? this.watching.has(p.identity) || this.recordAll : true);
   }
 
   // ---------- microfone / PTT / VAD ----------
@@ -680,10 +682,34 @@ export class VoiceEngine {
     if (p) {
       for (const pub of p.trackPublications.values()) {
         if (pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio)
-          (pub as RemoteTrackPublication).setSubscribed(on);
+          (pub as RemoteTrackPublication).setSubscribed(on || this.recordAll);
       }
     }
     this.emit();
+  }
+
+  /** Gravação da chamada (ADR-0023): liga/desliga o recebimento de todas as transmissões. */
+  setRecordAll(on: boolean) {
+    this.recordAll = on;
+    for (const p of this.room?.remoteParticipants.values() ?? []) this.autoSubscribeAll(p);
+  }
+
+  private autoSubscribeAll(p: RemoteParticipant) {
+    for (const pub of p.trackPublications.values()) this.autoSubscribe(pub as RemoteTrackPublication, p);
+  }
+
+  /** Todo o áudio da chamada para a gravação: meu microfone (já processado), vozes e som das transmissões. */
+  callAudioTracks(): MediaStreamTrack[] {
+    const room = this.room;
+    if (!room) return [];
+    const out: MediaStreamTrack[] = [];
+    const mine = this.micTrack?.mediaStreamTrack;
+    if (mine) out.push(mine);
+    if (this.screen?.audio) out.push(this.screen.audio.mediaStreamTrack);
+    for (const p of room.remoteParticipants.values())
+      for (const pub of p.trackPublications.values())
+        if (pub.kind === Track.Kind.Audio && pub.isSubscribed && pub.track) out.push(pub.track.mediaStreamTrack);
+    return out;
   }
 
   // ---------- trilhas para a UI ----------

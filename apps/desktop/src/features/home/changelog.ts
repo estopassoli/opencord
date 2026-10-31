@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '03:00',
+    kind: 'novo',
+    icon: 'record',
+    title: 'Grave a chamada e baixe por 24 horas',
+    body: 'Na chamada, o botão de gravar (ao lado de sair) grava vozes, câmeras e transmissões de tela. Todos na chamada veem o aviso GRAVANDO. Ao parar, a gravação fica em "Gravações", no topo da chamada, para quem tem acesso ao canal baixar em MP4 por 24 horas; depois ela é apagada do servidor sozinha.',
+  },
+  {
+    date: '2026-10-31',
     time: '02:30',
     kind: 'novo',
     icon: 'record',

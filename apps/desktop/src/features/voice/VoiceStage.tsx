@@ -19,6 +19,7 @@ import { useIsMobile } from '../../lib/media';
 import { bestTileWidth } from './tileLayout';
 import { copyLiveDiagnostics } from './liveDiag';
 import { memberMenu } from '../shell/ProfileButton';
+import { RecordButton, RecordingBadge, RecordingsButton, useRecordingLoad } from './Recording';
 
 const NO_MEMBERS: Member[] = [];
 
@@ -34,6 +35,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   const members = useData((s) => s.details[serverId]?.members) ?? NO_MEMBERS;
   const here = machine.channelId === channelId && isInCall(machine);
   const stageRef = useRef<HTMLElement>(null);
+  useRecordingLoad(channelId);
   // ref por estado: a grade monta e desmonta ao alternar com a live em destaque, e a medição precisa acompanhar
   const [gridEl, setGridEl] = useState<HTMLUListElement | null>(null);
   const tileCount = here
@@ -76,7 +78,13 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
 
   return (
     <section className="stage" aria-label={`Chamada em ${channel?.name ?? ''}`} ref={stageRef}>
-      <StageHeader channelName={channel?.name ?? ''} focus={focus} activity={activityFocused} mobile />
+      <StageHeader
+        channelId={channelId}
+        channelName={channel?.name ?? ''}
+        focus={focus}
+        activity={activityFocused}
+        mobile
+      />
       {activityFocused ? (
         <FocusLayout main={<ActivityTile large />} participants={participants} />
       ) : camFocus ? (
@@ -132,11 +140,13 @@ function useTileGrid(el: HTMLUListElement | null, count: number) {
 
 /** Cabeçalho do palco: canal · quem está ao vivo (e o que transmite) · selo de qualidade AO VIVO. */
 function StageHeader({
+  channelId,
   channelName,
   focus,
   activity,
   mobile,
 }: {
+  channelId: string;
   channelName: string;
   focus: ParticipantView | null;
   activity?: boolean;
@@ -167,6 +177,8 @@ function StageHeader({
         </span>
       )}
       <span className="spacer" />
+      <RecordingBadge channelId={channelId} />
+      <RecordingsButton channelId={channelId} />
       <LiveBadge focus={focus} />
     </header>
   );
@@ -408,7 +420,7 @@ export function PopoutStage() {
   if (!focus) return null;
   return (
     <section className="stage popout-stage" aria-label="Transmissão" ref={ref}>
-      <StageHeader channelName={channel?.name ?? ''} focus={focus} />
+      <StageHeader channelId={machine.channelId ?? ''} channelName={channel?.name ?? ''} focus={focus} />
       <FocusLayout
         main={<StreamTile p={focus} large inPopout />}
         exclude={focus.identity}
@@ -800,6 +812,7 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
             </button>
           </Tooltip>
         </div>
+        <RecordButton />
         <Tooltip label="Sair da chamada">
           <button className="call-btn call-hangup" aria-label="Sair da chamada" onClick={() => void v.leave()}>
             <Icon name="hangup" />
