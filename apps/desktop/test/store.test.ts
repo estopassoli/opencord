@@ -7,6 +7,7 @@ const msg = (id: string, createdAt: string, extra: Partial<Message> = {}): Messa
   channelId: 'c1',
   conversationId: null,
   author: { id: 'u1', username: 'ana', displayName: 'Ana', avatarKey: null, bot: false },
+  replyCount: 0,
   body: id,
   createdAt,
   editedAt: null,

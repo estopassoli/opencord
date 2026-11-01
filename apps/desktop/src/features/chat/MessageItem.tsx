@@ -150,6 +150,15 @@ export const MessageItem = memo(function MessageItem({
           icon: 'reply' as const,
           onSelect: () => useUi.getState().setReplyTo(keyOf(target), m.id),
         },
+        ...(!m.deleted
+          ? [
+              {
+                label: m.replyCount ? `Abrir thread (${m.replyCount})` : 'Abrir thread',
+                icon: 'chats' as const,
+                onSelect: () => useUi.getState().openThread(keyOf(target), m.id),
+              },
+            ]
+          : []),
         ...(canEdit ? [{ label: 'Editar mensagem', icon: 'edit' as const, onSelect: () => setEditing(true) }] : []),
         ...(canPin
           ? [
@@ -330,6 +339,12 @@ export const MessageItem = memo(function MessageItem({
         <ReactionRoleChips message={m} serverId={serverId} canReact={canReact} react={react} />
       )}
       {rrOpen && serverId && <ReactionRolesDialog message={m} serverId={serverId} onClose={() => setRrOpen(false)} />}
+      {m.replyCount > 0 && !m.deleted && (
+        <button className="msg-thread" onClick={() => useUi.getState().openThread(keyOf(target), m.id)}>
+          <Icon name="chats" size={14} />
+          {m.replyCount === 1 ? '1 resposta' : `${m.replyCount} respostas`} · ver thread
+        </button>
+      )}
       {m.reactions.length > 0 && (
         <div className="reactions" role="group" aria-label="Reações">
           {m.reactions.map((r) => (

@@ -36,6 +36,7 @@ const MESSAGE_INCLUDE = {
   reactions: { select: { emoji: true, userId: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
   replyTo: { select: { id: true, body: true, deletedAt: true, author: { select: USER_PUBLIC_SELECT } } },
   reactionRoles: { select: { emoji: true, roleId: true }, orderBy: { createdAt: 'asc' } },
+  _count: { select: { replies: true } },
   poll: {
     include: {
       options: { orderBy: { position: 'asc' } },
@@ -138,6 +139,7 @@ export class MessagesService {
       pinnedAt: deleted ? null : (m.pinnedAt?.toISOString() ?? null),
       poll: deleted || !m.poll ? null : this.serializePoll(m.poll, me),
       reactionRoles: deleted ? [] : m.reactionRoles,
+      replyCount: m._count.replies,
     };
   }
 
@@ -554,6 +556,22 @@ export class MessagesService {
       }))
       .sort((a, b) => b.score - a.score || b.message.createdAt.localeCompare(a.message.createdAt))
       .slice(0, q.limit);
+  }
+
+  /** Thread leve: as respostas diretas a uma mensagem, em ordem cronológica (quem vê o histórico do destino). */
+  async replies(userId: string, messageId: string, limit: number): Promise<Message[]> {
+    const root = await this.load(messageId);
+    const a = await this.access(userId, this.targetOf(root)).catch(() => {
+      throw notFound('mensagem');
+    });
+    if (!hasPermission(a.perms, Permission.READ_HISTORY)) throw forbidden('sem acesso ao histórico');
+    const rows = await this.prisma.message.findMany({
+      where: { replyToId: messageId },
+      include: MESSAGE_INCLUDE,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map((m) => this.serialize(m, userId));
   }
 
   async pins(userId: string, target: Target): Promise<Message[]> {

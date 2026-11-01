@@ -14,6 +14,7 @@ import { ContextMenuHost } from '../../components/ContextMenu';
 import { Modals } from './Modals';
 import { ChannelSidebar } from './ChannelSidebar';
 import { MemberList } from './MemberList';
+import { ThreadPanel } from '../chat/ThreadPanel';
 import { ServerRail } from './ServerRail';
 import { TitleBar } from './TitleBar';
 import { UserDock } from './UserDock';
@@ -31,6 +32,7 @@ import { ConnectionBanner } from './ConnectionBanner';
 export function AppShell() {
   const view = useUi((s) => s.view);
   const showMembers = useUi((s) => s.showMembers);
+  const thread = useUi((s) => s.thread);
   const dmProfileOpen = useUi((s) => s.dmProfile);
   const dmPeer = useDmPeer(view.kind === 'dm' ? view.conversationId : null);
   // perfil aberto: o painel de amigos fica só com os avatares (dois painéis largos apertariam a conversa)
@@ -201,6 +203,11 @@ export function AppShell() {
       </main>
       {view.kind === 'dm' && !mobile && <DmProfilePanel conversationId={view.conversationId} />}
       {view.kind === 'dm' && !mobile && <FriendsPanel forceCompact={dmProfileShown} />}
+      {thread && !mobile && (
+        <ErrorBoundary area="a thread">
+          <ThreadPanel thread={thread} />
+        </ErrorBoundary>
+      )}
       {view.kind === 'server' && channel?.kind === 'text' && (mobile || showMembers) && (
         <div className="slot" inert={off('members')}>
           <ErrorBoundary area="a lista de membros">

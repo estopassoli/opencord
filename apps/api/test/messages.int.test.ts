@@ -232,6 +232,26 @@ describe('mensagens (RF-03)', () => {
     expect((await http.req('GET', `/servers/${serverId}/highlights?days=0`, { token: alice.token })).status).toBe(400);
   });
 
+  it('thread leve: replyCount na mensagem e GET /messages/:id/replies em ordem; terceiro não vê', async () => {
+    const { alice, bob, channelId, serverId, owner } = await setup();
+    const root = await send(alice.token, channelId, 'alguém topa raid?');
+    expect(root.body.replyCount).toBe(0);
+    const r1 = await send(bob.token, channelId, 'eu', { replyToId: root.body.id });
+    const r2 = await send(alice.token, channelId, 'eu também', { replyToId: root.body.id });
+    await send(bob.token, channelId, 'fora da thread');
+    const page = await http.req<MessagePage>('GET', `/channels/${channelId}/messages`, { token: alice.token });
+    expect(page.body.messages.find((m) => m.id === root.body.id)?.replyCount).toBe(2);
+    const replies = await http.req<Message[]>('GET', `/messages/${root.body.id}/replies`, { token: alice.token });
+    expect(replies.body.map((m) => m.id)).toEqual([r1.body.id, r2.body.id]);
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const everyone = d.body.roles.find((r) => r.isEveryone) as Role;
+    await http.req('PATCH', `/channels/${channelId}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'role', subjectId: everyone.id, allow: 0, deny: Permission.VIEW_CHANNEL }] },
+    });
+    expect((await http.req('GET', `/messages/${root.body.id}/replies`, { token: alice.token })).status).toBe(404);
+  });
+
   it('negação de SEND_MESSAGES por override é respeitada', async () => {
     const { alice, owner, serverId, channelId } = await setup();
     const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });

@@ -92,6 +92,8 @@ interface UiState {
   setFriendsPanel(m: FriendsPanelMode): void;
   /** celular: painel aberto por cima do conteúdo (gaveta de navegação ou de membros) */
   panel: 'none' | 'nav' | 'members';
+  /** thread aberta no painel lateral: a mensagem raiz e a conversa dela */
+  thread: { key: TargetKey; rootId: string } | null;
   /** stream em foco no palco (identity do publisher) */
   focusedStream: string | null;
   /** segunda transmissão ao lado da que está em destaque (lives lado a lado) */
@@ -116,6 +118,8 @@ interface UiState {
   openModal(m: Modal): void;
   toggleMembers(): void;
   setPanel(p: UiState['panel']): void;
+  openThread(key: TargetKey, rootId: string): void;
+  closeThread(): void;
   focusStream(id: string | null): void;
   setSideStream(id: string | null): void;
   setPoppedStream(id: string | null): void;
@@ -160,6 +164,7 @@ export const useUi = create<UiState>()((set) => ({
     set({ friendsPanel: m });
   },
   panel: 'none',
+  thread: null,
   focusedStream: null,
   sideStream: null,
   poppedStream: null,
@@ -187,6 +192,7 @@ export const useUi = create<UiState>()((set) => ({
     set((s) => ({
       view: v,
       panel: opts?.keepPanel ? s.panel : 'none',
+      thread: null,
       back: JSON.stringify(s.view) === JSON.stringify(v) ? s.back : [...s.back, s.view].slice(-50),
       forward: JSON.stringify(s.view) === JSON.stringify(v) ? s.forward : [],
       lastChannel: v.kind === 'server' && v.channelId ? { ...s.lastChannel, [v.serverId]: v.channelId } : s.lastChannel,
@@ -196,6 +202,8 @@ export const useUi = create<UiState>()((set) => ({
   openModal: (m) => set({ modal: m }),
   toggleMembers: () => set((s) => ({ showMembers: !s.showMembers })),
   setPanel: (panel) => set({ panel }),
+  openThread: (key, rootId) => set({ thread: { key, rootId } }),
+  closeThread: () => set({ thread: null }),
   // trocar/limpar o destaque desfaz o lado a lado (e a lateral nunca é a própria em destaque)
   focusStream: (id) => set((s) => ({ focusedStream: id, sideStream: id && s.sideStream !== id ? s.sideStream : null })),
   setSideStream: (id) => set({ sideStream: id }),

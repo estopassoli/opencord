@@ -6984,3 +6984,78 @@ html[data-wallpaper='true'] .chat-scroll {
   color: var(--text-2);
   font-size: 0.875rem;
 }
+
+/* ---- threads ---- */
+.msg-thread {
+  grid-column: 2;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--chat);
+  color: var(--brand-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.msg-thread:hover {
+  border-color: var(--brand);
+}
+.thread-panel {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.thread-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.thread-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.thread-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.thread-msg {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 8px;
+}
+.thread-msg[data-root='true'] {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.thread-main {
+  min-width: 0;
+}
+.thread-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+.thread-composer textarea {
+  flex: 1;
+  min-height: 32px;
+  max-height: 160px;
+  resize: none;
+  border: 0;
+  background: var(--chat);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}

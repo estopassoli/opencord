@@ -336,8 +336,8 @@ interface MessagesState {
  * Campos que chegaram depois (fixar, enquete, cargos por reação) podem faltar quando a API é mais antiga que o app
  * (instância sem atualizar): completa com o vazio em vez de quebrar a conversa inteira.
  */
-type LooseMessage = Omit<Message, 'pinnedAt' | 'poll' | 'reactionRoles' | 'author'> &
-  Partial<Pick<Message, 'pinnedAt' | 'poll' | 'reactionRoles'>> & {
+type LooseMessage = Omit<Message, 'pinnedAt' | 'poll' | 'reactionRoles' | 'author' | 'replyCount'> &
+  Partial<Pick<Message, 'pinnedAt' | 'poll' | 'reactionRoles' | 'replyCount'>> & {
     author: Omit<Message['author'], 'bot'> & { bot?: boolean };
   };
 export function normalizeMessage(m: LooseMessage): Message {
@@ -347,6 +347,7 @@ export function normalizeMessage(m: LooseMessage): Message {
     pinnedAt: m.pinnedAt ?? null,
     poll: m.poll ?? null,
     reactionRoles: m.reactionRoles ?? [],
+    replyCount: m.replyCount ?? 0,
   };
 }
 
@@ -399,7 +400,12 @@ export const useMessages = create<MessagesState>()((set, get) => ({
             })),
           }
         : m;
-      return { timelines: { ...s.timelines, [key]: { ...cur, messages: mergeMessages(cur.messages, [merged]) } } };
+      // resposta nova: a mensagem respondida (se carregada) ganha +1 na thread
+      const parentId = !prev && m.replyTo ? m.replyTo.id : null;
+      const bumped = parentId
+        ? cur.messages.map((x) => (x.id === parentId ? { ...x, replyCount: x.replyCount + 1 } : x))
+        : cur.messages;
+      return { timelines: { ...s.timelines, [key]: { ...cur, messages: mergeMessages(bumped, [merged]) } } };
     }),
   addPending: (key, requestId, p) =>
     set((s) => {

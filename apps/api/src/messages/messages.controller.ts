@@ -17,6 +17,8 @@ import { zodPipe } from '../common/zod.pipe.js';
 import { MessagesService, type Target } from './messages.service.js';
 
 const id = new ParseUUIDPipe();
+const RepliesQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).default(100) });
+type RepliesQ = z.infer<typeof RepliesQuery>;
 type ListQ = z.infer<typeof ListMessagesQuery>;
 type SearchQ = z.infer<typeof SearchMessagesQuery>;
 type HighlightsQ = z.infer<typeof HighlightsQuery>;
@@ -210,6 +212,12 @@ export class MessagesController {
     @Query(zodPipe(SearchMessagesQuery)) q: SearchQ,
   ) {
     return this.messages.search(u.userId, { conversationId: cid }, q);
+  }
+
+  /** thread leve: respostas diretas a uma mensagem */
+  @Get('messages/:id/replies')
+  replies(@CurrentUser() u: AuthUser, @Param('id', id) mid: string, @Query(zodPipe(RepliesQuery)) q: RepliesQ) {
+    return this.messages.replies(u.userId, mid, q.limit);
   }
 
   @Get('me/unreads')

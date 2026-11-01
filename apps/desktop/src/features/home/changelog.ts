@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '09:30',
+    kind: 'novo',
+    icon: 'chats',
+    title: 'Threads',
+    body: 'Uma mensagem com respostas mostra "N respostas · ver thread": abre um painel ao lado com a mensagem original, todas as respostas e uma caixa para responder ali mesmo. Botão direito → "Abrir thread" em qualquer mensagem. As respostas continuam aparecendo na conversa, como sempre.',
+  },
+  {
+    date: '2026-11-01',
     time: '09:00',
     kind: 'melhoria',
     icon: 'cursor',

@@ -440,6 +440,8 @@ export const Message = z.object({
     .default(null),
   /** cargos por reação (ADR-0019): reagir com o emoji dá o cargo */
   reactionRoles: z.array(z.object({ emoji: z.string(), roleId: Id })).default([]),
+  /** quantas mensagens respondem a esta (thread leve: GET /messages/:id/replies) */
+  replyCount: z.number().int().nonnegative().default(0),
 });
 export type Message = z.infer<typeof Message>;
 
