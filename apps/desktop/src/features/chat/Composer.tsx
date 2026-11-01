@@ -1,6 +1,27 @@
 import type { Attachment } from '@opencord/contracts';
-import { Icon, TextArea } from '@opencord/ui';
-import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
+import { Icon, portalTarget, TextArea } from '@opencord/ui';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+} from 'react';
+import { createPortal } from 'react-dom';
+import { useAnchoredAbove } from '../../components/anchored';
+import { ApiError } from '../../lib/api';
+import {
+  commandHint,
+  filterCommands,
+  flattenCommands,
+  matchCommand,
+  parseSlash,
+  type SlashCommandRef,
+} from '../../lib/slash';
+import { useBots } from '../../store/bots';
 import { useData, useMessages, type TargetKey } from '../../store/data';
 import { api, describeError, markTargetRead, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
@@ -25,13 +46,43 @@ export function Composer({
   targetKey,
   placeholder,
   canAttach,
+  serverId,
 }: {
   target: ChatTarget;
   targetKey: TargetKey;
   placeholder: string;
   canAttach: boolean;
+  /** canal de servidor: habilita os comandos de barra dos bots (ADR-0032); em DM não há */
+  serverId?: string | undefined;
 }) {
   const draft = useUi((s) => s.drafts[targetKey] ?? '');
+  // comandos de barra: lista do servidor (carregada ao digitar "/"), popover e dica das opções
+  const serverCommands = useBots((s) => (serverId ? s.commands[serverId] : undefined));
+  const allCommands = useMemo(() => flattenCommands(serverCommands), [serverCommands]);
+  const [caret, setCaret] = useState(0);
+  const [slashClosed, setSlashClosed] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const slashId = useId();
+  const firstWordEnd = draft.search(/\s|$/);
+  const slashTyping = Boolean(serverId) && draft.startsWith('/') && caret <= firstWordEnd && !slashClosed;
+  const slashMatches = useMemo(
+    () => (slashTyping ? filterCommands(draft, allCommands) : []),
+    [slashTyping, draft, allCommands],
+  );
+  const slashOpen = slashMatches.length > 0;
+  const slashSelected = slashMatches[Math.min(slashIndex, slashMatches.length - 1)];
+  const slashHit = serverId && !slashOpen && draft.startsWith('/') ? matchCommand(draft, allCommands) : null;
+  const slashHint = slashHit && slashHit.command.options.length ? commandHint(slashHit.command) : null;
+  const root = useRef<HTMLDivElement>(null);
+  const slashStyle = useAnchoredAbove(slashOpen, root);
+
+  useEffect(() => {
+    if (serverId && draft.startsWith('/') && !serverCommands)
+      void useBots
+        .getState()
+        .loadCommands(serverId)
+        .catch(() => undefined);
+  }, [serverId, draft, serverCommands]);
   const [pollOpen, setPollOpen] = useState(false);
   const replyToId = useUi((s) => s.replyTo[targetKey] ?? null);
   const replyTo = useMessages((s) =>
@@ -93,6 +144,47 @@ export function Composer({
     }
   };
 
+  const pickSlash = (c: SlashCommandRef) => {
+    const next = `/${c.command.name} `;
+    setDraft(next);
+    setSlashClosed(false);
+    setSlashIndex(0);
+    setCaret(next.length);
+    requestAnimationFrame(() => {
+      const el = input.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(next.length, next.length);
+    });
+  };
+
+  /** `/comando …` de um bot do servidor: vira uma interação, não uma mensagem no canal */
+  const runSlash = async (hit: SlashCommandRef, body: string) => {
+    const channelId = target.channelId;
+    if (!channelId) return;
+    const detail = serverId ? useData.getState().details[serverId] : undefined;
+    const parsed = parseSlash(body, hit.command, { members: detail?.members, channels: detail?.channels });
+    if (parsed.error) return useUi.getState().toast('error', parsed.error);
+    setDraft('');
+    typingSent.current = 0;
+    void useSession
+      .getState()
+      .realtime?.command('chat:typing:stop', rtTarget)
+      .catch(() => undefined);
+    try {
+      await api().request('POST', '/interactions', {
+        channelId,
+        botId: hit.botId,
+        command: hit.command.name,
+        options: parsed.options,
+      });
+    } catch (e) {
+      useUi.getState().toast('error', e instanceof ApiError && e.status === 409 ? 'Bot offline.' : describeError(e));
+      // devolve o texto para tentar de novo, se nada foi digitado enquanto isso
+      if (!useUi.getState().drafts[targetKey]) setDraft(body);
+    }
+  };
+
   const send = () => {
     const body = draft.trim();
     if (uploads.some((u) => u.status === 'uploading'))
@@ -102,6 +194,11 @@ export function Composer({
       .map((u) => (u.attachment as Attachment).id);
     if (!body && !attachmentIds.length) return;
     if (body.length > 4000) return useUi.getState().toast('error', 'Mensagem muito longa (máx. 4000 caracteres).');
+    if (serverId && body.startsWith('/') && !attachmentIds.length) {
+      const hit = matchCommand(body, allCommands);
+      if (hit) return void runSlash(hit, body);
+      // sem comando com esse nome: vai como texto normal (gente escreve "/" às vezes)
+    }
     void sendMessage(
       targetKey,
       target,
@@ -196,6 +293,26 @@ export function Composer({
   };
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashOpen && slashSelected) {
+      const typed = draft.slice(1, firstWordEnd).toLowerCase();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const n = slashMatches.length;
+        setSlashIndex((i) => (e.key === 'ArrowDown' ? (i + 1) % n : (i - 1 + n) % n));
+        return;
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && typed !== slashSelected.command.name)) {
+        // Enter com o nome já completo envia (comando sem opções); nos outros casos completa
+        e.preventDefault();
+        pickSlash(slashSelected);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSlashClosed(true);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       send();
@@ -230,7 +347,34 @@ export function Composer({
   };
 
   return (
-    <div className="composer" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div className="composer" ref={root} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+      {slashOpen &&
+        createPortal(
+          <div className="slash-popover" style={slashStyle} role="listbox" id={slashId} aria-label="Comandos de barra">
+            {slashMatches.map((c, i) => (
+              <button
+                key={`${c.botId}:${c.command.name}`}
+                type="button"
+                role="option"
+                id={`${slashId}-${i}`}
+                aria-selected={i === slashIndex}
+                className="slash-item"
+                tabIndex={-1}
+                onPointerDown={(e) => e.preventDefault()}
+                onPointerMove={() => setSlashIndex(i)}
+                onClick={() => pickSlash(c)}
+              >
+                <span className="slash-item-name">/{c.command.name}</span>
+                <span className="slash-item-desc truncate">{c.command.description}</span>
+                <span className="slash-item-bot">
+                  {c.bot.displayName}
+                  <span className="bot-badge">APP</span>
+                </span>
+              </button>
+            ))}
+          </div>,
+          portalTarget(root.current),
+        )}
       {replyTo && (
         <div className="composer-reply">
           <span>
@@ -336,11 +480,18 @@ export function Composer({
             placeholder={placeholder}
             aria-label={placeholder}
             maxLength={4000}
+            aria-controls={slashOpen ? slashId : undefined}
+            aria-activedescendant={slashOpen ? `${slashId}-${slashIndex}` : undefined}
             onChange={(e) => {
               setDraft(e.target.value);
+              setCaret(e.target.selectionStart ?? e.target.value.length);
+              setSlashClosed(false);
+              setSlashIndex(0);
               if (e.target.value) typing();
             }}
             onKeyDown={onKey}
+            onKeyUp={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+            onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
             onPaste={onPaste}
           />
           {canAttach && !draft.trim() && !uploads.length && typeof MediaRecorder !== 'undefined' ? (
@@ -364,6 +515,11 @@ export function Composer({
             </button>
           )}
         </div>
+      )}
+      {slashHint && (
+        <p className="slash-hint muted small" aria-live="polite">
+          <code>{slashHint}</code>
+        </p>
       )}
     </div>
   );

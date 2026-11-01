@@ -25,6 +25,7 @@ import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DomainEvents } from '../common/domain-events.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { category, channel, member, MEMBER_INCLUDE, role, serverSummary } from '../common/serialize.js';
+import { PresenceService } from '../realtime/presence.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { PermissionsService, type ServerAccess } from './permissions.service.js';
@@ -44,6 +45,7 @@ export class ServersService {
     private readonly realtime: RealtimeService,
     private readonly audit: AuditService,
     private readonly events: DomainEvents,
+    private readonly presence: PresenceService,
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
   ) {}
 
@@ -242,6 +244,38 @@ export class ServersService {
       await this.realtime.memberJoined(serverId, userId);
     }
     return this.detail(serverId, userId);
+  }
+
+  // ---------- Bots (ADR-0032) ----------
+  /** Quem autoriza (MANAGE_SERVER, bot público ou do solicitante) é o BotsService; aqui só a entrada como membro. */
+  async addBotMember(serverId: string, actorId: string, botUserId: string) {
+    const created = await this.prisma.serverMember.createMany({
+      data: [{ serverId, userId: botUserId }],
+      skipDuplicates: true,
+    });
+    if (!created.count) return;
+    await this.audit.log(actorId, serverId, 'bot.add', botUserId, {});
+    await this.realtime.memberJoined(serverId, botUserId);
+    // o bot conectado fica sabendo do servidor novo (como uma pessoa que entra por convite)
+    const server = await this.prisma.server.findUniqueOrThrow({ where: { id: serverId } });
+    this.realtime.toUser(botUserId, 'server:added', serverSummary(server));
+    // quem já está com o servidor aberto vê o bot online na hora (a presença dele veio antes de ele ser membro)
+    this.realtime.emit(rooms.server(serverId), 'presence:changed', {
+      userId: botUserId,
+      status: await this.presence.visible(botUserId),
+    });
+  }
+
+  /** Mesmo caminho da expulsão (overrides, voz, rooms), sem hierarquia de cargos: bot não tem dono no servidor. */
+  async removeBotMember(serverId: string, actorId: string, botUserId: string) {
+    const m = await this.prisma.serverMember.findUnique({
+      where: { serverId_userId: { serverId, userId: botUserId } },
+    });
+    if (!m) throw notFound('bot');
+    await this.removeMembership(serverId, botUserId);
+    await this.audit.log(actorId, serverId, 'bot.remove', botUserId, {});
+    this.events.emit({ type: 'member.removed', serverId, userId: botUserId, reason: 'kicked' });
+    await this.realtime.memberRemoved(serverId, botUserId, 'kicked');
   }
 
   // ---------- Super admin da instância (ADR-0013) ----------

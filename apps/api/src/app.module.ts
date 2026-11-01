@@ -18,8 +18,13 @@ import { LargeUploadService } from './attachments/large-upload.service.js';
 import { StorageService } from './attachments/storage.service.js';
 import { BoardsController } from './boards/boards.controller.js';
 import { BoardsService } from './boards/boards.service.js';
+import { BotsController } from './bots/bots.controller.js';
+import { BotsService } from './bots/bots.service.js';
+import { InteractionsService } from './bots/interactions.service.js';
 import { WebhooksController } from './webhooks/webhooks.controller.js';
 import { WebhooksService } from './webhooks/webhooks.service.js';
+import { SlackController } from './slack/slack.controller.js';
+import { SlackService } from './slack/slack.service.js';
 import { EventsController } from './events/events.controller.js';
 import { EventsService } from './events/events.service.js';
 import { RecordingsController } from './recordings/recordings.controller.js';
@@ -58,6 +63,8 @@ export class AppModule {
         RecordingsController,
         EventsController,
         WebhooksController,
+        SlackController,
+        BotsController,
         BoardsController,
         HealthController,
         DownloadsController,
@@ -95,6 +102,9 @@ export class AppModule {
         RecordingsService,
         EventsService,
         WebhooksService,
+        SlackService,
+        BotsService,
+        InteractionsService,
         AttachmentsService,
         LargeUploadService,
         BoardsService,

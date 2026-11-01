@@ -21,6 +21,7 @@ import {
   VoiceMemberState,
   UserPublic,
   InstanceInfo,
+  Interaction,
 } from './api.js';
 import {
   ActivityControl,
@@ -204,6 +205,20 @@ export interface ServerEvents {
   'sound:list:changed': { serverId: string };
   /** perfil público mudou (foto, apelido): enviado a quem compartilha servidor com a pessoa */
   'user:updated': z.infer<typeof UserPublic>;
+  /** bots (ADR-0032): alguém usou um comando de barra do bot — só o usuário do bot recebe */
+  'interaction:created': z.infer<typeof Interaction>;
+  /** o bot acusou recebimento (`defer`) ou respondeu de forma efêmera — só quem usou o comando recebe */
+  'interaction:replied': {
+    interactionId: string;
+    channelId: string;
+    serverId: string;
+    bot: z.infer<typeof UserPublic>;
+    command: string;
+    /** null = "pensando…" (defer); texto = resposta efêmera */
+    content: string | null;
+  };
+  /** um bot membro do servidor mudou a lista de comandos (ou entrou/saiu): o app recarrega GET /servers/:id/commands */
+  'bot:commands:changed': { serverId: string };
 }
 export type ServerEventName = keyof ServerEvents;
 

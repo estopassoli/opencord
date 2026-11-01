@@ -25,6 +25,8 @@ model User {
   isInstanceAdmin Boolean @default(false)
   /// identidade de um webhook de entrada (ADR-0030): autor das mensagens que chegam por ele, sem login
   isWebhook    Boolean   @default(false)
+  /// usuário de um bot (ADR-0032): autentica por token `ocb_…`, é membro como qualquer pessoa, selo APP
+  isBot        Boolean   @default(false)
   createdAt    DateTime  @default(now()) @db.Timestamptz(3)
   disabledAt   DateTime? @db.Timestamptz(3)
 
@@ -37,6 +39,8 @@ model User {
   eventRsvps        EventRsvp[]
   webhooksCreated   Webhook[]            @relation("WebhookCreator")
   webhookOf         Webhook?             @relation("WebhookUser")
+  botsOwned         Bot[]                @relation("BotOwner")
+  botOf             Bot?                 @relation("BotUser")
   boardCards        BoardCard[]
   pollVotes         PollVote[]
   memberships       ServerMember[]
@@ -125,6 +129,7 @@ model Server {
   recordings CallRecording[]
   events     ServerEvent[]
   webhooks   Webhook[]
+  slackLinks SlackLink[]
   members    ServerMember[]
   roles      Role[]
   categories Category[]
@@ -217,6 +222,7 @@ model Channel {
   recordings CallRecording[]
   events     ServerEvent[]
   webhooks   Webhook[]
+  slackLinks SlackLink[]
 
   @@index([serverId])
 }
@@ -575,6 +581,43 @@ model Webhook {
   channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
   user        User     @relation("WebhookUser", fields: [userId], references: [id], onDelete: Cascade)
   createdBy   User     @relation("WebhookCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
+}
+
+/// Bot (ADR-0032): aplicativo feito por quem desenvolve. Tem um usuário próprio (isBot), um token longo (só o hash
+/// fica aqui) e uma lista de comandos de barra. Entra em servidores como membro (quem gerencia adiciona).
+model Bot {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  userId      String    @unique @db.Uuid
+  ownerId     String    @db.Uuid
+  description String    @default("")
+  /// aparece em "Adicionar bot" de qualquer servidor; privado = só pelo id
+  public      Boolean   @default(false)
+  /// SHA-256 do token `ocb_…`; o token em claro nunca é persistido
+  tokenHash   String    @unique
+  /// comandos de barra (BotCommand[] do contrato)
+  commands    Json      @default("[]")
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt  DateTime? @db.Timestamptz(3)
+  user        User      @relation("BotUser", fields: [userId], references: [id], onDelete: Cascade)
+  owner       User      @relation("BotOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+}
+
+/// Ponte com o Slack (ADR-0033): um canal de texto do OpenCord espelhado num canal do Slack (e vice-versa).
+/// O app do Slack é um por instância (variáveis SLACK_BOT_TOKEN/SLACK_SIGNING_SECRET); aqui só o mapeamento.
+model SlackLink {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  serverId         String   @db.Uuid
+  channelId        String   @unique @db.Uuid
+  slackChannelId   String   @unique
+  slackChannelName String
+  createdById      String   @db.Uuid
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  server           Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  channel          Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@index([serverId])
 }

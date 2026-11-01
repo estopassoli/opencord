@@ -7,6 +7,7 @@ import { keyOf, useData, useMessages, type TargetKey } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { Composer } from './Composer';
+import { EphemeralReplies } from './EphemeralReplies';
 import { useDmPeer } from '../shell/DmProfilePanel';
 import { MessageItem } from './MessageItem';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
@@ -303,6 +304,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
           </span>
         )}
       </div>
+      {target.channelId && <EphemeralReplies channelId={target.channelId} nameOf={nameOf} />}
       {channel?.boardId && (
         <p className="board-feed-hint muted small">
           <Icon name="kanban" size={14} /> Cada mensagem aqui vira um card no quadro da equipe.
@@ -314,6 +316,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
           targetKey={key}
           placeholder={channel ? `Conversar em #${title}` : `Mensagem para ${title}`}
           canAttach={hasPermission(perms, Permission.ATTACH_FILES)}
+          serverId={channel?.serverId}
         />
       ) : (
         <div className="composer composer-disabled">Você não tem permissão para enviar mensagens neste canal.</div>

@@ -7058,3 +7058,152 @@ html[data-wallpaper='true'] .chat-scroll {
   border-radius: var(--radius-sm);
   padding: 6px 8px;
 }
+
+/* ---- comandos de barra dos bots (ADR-0032): popover acima do composer e dica das opções ---- */
+.slash-popover {
+  /* bottom/left/width vêm por estilo inline (useAnchoredAbove): fixo no viewport, fora do overflow da conversa */
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow);
+  animation: tip-in 100ms var(--ease);
+}
+.slash-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.slash-item[aria-selected='true'],
+.slash-item:hover {
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+}
+.slash-item:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--brand));
+  outline-offset: -2px;
+}
+.slash-item-name {
+  font-weight: 600;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.slash-item-desc {
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 0.875rem;
+}
+.slash-item-bot {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-2);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.slash-hint {
+  margin: 0;
+  padding: 0 12px 6px;
+}
+.slash-hint code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+/* ---- respostas efêmeras dos bots ("só você vê") acima do composer ---- */
+.ephemeral-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 16px 6px;
+}
+.ephemeral-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius-sm);
+}
+.ephemeral-main {
+  flex: 1;
+  min-width: 0;
+}
+.ephemeral-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.875rem;
+}
+.ephemeral-head .bot-badge {
+  margin-left: 0;
+}
+.ephemeral-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--text-2);
+  font-size: 0.75rem;
+}
+.ephemeral-body {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.ephemeral-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-style: italic;
+}
+.ephemeral-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.ephemeral-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: ephemeral-dot 1.2s ease-in-out infinite;
+}
+.ephemeral-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.ephemeral-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes ephemeral-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slash-popover {
+    animation: none;
+  }
+  .ephemeral-dots i {
+    animation: none;
+    opacity: 0.6;
+  }
+}

@@ -192,6 +192,7 @@ export const useSession = create<SessionState>()((set, get) => {
       await secrets.delete('session');
       useData.getState().reset();
       useMessages.getState().clear();
+      void import('./bots').then(({ useBots }) => useBots.getState().reset());
       useUi.setState({ view: { kind: 'home', tab: 'news' }, modal: null });
       set({ status: 'anonymous', api: null, realtime: null });
     },
@@ -406,6 +407,17 @@ function wireRealtime(rt: RealtimeClient) {
       void import('./sounds').then(({ useSounds }) => {
         const st = useSounds.getState();
         if (st.byServer[e.serverId] || st.loadedAll) void st.load(e.serverId);
+      });
+    });
+    // bots (ADR-0032): resposta efêmera/"pensando…" só para mim; comandos de um servidor mudaram → recarregar
+    rt.on('interaction:replied', (e) => void import('./bots').then(({ useBots }) => useBots.getState().replied(e)));
+    rt.on('bot:commands:changed', (e) => {
+      void import('./bots').then(({ useBots }) => {
+        if (useBots.getState().commands[e.serverId])
+          void useBots
+            .getState()
+            .loadCommands(e.serverId)
+            .catch(() => undefined);
       });
     });
     rt.on('voice:member:left', (e) => {

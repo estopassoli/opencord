@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import type { Message } from '@opencord/contracts';
 import { Subject } from 'rxjs';
 
 /** Eventos internos para desacoplar módulos (ex.: servidores → voz) sem dependência circular. */
 export type DomainEvent =
   | { type: 'member.removed'; serverId: string; userId: string; reason: 'kicked' | 'left' | 'deleted' }
+  /** mensagem nova num canal de servidor (não em conversa direta); `serverId` do canal (ponte com o Slack) */
+  | { type: 'message.created'; serverId: string; message: Message }
   | { type: 'permissions.changed'; serverId: string }
   | { type: 'channel.deleted'; serverId: string; channelId: string }
   | { type: 'user.sessions.revoked'; userId: string };

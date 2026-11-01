@@ -34,6 +34,7 @@ import { useUi } from '../../store/ui';
 import './settings.css';
 import { deviceLabel } from '../voice/devices';
 import { AvatarPicker } from './AvatarPicker';
+import { BotsTab } from './BotsTab';
 import { GamesTab } from './GamesTab';
 import { ThemeGallery } from './ThemeGallery';
 
@@ -134,12 +135,13 @@ export function Section({
 // Modal de configurações do usuário
 // ---------------------------------------------------------------------------
 
-type UserTab = 'account' | 'voice' | 'games' | 'keybinds' | 'appearance' | 'notifications' | 'about';
+type UserTab = 'account' | 'voice' | 'games' | 'apps' | 'keybinds' | 'appearance' | 'notifications' | 'about';
 
 const USER_TABS: readonly TabDef<UserTab>[] = [
   { id: 'account', label: 'Minha conta' },
   { id: 'voice', label: 'Voz e vídeo' },
   { id: 'games', label: 'Jogos' },
+  { id: 'apps', label: 'Aplicativos' },
   { id: 'keybinds', label: 'Atalhos' },
   { id: 'appearance', label: 'Aparência' },
   { id: 'notifications', label: 'Notificações' },
@@ -160,6 +162,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {tab === 'account' && <AccountTab />}
         {tab === 'voice' && <VoiceTab settings={settings} />}
         {tab === 'games' && <GamesTab settings={settings} />}
+        {tab === 'apps' && <BotsTab />}
         {tab === 'keybinds' && <KeybindsTab settings={settings} />}
         {tab === 'appearance' && <AppearanceTab settings={settings} />}
         {tab === 'notifications' && <NotificationsTab settings={settings} />}

@@ -6,6 +6,7 @@ import rateLimit from '@fastify/rate-limit';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import { Readable } from 'node:stream';
 import { Redis } from 'ioredis';
 import { AppModule } from './app.module.js';
 import type { AppConfig } from './config/config.js';
@@ -29,6 +30,19 @@ export async function createApp(cfg: AppConfig, opts: { logger?: boolean } = {})
   fastify.addContentTypeParser('application/webhook+json', { parseAs: 'string' }, (_req, body, done) =>
     done(null, body),
   );
+  // Eventos do Slack (ADR-0033) assinam o corpo exato: nesta rota o corpo bruto fica em req.rawBody antes de o
+  // JSON ser interpretado (o parser padrão do Nest continua valendo para tudo).
+  fastify.decorateRequest('rawBody', '');
+  fastify.addHook('preParsing', async (req, _reply, payload) => {
+    if (!req.url.startsWith('/integrations/slack/events')) return payload;
+    const chunks: Buffer[] = [];
+    for await (const c of payload) chunks.push(typeof c === 'string' ? Buffer.from(c) : (c as Buffer));
+    const raw = Buffer.concat(chunks);
+    req.rawBody = raw.toString('utf8');
+    const stream = Readable.from([raw]) as Readable & { receivedEncodedLength?: number };
+    stream.receivedEncodedLength = raw.length;
+    return stream;
+  });
 
   // Antes do rate limit: os limites por IP e o registro de sessão usam req.clientIp.
   fastify.decorateRequest('clientIp', '');

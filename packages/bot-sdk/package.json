@@ -1,0 +1,37 @@
+{
+  "name": "@opencord/bot",
+  "version": "0.1.0",
+  "description": "SDK para criar bots do OpenCord (mesma forma de uso que a comunidade conhece de bots de chat).",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test examples",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@opencord/contracts": "workspace:*",
+    "socket.io-client": "4.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "6.0.3",
+    "vitest": "3.2.7"
+  }
+}

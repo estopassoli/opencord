@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '19:00',
+    kind: 'novo',
+    icon: 'link',
+    title: 'Ponte com o Slack',
+    body: 'Configurações do servidor → Slack liga um canal de texto a um canal do Slack: o que é escrito num aparece no outro, com o nome de quem escreveu. Precisa de um app do Slack configurado na instância (passo a passo em docs/SLACK.md).',
+  },
+  {
+    date: '2026-11-01',
+    time: '18:30',
+    kind: 'novo',
+    icon: 'chat',
+    title: 'Bots: crie o seu',
+    body: 'Configurações → Aplicativos cria bots com token próprio; quem gerencia um servidor adiciona o bot em Configurações do servidor → Bots. Bots registram comandos de barra (digite / no chat), recebem mensagens em tempo real e respondem, inclusive só para você. O SDK @opencord/bot usa os mesmos nomes do discord.js, então portar um bot costuma ser trocar o import e o token (guia em docs/BOTS.md).',
+  },
+  {
+    date: '2026-11-01',
     time: '18:00',
     kind: 'novo',
     icon: 'star',

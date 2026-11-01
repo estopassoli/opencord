@@ -5,6 +5,8 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** IP do cliente: o do cabeçalho CLIENT_IP_HEADER (se configurado e válido) ou `req.ip`. */
     clientIp: string;
+    /** corpo JSON bruto (texto), para validar assinaturas que cobrem o corpo exato (Slack, ADR-0033) */
+    rawBody?: string;
   }
 }
 

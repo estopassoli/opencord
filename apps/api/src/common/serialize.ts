@@ -1,12 +1,20 @@
 import type { Category, Channel, Member, Role, ServerSummary, UserPublic } from '@opencord/contracts';
 
-type UserRow = { id: string; username: string; displayName: string; avatarKey: string | null; isWebhook?: boolean };
+type UserRow = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarKey: string | null;
+  isWebhook?: boolean;
+  isBot?: boolean;
+};
 export const USER_PUBLIC_SELECT = {
   id: true,
   username: true,
   displayName: true,
   avatarKey: true,
   isWebhook: true,
+  isBot: true,
 } as const;
 
 export const userPublic = (u: UserRow): UserPublic => ({
@@ -14,7 +22,8 @@ export const userPublic = (u: UserRow): UserPublic => ({
   username: u.username,
   displayName: u.displayName,
   avatarKey: u.avatarKey,
-  bot: u.isWebhook ?? false,
+  // selo APP: identidade de webhook (ADR-0030) ou usuário de bot (ADR-0032)
+  bot: (u.isWebhook ?? false) || (u.isBot ?? false),
 });
 
 export const serverSummary = (s: {

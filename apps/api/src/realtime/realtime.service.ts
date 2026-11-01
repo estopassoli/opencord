@@ -54,6 +54,11 @@ export class RealtimeService {
     }
   }
 
+  /** Se o usuário (ex.: o de um bot, ADR-0032) tem ao menos um socket aberto agora. */
+  async isUserConnected(userId: string): Promise<boolean> {
+    return (await this.socketsOf(rooms.user(userId))).length > 0;
+  }
+
   toUser<N extends ServerEventName>(userId: string, name: N, payload: ServerEvents[N]) {
     this.emit(rooms.user(userId), name, payload);
   }

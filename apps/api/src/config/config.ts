@@ -61,6 +61,11 @@ export const ConfigSchema = z.object({
   DOWNLOADS_DIR: z.string().optional(),
   /** API pública do Discord para modelos de servidor (importação). Só muda em testes. */
   DISCORD_API_URL: z.url().default('https://discord.com/api/v10'),
+  /** Ponte com o Slack (ADR-0033): token do bot (xoxb-…) e segredo de assinatura do app do Slack da instância. */
+  SLACK_BOT_TOKEN: z.string().min(10).optional(),
+  SLACK_SIGNING_SECRET: z.string().min(10).optional(),
+  /** Só muda em testes (stub local). */
+  SLACK_API_URL: z.url().default('https://slack.com/api'),
   /** Chave da YouTube Data API v3: liga a pesquisa no "Assistir juntos" (sem ela, só por link). */
   YOUTUBE_API_KEY: z.string().min(10).optional(),
   /** Busca título/canal do vídeo no oEmbed público do YouTube (desligado nos testes: sem rede externa). */

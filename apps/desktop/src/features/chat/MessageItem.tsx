@@ -240,7 +240,7 @@ export const MessageItem = memo(function MessageItem({
           <strong className="msg-author">
             {nameOf(m.author.id) === 'alguém' ? nameFor(m.author.id, m.author.displayName) : nameOf(m.author.id)}
             {m.author.bot && (
-              <span className="bot-badge" data-tip="Mensagem enviada por um webhook">
+              <span className="bot-badge" data-tip="Aplicativo">
                 APP
               </span>
             )}

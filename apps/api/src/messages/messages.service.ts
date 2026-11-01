@@ -18,6 +18,7 @@ import {
   type UnreadState,
 } from '@opencord/contracts';
 import { Prisma } from '@opencord/db';
+import { DomainEvents } from '../common/domain-events.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
@@ -66,6 +67,7 @@ export class MessagesService {
     private readonly realtime: RealtimeService,
     private readonly boards: BoardsService,
     private readonly servers: ServersService,
+    private readonly events: DomainEvents,
   ) {}
 
   /** Resolve acesso ao destino. DMs: membros têm todas as permissões de mensagem. */
@@ -277,6 +279,8 @@ export class MessagesService {
     }
     const message = this.serialize(row, null);
     this.realtime.emit(a.room, 'chat:message:created', message);
+    // ponte com o Slack e afins (ADR-0033): só canais de servidor
+    if (a.channelId && a.serverId) this.events.emit({ type: 'message.created', serverId: a.serverId, message });
     this.realtime.emit(a.room, 'channel:unread:changed', {
       channelId: a.channelId,
       conversationId: a.conversationId,

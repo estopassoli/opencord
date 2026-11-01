@@ -24,10 +24,12 @@ import { ACCENTS, DEFAULT_ACCENT, Section, TabbedLayout, type TabDef } from '../
 import { wallpaperUrl } from '../../lib/server-theme';
 import '../settings/settings.css';
 import { SoundsTab } from '../voice/Soundboard';
+import { ServerBotsTab } from './ServerBotsTab';
+import { SlackTab } from './SlackTab';
 import { WebhooksTab } from './WebhooksTab';
 import { ServerIconPicker } from './ServerIconPicker';
 
-type ServerTab = 'overview' | 'roles' | 'members' | 'channels' | 'webhooks' | 'sounds' | 'audit';
+type ServerTab = 'overview' | 'roles' | 'members' | 'channels' | 'webhooks' | 'bots' | 'slack' | 'sounds' | 'audit';
 
 const PERMISSION_LABELS: Record<PermissionName, string> = {
   VIEW_CHANNEL: 'Ver canais',
@@ -87,6 +89,8 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
     list.push({ id: 'members', label: 'Membros' });
     if (hasPermission(p, Permission.MANAGE_CHANNELS)) list.push({ id: 'channels', label: 'Canais' });
     if (hasPermission(p, Permission.MANAGE_CHANNELS)) list.push({ id: 'webhooks', label: 'Webhooks' });
+    if (hasPermission(p, Permission.MANAGE_SERVER)) list.push({ id: 'bots', label: 'Bots' });
+    if (hasPermission(p, Permission.MANAGE_SERVER)) list.push({ id: 'slack', label: 'Slack' });
     // qualquer membro envia efeitos sonoros (ADR-0016)
     list.push({ id: 'sounds', label: 'Efeitos sonoros' });
     if (hasPermission(p, Permission.VIEW_AUDIT_LOG)) list.push({ id: 'audit', label: 'Registro de auditoria' });
@@ -112,6 +116,8 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
         {active === 'members' && <MembersTab detail={detail} myId={me.id} />}
         {active === 'channels' && <ChannelsTab detail={detail} />}
         {active === 'webhooks' && <WebhooksTab detail={detail} />}
+        {active === 'bots' && <ServerBotsTab detail={detail} />}
+        {active === 'slack' && <SlackTab detail={detail} />}
         {active === 'sounds' && (
           <SoundsTab
             serverId={detail.id}

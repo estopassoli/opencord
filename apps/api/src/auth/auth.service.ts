@@ -25,7 +25,7 @@ import { RedisService } from '../common/redis.service.js';
 import { InstanceService } from '../admin/instance.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { VoiceService } from '../voice/voice.service.js';
-import { randomToken, sha256, TokenService } from './token.service.js';
+import { isBotSession, randomToken, sha256, TokenService } from './token.service.js';
 
 // Argon2id (algorithm 2) com parâmetros OWASP (m=19 MiB, t=2, p=1).
 const ARGON = { algorithm: 2, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
@@ -303,6 +303,8 @@ export class AuthService {
   }
 
   async logout(sessionId: string): Promise<void> {
+    // token de bot (ADR-0032) não tem sessão: só o dono regenera o token
+    if (isBotSession(sessionId)) throw new ForbiddenException('token de bot não tem sessão para encerrar');
     const s = await this.prisma.session.findUnique({ where: { id: sessionId }, select: { familyId: true } });
     if (s) await this.revokeFamily(s.familyId, 'logout');
   }
@@ -331,6 +333,7 @@ export class AuthService {
   }
 
   async changePassword(userId: string, current: string, next: string, keepSessionId: string) {
+    if (isBotSession(keepSessionId)) throw new ForbiddenException('bots não têm senha');
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     if (!user.passwordHash) throw new BadRequestException('esta identidade entra só com apelido e não tem senha');
     if (!(await verify(user.passwordHash, current).catch(() => false)))

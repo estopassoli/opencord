@@ -590,6 +590,135 @@ export const WebhookPostRequest = z
   .passthrough();
 export const MAX_WEBHOOKS_PER_SERVER = 20;
 
+// ---------- Bots e aplicativos (ADR-0032) ----------
+/** prefixo do token de bot (`Authorization: Bearer ocb_…`); o token em claro só aparece ao criar/regenerar */
+export const BOT_TOKEN_PREFIX = 'ocb_';
+export const MAX_BOTS_PER_USER = 10;
+export const MAX_BOT_COMMANDS = 50;
+export const MAX_COMMAND_OPTIONS = 10;
+/** quanto tempo uma interação espera resposta do bot (segundos); adiada (`defer`) vale 15 min */
+export const INTERACTION_TTL_S = 180;
+export const INTERACTION_DEFERRED_TTL_S = 900;
+/** nome de comando/opção: minúsculas, dígitos, `_` e `-` (como os comandos de barra que a comunidade já conhece) */
+export const CommandName = z
+  .string()
+  .regex(/^[a-z0-9_-]{1,32}$/, 'use minúsculas, dígitos, _ ou - (até 32)')
+  .describe('nome de comando');
+export const BotCommandOptionType = z.enum(['string', 'integer', 'number', 'boolean', 'user', 'channel']);
+export type BotCommandOptionType = z.infer<typeof BotCommandOptionType>;
+export const BotCommandChoice = z.object({
+  name: z.string().trim().min(1).max(100),
+  value: z.union([z.string().max(100), z.number()]),
+});
+export const BotCommandOption = z.object({
+  name: CommandName,
+  description: z.string().trim().min(1).max(100),
+  type: BotCommandOptionType,
+  required: z.boolean().default(false),
+  choices: z.array(BotCommandChoice).max(25).default([]),
+});
+export type BotCommandOption = z.infer<typeof BotCommandOption>;
+export const BotCommand = z.object({
+  name: CommandName,
+  description: z.string().trim().min(1).max(100),
+  options: z
+    .array(BotCommandOption)
+    .max(MAX_COMMAND_OPTIONS)
+    .default([])
+    .refine((o) => new Set(o.map((x) => x.name)).size === o.length, 'opção repetida')
+    // obrigatórias primeiro: a forma posicional `/cmd a b` só funciona assim
+    .refine((o) => o.every((x, i) => !x.required || o.slice(0, i).every((y) => y.required)), 'obrigatórias antes'),
+});
+export type BotCommand = z.infer<typeof BotCommand>;
+export const Bot = z.object({
+  id: Id,
+  /** o usuário do bot (`bot: true`): é ele que aparece como autor, membro e presença */
+  user: UserPublic,
+  ownerId: Id,
+  description: z.string(),
+  /** aparece na lista "Adicionar bot" de qualquer servidor; privado = só pelo id */
+  public: z.boolean(),
+  createdAt: IsoDate,
+  /** última requisição autenticada com o token (null = nunca conectou) */
+  lastSeenAt: IsoDate.nullable(),
+  commands: z.array(BotCommand),
+});
+export type Bot = z.infer<typeof Bot>;
+/** devolvido só ao criar ou regenerar o token */
+export const BotWithToken = Bot.extend({ token: z.string() });
+export type BotWithToken = z.infer<typeof BotWithToken>;
+export const CreateBotRequest = z.object({
+  name: z.string().trim().min(1).max(32),
+  description: z.string().trim().max(200).default(''),
+  public: z.boolean().default(false),
+});
+export type CreateBotRequest = z.infer<typeof CreateBotRequest>;
+export const UpdateBotRequest = CreateBotRequest.partial();
+export type UpdateBotRequest = z.infer<typeof UpdateBotRequest>;
+export const SetBotCommandsRequest = z.object({
+  commands: z
+    .array(BotCommand)
+    .max(MAX_BOT_COMMANDS)
+    .refine((c) => new Set(c.map((x) => x.name)).size === c.length, 'comando repetido'),
+});
+export type SetBotCommandsRequest = z.infer<typeof SetBotCommandsRequest>;
+export const AddBotToServerRequest = z.object({ botId: Id });
+/** comandos disponíveis num servidor (GET /servers/:id/commands): por bot membro */
+export const ServerCommands = z.object({ botId: Id, bot: UserPublic, commands: z.array(BotCommand) });
+export type ServerCommands = z.infer<typeof ServerCommands>;
+export const InteractionOptionValue = z.union([z.string().max(2000), z.number(), z.boolean()]);
+export type InteractionOptionValue = z.infer<typeof InteractionOptionValue>;
+/** pessoa usa um comando de barra num canal de texto */
+export const CreateInteractionRequest = z.object({
+  channelId: Id,
+  botId: Id,
+  command: CommandName,
+  options: z.record(CommandName, InteractionOptionValue).default({}),
+});
+export type CreateInteractionRequest = z.infer<typeof CreateInteractionRequest>;
+/** o que o bot recebe no evento `interaction:created` */
+export const Interaction = z.object({
+  id: Id,
+  serverId: Id,
+  channelId: Id,
+  botId: Id,
+  user: UserPublic,
+  command: CommandName,
+  options: z.record(CommandName, InteractionOptionValue),
+  createdAt: IsoDate,
+});
+export type Interaction = z.infer<typeof Interaction>;
+export const InteractionReplyRequest = z.object({
+  content: z.string().trim().min(1).max(4000),
+  /** só quem usou o comando vê (não vira mensagem no canal) */
+  ephemeral: z.boolean().default(false),
+});
+export type InteractionReplyRequest = z.infer<typeof InteractionReplyRequest>;
+/** resposta de `POST /interactions/:id/reply`: id da mensagem criada (null quando efêmera) */
+export const InteractionReplyResponse = z.object({ messageId: Id.nullable() });
+export type InteractionReplyResponse = z.infer<typeof InteractionReplyResponse>;
+
+// ---------- Ponte com o Slack (ADR-0033) ----------
+/** a instância tem um app do Slack configurado? (`team` = nome do workspace) */
+export const SlackStatus = z.object({ configured: z.boolean(), team: z.string().nullable() });
+export type SlackStatus = z.infer<typeof SlackStatus>;
+export const SlackChannel = z.object({ id: z.string(), name: z.string() });
+export type SlackChannel = z.infer<typeof SlackChannel>;
+export const SlackLink = z.object({
+  id: Id,
+  serverId: Id,
+  channelId: Id,
+  slackChannelId: z.string(),
+  slackChannelName: z.string(),
+  createdAt: IsoDate,
+});
+export type SlackLink = z.infer<typeof SlackLink>;
+export const CreateSlackLinkRequest = z.object({
+  channelId: Id,
+  slackChannelId: z.string().regex(/^[A-Z0-9]{5,24}$/, 'id de canal do Slack'),
+});
+export type CreateSlackLinkRequest = z.infer<typeof CreateSlackLinkRequest>;
+
 // ---------- Eventos do servidor (ADR-0028) ----------
 export const RsvpStatus = z.enum(['going', 'maybe']);
 export type RsvpStatus = z.infer<typeof RsvpStatus>;

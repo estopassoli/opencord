@@ -806,3 +806,89 @@ button.admin-stat:focus-visible {
   font-weight: 600;
   font-size: 0.875rem;
 }
+
+/* ---- bots e aplicativos (ADR-0032): Configurações → Aplicativos e Configurações do servidor → Bots ---- */
+.bots-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bots-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bots-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--chat);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.bots-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.bots-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.bots-tag {
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--elevated);
+}
+.bots-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--warning, #f0b232);
+  font-weight: 600;
+}
+.bots-secret {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bots-token,
+.bots-id {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.bots-id {
+  flex-basis: 100%;
+}
+.bots-dir {
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.bots-byid {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.bots-byid > .oc-field {
+  flex: 1;
+  min-width: 0;
+}
