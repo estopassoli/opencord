@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { REMOTE_PANIC_LABEL, SCANCODES, type MouseButton } from '../../../electron/shared/remote-input';
-import { remoteControl } from '../../voice/remote-control';
+import { remoteControl, useRemote } from '../../voice/remote-control';
 import { useUi } from '../../store/ui';
 
 const BUTTONS: readonly MouseButton[] = ['left', 'middle', 'right', 'back', 'forward'];
@@ -14,6 +14,7 @@ const clamp = (v: number) => Math.min(1, Math.max(0, v));
  */
 export function RemoteOverlay({ name, kb }: { name: string; kb: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  const transfer = useRemote((s) => s.transfer);
   const held = useRef(new Set<string>());
   const queued = useRef<{ x: number; y: number } | null>(null);
   const frame = useRef(0);
@@ -80,6 +81,17 @@ export function RemoteOverlay({ name, kb }: { name: string; kb: boolean }) {
     if (down && e.repeat) return;
     if (down) held.current.add(e.code);
     else held.current.delete(e.code);
+    // Ctrl+V: a minha área de transferência vai na frente, aí o V é apertado lá
+    if (down && e.code === 'KeyV' && e.ctrlKey && !e.altKey) {
+      void navigator.clipboard
+        .readText()
+        .catch(() => '')
+        .then((text) => {
+          if (text) remoteControl()?.sendClipboard(text);
+          remoteControl()?.sendInput({ t: 'k', c: 'KeyV', d: true });
+        });
+      return;
+    }
     remoteControl()?.sendInput({ t: 'k', c: e.code, d: down });
   };
 
@@ -124,10 +136,20 @@ export function RemoteOverlay({ name, kb }: { name: string; kb: boolean }) {
       onKeyDown={(e) => key(e, true)}
       onKeyUp={(e) => key(e, false)}
       onBlur={release}
+      onDragOver={(e) => {
+        if (kb) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const file = e.dataTransfer.files[0];
+        if (file) void remoteControl()?.sendFile(file);
+      }}
     >
       <span className="remote-hint">
-        Controlando o computador de {name}
-        {kb ? '' : ' (só o mouse)'} · {REMOTE_PANIC_LABEL} para parar
+        {transfer
+          ? `Enviando ${transfer.name}… ${Math.round(transfer.progress * 100)}%`
+          : `Controlando o computador de ${name}${kb ? ' · Ctrl+V cola e soltar arquivo envia' : ' (só o mouse)'} · ${REMOTE_PANIC_LABEL} para parar`}
       </span>
     </div>
   );

@@ -17,6 +17,15 @@ import {
   type RemoteInputStop,
 } from '../../electron/shared/remote-input';
 import { askChoice } from '../components/AskDialog';
+import {
+  chunkCount,
+  CLIP_MAX_CHARS,
+  decodeChunk,
+  encodeChunk,
+  FILE_CHUNK_BYTES,
+  FILE_MAX_BYTES,
+  hex,
+} from './remote-file';
 import { bridge } from '../lib/bridge';
 import { useUi } from '../store/ui';
 
@@ -27,7 +36,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const IDLE_MS = 10 * 60_000;
 /** quem teve o pedido recusado espera antes de pedir de novo (contra insistência) */
 const RETRY_AFTER_DENY_MS = 15_000;
-const MAX_BYTES = 256;
+const MAX_BYTES = 16_384;
 
 const Pos = z.number().min(0).max(1);
 const Wheel = z.number().int().min(-1200).max(1200);
@@ -43,6 +52,18 @@ export const RemoteMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('w'), dx: Wheel, dy: Wheel }),
   z.object({ t: z.literal('k'), c: KeyCode, d: z.boolean() }),
   z.object({ t: z.literal('r') }),
+  /** texto para colar no PC controlado (vai antes do Ctrl+V) */
+  z.object({ t: z.literal('clip'), text: z.string().max(CLIP_MAX_CHARS) }),
+  /** começo de um arquivo; os pedaços vêm em pacotes binários (remote-file.ts) */
+  z.object({
+    t: z.literal('file'),
+    id: z.string().regex(/^[0-9a-f]{32}$/),
+    name: z.string().min(1).max(200),
+    size: z.number().int().min(0).max(FILE_MAX_BYTES),
+    total: z.number().int().min(1).max(2000),
+  }),
+  /** o arquivo chegou inteiro (ou falhou) no PC controlado */
+  z.object({ t: z.literal('file-done'), id: z.string().regex(/^[0-9a-f]{32}$/), ok: z.boolean() }),
   // dono do PC → quem controla
   z.object({ t: z.literal('grant'), kb: z.boolean() }),
   z.object({ t: z.literal('deny'), r: DenyReason }),
@@ -88,6 +109,15 @@ interface Peer {
   name: string;
 }
 
+export interface RemoteTransfer {
+  id: string;
+  name: string;
+  /** 0–1 */
+  progress: number;
+  /** quem controla envia; quem é controlado recebe */
+  direction: 'send' | 'receive';
+}
+
 export interface RemoteState {
   /** quem está controlando o meu PC (e se também pelo teclado) */
   controlledBy: (Peer & { kb: boolean }) | null;
@@ -97,9 +127,17 @@ export interface RemoteState {
   requesting: Peer | null;
   /** de quem eu estou controlando o PC (e se também pelo teclado) */
   controlling: (Peer & { kb: boolean }) | null;
+  /** arquivo em trânsito (dos dois lados) */
+  transfer: RemoteTransfer | null;
 }
 
-const EMPTY: RemoteState = { controlledBy: null, pendingFrom: null, requesting: null, controlling: null };
+const EMPTY: RemoteState = {
+  controlledBy: null,
+  pendingFrom: null,
+  requesting: null,
+  controlling: null,
+  transfer: null,
+};
 export const useRemote = create<RemoteState>(() => EMPTY);
 
 const DENY_TEXT: Record<DenyReason, (name: string) => string> = {
@@ -183,12 +221,22 @@ export class RemoteControl {
     }
   }
 
+  /** arquivo chegando de quem me controla */
+  private incoming: { id: string; name: string; size: number; total: number; next: number } | null = null;
+
   private readonly onData = (payload: Uint8Array, p?: RemoteParticipant, _kind?: unknown, topic?: string) => {
     if (topic !== REMOTE_TOPIC || !p) return;
-    const m = decodeRemoteMsg(payload);
-    if (!m) return;
     const from = p.identity;
     const s = useRemote.getState();
+    // pedaço binário de arquivo: só de quem eu autorizei com teclado (controle completo)
+    const chunk = decodeChunk(payload);
+    if (chunk) {
+      if (s.controlledBy?.identity !== from || !s.controlledBy.kb) return;
+      void this.onChunk(from, chunk);
+      return;
+    }
+    const m = decodeRemoteMsg(payload);
+    if (!m) return;
     switch (m.t) {
       case 'req':
         void this.onRequest(from);
@@ -219,6 +267,26 @@ export class RemoteControl {
           toast('info', `${s.controlling.name} encerrou o controle remoto.`);
         }
         return;
+      case 'clip':
+        if (s.controlledBy?.identity !== from || !s.controlledBy.kb) return;
+        void bridge?.remoteInput.clipboard({ text: m.text }).catch(() => undefined);
+        return;
+      case 'file':
+        if (s.controlledBy?.identity !== from || !s.controlledBy.kb) return;
+        if (m.total !== chunkCount(m.size)) return;
+        this.incoming = { id: m.id, name: m.name, size: m.size, total: m.total, next: 0 };
+        useRemote.setState({ transfer: { id: m.id, name: m.name, progress: 0, direction: 'receive' } });
+        return;
+      case 'file-done': {
+        if (s.controlling?.identity !== from) return;
+        const t = s.transfer;
+        if (t?.id === m.id) useRemote.setState({ transfer: null });
+        toast(
+          m.ok ? 'info' : 'error',
+          m.ok ? `Arquivo entregue no computador de ${s.controlling.name}.` : 'O arquivo não chegou inteiro.',
+        );
+        return;
+      }
       default: {
         // entrada: só de quem eu autorizei, e teclado só se eu deixei
         if (s.controlledBy?.identity !== from) return;
@@ -230,6 +298,39 @@ export class RemoteControl {
       }
     }
   };
+
+  private async onChunk(from: string, c: { id: string; index: number; data: Uint8Array }) {
+    const inc = this.incoming;
+    if (!inc || inc.id !== c.id || c.index !== inc.next || !bridge) return;
+    inc.next++;
+    try {
+      const r = await bridge.remoteInput.fileChunk({
+        id: c.id,
+        name: inc.name,
+        size: inc.size,
+        index: c.index,
+        total: inc.total,
+        data: c.data.slice(),
+      });
+      useRemote.setState({
+        transfer: { id: c.id, name: inc.name, progress: inc.next / inc.total, direction: 'receive' },
+      });
+      if (r.done) {
+        this.incoming = null;
+        useRemote.setState({ transfer: null });
+        this.send(from, { t: 'file-done', id: c.id, ok: true });
+        const path = r.path;
+        useUi.getState().toast('success', `Arquivo recebido: ${inc.name}`, {
+          label: 'Mostrar na pasta',
+          run: () => void bridge?.remoteInput.revealFile(path).catch(() => undefined),
+        });
+      }
+    } catch {
+      this.incoming = null;
+      useRemote.setState({ transfer: null });
+      this.send(from, { t: 'file-done', id: c.id, ok: false });
+    }
+  }
 
   // ---------- lado de quem é controlado ----------
 
@@ -339,10 +440,48 @@ export class RemoteControl {
     this.send(c.identity, m, m.t !== 'm');
   }
 
+  /** Texto da minha área de transferência vai na frente do Ctrl+V (só com teclado liberado). */
+  sendClipboard(text: string): boolean {
+    const c = useRemote.getState().controlling;
+    if (!c?.kb) return false;
+    if (text.length > CLIP_MAX_CHARS) {
+      toast('info', `Texto longo demais para colar pelo controle remoto (máx. ${CLIP_MAX_CHARS} caracteres).`);
+      return false;
+    }
+    this.send(c.identity, { t: 'clip', text });
+    return true;
+  }
+
+  /** Um arquivo meu vai em pedaços, na ordem, para Downloads/OpenCord do PC controlado. */
+  async sendFile(file: File) {
+    const c = useRemote.getState().controlling;
+    if (!c?.kb) return toast('info', 'Enviar arquivo precisa do controle com teclado.');
+    if (useRemote.getState().transfer) return toast('info', 'Espere o arquivo atual terminar.');
+    if (file.size > FILE_MAX_BYTES) return toast('error', 'Arquivo maior que 25 MB.');
+    const idBytes = crypto.getRandomValues(new Uint8Array(16));
+    const id = hex(idBytes);
+    const total = chunkCount(file.size);
+    useRemote.setState({ transfer: { id, name: file.name, progress: 0, direction: 'send' } });
+    this.send(c.identity, { t: 'file', id, name: file.name, size: file.size, total });
+    const buf = new Uint8Array(await file.arrayBuffer());
+    for (let i = 0; i < total; i++) {
+      if (useRemote.getState().controlling?.identity !== c.identity) break;
+      const data = buf.subarray(i * FILE_CHUNK_BYTES, Math.min(buf.byteLength, (i + 1) * FILE_CHUNK_BYTES));
+      await this.room.localParticipant
+        .publishData(encodeChunk(idBytes, i, data), {
+          reliable: true,
+          topic: REMOTE_TOPIC,
+          destinationIdentities: [c.identity],
+        })
+        .catch(() => undefined);
+      useRemote.setState({ transfer: { id, name: file.name, progress: (i + 1) / total, direction: 'send' } });
+    }
+  }
+
   stopControlling(notify: boolean) {
     const c = useRemote.getState().controlling;
     if (!c) return;
-    useRemote.setState({ controlling: null });
+    useRemote.setState({ controlling: null, transfer: null });
     if (notify) this.send(c.identity, { t: 'end' });
   }
 }

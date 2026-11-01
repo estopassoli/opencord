@@ -42,6 +42,9 @@ export const IPC = {
   remoteInputStart: 'remote-input:start',
   remoteInputSend: 'remote-input:send',
   remoteInputStop: 'remote-input:stop',
+  remoteInputClipboard: 'remote-input:clipboard',
+  remoteInputFile: 'remote-input:file',
+  remoteInputReveal: 'remote-input:reveal',
   overlayUpdate: 'overlay:update',
   // eventos main → renderer
   evShortcut: 'ev:shortcut',

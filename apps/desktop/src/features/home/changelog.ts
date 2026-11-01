@@ -19,6 +19,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-01',
+    time: '09:00',
+    kind: 'melhoria',
+    icon: 'cursor',
+    title: 'Colar texto e mandar arquivo pelo controle remoto',
+    body: 'Controlando o PC de alguém com teclado liberado, Ctrl+V cola o que está na sua área de transferência lá (até 12 mil caracteres). Soltar um arquivo em cima da live envia para a pasta Downloads/OpenCord da pessoa (até 25 MB), com barra de progresso; ela recebe um aviso com "Mostrar na pasta".',
+  },
+  {
     date: '2026-10-31',
     time: '17:00',
     kind: 'novo',

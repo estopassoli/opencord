@@ -72,6 +72,9 @@ const bridge: OpenCordBridge = {
     // sem resposta: um evento por movimento do mouse não precisa de ida e volta
     send: (ev) => ipcRenderer.send(IPC.remoteInputSend, ev),
     stop: () => ipcRenderer.invoke(IPC.remoteInputStop),
+    clipboard: (args) => ipcRenderer.invoke(IPC.remoteInputClipboard, args),
+    fileChunk: (args) => ipcRenderer.invoke(IPC.remoteInputFile, args),
+    revealFile: (path) => ipcRenderer.invoke(IPC.remoteInputReveal, path),
   },
   overlay: {
     update: (state) => ipcRenderer.send(IPC.overlayUpdate, state),

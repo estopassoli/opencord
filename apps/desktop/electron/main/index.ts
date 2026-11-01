@@ -43,8 +43,22 @@ import {
   type TrayAction,
 } from '../shared/ipc';
 import { installDisplayMediaHandler, listSources, selectSource } from './capture';
-import { RemoteInputEvent, RemoteInputStartArgs } from '../shared/remote-input';
-import { armPanic, remoteInputAvailable, sendRemoteInput, startRemoteInput, stopRemoteInput } from './remote-input';
+import {
+  RemoteClipboardArgs,
+  RemoteFileChunkArgs,
+  RemoteInputEvent,
+  RemoteInputStartArgs,
+} from '../shared/remote-input';
+import {
+  armPanic,
+  receiveRemoteFile,
+  remoteInputAvailable,
+  revealRemoteFile,
+  sendRemoteInput,
+  setRemoteClipboard,
+  startRemoteInput,
+  stopRemoteInput,
+} from './remote-input';
 import { destroyOverlay, updateOverlay } from './overlay';
 import { OverlayState } from '../shared/overlay';
 import { secureAvailable, secureDelete, secureGet, secureSet } from './secure-store';
@@ -418,6 +432,9 @@ function registerIpc() {
     startRemoteInput(a, (reason) => send(IPC.evRemoteInputStop, reason)),
   );
   handle(IPC.remoteInputStop, [], () => stopRemoteInput());
+  handle(IPC.remoteInputClipboard, [RemoteClipboardArgs], (a) => setRemoteClipboard(a.text));
+  handle(IPC.remoteInputFile, [RemoteFileChunkArgs], (a) => receiveRemoteFile(a));
+  handle(IPC.remoteInputReveal, [z.string().max(1024)], (p) => revealRemoteFile(p));
   ipcMain.on(IPC.remoteInputSend, (e, raw: unknown) => {
     if (!isTrustedSender(e)) return;
     const ev = RemoteInputEvent.safeParse(raw);

@@ -144,6 +144,25 @@ export const RemoteInputStartArgs = z.object({
 });
 export type RemoteInputStartArgs = z.infer<typeof RemoteInputStartArgs>;
 
+/** texto colado por quem controla (vai para a área de transferência deste PC antes do Ctrl+V) */
+export const RemoteClipboardArgs = z.object({ text: z.string().max(12_000) });
+export type RemoteClipboardArgs = z.infer<typeof RemoteClipboardArgs>;
+/** pedaço de um arquivo enviado por quem controla (gravado em Downloads/OpenCord) */
+export const RemoteFileChunkArgs = z.object({
+  id: z.string().regex(/^[0-9a-f]{32}$/),
+  name: z.string().min(1).max(200),
+  size: z
+    .number()
+    .int()
+    .min(0)
+    .max(25 * 1024 * 1024),
+  index: z.number().int().min(0),
+  total: z.number().int().min(1).max(2000),
+  data: z.instanceof(Uint8Array).refine((d) => d.byteLength <= 16_384),
+});
+export type RemoteFileChunkArgs = z.infer<typeof RemoteFileChunkArgs>;
+export type RemoteFileResult = { done: false } | { done: true; path: string };
+
 /** atalho de emergência: corta o controle mesmo com o OpenCord escondido */
 export const REMOTE_PANIC_ACCEL = 'Control+Alt+Shift+S';
 export const REMOTE_PANIC_LABEL = 'Ctrl+Alt+Shift+S';

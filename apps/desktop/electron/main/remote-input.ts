@@ -5,14 +5,25 @@
  * - uma faixa sempre visível no topo da tela controlada diz quem está controlando, com o botão "Parar";
  * - o atalho de emergência (Ctrl+Alt+Shift+S) corta tudo, mesmo com o OpenCord escondido ou um jogo em tela cheia.
  */
-import { app, BrowserWindow, desktopCapturer, globalShortcut, screen, type Rectangle } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  desktopCapturer,
+  globalShortcut,
+  screen,
+  shell,
+  type Rectangle,
+} from 'electron';
+import { closeSync, existsSync, mkdirSync, openSync, unlinkSync, writeSync } from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
   inputLine,
   REMOTE_PANIC_ACCEL,
   REMOTE_PANIC_LABEL,
+  type RemoteFileChunkArgs,
+  type RemoteFileResult,
   type RemoteInputEvent,
   type RemoteInputStartArgs,
   type RemoteInputStop,
@@ -79,11 +90,79 @@ export function sendRemoteInput(ev: RemoteInputEvent) {
   a.child.stdin.write(inputLine(ev, a.rect).join('\n') + '\n');
 }
 
+/** Texto de quem controla vira a área de transferência deste PC (o Ctrl+V vem logo depois). */
+export function setRemoteClipboard(text: string) {
+  if (!active) return;
+  clipboard.writeText(text);
+}
+
+const downloadsDir = () => path.join(app.getPath('downloads'), 'OpenCord');
+const files = new Map<string, { fd: number; path: string; next: number; received: number }>();
+
+/** Arquivo de quem controla, em pedaços na ordem; grava em Downloads/OpenCord sem sobrescrever. */
+export function receiveRemoteFile(c: RemoteFileChunkArgs): RemoteFileResult {
+  if (!active) throw new Error('sem sessão de controle remoto');
+  let f = files.get(c.id);
+  if (!f) {
+    if (c.index !== 0) throw new Error('arquivo fora de ordem');
+    const dir = downloadsDir();
+    mkdirSync(dir, { recursive: true });
+    const safe =
+      c.name
+        .replace(/[<>:"|?*/]|\p{Cc}/gu, '_')
+        .replace(/^\.+/, '')
+        .slice(0, 120) || 'arquivo';
+    const ext = path.extname(safe);
+    const stem = safe.slice(0, safe.length - ext.length);
+    let target = path.join(dir, safe);
+    for (let n = 1; existsSync(target); n++) target = path.join(dir, `${stem} (${n})${ext}`);
+    f = { fd: openSync(target, 'wx'), path: target, next: 0, received: 0 };
+    files.set(c.id, f);
+  }
+  if (c.index !== f.next) {
+    dropFile(c.id);
+    throw new Error('arquivo fora de ordem');
+  }
+  if (f.received + c.data.byteLength > c.size) {
+    dropFile(c.id);
+    throw new Error('arquivo maior que o anunciado');
+  }
+  writeSync(f.fd, c.data);
+  f.received += c.data.byteLength;
+  f.next++;
+  if (c.index === c.total - 1) {
+    closeSync(f.fd);
+    files.delete(c.id);
+    return { done: true, path: f.path };
+  }
+  return { done: false };
+}
+
+function dropFile(id: string) {
+  const f = files.get(id);
+  if (!f) return;
+  files.delete(id);
+  try {
+    closeSync(f.fd);
+    unlinkSync(f.path);
+  } catch {
+    /* já fechado/apagado */
+  }
+}
+
+export function revealRemoteFile(p: string) {
+  const dir = downloadsDir();
+  const abs = path.resolve(p);
+  if (!abs.startsWith(dir + path.sep)) throw new Error('fora da pasta de downloads do OpenCord');
+  shell.showItemInFolder(abs);
+}
+
 /** Para por pedido da janela (sem avisá-la de volta). */
 export function stopRemoteInput() {
   const a = active;
   if (!a) return;
   active = null;
+  for (const id of [...files.keys()]) dropFile(id);
   globalShortcut.unregister(REMOTE_PANIC_ACCEL);
   if (a.banner && !a.banner.isDestroyed()) a.banner.destroy();
   // "r" solta o que estiver apertado; fechar o stdin encerra (e solta de novo, por garantia)

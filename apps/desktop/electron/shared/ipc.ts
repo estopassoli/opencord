@@ -3,7 +3,14 @@
  * Todo argumento é validado no main com estes schemas; canais fora da allowlist não existem.
  */
 import { z } from 'zod';
-import type { RemoteInputEvent, RemoteInputStartArgs, RemoteInputStop } from './remote-input';
+import type {
+  RemoteClipboardArgs,
+  RemoteFileChunkArgs,
+  RemoteFileResult,
+  RemoteInputEvent,
+  RemoteInputStartArgs,
+  RemoteInputStop,
+} from './remote-input';
 import type { OverlayState } from './overlay';
 
 export { IPC } from './channels';
@@ -270,6 +277,12 @@ export interface OpenCordBridge {
     start(args: RemoteInputStartArgs): Promise<boolean>;
     send(ev: RemoteInputEvent): void;
     stop(): Promise<void>;
+    /** texto de quem controla vai para a área de transferência (só durante uma sessão) */
+    clipboard(args: RemoteClipboardArgs): Promise<void>;
+    /** pedaço de arquivo de quem controla; no último devolve o caminho em Downloads/OpenCord */
+    fileChunk(args: RemoteFileChunkArgs): Promise<RemoteFileResult>;
+    /** abre a pasta com o arquivo recebido selecionado (só dentro de Downloads/OpenCord) */
+    revealFile(path: string): Promise<void>;
   };
   /** overlay no jogo (ADR-0027): a janela manda o estado; o processo principal mostra/esconde a janelinha */
   overlay: {

@@ -58,3 +58,17 @@ teclado de quem assiste até o Windows de quem transmite, com consentimento expl
   por 20 ms), e o processo encerra com código 0 ao fechar o stdin.
 - **Validado em uso real (2026-10-31, relato do mantenedor):** pedido, aceite e controle entre duas pessoas da chamada,
   em máquinas Windows diferentes, com o instalador gerado do commit 9dd45c7 ("deu certinho").
+
+## Complemento (2026-11-01): área de transferência e arquivo
+- **Ctrl+V de quem controla**: o texto da área de transferência dele vai num pacote `clip` (até 12 000 caracteres),
+  o PC controlado o põe na própria área de transferência (`clipboard.writeText`, só durante a sessão) e o V é apertado
+  em seguida. Exige controle com teclado.
+- **Soltar um arquivo na live**: `file` (id, nome, tamanho, total) seguido de pedaços **binários** com cabeçalho fixo
+  (`src/voice/remote-file.ts`: byte mágico, id de 16 bytes, índice; 14 000 bytes de dados por pacote, dentro do
+  limite dos pacotes de dados do LiveKit), na ordem e confiáveis. O processo principal grava em
+  `Downloads/OpenCord/<nome limpo>` sem sobrescrever (sufixo " (n)"), recusa fora de ordem ou acima do tamanho
+  anunciado, e apaga o parcial ao parar a sessão. Até 25 MB. Resposta `file-done` para quem enviou; aviso com
+  "Mostrar na pasta" (restrito a essa pasta) para quem recebeu.
+- Evidências: unitários `test/remote-file.test.ts` (cabeçalho, rejeição de JSON/pacote curto, contagem de pedaços,
+  nomes seguros); typecheck e lint. **Pendente** uso real entre duas pessoas.
+
