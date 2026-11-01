@@ -1,7 +1,12 @@
 import { Icon } from '@opencord/ui';
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
-/** Diálogo modal acessível baseado em <dialog> nativo (foco preso, Esc fecha). */
+/**
+ * Diálogo modal acessível baseado em <dialog> nativo (foco preso, Esc fecha). Vai num portal no <body>: montado
+ * dentro de uma região com container-type ou transform (área de conteúdo, barra de título) ele deixava de ser
+ * centralizado na janela.
+ */
 export function Dialog({
   title,
   onClose,
@@ -31,7 +36,7 @@ export function Dialog({
 
   const cls = fullscreen ? 'dialog dialog-fullscreen' : wide ? 'dialog dialog-wide' : 'dialog';
 
-  return (
+  return createPortal(
     <dialog
       ref={ref}
       className={cls}
@@ -76,6 +81,7 @@ export function Dialog({
           {actions && <footer className="dialog-actions">{actions}</footer>}
         </div>
       )}
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }

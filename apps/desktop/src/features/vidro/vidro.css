@@ -1031,3 +1031,11 @@ html[data-layout='vidro'] .home .oc-input {
 html[data-layout='vidro'] .list-title {
   color: var(--text-2);
 }
+
+/* diálogo que por algum motivo não entrou na camada superior: centraliza na janela mesmo assim */
+html[data-layout='vidro'] .dialog[open]:not(:modal) {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  z-index: 1000;
+}
