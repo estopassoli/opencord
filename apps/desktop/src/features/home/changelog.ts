@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '15:30',
+    kind: 'novo',
+    icon: 'link',
+    title: 'Webhooks: avisos de fora caem no canal',
+    body: 'Em Configurações do servidor → Webhooks, crie um link secreto para um canal de texto. Qualquer programa que fizer POST nele com {"content":"texto"} publica a mensagem ali, com o selo APP: servidor do jogo reiniciou, alguém abriu uma issue no GitHub, a live da Twitch começou. Funciona com o formato do Discord e do Slack, então os serviços que já mandam para eles mandam para o OpenCord.',
+  },
+  {
+    date: '2026-10-31',
     time: '15:00',
     kind: 'novo',
     icon: 'plus-circle',

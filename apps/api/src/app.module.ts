@@ -18,6 +18,8 @@ import { LargeUploadService } from './attachments/large-upload.service.js';
 import { StorageService } from './attachments/storage.service.js';
 import { BoardsController } from './boards/boards.controller.js';
 import { BoardsService } from './boards/boards.service.js';
+import { WebhooksController } from './webhooks/webhooks.controller.js';
+import { WebhooksService } from './webhooks/webhooks.service.js';
 import { EventsController } from './events/events.controller.js';
 import { EventsService } from './events/events.service.js';
 import { RecordingsController } from './recordings/recordings.controller.js';
@@ -55,6 +57,7 @@ export class AppModule {
         SoundsController,
         RecordingsController,
         EventsController,
+        WebhooksController,
         BoardsController,
         HealthController,
         DownloadsController,
@@ -91,6 +94,7 @@ export class AppModule {
         SoundsService,
         RecordingsService,
         EventsService,
+        WebhooksService,
         AttachmentsService,
         LargeUploadService,
         BoardsService,

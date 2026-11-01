@@ -69,6 +69,7 @@ export class AuthService {
   }): Me {
     return {
       id: u.id,
+      bot: false,
       email: u.email,
       username: u.username,
       displayName: u.displayName,

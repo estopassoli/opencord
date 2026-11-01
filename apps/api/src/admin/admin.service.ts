@@ -108,6 +108,7 @@ export class AdminService {
       id: r.id,
       username: r.username,
       displayName: r.displayName,
+      bot: false,
       avatarKey: r.avatarKey,
       email: r.email,
       hasAccount: r.passwordHash !== null,

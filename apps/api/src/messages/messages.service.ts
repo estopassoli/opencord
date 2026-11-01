@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import {
   decodeCursor,
   encodeCursor,
@@ -284,6 +285,36 @@ export class MessagesService {
     // canal que alimenta um quadro kanban: a mensagem vira card (ADR-0017)
     if (a.channelId) await this.boards.fromMessage(row);
     return { message: this.serialize(row, userId), duplicate: false };
+  }
+
+  /**
+   * Mensagem vinda de um webhook de entrada (ADR-0030): o autor é o usuário do webhook (não é membro, então não passa
+   * por `access`); sem menções, sem anexos, sem resposta. Mesmos eventos de uma mensagem comum.
+   */
+  async postAsWebhook(hook: { userId: string; channelId: string; serverId: string }, body: string): Promise<Message> {
+    const row = await this.prisma.message.create({
+      data: {
+        authorId: hook.userId,
+        requestId: randomUUID(),
+        channelId: hook.channelId,
+        conversationId: null,
+        body: body.slice(0, 4000),
+        mentions: [],
+        mentionEveryone: false,
+      },
+      include: MESSAGE_INCLUDE,
+    });
+    const room = rooms.channel(hook.channelId);
+    const message = this.serialize(row, null);
+    this.realtime.emit(room, 'chat:message:created', message);
+    this.realtime.emit(room, 'channel:unread:changed', {
+      channelId: hook.channelId,
+      conversationId: null,
+      lastMessageId: row.id,
+      mention: false,
+    });
+    await this.boards.fromMessage(row);
+    return message;
   }
 
   private notify(authorId: string, a: TargetAccess, row: MessageRow, mentions: string[], everyone: boolean) {

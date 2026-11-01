@@ -23,6 +23,8 @@ model User {
   avatarKey    String?
   /// Super admin da instância: vê todos os servidores e, ao entrar (auditado), tem permissões de dono (ADR-0013).
   isInstanceAdmin Boolean @default(false)
+  /// identidade de um webhook de entrada (ADR-0030): autor das mensagens que chegam por ele, sem login
+  isWebhook    Boolean   @default(false)
   createdAt    DateTime  @default(now()) @db.Timestamptz(3)
   disabledAt   DateTime? @db.Timestamptz(3)
 
@@ -33,6 +35,8 @@ model User {
   recordings        CallRecording[]
   events            ServerEvent[]
   eventRsvps        EventRsvp[]
+  webhooksCreated   Webhook[]            @relation("WebhookCreator")
+  webhookOf         Webhook?             @relation("WebhookUser")
   boardCards        BoardCard[]
   pollVotes         PollVote[]
   memberships       ServerMember[]
@@ -117,6 +121,7 @@ model Server {
   sounds     SoundEffect[]
   recordings CallRecording[]
   events     ServerEvent[]
+  webhooks   Webhook[]
   members    ServerMember[]
   roles      Role[]
   categories Category[]
@@ -208,6 +213,7 @@ model Channel {
   sourced    BoardCard[]                 @relation("BoardCardSource")
   recordings CallRecording[]
   events     ServerEvent[]
+  webhooks   Webhook[]
 
   @@index([serverId])
 }
@@ -548,4 +554,24 @@ model EventRsvp {
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([eventId, userId])
+}
+
+/// Webhook de entrada (ADR-0030): um link secreto que recebe POST e vira mensagem num canal, assinada por um usuário
+/// próprio do webhook (isWebhook).
+model Webhook {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  serverId    String   @db.Uuid
+  channelId   String   @db.Uuid
+  /// segredo do link (hex de 32 bytes)
+  token       String   @unique
+  name        String
+  userId      String   @unique @db.Uuid
+  createdById String   @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user        User     @relation("WebhookUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation("WebhookCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
 }

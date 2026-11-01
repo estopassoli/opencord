@@ -6,7 +6,7 @@ const msg = (id: string, createdAt: string, extra: Partial<Message> = {}): Messa
   id,
   channelId: 'c1',
   conversationId: null,
-  author: { id: 'u1', username: 'ana', displayName: 'Ana', avatarKey: null },
+  author: { id: 'u1', username: 'ana', displayName: 'Ana', avatarKey: null, bot: false },
   body: id,
   createdAt,
   editedAt: null,

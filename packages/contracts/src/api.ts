@@ -114,6 +114,8 @@ export const UserPublic = z.object({
   username: Username,
   displayName: DisplayName,
   avatarKey: z.string().nullable(),
+  /** identidade de um webhook de entrada (ADR-0030): mostra o selo "APP" */
+  bot: z.boolean().default(false),
 });
 export type UserPublic = z.infer<typeof UserPublic>;
 
@@ -551,6 +553,29 @@ export const SearchMessagesResponse = z.object({
   total: z.number().int().nonnegative(),
 });
 export type SearchMessagesResponse = z.infer<typeof SearchMessagesResponse>;
+
+// ---------- Webhooks de entrada (ADR-0030) ----------
+export const Webhook = z.object({
+  id: Id,
+  serverId: Id,
+  channelId: Id,
+  name: z.string(),
+  createdBy: UserPublic,
+  createdAt: IsoDate,
+  /** link secreto para o POST */
+  url: z.string(),
+});
+export type Webhook = z.infer<typeof Webhook>;
+export const CreateWebhookRequest = z.object({ name: z.string().trim().min(1).max(64), channelId: Id });
+export type CreateWebhookRequest = z.infer<typeof CreateWebhookRequest>;
+/** corpo aceito no POST do webhook: `content` (estilo Discord) ou `text` (estilo Slack) */
+export const WebhookPostRequest = z
+  .object({
+    content: z.string().max(4000).optional(),
+    text: z.string().max(4000).optional(),
+  })
+  .passthrough();
+export const MAX_WEBHOOKS_PER_SERVER = 20;
 
 // ---------- Eventos do servidor (ADR-0028) ----------
 export const RsvpStatus = z.enum(['going', 'maybe']);

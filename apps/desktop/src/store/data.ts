@@ -334,10 +334,18 @@ interface MessagesState {
  * Campos que chegaram depois (fixar, enquete, cargos por reação) podem faltar quando a API é mais antiga que o app
  * (instância sem atualizar): completa com o vazio em vez de quebrar a conversa inteira.
  */
-type LooseMessage = Omit<Message, 'pinnedAt' | 'poll' | 'reactionRoles'> &
-  Partial<Pick<Message, 'pinnedAt' | 'poll' | 'reactionRoles'>>;
+type LooseMessage = Omit<Message, 'pinnedAt' | 'poll' | 'reactionRoles' | 'author'> &
+  Partial<Pick<Message, 'pinnedAt' | 'poll' | 'reactionRoles'>> & {
+    author: Omit<Message['author'], 'bot'> & { bot?: boolean };
+  };
 export function normalizeMessage(m: LooseMessage): Message {
-  return { ...m, pinnedAt: m.pinnedAt ?? null, poll: m.poll ?? null, reactionRoles: m.reactionRoles ?? [] };
+  return {
+    ...m,
+    author: { ...m.author, bot: m.author.bot ?? false },
+    pinnedAt: m.pinnedAt ?? null,
+    poll: m.poll ?? null,
+    reactionRoles: m.reactionRoles ?? [],
+  };
 }
 
 /** Inserção ordenada por (createdAt, id) e idempotente: eventos duplicados/fora de ordem não corrompem a lista. */

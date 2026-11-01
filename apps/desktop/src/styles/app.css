@@ -6835,3 +6835,43 @@ textarea,
   gap: 6px;
   margin-top: 10px;
 }
+
+/* ---- webhooks ---- */
+.bot-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 16px;
+  vertical-align: 2px;
+  letter-spacing: 0.04em;
+}
+.webhook-form {
+  max-width: 520px;
+}
+.webhook-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.webhook-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--chat);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.webhook-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}

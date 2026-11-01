@@ -230,6 +230,11 @@ export const MessageItem = memo(function MessageItem({
         <header className="msg-head">
           <strong className="msg-author">
             {nameOf(m.author.id) === 'alguém' ? nameFor(m.author.id, m.author.displayName) : nameOf(m.author.id)}
+            {m.author.bot && (
+              <span className="bot-badge" data-tip="Mensagem enviada por um webhook">
+                APP
+              </span>
+            )}
           </strong>
           <time dateTime={m.createdAt} className="msg-time">
             {time.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}

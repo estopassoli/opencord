@@ -1,13 +1,20 @@
 import type { Category, Channel, Member, Role, ServerSummary, UserPublic } from '@opencord/contracts';
 
-type UserRow = { id: string; username: string; displayName: string; avatarKey: string | null };
-export const USER_PUBLIC_SELECT = { id: true, username: true, displayName: true, avatarKey: true } as const;
+type UserRow = { id: string; username: string; displayName: string; avatarKey: string | null; isWebhook?: boolean };
+export const USER_PUBLIC_SELECT = {
+  id: true,
+  username: true,
+  displayName: true,
+  avatarKey: true,
+  isWebhook: true,
+} as const;
 
 export const userPublic = (u: UserRow): UserPublic => ({
   id: u.id,
   username: u.username,
   displayName: u.displayName,
   avatarKey: u.avatarKey,
+  bot: u.isWebhook ?? false,
 });
 
 export const serverSummary = (s: {
