@@ -177,6 +177,63 @@ describe('Socket.IO: autenticação e chat em tempo real (F2.4)', () => {
     await offline;
   });
 
+  it('status personalizado: outros veem e recebem; invisível esconde; limpar some; o meu volta em /me', async () => {
+    const { alice, bob, serverId } = await setup();
+    const sb = await open(bob.token);
+    const sa = await open(alice.token);
+    await sleep(100);
+    const got = nextEvent<{ userId: string; text: string | null }>(
+      sb,
+      'presence:text:changed',
+      (e) => e.userId === alice.id,
+    );
+    const put = await http.req('PUT', '/me/status-text', {
+      token: alice.token,
+      body: { text: '  estudando, volto 22h ' },
+    });
+    expect(put.status).toBe(200);
+    expect((await got).text).toBe('estudando, volto 22h');
+    const texts = await http.req<Record<string, string>>('GET', `/servers/${serverId}/status-texts`, {
+      token: bob.token,
+    });
+    expect(texts.body[alice.id]).toBe('estudando, volto 22h');
+    const me = await http.req<{ statusText: string | null }>('GET', '/me', { token: alice.token });
+    expect(me.body.statusText).toBe('estudando, volto 22h');
+    expect(
+      (await http.req('PUT', '/me/status-text', { token: alice.token, body: { text: 'x'.repeat(81) } })).status,
+    ).toBe(400);
+
+    // invisível: some para os outros; voltar mostra de novo
+    const hidden = nextEvent<{ userId: string; text: string | null }>(
+      sb,
+      'presence:text:changed',
+      (e) => e.userId === alice.id,
+    );
+    await command(sa, 'presence:heartbeat', { status: 'invisible' });
+    expect((await hidden).text).toBeNull();
+    const back = nextEvent<{ userId: string; text: string | null }>(
+      sb,
+      'presence:text:changed',
+      (e) => e.userId === alice.id,
+    );
+    await command(sa, 'presence:heartbeat', { status: 'online' });
+    expect((await back).text).toBe('estudando, volto 22h');
+
+    // limpar
+    const cleared = nextEvent<{ userId: string; text: string | null }>(
+      sb,
+      'presence:text:changed',
+      (e) => e.userId === alice.id,
+    );
+    await http.req('PUT', '/me/status-text', { token: alice.token, body: { text: null } });
+    expect((await cleared).text).toBeNull();
+    expect(
+      (await http.req<Record<string, string>>('GET', `/servers/${serverId}/status-texts`, { token: bob.token })).body[
+        alice.id
+      ],
+    ).toBeUndefined();
+  });
+
   it('jogo atual (ADR-0021): outros veem e recebem; invisível esconde; fechar o app apaga', async () => {
     const { alice, bob, serverId } = await setup();
     const sb = await open(bob.token);

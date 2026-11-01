@@ -3,7 +3,7 @@ import { Avatar, Icon } from '@opencord/ui';
 import { useData } from '../../store/data';
 import { ProfileButton } from './ProfileButton';
 import { useAliases } from '../../lib/names';
-import { GameLine } from './Playing';
+import { SubLine } from './Playing';
 
 /** Cor do nick: a do cargo mais alto que tem cor. */
 export function roleColorOf(detail: ServerDetail, m: Member | undefined): string | undefined {
@@ -90,7 +90,7 @@ export function MemberList({ serverId }: { serverId: string }) {
                     <span className="truncate" style={{ color: roleColor(m) }}>
                       {shown(m)}
                     </span>
-                    <GameLine userId={m.user.id} className="small" />
+                    <SubLine userId={m.user.id} className="small" />
                   </span>
                   {m === creator ? (
                     <CreatorTag />

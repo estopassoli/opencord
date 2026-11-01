@@ -46,6 +46,30 @@ export function GameIcon({ game, size }: { game: Pick<PlayingGame, 'icon'>; size
   return <Icon name="gamepad" size={size} />;
 }
 
+/** Status personalizado da pessoa, como eu vejo (o meu vem da minha própria store). */
+export function useStatusText(userId: string | undefined): string | null {
+  const meId = useData((d) => d.me?.id);
+  const mine = useData((d) => d.myStatusText);
+  const theirs = useData((d) => (userId ? d.statusTexts[userId] : undefined));
+  const offline = useData((d) => (userId ? d.presence[userId] === 'offline' : true));
+  if (!userId) return null;
+  if (userId === meId) return mine;
+  return theirs && !offline ? theirs : null;
+}
+
+/** Embaixo do nome: o jogo, se estiver jogando; senão o status personalizado; senão nada. */
+export function SubLine({ userId, className }: { userId: string; className?: string }) {
+  const game = usePlaying(userId);
+  const text = useStatusText(userId);
+  if (game) return <GameLine userId={userId} className={className} />;
+  if (!text) return null;
+  return (
+    <span className={`status-line truncate ${className ?? ''}`} data-tip={text}>
+      {text}
+    </span>
+  );
+}
+
 /** Linha "[ícone] Path of Exile 2" (painel do usuário, lista de membros). */
 export function GameLine({ userId, className }: { userId: string; className?: string }) {
   const game = usePlaying(userId);

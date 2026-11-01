@@ -27,6 +27,7 @@ export const keyOf = (t: { channelId?: string | null; conversationId?: string | 
 export interface FriendWithPresence extends Friend {
   presence?: PresenceStatus;
   game?: PlayingGame | null;
+  statusText?: string | null;
 }
 
 interface DataState {
@@ -41,7 +42,12 @@ interface DataState {
   presence: Record<string, PresenceStatus>;
   /** jogo que cada pessoa está jogando agora (ADR-0021) */
   games: Record<string, PlayingGame>;
+  /** status personalizado de cada pessoa online */
+  statusTexts: Record<string, string>;
   myStatus: Exclude<PresenceStatus, 'offline'>;
+  myStatusText: string | null;
+  /** fiquei ausente sozinho (sem mexer no computador); volta a "online" ao mexer */
+  autoAway: boolean;
   voiceStates: Record<string, VoiceMemberState>;
   unread: Record<string, UnreadState>;
   typing: Record<TargetKey, Record<string, number>>;
@@ -60,6 +66,7 @@ interface DataState {
   setVoiceState(s: VoiceMemberState): void;
   removeVoiceState(userId: string): void;
   setGame(userId: string, game: PlayingGame | null): void;
+  setStatusText(userId: string, text: string | null): void;
   setUnread(u: UnreadState): void;
   bumpUnread(key: TargetKey, lastMessageId: string, mention: boolean, mine: boolean): void;
   markRead(key: TargetKey, messageId: string): void;
@@ -79,7 +86,10 @@ const empty = {
   friends: [],
   presence: {},
   games: {},
+  statusTexts: {},
   myStatus: 'online' as const,
+  myStatusText: null,
+  autoAway: false,
   voiceStates: {},
   unread: {},
   typing: {},
@@ -186,6 +196,13 @@ export const useData = create<DataState>()((set) => ({
       if (game) games[userId] = game;
       else delete games[userId];
       return { games };
+    }),
+  setStatusText: (userId, text) =>
+    set((s) => {
+      const statusTexts = { ...s.statusTexts };
+      if (text) statusTexts[userId] = text;
+      else delete statusTexts[userId];
+      return { statusTexts };
     }),
   setUnread: (u) => set((s) => ({ unread: { ...s.unread, [keyOf(u)]: u } })),
   bumpUnread: (key, lastMessageId, mention, mine) =>

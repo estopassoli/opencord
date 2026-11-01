@@ -32,6 +32,7 @@ export function FriendsPanel({ forceCompact }: { forceCompact?: boolean }) {
   const presence = useData((s) => s.presence);
   const voiceStates = useData((s) => s.voiceStates);
   const details = useData((s) => s.details);
+  const statusTexts = useData((s) => s.statusTexts);
   const [closed, setClosed] = useState<Record<string, boolean>>({});
   if (mode === 'hidden') return null;
   const compact = mode === 'compact';
@@ -43,7 +44,7 @@ export function FriendsPanel({ forceCompact }: { forceCompact?: boolean }) {
     .sort(byName);
   const sub = (f: FriendWithPresence) => {
     const v = voiceStates[f.user.id];
-    if (!v) return STATUS_LABEL[statusOf(f)];
+    if (!v) return statusTexts[f.user.id] ?? STATUS_LABEL[statusOf(f)];
     const ch = details[v.serverId]?.channels.find((c) => c.id === v.channelId)?.name;
     return `${v.streaming ? 'Transmitindo' : 'Em voz'}${ch ? ` · ${ch}` : ''}`;
   };

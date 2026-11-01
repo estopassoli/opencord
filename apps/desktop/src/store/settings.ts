@@ -5,6 +5,8 @@ import { api } from './session';
 import { useData } from './data';
 import { useUi } from './ui';
 
+let autoIdleStarted = false;
+
 /** Aplica efeitos colaterais das configurações: tema, movimento, fonte e atalhos globais. */
 export function applySettingsSideEffects(s: UserSettings) {
   const root = document.documentElement;
@@ -30,6 +32,12 @@ export function applySettingsSideEffects(s: UserSettings) {
   }
   void import('./voice').then(({ useVoice }) => useVoice.getState().applySettings(s));
   void import('./games').then(({ configureGames }) => configureGames(s));
+  void import('../lib/auto-idle').then(({ startAutoIdle }) => {
+    if (!autoIdleStarted) {
+      autoIdleStarted = true;
+      startAutoIdle();
+    }
+  });
   void import('./clips').then(({ wireClips, syncClips }) => {
     wireClips();
     syncClips();

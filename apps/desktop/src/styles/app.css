@@ -6646,3 +6646,21 @@ textarea,
 .search-count {
   margin: 0 4px;
 }
+
+/* ---- status personalizado e menu do painel do usuário ---- */
+.status-line {
+  display: block;
+  min-width: 0;
+  color: var(--text-2);
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+.menu-blank {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}

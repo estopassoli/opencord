@@ -11,6 +11,8 @@ import { isInCall, useVoice } from '../../store/voice';
 import { SoundboardPanel } from '../voice/Soundboard';
 import { deviceMenu } from '../voice/devices';
 import { GameDock, GameLine, usePlaying } from './Playing';
+import { askText } from '../../components/AskDialog';
+import { autoIdleEnabled, setAutoIdleEnabled } from '../../lib/auto-idle';
 import { ResumeCall } from './ResumeCall';
 
 const STATUSES: Exclude<PresenceStatus, 'offline'>[] = ['online', 'idle', 'dnd', 'invisible'];
@@ -39,6 +41,8 @@ export function UserDock() {
   const [soundAnchor, setSoundAnchor] = useState<DOMRect | null>(null);
   const me = useData((s) => s.me);
   const myStatus = useData((s) => s.myStatus);
+  const myText = useData((s) => s.myStatusText);
+  const [autoIdle, setAutoIdle] = useState(autoIdleEnabled);
   const playing = usePlaying(me?.id);
   const details = useData((s) => s.details);
   const v = useVoice();
@@ -62,9 +66,28 @@ export function UserDock() {
   const live = v.stream.status === 'live';
 
   const setStatus = (status: Exclude<PresenceStatus, 'offline'>) => {
-    useData.setState({ myStatus: status });
+    // escolha minha: deixa de ser o "ausente" automático
+    useData.setState({ myStatus: status, autoAway: false });
     setMenu(false);
     void api().request('PUT', '/me/presence', { status });
+  };
+  const setText = async () => {
+    setMenu(false);
+    const text = await askText('Aparece embaixo do seu nome para quem está nos seus servidores e para os amigos.', {
+      title: 'Status personalizado',
+      label: 'O que você está fazendo?',
+      placeholder: myText ?? 'Ex.: estudando, volto 22h',
+      confirmLabel: 'Salvar',
+    });
+    if (text === null) return;
+    const value = text.trim().slice(0, 80) || null;
+    useData.setState({ myStatusText: value });
+    void api().request('PUT', '/me/status-text', { text: value });
+  };
+  const clearText = () => {
+    setMenu(false);
+    useData.setState({ myStatusText: null });
+    void api().request('PUT', '/me/status-text', { text: null });
   };
 
   return (
@@ -211,6 +234,10 @@ export function UserDock() {
               <strong className="truncate">{me.displayName}</strong>
               {playing ? (
                 <GameLine userId={me.id} className="small" />
+              ) : myText ? (
+                <span className="status-line small truncate" data-tip={myText}>
+                  {myText}
+                </span>
               ) : (
                 <span className="muted small truncate">{STATUS_LABEL[myStatus]}</span>
               )}
@@ -230,6 +257,34 @@ export function UserDock() {
                   </button>
                 </li>
               ))}
+              <li role="separator" className="menu-sep" />
+              <li role="none">
+                <button role="menuitem" onClick={() => void setText()}>
+                  <Icon name="edit" size={16} />{' '}
+                  {myText ? 'Editar status personalizado' : 'Definir status personalizado'}
+                </button>
+              </li>
+              {myText && (
+                <li role="none">
+                  <button role="menuitem" onClick={clearText}>
+                    <Icon name="close" size={16} /> Limpar status
+                  </button>
+                </li>
+              )}
+              <li role="none">
+                <button
+                  role="menuitemcheckbox"
+                  aria-checked={autoIdle}
+                  onClick={() => {
+                    const on = !autoIdle;
+                    setAutoIdle(on);
+                    setAutoIdleEnabled(on);
+                  }}
+                >
+                  {autoIdle ? <Icon name="check" size={16} /> : <span className="menu-blank" aria-hidden />} Ausente
+                  após 10 min parado
+                </button>
+              </li>
             </ul>
           )}
         </div>

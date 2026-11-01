@@ -192,6 +192,13 @@ export class ServersController {
     return this.presence.visibleMany(await this.servers.listMemberIds(id));
   }
 
+  /** Status personalizado de cada membro online. */
+  @Get('servers/:id/status-texts')
+  async serverStatusTexts(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.perms.server(id, u.userId);
+    return this.presence.visibleTexts(await this.servers.listMemberIds(id));
+  }
+
   /** Jogo de cada membro que está jogando agora (ADR-0021). */
   @Get('servers/:id/games')
   async serverGames(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {

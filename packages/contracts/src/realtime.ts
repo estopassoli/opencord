@@ -142,6 +142,8 @@ export interface ServerEvents {
   'recording:ready': { channelId: string; serverId: string; recording: CallRecording };
   /** jogo que a pessoa está jogando, como os outros veem (null quando parou, ficou invisível ou offline) */
   'presence:game:changed': { userId: string; game: PlayingGame | null };
+  /** status personalizado da pessoa, como os outros veem (null quando limpou, ficou invisível ou offline) */
+  'presence:text:changed': { userId: string; text: string | null };
   'voice:member:joined': VoiceMemberState;
   'voice:state:changed': VoiceMemberState;
   'voice:member:left': {

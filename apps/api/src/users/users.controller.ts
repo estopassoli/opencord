@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, Patch, Post, Put, R
 import type { FastifyRequest } from 'fastify';
 import {
   SetPresenceRequest,
+  SetStatusTextRequest,
   UpdateProfileRequest,
   UserSettingsV1,
   defaultUserSettings,
@@ -28,7 +29,8 @@ export class UsersController {
   @Get()
   async me(@CurrentUser() u: AuthUser) {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: u.userId } });
-    return { ...this.auth.toMe(user), presence: await this.presence.chosen(u.userId) };
+    const [presence, statusText] = await Promise.all([this.presence.chosen(u.userId), this.presence.rawText(u.userId)]);
+    return { ...this.auth.toMe(user), presence, statusText };
   }
 
   @Patch()
@@ -63,6 +65,15 @@ export class UsersController {
   ) {
     await this.presence.setStatus(u.userId, dto.status);
     return { status: dto.status };
+  }
+
+  @Put('status-text')
+  async setStatusText(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(SetStatusTextRequest)) dto: z.infer<typeof SetStatusTextRequest>,
+  ) {
+    await this.presence.setText(u.userId, dto.text);
+    return { text: dto.text };
   }
 
   @Get('settings')

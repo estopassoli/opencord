@@ -281,6 +281,8 @@ export interface OpenCordBridge {
   on(event: 'shortcut', cb: (action: ShortcutAction) => void): () => void;
   on(event: 'notification-click', cb: (route: string) => void): () => void;
   on(event: 'power-resume', cb: () => void): () => void;
+  /** a cada 30 s: há quantos segundos ninguém mexe no computador (ausente automático) */
+  on(event: 'idle', cb: (idleSeconds: number) => void): () => void;
   on(event: 'tray-action', cb: (action: TrayAction) => void): () => void;
   on(event: 'update', cb: (status: UpdateStatus) => void): () => void;
   on(event: 'window-state', cb: (state: WindowState) => void): () => void;

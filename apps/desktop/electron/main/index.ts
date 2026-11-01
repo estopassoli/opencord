@@ -454,6 +454,8 @@ app.whenReady().then(() => {
     send(IPC.evPowerResume);
     checkIfStale();
   });
+  // ausente automático: a janela decide a partir do tempo sem teclado/mouse no sistema
+  setInterval(() => send(IPC.evIdle, powerMonitor.getSystemIdleTime()), 30_000).unref();
   startUpdater((s) => {
     send(IPC.evUpdate, s);
     // o menu da bandeja acompanha (rebaixa o progresso só a cada mudança de estado/10%)

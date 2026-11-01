@@ -46,6 +46,7 @@ export const IPC = {
   evShortcut: 'ev:shortcut',
   evNotificationClick: 'ev:notification-click',
   evPowerResume: 'ev:power-resume',
+  evIdle: 'ev:idle',
   evTrayAction: 'ev:tray-action',
   evUpdate: 'ev:update',
   evWindowState: 'ev:window-state',

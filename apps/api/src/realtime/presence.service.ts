@@ -9,6 +9,8 @@ export const HEARTBEAT_INTERVAL_MS = 25_000;
 /** o jogo expira sozinho se o app sumir sem avisar (o app reenvia enquanto o jogo segue aberto) */
 export const GAME_TTL_S = 30 * 60;
 const gameKey = (userId: string) => `presence:game:${userId}`;
+/** status personalizado: fica até a pessoa limpar (não expira com o app fechado) */
+const textKey = (userId: string) => `presence:text:${userId}`;
 type ChosenStatus = Exclude<PresenceStatus, 'offline'>;
 
 /**
@@ -72,6 +74,28 @@ export class PresenceService {
     this.realtime.emit(await this.targets(userId), 'presence:game:changed', { userId, game: visible ? game : null });
   }
 
+  /** Status personalizado (null = limpou). Os outros só recebem o texto se veem a pessoa online. */
+  async setText(userId: string, text: string | null) {
+    if (text) await this.r.set(textKey(userId), text);
+    else await this.r.del(textKey(userId));
+    const visible = (await this.visible(userId)) !== 'offline';
+    this.realtime.emit(await this.targets(userId), 'presence:text:changed', { userId, text: visible ? text : null });
+  }
+
+  async rawText(userId: string): Promise<string | null> {
+    return this.r.get(textKey(userId));
+  }
+
+  async visibleTexts(userIds: string[]): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    for (const id of userIds) {
+      if ((await this.visible(id)) === 'offline') continue;
+      const t = await this.rawText(id);
+      if (t) out[id] = t;
+    }
+    return out;
+  }
+
   private async rawGame(userId: string): Promise<PlayingGame | null> {
     const raw = await this.r.get(gameKey(userId));
     return raw ? (JSON.parse(raw) as PlayingGame) : null;
@@ -128,6 +152,8 @@ export class PresenceService {
     if ((before === 'offline') !== (after === 'offline')) {
       const game = after === 'offline' ? null : await this.rawGame(userId);
       if (game || after === 'offline') this.realtime.emit(targets, 'presence:game:changed', { userId, game });
+      const text = after === 'offline' ? null : await this.rawText(userId);
+      if (text || after === 'offline') this.realtime.emit(targets, 'presence:text:changed', { userId, text });
     }
   }
 

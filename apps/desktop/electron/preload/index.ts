@@ -10,6 +10,7 @@ const EVENT_CHANNELS = {
   shortcut: IPC.evShortcut,
   'notification-click': IPC.evNotificationClick,
   'power-resume': IPC.evPowerResume,
+  idle: IPC.evIdle,
   'tray-action': IPC.evTrayAction,
   update: IPC.evUpdate,
   'window-state': IPC.evWindowState,

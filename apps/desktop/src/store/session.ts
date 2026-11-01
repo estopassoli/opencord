@@ -201,7 +201,7 @@ export const api = (): ApiClient => {
 
 // ---------- Carga inicial e ressincronização ----------
 export async function loadServer(serverId: string): Promise<ServerDetail> {
-  const [detail, voices, presence, games] = await Promise.all([
+  const [detail, voices, presence, games, statusTexts] = await Promise.all([
     api().request<ServerDetail>('GET', `/servers/${serverId}`),
     api().request<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`),
     api().request<Record<string, PresenceStatus>>('GET', `/servers/${serverId}/presence`),
@@ -209,12 +209,19 @@ export async function loadServer(serverId: string): Promise<ServerDetail> {
     api()
       .request<Record<string, PlayingGame>>('GET', `/servers/${serverId}/games`)
       .catch(() => ({}) as Record<string, PlayingGame>),
+    api()
+      .request<Record<string, string>>('GET', `/servers/${serverId}/status-texts`)
+      .catch(() => ({}) as Record<string, string>),
   ]);
   const data = useData.getState();
   data.setServerDetail(detail);
   for (const v of Object.values(data.voiceStates)) if (v.serverId === serverId) data.removeVoiceState(v.userId);
   for (const v of voices) useData.getState().setVoiceState(v);
-  useData.setState((s) => ({ presence: { ...s.presence, ...presence }, games: { ...s.games, ...games } }));
+  useData.setState((s) => ({
+    presence: { ...s.presence, ...presence },
+    games: { ...s.games, ...games },
+    statusTexts: { ...s.statusTexts, ...statusTexts },
+  }));
   return detail;
 }
 
@@ -230,13 +237,17 @@ export async function loadFriends() {
       ...s.games,
       ...Object.fromEntries(friends.filter((f) => f.game).map((f) => [f.user.id, f.game as PlayingGame])),
     },
+    statusTexts: {
+      ...s.statusTexts,
+      ...Object.fromEntries(friends.filter((f) => f.statusText).map((f) => [f.user.id, f.statusText as string])),
+    },
   }));
 }
 
 async function bootstrap() {
   const a = api();
   const [me, settings, servers, conversations, unreads, instance] = await Promise.all([
-    a.request<Me & { presence: Exclude<PresenceStatus, 'offline'> }>('GET', '/me'),
+    a.request<Me & { presence: Exclude<PresenceStatus, 'offline'>; statusText?: string | null }>('GET', '/me'),
     a.request<UserSettings>('GET', '/me/settings').catch(() => defaultUserSettings()),
     a.request<ServerSummary[]>('GET', '/servers'),
     a.request<Conversation[]>('GET', '/conversations'),
@@ -250,6 +261,7 @@ async function bootstrap() {
     servers,
     conversations,
     myStatus: me.presence,
+    myStatusText: me.statusText ?? null,
     unread: Object.fromEntries(unreads.map((u) => [keyOf(u), u])),
   });
   await Promise.all([
@@ -332,6 +344,7 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('chat:typing', (e) => d().setTyping(keyOf(e), e.userId, e.active));
     rt.on('presence:changed', (e) => useData.setState((s) => ({ presence: { ...s.presence, [e.userId]: e.status } })));
     rt.on('presence:game:changed', (e) => useData.getState().setGame(e.userId, e.game));
+    rt.on('presence:text:changed', (e) => useData.getState().setStatusText(e.userId, e.text));
     rt.on(
       'recording:state',
       (e) =>

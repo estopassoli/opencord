@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '13:00',
+    kind: 'novo',
+    icon: 'edit',
+    title: 'Status personalizado e ausente automático',
+    body: 'Clique no seu nome no canto inferior esquerdo: "Definir status personalizado" escreve uma frase curta ("estudando, volto 22h") que aparece embaixo do seu nome para os amigos e nos servidores. E sem mexer no computador por 10 minutos o status vira "Ausente" sozinho, voltando a "Online" quando você mexe (dá para desligar no mesmo menu).',
+  },
+  {
+    date: '2026-10-31',
     time: '12:30',
     kind: 'novo',
     icon: 'search',

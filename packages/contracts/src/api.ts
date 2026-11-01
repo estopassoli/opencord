@@ -593,6 +593,10 @@ export type CreateConversationRequest = z.infer<typeof CreateConversationRequest
 export const PresenceStatus = z.enum(['online', 'idle', 'dnd', 'invisible', 'offline']);
 export type PresenceStatus = z.infer<typeof PresenceStatus>;
 export const SetPresenceRequest = z.object({ status: PresenceStatus.exclude(['offline']) });
+/** Status personalizado ("estudando, volto 22h"): texto curto que os outros veem embaixo do nome; null limpa. */
+export const StatusText = z.string().trim().min(1).max(80);
+export const SetStatusTextRequest = z.object({ text: StatusText.nullable() });
+export type SetStatusTextRequest = z.infer<typeof SetStatusTextRequest>;
 /**
  * Jogo que a pessoa está jogando (ADR-0021), detectado pelo app desktop. Só o nome e quando começou; some quando
  * ela fica offline ou invisível. `steamAppId` quando o jogo veio da Steam (abre a página da loja).
