@@ -11,7 +11,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import type { AppInfo, AppPrefsState, GpuMode, ProcessMetric } from '../../../electron/shared/ipc';
+import type { AppInfo, AppPrefsState, GpuMode, ProcessMetric, RendererMemory } from '../../../electron/shared/ipc';
 import { clipsDiag } from '../../store/clips';
 import { Dialog } from '../../components/Dialog';
 import { bridge } from '../../lib/bridge';
@@ -1448,9 +1448,11 @@ const PROCESS_LABEL: Record<string, string> = {
 function MemorySection() {
   const [rows, setRows] = useState<ProcessMetric[] | null>(null);
   const [inside, setInside] = useState<{ heap: number; clips: number; videos: number } | null>(null);
+  const [mem, setMem] = useState<RendererMemory | null>(null);
   const load = () => {
     if (!bridge) return;
     void bridge.appMetrics().then(setRows, () => setRows([]));
+    void bridge.rendererMemory().then(setMem, () => setMem(null));
     const perf = performance as Performance & { memory?: { usedJSHeapSize: number } };
     setInside({
       heap: Math.round((perf.memory?.usedJSHeapSize ?? 0) / 1048576),
@@ -1467,6 +1469,7 @@ function MemorySection() {
       ...(rows ?? []).map((r) => `${PROCESS_LABEL[r.type] ?? r.type} (pid ${r.pid}): ${r.mb} MB`),
       `total: ${total} MB`,
       `interface: heap JS ${inside?.heap ?? '?'} MB · buffer de clipes ${inside?.clips ?? '?'} MB · vídeos na tela ${inside?.videos ?? '?'}`,
+      `interface (detalhe): heap ${mem?.heap ?? '?'} MB · fora do heap (buffers) ${mem?.external ?? '?'} MB · Blink/mídia ${mem?.blink ?? '?'} MB · privada ${mem?.privateMb ?? '?'} MB · nós DOM ${document.getElementsByTagName('*').length}`,
     ].join('\n');
   return (
     <Section title="Memória" description="Quanto cada processo do app está usando agora.">
@@ -1487,6 +1490,16 @@ function MemorySection() {
             <dd>{inside.clips} MB</dd>
             <dt>Interface: vídeos na tela</dt>
             <dd>{inside.videos}</dd>
+          </>
+        )}
+        {mem && (
+          <>
+            <dt>Interface: buffers fora do heap</dt>
+            <dd>{mem.external} MB</dd>
+            <dt>Interface: Blink/mídia</dt>
+            <dd>{mem.blink} MB</dd>
+            <dt>Interface: memória privada</dt>
+            <dd>{mem.privateMb} MB</dd>
           </>
         )}
       </dl>

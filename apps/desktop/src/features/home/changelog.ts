@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '17:00',
+    kind: 'correção',
+    icon: 'star',
+    title: 'Vidro: memória sob controle',
+    body: 'O reflexo da borda dos painéis que acompanhava o mouse fazia a memória do app subir cerca de 1 GB por minuto de uso (o navegador recriava as camadas a cada movimento). O reflexo agora é fixo; o resto do visual continua igual. Medido: memória estável em teste de 1 minuto com o mouse em movimento.',
+  },
+  {
+    date: '2026-11-01',
     time: '16:00',
     kind: 'melhoria',
     icon: 'record',

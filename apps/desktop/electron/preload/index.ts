@@ -39,6 +39,19 @@ const bridge: OpenCordBridge = {
   setTrayVoiceState: (state) => ipcRenderer.invoke(IPC.trayVoiceState, state),
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
   appMetrics: () => ipcRenderer.invoke(IPC.appMetrics),
+  // do próprio processo da janela: o preload em sandbox tem estas estatísticas do Electron
+  rendererMemory: async () => {
+    const h = process.getHeapStatistics() as ReturnType<typeof process.getHeapStatistics> & { externalMemory?: number };
+    const b = process.getBlinkMemoryInfo();
+    const p = await process.getProcessMemoryInfo();
+    const mb = (kb: number) => Math.round(kb / 1024);
+    return {
+      heap: mb(h.usedHeapSize),
+      external: mb(h.externalMemory ?? 0),
+      blink: mb(b.allocated),
+      privateMb: mb(p.private),
+    };
+  },
   openExternal: (url) => ipcRenderer.invoke(IPC.openExternal, url),
   prefs: {
     get: () => ipcRenderer.invoke(IPC.prefsGet),

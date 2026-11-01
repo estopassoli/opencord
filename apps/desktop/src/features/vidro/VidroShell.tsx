@@ -34,7 +34,7 @@ import { MusicPlayer } from '../voice/MusicPlayer';
 import { PopoutPortal } from '../voice/popout';
 import { PopoutStage, VoiceStage } from '../voice/VoiceStage';
 import { Backdrop } from './Backdrop';
-import { startParallax } from './parallax';
+import { startReducedMotionWatch } from './parallax';
 
 export function VidroShell() {
   const mobile = useIsMobile();
@@ -54,7 +54,7 @@ function VidroDesktop() {
   const popped = useUi((s) => s.poppedStream);
   const shell = useRef<HTMLDivElement>(null);
   useShellBehavior();
-  useEffect(() => (shell.current ? startParallax(shell.current) : undefined), []);
+  useEffect(() => startReducedMotionWatch(), []);
 
   const channel = view.kind === 'server' ? detail?.channels.find((c) => c.id === view.channelId) : undefined;
   const sideOpen =

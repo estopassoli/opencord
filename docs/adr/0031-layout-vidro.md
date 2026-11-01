@@ -19,7 +19,9 @@ teste anterior (Roda) não agradou. Aprovou o Vidro depois de testar contra o se
   Para com jogo detectado (ADR-0021), janela escondida, "reduzir movimento" ou aceleração de hardware desligada; sem
   WebGL fica o gradiente do CSS. Pulsa com quem fala na chamada.
 - **Vidro em CSS** (`vidro.css`, escopo `html[data-layout='vidro']`): `backdrop-filter`, borda especular em gradiente
-  cujo ângulo segue o ponteiro (`--mx/--my`, `parallax.ts` — sem parallax de posição: o mantenedor não gostou),
+  com ângulo fixo (o reflexo que seguia o ponteiro foi removido em 2026-11-01: trocar `--mx/--my` a cada quadro
+  fazia o Chromium recriar as camadas dos painéis sem liberar as antigas, +1 GB/min medido em soak de 60 s; com as
+  variáveis congeladas a memória ficou estável; sem parallax de posição desde o primeiro teste),
   tokens de superfície traduzidos para vidro e uma passada nos componentes de dentro (cartões "Em atividade",
   novidades, eventos, abas, buscas, linhas de lista, menus, diálogos, configurações em tela cheia, opções em cartão,
   botões da chamada, reações), fonte Sora (local, OFL) para títulos.

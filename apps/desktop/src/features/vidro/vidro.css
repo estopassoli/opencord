@@ -2,8 +2,7 @@
  * Layout Vidro (redesign em teste). Tudo aqui vale só com <html data-layout="vidro">.
  *
  * Ideia: a luz vem de trás. O fundo (three.js) é a única coisa colorida e viva; os painéis são lâminas de vidro
- * fosco com espessura (brilho na borda de cima, sombra embaixo) cuja reflexão acompanha o ponteiro: só o ângulo da
- * luz especular muda com o mouse (sem parallax: os painéis e o fundo ficam parados). Dentro dos painéis, as telas do
+ * fosco com espessura (brilho na borda de cima, sombra embaixo) com reflexo fixo. Dentro dos painéis, as telas do
  * clássico continuam planas.
  */
 
@@ -16,7 +15,8 @@ html[data-layout='vidro'] {
   --vidro-glass-3: rgb(255 255 255 / 0.14);
   --vidro-line: rgb(255 255 255 / 0.1);
   --vidro-ink: rgb(10 12 18 / 0.72);
-  --light-angle: calc(135deg + var(--mx, 0) * 40deg - var(--my, 0) * 25deg);
+  /* fixo: o ângulo que seguia o mouse recriava as camadas dos painéis a cada quadro (vazamento de memória) */
+  --light-angle: 135deg;
   /* as camadas do vidro de um painel (reflexo da borda, brilho, tinta) — reutilizadas pelo papel de parede */
   --vidro-glass-stack:
     linear-gradient(rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.03)) padding-box,

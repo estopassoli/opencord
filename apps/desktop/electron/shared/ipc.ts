@@ -208,6 +208,18 @@ export interface ProcessMetric {
   mb: number;
 }
 
+/** memória da janela por tipo (do próprio processo, via preload) — em MB */
+export interface RendererMemory {
+  /** heap JS usado */
+  heap: number;
+  /** ArrayBuffers/typed arrays fora do heap (áudio PCM, pedaços de vídeo, arquivos lidos) */
+  external: number;
+  /** alocado pelo motor de layout/mídia (Blink) */
+  blink: number;
+  /** memória privada do processo */
+  privateMb: number;
+}
+
 export interface AppInfo {
   version: string;
   electron: string;
@@ -239,6 +251,7 @@ export interface OpenCordBridge {
   setTrayVoiceState(state: TrayVoiceState): Promise<void>;
   appInfo(): Promise<AppInfo>;
   appMetrics(): Promise<ProcessMetric[]>;
+  rendererMemory(): Promise<RendererMemory>;
   openExternal(url: string): Promise<void>;
   prefs: {
     get(): Promise<AppPrefsState>;
