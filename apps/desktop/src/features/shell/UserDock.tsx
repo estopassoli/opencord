@@ -13,7 +13,6 @@ import { deviceMenu } from '../voice/devices';
 import { GameDock, GameLine, usePlaying } from './Playing';
 import { askText } from '../../components/AskDialog';
 import { autoIdleEnabled, setAutoIdleEnabled } from '../../lib/auto-idle';
-import { useLayout } from '../../lib/layout';
 import { ResumeCall } from './ResumeCall';
 
 const STATUSES: Exclude<PresenceStatus, 'offline'>[] = ['online', 'idle', 'dnd', 'invisible'];
@@ -269,21 +268,6 @@ export function UserDock() {
                 <li role="none">
                   <button role="menuitem" onClick={clearText}>
                     <Icon name="close" size={16} /> Limpar status
-                  </button>
-                </li>
-              )}
-              {import.meta.env.VITE_OPENCORD_LAYOUT && (
-                <li role="none">
-                  <button
-                    role="menuitem"
-                    onClick={() => {
-                      setMenu(false);
-                      const l = useLayout.getState();
-                      l.setLayout(l.layout === 'vidro' ? 'classico' : 'vidro');
-                    }}
-                  >
-                    <Icon name="refresh" size={16} />{' '}
-                    {useLayout.getState().layout === 'vidro' ? 'Voltar ao layout clássico' : 'Usar o layout Vidro'}
                   </button>
                 </li>
               )}

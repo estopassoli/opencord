@@ -22,6 +22,9 @@ Alta familiaridade com o Discord Desktop em estrutura, densidade, navegação e 
 
 Não copiar tokens internos de terceiros. Definir focus, hover, border, success, warning e muted semanticamente. Verificar WCAG AA para texto e controles.
 
+## Layout Vidro (padrão desde 2026-11-01, ADR-0031)
+Fundo vivo em three.js e três painéis de vidro (navegação, conteúdo, lateral) sobre as mesmas telas; tokens de superfície traduzidos para vidro em `apps/desktop/src/features/vidro/vidro.css`. O clássico abaixo continua disponível (Ctrl+Alt+L).
+
 ## AppShell
 Rail de servidores à esquerda (compacto); sidebar de canais; área central de chat/voz; painel de membros opcional; dock inferior de usuário e conexão. Cada região com scroll independente. Sidebar redimensionável e largura persistida.
 

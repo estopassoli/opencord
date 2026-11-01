@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-/** Layout da interface: o clássico ou o Vidro (redesign em teste: vidro líquido, fundo vivo em three.js, parallax). */
+/** Layout da interface: o Vidro (padrão desde 2026-11-01, ADR-0031) ou o clássico. */
 export type ShellLayout = 'classico' | 'vidro';
 
 const KEY = 'oc-layout';
@@ -12,7 +12,7 @@ function initialLayout(): ShellLayout {
   } catch {
     /* armazenamento indisponível: usa o padrão do build */
   }
-  return import.meta.env.VITE_OPENCORD_LAYOUT === 'vidro' ? 'vidro' : 'classico';
+  return import.meta.env.VITE_OPENCORD_LAYOUT === 'classico' ? 'classico' : 'vidro';
 }
 
 function apply(l: ShellLayout) {

@@ -15,6 +15,7 @@ import {
   useImportedFonts,
 } from '../../lib/fonts';
 import { isFontAvailable } from '../../lib/theme';
+import { useLayout } from '../../lib/layout';
 import { useData } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
 import { updateSettings } from '../../store/settings';
@@ -1017,6 +1018,7 @@ const DEFAULT_APPEARANCE: Pick<
 
 function AppearanceTab({ settings }: { settings: UserSettings }) {
   const a = settings.appearance;
+  const layout = useLayout((l) => l.layout);
   const [hex, setHex] = useState(a.accent);
   useEffect(() => setHex(a.accent), [a.accent]);
   const imported = useImportedFonts((st) => st.families);
@@ -1039,6 +1041,16 @@ function AppearanceTab({ settings }: { settings: UserSettings }) {
           value={a.theme}
           options={THEME_OPTIONS}
           onChange={(v) => setAppearance({ theme: v })}
+        />
+      </Section>
+      <Section
+        title="Visual"
+        description="O visual Vidro tem um fundo de luz em movimento e painéis de vidro fosco. Desligado, volta o visual clássico. Vale neste computador; Ctrl+Alt+L também alterna."
+      >
+        <Switch
+          label="Glassmorfismo (visual Vidro)"
+          checked={layout === 'vidro'}
+          onChange={(v) => useLayout.getState().setLayout(v ? 'vidro' : 'classico')}
         />
       </Section>
       <Section title="Cores" description="A cor de destaque aparece em botões, seleções, menções e indicadores.">

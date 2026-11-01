@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '12:00',
+    kind: 'novo',
+    icon: 'star',
+    title: 'Visual novo: Vidro',
+    body: 'O app ganhou uma cara nova. Um fundo de luz em movimento (na cor do servidor aberto, que respira quando alguém fala) e, por cima, painéis de vidro fosco com reflexo que acompanha o mouse. Tudo continua no mesmo lugar. Prefere o visual antigo? Configurações → Aparência → "Glassmorfismo" desliga (ou Ctrl+Alt+L). Com um jogo aberto o fundo fica parado para não gastar placa de vídeo.',
+  },
+  {
+    date: '2026-11-01',
     time: '09:30',
     kind: 'novo',
     icon: 'chats',

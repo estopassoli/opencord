@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { bridge } from '../../lib/bridge';
 import { useData } from '../../store/data';
 import { useGames } from '../../store/games';
 import { useUi } from '../../store/ui';
@@ -151,7 +152,16 @@ export function Backdrop() {
     let frame = 0;
     let last = 0;
     const start = performance.now();
-    const idle = () => document.hidden || useGames.getState().mine !== null || useReducedMotion.getState().reduced;
+    // sem aceleração de hardware (preferência "off") a aurora fica num quadro só: WebGL por software custa caro
+    let gpuOff = false;
+    void bridge?.prefs
+      .get()
+      .then((p) => {
+        gpuOff = p.activeGpuMode === 'off';
+      })
+      .catch(() => undefined);
+    const idle = () =>
+      gpuOff || document.hidden || useGames.getState().mine !== null || useReducedMotion.getState().reduced;
     const render = (now: number) => {
       uniforms.uTime.value = (now - start) / 1000;
       uniforms.uPulse.value += (pulseTarget - uniforms.uPulse.value) * 0.05;
