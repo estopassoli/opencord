@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 import type { RemoteInputEvent, RemoteInputStartArgs, RemoteInputStop } from './remote-input';
+import type { OverlayState } from './overlay';
 
 export { IPC } from './channels';
 
@@ -269,6 +270,10 @@ export interface OpenCordBridge {
     start(args: RemoteInputStartArgs): Promise<boolean>;
     send(ev: RemoteInputEvent): void;
     stop(): Promise<void>;
+  };
+  /** overlay no jogo (ADR-0027): a janela manda o estado; o processo principal mostra/esconde a janelinha */
+  overlay: {
+    update(state: OverlayState): void;
   };
   /** registra um erro da janela no crash-log.txt */
   reportError(report: ErrorReport): Promise<void>;

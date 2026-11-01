@@ -73,6 +73,9 @@ const bridge: OpenCordBridge = {
     send: (ev) => ipcRenderer.send(IPC.remoteInputSend, ev),
     stop: () => ipcRenderer.invoke(IPC.remoteInputStop),
   },
+  overlay: {
+    update: (state) => ipcRenderer.send(IPC.overlayUpdate, state),
+  },
   reportError: (report) => ipcRenderer.invoke(IPC.errorReport, report),
   updates: {
     status: () => ipcRenderer.invoke(IPC.updateStatus),

@@ -45,6 +45,8 @@ import {
 import { installDisplayMediaHandler, listSources, selectSource } from './capture';
 import { RemoteInputEvent, RemoteInputStartArgs } from '../shared/remote-input';
 import { armPanic, remoteInputAvailable, sendRemoteInput, startRemoteInput, stopRemoteInput } from './remote-input';
+import { destroyOverlay, updateOverlay } from './overlay';
+import { OverlayState } from '../shared/overlay';
 import { secureAvailable, secureDelete, secureGet, secureSet } from './secure-store';
 import { appIcon, badgeIcon, trayIcon } from './icons';
 import { readAppPrefs, writeAppPrefs } from './app-prefs';
@@ -421,6 +423,11 @@ function registerIpc() {
     const ev = RemoteInputEvent.safeParse(raw);
     if (ev.success) sendRemoteInput(ev.data);
   });
+  ipcMain.on(IPC.overlayUpdate, (e, raw: unknown) => {
+    if (!isTrustedSender(e)) return;
+    const s = OverlayState.safeParse(raw);
+    if (s.success) updateOverlay(s.data);
+  });
   handle(IPC.appRelaunch, [], () => {
     quitting = true;
     app.relaunch();
@@ -471,6 +478,7 @@ app.on('will-quit', () => {
   games.stop();
   stopAllOutputs();
   stopRemoteInput();
+  destroyOverlay();
 });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

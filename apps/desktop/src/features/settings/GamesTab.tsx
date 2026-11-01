@@ -11,6 +11,7 @@ import { clipBitrate, useClips } from '../../store/clips';
 import { useGames } from '../../store/games';
 import { updateSettings } from '../../store/settings';
 import { useElapsed } from '../shell/Playing';
+import { useOverlayPrefs } from '../../lib/overlay';
 import { Section } from './SettingsModal';
 
 export function GamesTab({ settings }: { settings: UserSettings }) {
@@ -20,8 +21,28 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
   const elapsed = useElapsed(mine?.startedAt);
   const set = (patch: Partial<UserSettings['games']>) =>
     updateSettings((s) => ({ ...s, games: { ...s.games, ...patch } }));
+  const overlay = useOverlayPrefs();
   return (
     <>
+      {bridge && (
+        <Section
+          title="Overlay no jogo"
+          description="Com um jogo aberto, uma janelinha transparente no canto do monitor principal mostra quem está na chamada (quem fala acende), se você está mudo e os avisos do app. Não recebe clique. Jogos em tela cheia exclusiva ficam por cima dela; use janela sem borda."
+        >
+          <Switch label="Mostrar o overlay" checked={overlay.enabled} onChange={(v) => overlay.set({ enabled: v })} />
+          <Select
+            label="Canto"
+            value={overlay.corner}
+            onChange={(v) => overlay.set({ corner: v })}
+            options={[
+              { value: 'tl', label: 'Superior esquerdo' },
+              { value: 'tr', label: 'Superior direito' },
+              { value: 'bl', label: 'Inferior esquerdo' },
+              { value: 'br', label: 'Inferior direito' },
+            ]}
+          />
+        </Section>
+      )}
       <Section
         title="Jogo atual"
         description="O OpenCord reconhece jogos da Steam e os mais conhecidos fora dela. Só o nome do jogo e há quanto tempo você joga aparecem para os outros; ficar invisível também esconde."

@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '14:00',
+    kind: 'novo',
+    icon: 'gamepad',
+    title: 'Overlay dentro do jogo',
+    body: 'Com um jogo aberto, uma janelinha transparente no canto do monitor mostra quem está na chamada (quem fala acende), se você está mudo ou surdo, e os avisos do app: clipe salvo, alguém pedindo para controlar seu PC. Ela não recebe clique, então não atrapalha o jogo. Liga/desliga e escolhe o canto em Configurações → Jogos. Em tela cheia exclusiva o jogo fica por cima; use janela sem borda.',
+  },
+  {
+    date: '2026-10-31',
     time: '13:30',
     kind: 'novo',
     icon: 'microphone',

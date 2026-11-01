@@ -14,3 +14,4 @@ const common = {
 };
 await build({ ...common, entryPoints: ['electron/main/index.ts'], outfile: 'dist-electron/main.cjs' });
 await build({ ...common, entryPoints: ['electron/preload/index.ts'], outfile: 'dist-electron/preload.cjs' });
+await build({ ...common, entryPoints: ['electron/preload/overlay.ts'], outfile: 'dist-electron/overlay-preload.cjs' });
