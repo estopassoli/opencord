@@ -186,6 +186,52 @@ describe('mensagens (RF-03)', () => {
     expect((await q(alice.token, 'q=')).status).toBe(400);
   });
 
+  it('melhores momentos: só mensagens com vídeo, ranqueadas por pessoas que reagiram, nos canais que eu vejo', async () => {
+    const { alice, bob, owner, serverId, channelId } = await setup();
+    const attach = async (uploaderId: string, messageId: string, mime: string) =>
+      prisma.attachment.create({
+        data: {
+          uploaderId,
+          messageId,
+          storageKey: `t/${messageId}`,
+          mime,
+          sizeBytes: 10,
+          originalName: 'x',
+          sha256: messageId,
+        },
+      });
+    const v1 = await send(alice.token, channelId, 'clipe 1');
+    const v2 = await send(bob.token, channelId, 'clipe 2');
+    const img = await send(alice.token, channelId, 'foto');
+    await attach(alice.id, v1.body.id, 'video/webm');
+    await attach(bob.id, v2.body.id, 'video/mp4');
+    await attach(alice.id, img.body.id, 'image/png');
+    // v2 ganha duas pessoas (um emoji cada); v1 ganha uma pessoa com dois emojis (conta 1)
+    const react = (token: string, mid: string, emoji: string) =>
+      http.req('PUT', `/messages/${mid}/reactions/${encodeURIComponent(emoji)}`, { token });
+    await react(alice.token, v2.body.id, '🔥');
+    await react(owner.token, v2.body.id, '👍');
+    await react(bob.token, v1.body.id, '🔥');
+    await react(bob.token, v1.body.id, '👍');
+    type H = { message: Message; score: number; channelName: string }[];
+    const top = await http.req<H>('GET', `/servers/${serverId}/highlights`, { token: alice.token });
+    expect(top.status).toBe(200);
+    expect(top.body.map((h) => [h.message.body, h.score])).toEqual([
+      ['clipe 2', 2],
+      ['clipe 1', 1],
+    ]);
+    expect(top.body[0]?.channelName).toBeTruthy();
+    // canal escondido não entra
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const everyone = d.body.roles.find((r) => r.isEveryone) as Role;
+    await http.req('PATCH', `/channels/${channelId}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'role', subjectId: everyone.id, allow: 0, deny: Permission.VIEW_CHANNEL }] },
+    });
+    expect((await http.req<H>('GET', `/servers/${serverId}/highlights`, { token: alice.token })).body).toEqual([]);
+    expect((await http.req('GET', `/servers/${serverId}/highlights?days=0`, { token: alice.token })).status).toBe(400);
+  });
+
   it('negação de SEND_MESSAGES por override é respeitada', async () => {
     const { alice, owner, serverId, channelId } = await setup();
     const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });

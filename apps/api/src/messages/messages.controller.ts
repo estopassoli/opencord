@@ -7,6 +7,7 @@ import {
   Emoji,
   ListMessagesQuery,
   SearchMessagesQuery,
+  HighlightsQuery,
   SetReactionRolesRequest,
   VotePollRequest,
 } from '@opencord/contracts';
@@ -18,6 +19,7 @@ import { MessagesService, type Target } from './messages.service.js';
 const id = new ParseUUIDPipe();
 type ListQ = z.infer<typeof ListMessagesQuery>;
 type SearchQ = z.infer<typeof SearchMessagesQuery>;
+type HighlightsQ = z.infer<typeof HighlightsQuery>;
 type CreateM = z.infer<typeof CreateMessageRequest>;
 type CreatePoll = z.infer<typeof CreatePollRequest>;
 type VotePoll = z.infer<typeof VotePollRequest>;
@@ -189,6 +191,16 @@ export class MessagesController {
     @Query(zodPipe(SearchMessagesQuery)) q: SearchQ,
   ) {
     return this.messages.search(u.userId, { serverId: sid }, q);
+  }
+
+  /** melhores momentos: vídeos do servidor ranqueados pelas reações */
+  @Get('servers/:id/highlights')
+  highlights(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) sid: string,
+    @Query(zodPipe(HighlightsQuery)) q: HighlightsQ,
+  ) {
+    return this.messages.highlights(u.userId, sid, q);
   }
 
   @Get('conversations/:id/messages/search')

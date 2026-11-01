@@ -26,6 +26,7 @@ import { WatchTogetherDialog } from '../voice/WatchTogether';
 import { setFriendNickname } from '../../lib/names';
 import { QuickSwitcher } from './QuickSwitcher';
 import { EventsDialog } from './Events';
+import { HighlightsDialog } from './Highlights';
 
 export function Modals() {
   const modal = useUi((s) => s.modal);
@@ -64,6 +65,8 @@ export function Modals() {
       return <CreateCategory serverId={modal.serverId} onClose={close} />;
     case 'events':
       return <EventsDialog serverId={modal.serverId} onClose={close} />;
+    case 'highlights':
+      return <HighlightsDialog serverId={modal.serverId} onClose={close} />;
     case 'settings':
       return <SettingsModal onClose={close} />;
     case 'server-settings':

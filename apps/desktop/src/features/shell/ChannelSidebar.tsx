@@ -165,6 +165,10 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
           )}
           {eventCount > 0 && <span className="events-count">{eventCount}</span>}
         </button>
+        <button className="channel-row events-row" onClick={() => open({ kind: 'highlights', serverId })}>
+          <Icon name="trophy" size={18} />
+          <span className="truncate">Melhores momentos</span>
+        </button>
         {groups.map((g) => (
           <section key={g.id ?? 'none'} className="cat">
             {g.name && (

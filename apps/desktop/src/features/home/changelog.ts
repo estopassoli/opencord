@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '17:00',
+    kind: 'novo',
+    icon: 'trophy',
+    title: 'Melhores momentos',
+    body: 'Logo abaixo de "Eventos", "Melhores momentos" junta os clipes e vídeos compartilhados no servidor e ranqueia pelas reações: cada pessoa conta uma vez por clipe. Pódio para os três primeiros da semana, do mês ou dos últimos 3 meses, e "Ir" leva até a mensagem.',
+  },
+  {
+    date: '2026-10-31',
     time: '16:30',
     kind: 'novo',
     icon: 'split',

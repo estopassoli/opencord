@@ -14,6 +14,7 @@ import {
   type Poll,
   type ReactionSummary,
   type SearchMessagesResponse,
+  type Highlight,
   type UnreadState,
 } from '@opencord/contracts';
 import { Prisma } from '@opencord/db';
@@ -516,6 +517,43 @@ export class MessagesService {
       this.prisma.message.count({ where: full }),
     ]);
     return { messages: rows.map((m) => this.serialize(m, userId)), total };
+  }
+
+  /**
+   * Melhores momentos: mensagens com vídeo nos canais de texto que eu vejo, dos últimos `days` dias, ordenadas por
+   * quantas pessoas distintas reagiram (empate: mais recente primeiro). Candidatos limitados a 300 para o ranking
+   * ser feito em memória com os dados que a mensagem já carrega.
+   */
+  async highlights(userId: string, serverId: string, q: { days: number; limit: number }): Promise<Highlight[]> {
+    const access = await this.perms.server(serverId, userId);
+    const channels = await this.prisma.channel.findMany({
+      where: { serverId, kind: 'text' },
+      select: { id: true, name: true, overrides: true },
+    });
+    const need = Permission.VIEW_CHANNEL | Permission.READ_HISTORY;
+    const perms = await this.perms.channelsFor(access, channels);
+    const visible = channels.filter((c) => hasPermission(perms.get(c.id) ?? 0, need));
+    if (!visible.length) return [];
+    const names = new Map(visible.map((c) => [c.id, c.name]));
+    const rows = await this.prisma.message.findMany({
+      where: {
+        channelId: { in: visible.map((c) => c.id) },
+        deletedAt: null,
+        createdAt: { gte: new Date(Date.now() - q.days * 86_400_000) },
+        attachments: { some: { mime: { startsWith: 'video/' } } },
+      },
+      include: MESSAGE_INCLUDE,
+      orderBy: [{ createdAt: 'desc' }],
+      take: 300,
+    });
+    return rows
+      .map((m) => ({
+        message: this.serialize(m, userId),
+        score: new Set(m.reactions.map((r) => r.userId)).size,
+        channelName: names.get(m.channelId as string) ?? '',
+      }))
+      .sort((a, b) => b.score - a.score || b.message.createdAt.localeCompare(a.message.createdAt))
+      .slice(0, q.limit);
   }
 
   async pins(userId: string, target: Target): Promise<Message[]> {

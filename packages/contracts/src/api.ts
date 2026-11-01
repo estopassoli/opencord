@@ -621,6 +621,20 @@ export type UpdateEventRequest = z.input<typeof UpdateEventRequest>;
 export const RsvpRequest = z.object({ status: RsvpStatus.nullable() });
 export type RsvpRequest = z.infer<typeof RsvpRequest>;
 
+/** Melhores momentos: vídeos compartilhados no servidor, ranqueados pelas reações do período. */
+export const HighlightsQuery = z.object({
+  days: z.coerce.number().int().min(1).max(90).default(7),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export type HighlightsQuery = z.input<typeof HighlightsQuery>;
+export const Highlight = z.object({
+  message: Message,
+  /** pessoas distintas que reagiram (qualquer emoji) */
+  score: z.number().int().nonnegative(),
+  channelName: z.string(),
+});
+export type Highlight = z.infer<typeof Highlight>;
+
 export const AckReadRequest = z.object({ messageId: Id });
 
 export const UnreadState = z.object({

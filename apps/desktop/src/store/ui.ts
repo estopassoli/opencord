@@ -29,6 +29,7 @@ export type Modal =
   | { kind: 'create-channel'; serverId: string; channelKind: ChannelKind; categoryId: string | null }
   | { kind: 'create-category'; serverId: string }
   | { kind: 'events'; serverId: string }
+  | { kind: 'highlights'; serverId: string }
   | { kind: 'watch-together' }
   | { kind: 'screen-picker' }
   | { kind: 'quick-switcher' }
