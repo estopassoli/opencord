@@ -6,6 +6,8 @@ import { Avatar, Button, Icon } from '@opencord/ui';
 import { useEffect, useRef, useState } from 'react';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
+import { useAnchoredPanel } from '../../components/anchored';
+import { createPortal } from 'react-dom';
 import type { ChatTarget } from './ChatView';
 import { renderRich } from './rich';
 
@@ -35,6 +37,8 @@ export function PinnedMessages({
   const [pins, setPins] = useState<Message[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  const panelStyle = useAnchoredPanel(open, box);
+  const panel = useRef<HTMLDivElement>(null);
 
   // carrega ao abrir (sempre atualizado: alguém pode ter fixado algo enquanto estava fechado)
   useEffect(() => {
@@ -49,7 +53,8 @@ export function PinnedMessages({
   useEffect(() => {
     if (!open) return;
     const down = (e: PointerEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !panel.current?.contains(t)) setOpen(false);
     };
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -83,70 +88,72 @@ export function PinnedMessages({
       >
         <Icon name="pin" />
       </button>
-      {open && (
-        <div className="pins-panel" role="dialog" aria-label="Mensagens fixadas">
-          <header className="pins-head">
-            <Icon name="pin" size={18} />
-            <h3>Mensagens fixadas</h3>
-          </header>
-          <div className="pins-list">
-            {error && (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            )}
-            {!pins && !error && <p className="muted small pins-empty">Carregando…</p>}
-            {pins?.length === 0 && (
-              <div className="pins-empty">
-                <Icon name="pin" size={32} />
-                <p>Nenhuma mensagem fixada aqui ainda.</p>
-                <p className="muted small">Clique com o botão direito numa mensagem e escolha "Fixar mensagem".</p>
-              </div>
-            )}
-            {pins?.map((m) => (
-              <article key={m.id} className="pin-item">
-                <Avatar id={m.author.id} name={m.author.displayName} size={32} />
-                <div className="pin-main">
-                  <div className="pin-meta">
-                    <strong className="truncate">{m.author.displayName}</strong>
-                    <time className="msg-time" dateTime={m.createdAt}>
-                      {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                    </time>
-                  </div>
-                  {m.body && <div className="pin-body">{renderRich(m.body, nameOf)}</div>}
-                  {m.attachments.length > 0 && (
-                    <div className="muted small">
-                      {m.attachments.length === 1 ? '1 anexo' : `${m.attachments.length} anexos`}
+      {open &&
+        createPortal(
+          <div className="pins-panel" role="dialog" aria-label="Mensagens fixadas" style={panelStyle} ref={panel}>
+            <header className="pins-head">
+              <Icon name="pin" size={18} />
+              <h3>Mensagens fixadas</h3>
+            </header>
+            <div className="pins-list">
+              {error && (
+                <p className="form-error" role="alert">
+                  {error}
+                </p>
+              )}
+              {!pins && !error && <p className="muted small pins-empty">Carregando…</p>}
+              {pins?.length === 0 && (
+                <div className="pins-empty">
+                  <Icon name="pin" size={32} />
+                  <p>Nenhuma mensagem fixada aqui ainda.</p>
+                  <p className="muted small">Clique com o botão direito numa mensagem e escolha "Fixar mensagem".</p>
+                </div>
+              )}
+              {pins?.map((m) => (
+                <article key={m.id} className="pin-item">
+                  <Avatar id={m.author.id} name={m.author.displayName} size={32} />
+                  <div className="pin-main">
+                    <div className="pin-meta">
+                      <strong className="truncate">{m.author.displayName}</strong>
+                      <time className="msg-time" dateTime={m.createdAt}>
+                        {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                      </time>
                     </div>
-                  )}
-                </div>
-                <div className="pin-actions">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      if (jumpTo(m.id)) setOpen(false);
-                      else useUi.getState().toast('info', 'Role a conversa para cima para ver esta mensagem.');
-                    }}
-                  >
-                    Ir
-                  </Button>
-                  {canUnpin && (
-                    <button
-                      className="icon-btn"
-                      aria-label="Desafixar mensagem"
-                      data-tip="Desafixar"
-                      onClick={() => unpin(m.id)}
+                    {m.body && <div className="pin-body">{renderRich(m.body, nameOf)}</div>}
+                    {m.attachments.length > 0 && (
+                      <div className="muted small">
+                        {m.attachments.length === 1 ? '1 anexo' : `${m.attachments.length} anexos`}
+                      </div>
+                    )}
+                  </div>
+                  <div className="pin-actions">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        if (jumpTo(m.id)) setOpen(false);
+                        else useUi.getState().toast('info', 'Role a conversa para cima para ver esta mensagem.');
+                      }}
                     >
-                      <Icon name="pin-off" size={16} />
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      )}
+                      Ir
+                    </Button>
+                    {canUnpin && (
+                      <button
+                        className="icon-btn"
+                        aria-label="Desafixar mensagem"
+                        data-tip="Desafixar"
+                        onClick={() => unpin(m.id)}
+                      >
+                        <Icon name="pin-off" size={16} />
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

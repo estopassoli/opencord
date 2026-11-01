@@ -22,6 +22,17 @@ describe('memória dos clipes', () => {
     expect(snap.audio[0]!.ts).toBeGreaterThanOrEqual(snap.base);
     expect(snap.audio.at(-1)!.ts).toBe(130 * S);
   });
+  it('trilhas de áudio fora de ordem não deixam buraco (a 2 antes da 1 derrubava o trim)', () => {
+    const r = new ChunkRing(10 * S);
+    r.pushVideo(v(1, true));
+    expect(() => r.pushAudio(a(1), 2)).not.toThrow();
+    expect(() => r.pushAudio(a(1), 1)).not.toThrow();
+    r.pushAudio(a(1), 0);
+    for (let s = 2; s <= 30; s++) r.pushAudio(a(s), 2);
+    expect(r.bytes).toBeGreaterThan(0);
+    const snap = r.snapshot()!;
+    expect(snap.extra).toHaveLength(2);
+  });
   it('limpa e conta bytes', () => {
     const r = new ChunkRing(10 * S);
     r.pushVideo(v(1, true));

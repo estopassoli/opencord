@@ -126,6 +126,20 @@ test('entrar só com apelido → servidor padrão → canal → enviar mensagem'
   // sem duplicata otimista após a confirmação
   await expect(page.getByRole('log').getByText(text)).toHaveCount(1, { timeout: 3_000 });
   await page.screenshot({ path: shots('03-chat') });
+  // busca (Ctrl+F): o painel abre INTEIRO abaixo do cabeçalho (ele tem overflow: hidden; o painel vai num portal)
+  await page.keyboard.press('Control+f');
+  const search = page.getByRole('dialog', { name: 'Buscar mensagens' });
+  await expect(search).toBeVisible();
+  await page.getByLabel('Texto da busca').fill('Olá do E2E');
+  await expect(search.getByText(text)).toBeVisible({ timeout: 10_000 });
+  const header = await page.getByRole('heading', { name: 'geral', exact: true }).boundingBox();
+  const panel = await search.boundingBox();
+  const result = await search.getByText(text).boundingBox();
+  expect(panel && header && panel.y >= header.y + header.height).toBe(true);
+  expect(result && panel && result.y + result.height <= panel.y + panel.height + 1).toBe(true);
+  await page.screenshot({ path: shots('03a-busca') });
+  await page.keyboard.press('Escape');
+  await expect(search).toHaveCount(0);
   // excluir pede confirmação no tema do app (não a caixa nativa do Windows): Esc cancela, "Excluir" apaga
   const msg = page.getByRole('log').getByText(text);
   const del = async () => {

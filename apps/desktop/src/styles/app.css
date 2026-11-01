@@ -5792,9 +5792,8 @@ section:first-child > .friends-panel-sep {
   display: flex;
 }
 .pins-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  /* top/right vêm por estilo inline (useAnchoredPanel): fixo no viewport, fora do overflow do cabeçalho */
+  position: fixed;
   z-index: 60;
   width: min(420px, calc(100vw - 32px));
   max-height: min(70vh, 560px);

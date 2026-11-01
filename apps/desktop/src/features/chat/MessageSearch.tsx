@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from 'react';
 import { api, describeError } from '../../store/session';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
+import { useAnchoredPanel } from '../../components/anchored';
+import { createPortal } from 'react-dom';
 import type { ChatTarget } from './ChatView';
 import { jumpTo } from './PinnedMessages';
 import { renderRich } from './rich';
@@ -45,6 +47,8 @@ export function MessageSearch({
   const box = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
+  const panelStyle = useAnchoredPanel(open, box);
+  const panel = useRef<HTMLDivElement>(null);
   const serverChannels = useData((s) => (serverId ? s.details[serverId]?.channels : undefined));
   const channels = serverChannels ?? [];
 
@@ -65,7 +69,8 @@ export function MessageSearch({
     if (!open) return;
     input.current?.focus();
     const down = (e: PointerEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !panel.current?.contains(t)) setOpen(false);
     };
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -143,119 +148,129 @@ export function MessageSearch({
       >
         <Icon name="search" />
       </button>
-      {open && (
-        <div className="pins-panel search-panel" role="dialog" aria-label="Buscar mensagens">
-          <form
-            className="search-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void run(0);
-            }}
+      {open &&
+        createPortal(
+          <div
+            className="pins-panel search-panel"
+            role="dialog"
+            aria-label="Buscar mensagens"
+            style={panelStyle}
+            ref={panel}
           >
-            <TextField
-              ref={input}
-              type="search"
-              leadingIcon="search"
-              value={q}
-              placeholder={serverId && whole ? 'Buscar no servidor…' : 'Buscar nesta conversa…'}
-              aria-label="Texto da busca"
-              autoComplete="off"
-              spellCheck={false}
-              onChange={(e) => setQ(e.target.value)}
-            />
-            <div className="search-filters">
-              {serverId && (
-                <button
-                  type="button"
-                  className="chip"
-                  aria-pressed={whole}
-                  onClick={() => setWhole((w) => !w)}
-                  data-tip={whole ? 'Buscar só neste canal' : 'Buscar em todos os canais que você vê'}
-                >
-                  <Icon name="hashtag" size={14} /> Servidor inteiro
-                </button>
-              )}
-              {HAS.map((h) => (
-                <button
-                  type="button"
-                  key={h.id}
-                  className="chip"
-                  aria-pressed={has === h.id}
-                  onClick={() => setHas((cur) => (cur === h.id ? null : h.id))}
-                >
-                  {h.label}
-                </button>
-              ))}
-              <Select<string>
-                className="search-person"
-                aria-label="Pessoa"
-                placeholder="Qualquer pessoa"
-                value={authorId}
-                onChange={(v) => setAuthorId(v === '' ? null : v)}
-                options={[
-                  { value: '', label: 'Qualquer pessoa' },
-                  ...people.map((p) => ({ value: p.id, label: p.name })),
-                ]}
+            <form
+              className="search-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(0);
+              }}
+            >
+              <TextField
+                ref={input}
+                type="search"
+                leadingIcon="search"
+                value={q}
+                placeholder={serverId && whole ? 'Buscar no servidor…' : 'Buscar nesta conversa…'}
+                aria-label="Texto da busca"
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => setQ(e.target.value)}
               />
-            </div>
-          </form>
-          <div className="pins-list" aria-live="polite" aria-busy={loading}>
-            {error && (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            )}
-            {!q.trim() && (
-              <div className="pins-empty">
-                <Icon name="search" size={32} />
-                <p>Digite para buscar.</p>
-                <p className="muted small">
-                  Várias palavras: todas precisam aparecer. Também procura no nome dos arquivos.
+              <div className="search-filters">
+                {serverId && (
+                  <button
+                    type="button"
+                    className="chip"
+                    aria-pressed={whole}
+                    onClick={() => setWhole((w) => !w)}
+                    data-tip={whole ? 'Buscar só neste canal' : 'Buscar em todos os canais que você vê'}
+                  >
+                    <Icon name="hashtag" size={14} /> Servidor inteiro
+                  </button>
+                )}
+                {HAS.map((h) => (
+                  <button
+                    type="button"
+                    key={h.id}
+                    className="chip"
+                    aria-pressed={has === h.id}
+                    onClick={() => setHas((cur) => (cur === h.id ? null : h.id))}
+                  >
+                    {h.label}
+                  </button>
+                ))}
+                <Select<string>
+                  className="search-person"
+                  aria-label="Pessoa"
+                  placeholder="Qualquer pessoa"
+                  value={authorId}
+                  onChange={(v) => setAuthorId(v === '' ? null : v)}
+                  options={[
+                    { value: '', label: 'Qualquer pessoa' },
+                    ...people.map((p) => ({ value: p.id, label: p.name })),
+                  ]}
+                />
+              </div>
+            </form>
+            <div className="pins-list" aria-live="polite" aria-busy={loading}>
+              {error && (
+                <p className="form-error" role="alert">
+                  {error}
                 </p>
-              </div>
-            )}
-            {q.trim() && res?.total === 0 && !loading && (
-              <div className="pins-empty">
-                <Icon name="search" size={32} />
-                <p>Nada encontrado.</p>
-              </div>
-            )}
-            {res && res.total > 0 && (
-              <p className="muted small search-count">{res.total === 1 ? '1 resultado' : `${res.total} resultados`}</p>
-            )}
-            {res?.messages.map((m) => (
-              <article key={m.id} className="pin-item">
-                <Avatar id={m.author.id} name={m.author.displayName} size={32} />
-                <div className="pin-main">
-                  <div className="pin-meta">
-                    <strong className="truncate">{nameOf(m.author.id)}</strong>
-                    {whole && m.channelId && channelName(m.channelId) && (
-                      <span className="muted small truncate">#{channelName(m.channelId)}</span>
+              )}
+              {!q.trim() && (
+                <div className="pins-empty">
+                  <Icon name="search" size={32} />
+                  <p>Digite para buscar.</p>
+                  <p className="muted small">
+                    Várias palavras: todas precisam aparecer. Também procura no nome dos arquivos.
+                  </p>
+                </div>
+              )}
+              {q.trim() && res?.total === 0 && !loading && (
+                <div className="pins-empty">
+                  <Icon name="search" size={32} />
+                  <p>Nada encontrado.</p>
+                </div>
+              )}
+              {res && res.total > 0 && (
+                <p className="muted small search-count">
+                  {res.total === 1 ? '1 resultado' : `${res.total} resultados`}
+                </p>
+              )}
+              {res?.messages.map((m) => (
+                <article key={m.id} className="pin-item">
+                  <Avatar id={m.author.id} name={m.author.displayName} size={32} />
+                  <div className="pin-main">
+                    <div className="pin-meta">
+                      <strong className="truncate">{nameOf(m.author.id)}</strong>
+                      {whole && m.channelId && channelName(m.channelId) && (
+                        <span className="muted small truncate">#{channelName(m.channelId)}</span>
+                      )}
+                      <time className="msg-time" dateTime={m.createdAt}>
+                        {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                      </time>
+                    </div>
+                    {m.body && <div className="pin-body">{renderRich(m.body, nameOf)}</div>}
+                    {m.attachments.length > 0 && (
+                      <div className="muted small truncate">{m.attachments.map((a) => a.originalName).join(', ')}</div>
                     )}
-                    <time className="msg-time" dateTime={m.createdAt}>
-                      {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                    </time>
                   </div>
-                  {m.body && <div className="pin-body">{renderRich(m.body, nameOf)}</div>}
-                  {m.attachments.length > 0 && (
-                    <div className="muted small truncate">{m.attachments.map((a) => a.originalName).join(', ')}</div>
-                  )}
-                </div>
-                <div className="pin-actions">
-                  <Button variant="secondary" size="sm" onClick={() => go(m)}>
-                    Ir
-                  </Button>
-                </div>
-              </article>
-            ))}
-            {res && res.messages.length < res.total && (
-              <Button variant="secondary" size="sm" disabled={loading} onClick={() => void run(res.messages.length)}>
-                {loading ? 'Carregando…' : 'Mais resultados'}
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
+                  <div className="pin-actions">
+                    <Button variant="secondary" size="sm" onClick={() => go(m)}>
+                      Ir
+                    </Button>
+                  </div>
+                </article>
+              ))}
+              {res && res.messages.length < res.total && (
+                <Button variant="secondary" size="sm" disabled={loading} onClick={() => void run(res.messages.length)}>
+                  {loading ? 'Carregando…' : 'Mais resultados'}
+                </Button>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

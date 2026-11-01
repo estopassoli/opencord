@@ -41,7 +41,9 @@ export class ChunkRing {
       this.lastAudioTs = c.ts;
       this.audioIn++;
     }
-    (this.audio[track] ??= []).push(c);
+    // trilhas podem chegar fora de ordem (a 2 antes da 1): sem buracos no array, senão `trim` lê undefined
+    while (this.audio.length <= track) this.audio.push([]);
+    this.audio[track]!.push(c);
     this.trim(c.ts);
   }
 
