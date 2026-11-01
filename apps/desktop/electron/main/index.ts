@@ -112,7 +112,9 @@ const gpuMode = readAppPrefs().gpuMode;
 if (gpuMode === 'off') app.disableHardwareAcceleration();
 
 // Necessário para notificações nativas no Windows.
-app.setAppUserModelId('org.opencord.desktop');
+// O id de app do Windows liga a janela ao atalho/ícone da barra de tarefas. Em desenvolvimento (electron.exe) usa
+// outro id: com o mesmo, o Windows guardava o ícone do Electron para o id e o app instalado herdava o átomo na barra.
+app.setAppUserModelId(app.isPackaged ? 'org.opencord.desktop' : 'org.opencord.desktop.dev');
 // Voz não pode ser estrangulada com a janela em segundo plano.
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
