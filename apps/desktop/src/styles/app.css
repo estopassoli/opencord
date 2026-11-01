@@ -6904,3 +6904,20 @@ html[data-wallpaper='true'] .chat-scroll {
   place-items: center;
   color: var(--text-2);
 }
+
+/* ---- lives lado a lado ---- */
+.stage-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+}
+.stage-split > .tile {
+  min-height: 0;
+}
+@media (max-width: 900px) {
+  .stage-split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}

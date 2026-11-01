@@ -30,6 +30,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   const machine = useVoice((s) => s.machine);
   const participants = useVoice((s) => s.participants);
   const focused = useUi((s) => s.focusedStream);
+  const sideId = useUi((s) => s.sideStream);
   const activity = useActivity((s) => s.state);
   const channel = useData((s) => s.details[serverId]?.channels.find((c) => c.id === channelId));
   // seletores que derivam arrays precisam de comparação rasa (zustand v5 + useSyncExternalStore)
@@ -75,6 +76,11 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
 
   const streamers = participants.filter((p) => p.hasScreen);
   const focus = streamers.find((p) => p.identity === focused && p.watchingScreen) ?? null;
+  // lado a lado: a segunda live precisa estar sendo assistida e não pode ser a mesma do destaque
+  const side =
+    focus && sideId && sideId !== focus.identity
+      ? (streamers.find((p) => p.identity === sideId && p.watchingScreen) ?? null)
+      : null;
   const activityFocused = Boolean(activity) && focused === 'activity';
   const camFocus = participants.find((p) => p.hasCamera && focused === camKey(p.identity)) ?? null;
 
@@ -93,6 +99,18 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
         <FocusLayout
           main={<ParticipantTile p={camFocus} large />}
           excludeCam={camFocus.identity}
+          participants={participants}
+        />
+      ) : focus && side ? (
+        <FocusLayout
+          main={
+            <div className="stage-split">
+              <StreamTile p={focus} large />
+              <StreamTile p={side} large />
+            </div>
+          }
+          exclude={focus.identity}
+          excludeSide={side.identity}
           participants={participants}
         />
       ) : focus ? (
@@ -296,12 +314,15 @@ function WatchBadge({ identity }: { identity: string }) {
 function FocusLayout({
   main,
   exclude,
+  excludeSide,
   excludeCam,
   participants,
 }: {
   main: ReactNode;
   /** quem transmite não se repete na faixa (a não ser com câmera) */
   exclude?: string;
+  /** a segunda live do lado a lado também sai da faixa */
+  excludeSide?: string;
   /** câmera em destaque: o quadro dela sai da faixa (a live da pessoa, se houver, continua) */
   excludeCam?: string;
   participants: ParticipantView[];
@@ -327,14 +348,20 @@ function FocusLayout({
         <ul className="stage-strip" aria-hidden={hidden || undefined} inert={hidden || undefined}>
           {/* as outras transmissões (inclusive a minha) ficam na faixa: um clique assiste e destaca */}
           {participants
-            .filter((p) => p.hasScreen && p.identity !== exclude)
+            .filter((p) => p.hasScreen && p.identity !== exclude && p.identity !== excludeSide)
             .map((p) => (
               <li key={`s-${p.identity}`}>
                 <StripStream p={p} />
               </li>
             ))}
           {participants
-            .filter((p) => (p.identity !== exclude || p.hasCamera) && p.identity !== excludeCam && ownTile(p))
+            .filter(
+              (p) =>
+                (p.identity !== exclude || p.hasCamera) &&
+                (p.identity !== excludeSide || p.hasCamera) &&
+                p.identity !== excludeCam &&
+                ownTile(p),
+            )
             .map((p) => (
               <li key={p.identity}>
                 <ParticipantTile p={p} compact />
@@ -385,12 +412,28 @@ function StripStream({ p }: { p: ParticipantView }) {
     if (p.isLocal) useUi.getState().focusStream(p.identity);
     else useVoice.getState().watch(p.identity, true);
   };
+  // lado a lado: esta live entra ao lado da que está em destaque (começa a assistir sem tirar o destaque)
+  const sideBySide = () => {
+    if (!p.isLocal) useVoice.getState().engine()?.watch(p.identity, true);
+    useUi.getState().setSideStream(p.identity);
+  };
+  const menu = (e: React.MouseEvent) =>
+    openContextMenu(
+      e,
+      [
+        { label: 'Assistir em destaque', icon: 'spotlight', onSelect: open },
+        { label: 'Ver lado a lado', icon: 'split', onSelect: sideBySide },
+      ],
+      `Transmissão de ${p.name}`,
+    );
   return (
     <button
       className="tile strip-stream"
       data-compact="true"
       aria-label={p.isLocal ? 'Ver sua transmissão' : `Assistir a transmissão de ${p.name}`}
       onClick={open}
+      onContextMenu={menu}
+      data-tip="Clique: destaque · Botão direito: lado a lado"
     >
       {p.watchingScreen ? <Video identity={p.identity} source="screen" /> : <Icon name="screen" size={28} />}
       {!p.hasCamera && <StreamerBubble p={p} size={28} />}
@@ -518,6 +561,9 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
   const controllingThis = remote.controlling?.identity === p.identity;
   const requestingThis = remote.requesting?.identity === p.identity;
   const canControl = !p.isLocal && watching && !elsewhere && !mobile;
+  const sideId = useUi((s) => s.sideStream);
+  const focusedId = useUi((s) => s.focusedStream);
+  const inSplit = large && sideId !== null && (focusedId === p.identity || sideId === p.identity);
   const controlAction = !canControl
     ? null
     : controllingThis
@@ -566,6 +612,18 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
         },
       });
     if (watching) items.push({ label: 'Tela cheia', icon: 'maximize', onSelect: fullscreen });
+    if (inSplit)
+      items.push({
+        label: 'Fechar lado a lado',
+        icon: 'split',
+        onSelect: () => useUi.getState().setSideStream(null),
+      });
+    else if (watching && focusedId && focusedId !== p.identity && !large)
+      items.push({
+        label: 'Ver lado a lado',
+        icon: 'split',
+        onSelect: () => useUi.getState().setSideStream(p.identity),
+      });
     if (controlAction) items.push({ label: controlAction.label, icon: 'cursor', onSelect: controlAction.run });
     if (p.isLocal && remote.controlledBy)
       items.push({
@@ -659,6 +717,16 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
               }}
             >
               <Icon name="popout" />
+            </button>
+          )}
+          {inSplit && (
+            <button
+              className="icon-btn"
+              aria-label="Fechar lado a lado"
+              data-tip="Fechar lado a lado"
+              onClick={() => useUi.getState().setSideStream(null)}
+            >
+              <Icon name="split" />
             </button>
           )}
           {inPopout ? null : !large ? (

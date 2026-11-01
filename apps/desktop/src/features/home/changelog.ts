@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '16:30',
+    kind: 'novo',
+    icon: 'split',
+    title: 'Duas lives lado a lado',
+    body: 'Com uma live em destaque, clique com o botão direito em outra na faixa de baixo (ou no card dela) e escolha "Ver lado a lado": as duas dividem a tela. Bom para acompanhar a dupla no squad. "Fechar lado a lado" volta para uma só.',
+  },
+  {
+    date: '2026-10-31',
     time: '16:00',
     kind: 'novo',
     icon: 'image',

@@ -93,6 +93,8 @@ interface UiState {
   panel: 'none' | 'nav' | 'members';
   /** stream em foco no palco (identity do publisher) */
   focusedStream: string | null;
+  /** segunda transmissão ao lado da que está em destaque (lives lado a lado) */
+  sideStream: string | null;
   /** transmissão aberta em janela separada (identidade de quem transmite) */
   poppedStream: string | null;
   /** faixa de participantes oculta sob a transmissão em destaque */
@@ -114,6 +116,7 @@ interface UiState {
   toggleMembers(): void;
   setPanel(p: UiState['panel']): void;
   focusStream(id: string | null): void;
+  setSideStream(id: string | null): void;
   setPoppedStream(id: string | null): void;
   toggleStrip(): void;
   setEditing(id: string | null): void;
@@ -157,6 +160,7 @@ export const useUi = create<UiState>()((set) => ({
   },
   panel: 'none',
   focusedStream: null,
+  sideStream: null,
   poppedStream: null,
   stripHidden: false,
   editing: null,
@@ -191,7 +195,9 @@ export const useUi = create<UiState>()((set) => ({
   openModal: (m) => set({ modal: m }),
   toggleMembers: () => set((s) => ({ showMembers: !s.showMembers })),
   setPanel: (panel) => set({ panel }),
-  focusStream: (id) => set({ focusedStream: id }),
+  // trocar/limpar o destaque desfaz o lado a lado (e a lateral nunca é a própria em destaque)
+  focusStream: (id) => set((s) => ({ focusedStream: id, sideStream: id && s.sideStream !== id ? s.sideStream : null })),
+  setSideStream: (id) => set({ sideStream: id }),
   setPoppedStream: (id) => set({ poppedStream: id }),
   toggleStrip: () => set((s) => ({ stripHidden: !s.stripHidden })),
   setEditing: (editing) => set({ editing }),
