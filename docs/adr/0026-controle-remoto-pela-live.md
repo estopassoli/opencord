@@ -1,5 +1,5 @@
 # ADR-0026: Controle remoto do PC de quem transmite (mouse e teclado pela sala do LiveKit)
-Status: Accepted (pedido do mantenedor, 2026-10-31) — BLOQUEADO PARA VALIDAÇÃO com duas pessoas reais
+Status: Accepted (pedido do mantenedor, 2026-10-31; validado com duas pessoas reais em 2026-10-31)
 
 ## Contexto
 O mantenedor quer que alguém da chamada possa controlar o PC de outra pessoa, no estilo AnyDesk/TeamViewer, com o
@@ -56,5 +56,5 @@ teclado de quem assiste até o Windows de quem transmite, com consentimento expl
   monitores): imprime `ready`, aceita `m X Y` e o cursor foi para o pixel pedido (diferença de 5 px na primeira
   leitura, 20 ms depois, com o mantenedor mexendo o mouse ao mesmo tempo: sem injetar nada o cursor andava até 728 px
   por 20 ms), e o processo encerra com código 0 ao fechar o stdin.
-- **Pendente:** teste com duas pessoas reais (pedido, aceite, mouse, teclado, faixa, atalho de emergência, queda da
-  live). Até lá, BLOQUEADO PARA VALIDAÇÃO.
+- **Validado em uso real (2026-10-31, relato do mantenedor):** pedido, aceite e controle entre duas pessoas da chamada,
+  em máquinas Windows diferentes, com o instalador gerado do commit 9dd45c7 ("deu certinho").
