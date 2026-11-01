@@ -1,7 +1,7 @@
 /**
- * Parallax do layout Vidro: a posição do ponteiro vira um par (-1..1) suavizado a cada quadro. O fundo (three.js)
- * lê o valor direto; os painéis recebem como variáveis CSS (--mx, --my) e o ângulo da luz especular acompanha.
- * Com "reduzir movimento" o par fica em zero.
+ * Luz do layout Vidro: a posição do ponteiro vira um par (-1..1) suavizado a cada quadro, nas variáveis CSS --mx e
+ * --my; só o ângulo do reflexo nas bordas dos painéis acompanha (sem parallax, a pedido do mantenedor). Com "reduzir
+ * movimento" o par fica em zero.
  */
 import { create } from 'zustand';
 

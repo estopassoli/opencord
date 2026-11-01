@@ -1,6 +1,6 @@
 /**
  * Fundo vivo do layout Vidro (three.js): uma aurora lenta de três luzes coloridas — a primeira é a cor do servidor
- * aberto — que deriva sob os painéis de vidro, acompanha o ponteiro (parallax) e pulsa de leve quando alguém fala
+ * aberto — que deriva sob os painéis de vidro e pulsa de leve quando alguém fala
  * na chamada. Renderiza em meia resolução a até 30 fps; para com a janela escondida, com um jogo aberto (a placa de
  * vídeo é do jogo) e com "reduzir movimento" (um quadro parado).
  */
@@ -10,7 +10,7 @@ import { useData } from '../../store/data';
 import { useGames } from '../../store/games';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
-import { pointer, useReducedMotion } from './parallax';
+import { useReducedMotion } from './parallax';
 
 const VERT = /* glsl */ `
   void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }
@@ -20,7 +20,6 @@ const FRAG = /* glsl */ `
   precision highp float;
   uniform vec2 uRes;
   uniform float uTime;
-  uniform vec2 uPointer;
   uniform float uPulse;
   uniform vec3 uA;
   uniform vec3 uB;
@@ -61,8 +60,6 @@ const FRAG = /* glsl */ `
     vec2 uv = gl_FragCoord.xy / uRes;
     float aspect = uRes.x / uRes.y;
     vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
-    // parallax: o fundo desliza um pouco contra o ponteiro
-    p += uPointer * vec2(-0.06, 0.06);
     float t = uTime * 0.035;
     // deformação de domínio: as luzes escorrem em vez de só deslizar
     vec2 w = vec2(fbm(p * 1.1 + t), fbm(p * 1.1 - t * 0.8 + 3.1));
@@ -114,7 +111,6 @@ export function Backdrop() {
     const uniforms = {
       uRes: { value: new THREE.Vector2(1, 1) },
       uTime: { value: 0 },
-      uPointer: { value: new THREE.Vector2(0, 0) },
       uPulse: { value: 0 },
       uA: { value: new THREE.Vector3(...hexToVec(FALLBACK[0] as string)) },
       uB: { value: new THREE.Vector3(...hexToVec(FALLBACK[1] as string)) },
@@ -158,7 +154,6 @@ export function Backdrop() {
     const idle = () => document.hidden || useGames.getState().mine !== null || useReducedMotion.getState().reduced;
     const render = (now: number) => {
       uniforms.uTime.value = (now - start) / 1000;
-      uniforms.uPointer.value.set(pointer.x, pointer.y);
       uniforms.uPulse.value += (pulseTarget - uniforms.uPulse.value) * 0.05;
       renderer.render(scene, camera);
     };

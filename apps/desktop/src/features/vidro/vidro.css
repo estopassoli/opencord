@@ -2,8 +2,9 @@
  * Layout Vidro (redesign em teste). Tudo aqui vale só com <html data-layout="vidro">.
  *
  * Ideia: a luz vem de trás. O fundo (three.js) é a única coisa colorida e viva; os painéis são lâminas de vidro
- * fosco com espessura (brilho na borda de cima, sombra embaixo) cuja reflexão acompanha o ponteiro: o ângulo da
- * luz especular e um leve parallax mudam com o mouse. Dentro dos painéis, as telas do clássico continuam planas.
+ * fosco com espessura (brilho na borda de cima, sombra embaixo) cuja reflexão acompanha o ponteiro: só o ângulo da
+ * luz especular muda com o mouse (sem parallax: os painéis e o fundo ficam parados). Dentro dos painéis, as telas do
+ * clássico continuam planas.
  */
 
 html[data-layout='vidro'] {
@@ -87,8 +88,6 @@ html[data-layout='vidro'] .vidro-panel {
     inset 0 -1px 0 rgb(0 0 0 / 0.25),
     0 30px 60px -28px rgb(0 0 0 / 0.8);
   overflow: clip;
-  /* parallax: os painéis se movem um pouco contra o ponteiro (menos que o fundo) */
-  translate: calc(var(--mx, 0) * -5px) calc(var(--my, 0) * -5px);
   animation: vidro-rise 560ms var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 80ms);
 }
@@ -345,6 +344,5 @@ html[data-layout='vidro'] ::-webkit-scrollbar-track {
   html[data-layout='vidro'] .vidro-panel,
   html[data-layout='vidro'] .vidro-view {
     animation: none;
-    translate: none;
   }
 }
