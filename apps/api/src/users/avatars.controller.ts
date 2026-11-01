@@ -19,6 +19,12 @@ export class AvatarsController {
   }
 
   @Public()
+  @Get('wallpapers/:name')
+  wallpaper(@Param('name') name: string, @Res() reply: FastifyReply) {
+    return this.serve(this.avatars.open(name, 'wallpapers'), reply);
+  }
+
+  @Public()
   @Get('server-icons/:name')
   getServerIcon(@Param('name') name: string, @Res() reply: FastifyReply) {
     return this.serve(this.avatars.open(name, 'server-icons'), reply);

@@ -973,7 +973,7 @@ const REDUCED_MOTION_OPTIONS: readonly SelectOption<UserSettings['appearance']['
 ];
 
 /** Paleta própria de destaques (a primeira é a cor da logo). */
-const ACCENTS = [
+export const ACCENTS = [
   '#4d56fd',
   '#7c5cff',
   '#b44dff',
@@ -986,7 +986,7 @@ const ACCENTS = [
   '#2d8cff',
   '#8a94a6',
 ] as const;
-const DEFAULT_ACCENT = ACCENTS[0];
+export const DEFAULT_ACCENT = ACCENTS[0];
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const FONT_NAME_RE = /^[\p{L}\p{N} ._-]*$/u;
 

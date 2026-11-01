@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '16:00',
+    kind: 'novo',
+    icon: 'image',
+    title: 'Cor e papel de parede do servidor',
+    body: 'Em Configurações do servidor → Visão geral, quem gerencia escolhe uma cor de destaque e um papel de parede para a conversa. Valem para todo mundo enquanto o servidor está aberto; ao sair, cada um volta para o próprio tema.',
+  },
+  {
+    date: '2026-10-31',
     time: '15:30',
     kind: 'novo',
     icon: 'link',

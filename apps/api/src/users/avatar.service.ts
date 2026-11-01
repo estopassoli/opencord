@@ -17,6 +17,8 @@ import { RealtimeService } from '../realtime/realtime.service.js';
 /** O app já recorta e reduz para 256×256; o limite é folgado para quem envia direto pela API. */
 export const AVATAR_MAX_BYTES = 1024 * 1024;
 const MAX_SIDE = 1024;
+const AVATAR_LIMITS = { maxBytes: AVATAR_MAX_BYTES, maxSide: MAX_SIDE, label: '1 MB' };
+const WALLPAPER_LIMITS = { maxBytes: 4 * 1024 * 1024, maxSide: 2560, label: '4 MB' };
 const TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpeg',
@@ -63,6 +65,32 @@ export class AvatarService {
     return this.applyServer(serverId, null);
   }
 
+  /** Papel de parede da conversa (até 4 MB e 2560 px de lado; o app reduz antes de enviar). */
+  async setServerWallpaper(serverId: string, file: AsyncIterable<Buffer> & { truncated?: boolean }) {
+    return this.applyWallpaper(serverId, await this.storeImage(file, 'wallpapers', WALLPAPER_LIMITS));
+  }
+
+  async clearServerWallpaper(serverId: string) {
+    return this.applyWallpaper(serverId, null);
+  }
+
+  private async applyWallpaper(serverId: string, name: string | null) {
+    const prev = await swapKey(
+      async () => (await this.prisma.server.findUniqueOrThrow({ where: { id: serverId } })).wallpaperKey,
+      async (old) =>
+        (
+          await this.prisma.server.updateMany({
+            where: { id: serverId, wallpaperKey: old },
+            data: { wallpaperKey: name },
+          })
+        ).count,
+    );
+    const server = await this.prisma.server.findUniqueOrThrow({ where: { id: serverId } });
+    if (prev && AVATAR_NAME.test(prev)) await this.storage.remove(`wallpapers/${prev}`).catch(() => undefined);
+    this.realtime.emit(rooms.server(serverId), 'server:updated', serverSummary(server));
+    return server;
+  }
+
   private async applyServer(serverId: string, name: string | null) {
     const prev = await swapKey(
       async () => (await this.prisma.server.findUniqueOrThrow({ where: { id: serverId } })).iconKey,
@@ -76,15 +104,19 @@ export class AvatarService {
   }
 
   /** Valida (tipo pelos bytes, tamanho, dimensões) e grava em `<pasta>/<nome aleatório>`; devolve o nome. */
-  private async storeImage(file: AsyncIterable<Buffer> & { truncated?: boolean }, folder: string) {
+  private async storeImage(
+    file: AsyncIterable<Buffer> & { truncated?: boolean },
+    folder: string,
+    limits: { maxBytes: number; maxSide: number; label: string } = AVATAR_LIMITS,
+  ) {
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const c of file) {
       size += c.length;
-      if (size > AVATAR_MAX_BYTES) throw new PayloadTooLargeException('a foto passa de 1 MB');
+      if (size > limits.maxBytes) throw new PayloadTooLargeException(`a imagem passa de ${limits.label}`);
       chunks.push(c);
     }
-    if (file.truncated) throw new PayloadTooLargeException('a foto passa de 1 MB');
+    if (file.truncated) throw new PayloadTooLargeException(`a imagem passa de ${limits.label}`);
     if (!size) throw new BadRequestException('arquivo vazio');
     const buf = Buffer.concat(chunks);
     // tipo real pelos bytes; o declarado pelo cliente não vale
@@ -93,8 +125,8 @@ export class AvatarService {
     const ext = mime ? TYPES[mime] : undefined;
     if (!mime || !ext) throw new BadRequestException('use uma imagem PNG, JPEG, WebP ou GIF');
     const dims = imageSize(buf, mime);
-    if (!dims || dims.width < 16 || dims.height < 16 || dims.width > MAX_SIDE || dims.height > MAX_SIDE)
-      throw new BadRequestException(`a foto precisa ter entre 16 e ${MAX_SIDE} pixels de lado`);
+    if (!dims || dims.width < 16 || dims.height < 16 || dims.width > limits.maxSide || dims.height > limits.maxSide)
+      throw new BadRequestException(`a imagem precisa ter entre 16 e ${limits.maxSide} pixels de lado`);
     const name = `${randomUUID()}-${ext}`;
     try {
       await this.storage.write(`${folder}/${name}`, buf, mime);
@@ -141,7 +173,7 @@ export class AvatarService {
   }
 
   /** Para GET /avatars/:name e GET /server-icons/:name. */
-  open(name: string, folder: 'avatars' | 'server-icons' = 'avatars') {
+  open(name: string, folder: 'avatars' | 'server-icons' | 'wallpapers' = 'avatars') {
     const m = AVATAR_NAME.exec(name);
     if (!m) return null;
     const mime = Object.entries(TYPES).find(([, e]) => e === m[1])![0];

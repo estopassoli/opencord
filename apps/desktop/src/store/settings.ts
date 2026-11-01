@@ -16,6 +16,11 @@ export function applySettingsSideEffects(s: UserSettings) {
   root.dataset.density = s.appearance.compact ? 'compact' : 'cozy';
   root.style.fontSize = `${Math.round(16 * s.appearance.fontScale)}px`;
   applyAppearanceTokens(s.appearance);
+  // o servidor aberto pode ter cor própria por cima da cor da pessoa
+  void import('../lib/server-theme').then(({ startServerTheme, reapplyServerTheme }) => {
+    startServerTheme();
+    reapplyServerTheme();
+  });
   if (bridge) {
     void bridge
       .setShortcuts({
@@ -47,7 +52,7 @@ export function applySettingsSideEffects(s: UserSettings) {
 }
 
 /** Cor de destaque, tom de fundo, cantos e fonte: viram variáveis CSS no :root. */
-export function applyAppearanceTokens(a: UserSettings['appearance']) {
+export function applyAppearanceTokens(a: UserSettings['appearance'], accentOverride: string | null = null) {
   const root = document.documentElement;
   root.dataset.surface = a.surface;
   root.style.setProperty('--radius-scale', String(a.radiusScale));
@@ -55,7 +60,7 @@ export function applyAppearanceTokens(a: UserSettings['appearance']) {
   else root.style.removeProperty('--font');
   // a superfície depende de tema/tom recém-aplicados: lê o valor computado
   const surface = getComputedStyle(root).getPropertyValue('--chat').trim() || '#24262c';
-  const t = accentTokens(a.accent, surface, a.theme === 'dark');
+  const t = accentTokens(accentOverride ?? a.accent, surface, a.theme === 'dark');
   root.style.setProperty('--brand', t.brand);
   root.style.setProperty('--brand-hover', t.brandHover);
   root.style.setProperty('--text-on-brand', t.textOnBrand);

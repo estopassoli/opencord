@@ -24,12 +24,16 @@ export const serverSummary = (s: {
   ownerId: string;
   official: boolean;
   verified?: boolean;
+  accent?: string | null;
+  wallpaperKey?: string | null;
 }): ServerSummary => ({
   id: s.id,
   name: s.name,
   iconKey: s.iconKey,
   ownerId: s.ownerId,
   official: s.official,
+  accent: s.accent ?? null,
+  wallpaperKey: s.wallpaperKey ?? null,
   verified: s.verified ?? false,
 });
 

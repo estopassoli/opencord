@@ -113,6 +113,9 @@ model Server {
   /// Servidor oficial da instância: aberto a todos (entrada automática, diretório) e com selo de verificado.
   /// Os demais são privados: só entra quem tem convite.
   official   Boolean        @default(false)
+  /// tema do servidor: cor de destaque (#rrggbb) e papel de parede da conversa (nome em wallpapers/)
+  accent       String?
+  wallpaperKey String?
   /// Só o selo de verificado (marcado pelo super admin); não muda privacidade, diretório nem entrada (ADR-0013).
   verified   Boolean        @default(false)
   createdAt  DateTime       @default(now()) @db.Timestamptz(3)

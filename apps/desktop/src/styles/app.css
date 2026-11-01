@@ -6875,3 +6875,32 @@ textarea,
   min-width: 0;
   display: grid;
 }
+
+/* ---- tema do servidor: papel de parede ---- */
+html[data-wallpaper='true'] .chat-scroll {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--chat) 72%, transparent), color-mix(in srgb, var(--chat) 72%, transparent)),
+    var(--wallpaper);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+.wallpaper-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.wallpaper-preview {
+  width: 160px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--chat);
+}
+.wallpaper-empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}

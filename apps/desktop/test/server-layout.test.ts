@@ -15,6 +15,8 @@ import {
 const srv = (id: string): ServerSummary => ({
   id,
   name: id.toUpperCase(),
+  accent: null,
+  wallpaperKey: null,
   iconKey: null,
   ownerId: 'o',
   official: false,

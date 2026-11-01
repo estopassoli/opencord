@@ -241,6 +241,10 @@ export const ServerSummary = z.object({
   official: z.boolean(),
   /** Selo de verificado marcado pelo super admin (o servidor continua privado). */
   verified: z.boolean().optional(),
+  /** cor de destaque do servidor (#rrggbb); null = a cor de quem usa */
+  accent: z.string().nullable().default(null),
+  /** papel de parede da conversa (GET /wallpapers/:nome); null = sem */
+  wallpaperKey: z.string().nullable().default(null),
 });
 export type ServerSummary = z.infer<typeof ServerSummary>;
 
@@ -274,7 +278,14 @@ export const DiscordImportPreview = z.object({
 });
 export type DiscordImportPreview = z.infer<typeof DiscordImportPreview>;
 
-export const UpdateServerRequest = z.object({ name: z.string().trim().min(1).max(100).optional() });
+export const UpdateServerRequest = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  accent: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable()
+    .optional(),
+});
 export type UpdateServerRequest = z.infer<typeof UpdateServerRequest>;
 
 export const ChannelName = z

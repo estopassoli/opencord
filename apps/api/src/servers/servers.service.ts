@@ -164,11 +164,18 @@ export class ServersService {
     };
   }
 
-  async update(serverId: string, userId: string, dto: { name?: string | undefined }): Promise<ServerSummary> {
+  async update(
+    serverId: string,
+    userId: string,
+    dto: { name?: string | undefined; accent?: string | null | undefined },
+  ): Promise<ServerSummary> {
     await this.perms.requireServer(serverId, userId, Permission.MANAGE_SERVER);
     const s = await this.prisma.server.update({
       where: { id: serverId },
-      data: { ...(dto.name ? { name: dto.name } : {}) },
+      data: {
+        ...(dto.name ? { name: dto.name } : {}),
+        ...(dto.accent !== undefined ? { accent: dto.accent?.toLowerCase() ?? null } : {}),
+      },
     });
     await this.audit.log(userId, serverId, 'server.update', serverId, dto);
     this.realtime.emit(rooms.server(serverId), 'server:updated', serverSummary(s));

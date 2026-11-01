@@ -9,6 +9,7 @@ import {
   type ServerDirectoryEntry,
   type ServerDetail,
 } from '@opencord/contracts';
+import { deflateSync } from 'node:zlib';
 import { TEST_API_PORT } from './env.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { bootstrapOwner, Http, outsider, prisma, register, resetDb, startApp } from './helpers.js';
@@ -22,6 +23,42 @@ beforeAll(async () => {
 });
 afterAll(async () => app.close());
 beforeEach(resetDb);
+
+/** PNG RGB sólido de w×h (zlib sem compressão), para os uploads que exigem tamanho mínimo. */
+function tinyPng(w: number, h: number): Buffer {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buf: Buffer) => {
+    let c = 0xffffffff;
+    for (const b of buf) c = (crcTable[(c ^ b) & 0xff] as number) ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const c = Buffer.alloc(4);
+    c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  const raw = Buffer.alloc((w * 3 + 1) * h, 0x80);
+  for (let y = 0; y < h; y++) raw[y * (w * 3 + 1)] = 0;
+  const idat = deflateSync(raw);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', idat),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 async function setup() {
   const b = await bootstrapOwner(http);
@@ -48,6 +85,41 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     expect(d.body.members).toHaveLength(2);
     // membro comum não vê overrides de canal
     expect(d.body.channels.every((c) => c.overrides.length === 0)).toBe(true);
+  });
+
+  it('tema do servidor: cor válida/inválida/limpar; papel de parede sobe, serve público e some ao remover', async () => {
+    const { owner, alice, serverId } = await setup();
+    type S = { accent: string | null; wallpaperKey: string | null };
+    expect(
+      (await http.req('PATCH', `/servers/${serverId}`, { token: owner.token, body: { accent: 'azul' } })).status,
+    ).toBe(400);
+    const ok = await http.req<S>('PATCH', `/servers/${serverId}`, { token: owner.token, body: { accent: '#3FB27F' } });
+    expect(ok.body.accent).toBe('#3fb27f');
+    expect([403, 404]).toContain(
+      (await http.req('PATCH', `/servers/${serverId}`, { token: alice.token, body: { accent: '#000000' } })).status,
+    );
+    expect(
+      (await http.req<S>('PATCH', `/servers/${serverId}`, { token: owner.token, body: { accent: null } })).body.accent,
+    ).toBeNull();
+
+    // PNG 16×16 cinza gerado aqui (a API exige pelo menos 16 px de lado)
+    const png = tinyPng(16, 16);
+    const form = new FormData();
+    form.append('file', new Blob([png], { type: 'image/png' }), 'wp.png');
+    const up = await fetch(`http://127.0.0.1:${TEST_API_PORT}/servers/${serverId}/wallpaper`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${owner.token}` },
+      body: form,
+    });
+    expect(up.status).toBe(201);
+    const key = ((await up.json()) as S).wallpaperKey as string;
+    expect(key).toMatch(/-png$/);
+    const served = await fetch(`http://127.0.0.1:${TEST_API_PORT}/wallpapers/${key}`);
+    expect(served.status).toBe(200);
+    expect(served.headers.get('content-type')).toContain('image/png');
+    const cleared = await http.req<S>('DELETE', `/servers/${serverId}/wallpaper`, { token: owner.token });
+    expect(cleared.body.wallpaperKey).toBeNull();
+    expect((await fetch(`http://127.0.0.1:${TEST_API_PORT}/wallpapers/${key}`)).status).toBe(404);
   });
 
   it('criar canal exige MANAGE_CHANNELS', async () => {

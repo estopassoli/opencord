@@ -99,6 +99,22 @@ export class ServersController {
     return serverSummary(await this.avatars.clearServerIcon(id));
   }
 
+  /** Papel de parede da conversa (multipart "file", até 4 MB). Exige gerenciar o servidor. */
+  @Post('servers/:id/wallpaper')
+  async setWallpaper(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string, @Req() req: FastifyRequest) {
+    await this.perms.requireServer(id, u.userId, Permission.MANAGE_SERVER);
+    if (!req.isMultipart()) throw new BadRequestException('multipart/form-data esperado');
+    const file = await req.file();
+    if (!file) throw new BadRequestException('campo "file" ausente');
+    return serverSummary(await this.avatars.setServerWallpaper(id, file.file));
+  }
+
+  @Delete('servers/:id/wallpaper')
+  async clearWallpaper(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.perms.requireServer(id, u.userId, Permission.MANAGE_SERVER);
+    return serverSummary(await this.avatars.clearServerWallpaper(id));
+  }
+
   /** Diretório: servidores oficiais (abertos a todos, sem convite). */
   @Get('servers/directory')
   directory(@CurrentUser() u: AuthUser) {
