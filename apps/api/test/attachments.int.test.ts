@@ -92,6 +92,18 @@ describe('uploads seguros e anexos (F2.5)', () => {
     expect((await upload(alice.token, 'big.txt', 'text/plain', Buffer.alloc(3 * 1024 * 1024, 97))).status).toBe(413);
   });
 
+  it('mensagem de voz: WebM declarado como áudio fica audio/webm; declarado como vídeo fica video/webm', async () => {
+    const { alice } = await setup();
+    // cabeçalho EBML mínimo com DocType "webm"
+    const webm = Buffer.from('1a45dfa39f4286810142f7810142f2810442f381084282847765626d4287810242858102', 'hex');
+    const voice = await upload(alice.token, 'Mensagem de voz.webm', 'audio/webm', webm);
+    expect(voice.status).toBe(201);
+    expect(voice.body.attachment.mime).toBe('audio/webm');
+    const video = await upload(alice.token, 'clipe.webm', 'video/webm', webm);
+    expect(video.status).toBe(201);
+    expect(video.body.attachment.mime).toBe('video/webm');
+  });
+
   it('não é possível usar anexo de outro usuário nem reutilizar anexo', async () => {
     const { alice, bob, channelId } = await setup();
     const up = await upload(alice.token, 'a.png', 'image/png', PNG_3x2);

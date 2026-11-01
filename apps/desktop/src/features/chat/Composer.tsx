@@ -7,6 +7,10 @@ import { useUi } from '../../store/ui';
 import { sendMessage, type ChatTarget } from './ChatView';
 import { CreatePollDialog } from './Poll';
 import { openContextMenu } from '../../components/ContextMenu';
+import { fmt } from './VoiceNote';
+
+/** limite de uma mensagem de voz */
+const VOICE_MAX_S = 5 * 60;
 
 interface Upload {
   id: string;
@@ -34,6 +38,14 @@ export function Composer({
     replyToId ? s.timelines[targetKey]?.messages.find((m) => m.id === replyToId) : undefined,
   );
   const [uploads, setUploads] = useState<Upload[]>([]);
+  // mensagem de voz: gravando (segundos) ou enviando
+  const [rec, setRec] = useState<{ seconds: number } | 'sending' | null>(null);
+  const recorder = useRef<{
+    mr: MediaRecorder;
+    stream: MediaStream;
+    chunks: Blob[];
+    timer: ReturnType<typeof setInterval>;
+  } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const typingSent = useRef(0);
@@ -108,6 +120,81 @@ export function Composer({
       .catch(() => undefined);
   };
 
+  const stopRecorder = () => {
+    const r = recorder.current;
+    recorder.current = null;
+    if (!r) return null;
+    clearInterval(r.timer);
+    for (const t of r.stream.getTracks()) t.stop();
+    return r;
+  };
+  useEffect(() => () => void stopRecorder(), []);
+
+  const finishVoice = async (send: boolean) => {
+    const r = stopRecorder();
+    if (!r) return;
+    if (!send) {
+      setRec(null);
+      return;
+    }
+    setRec('sending');
+    const done = new Promise<void>((resolve) => {
+      r.mr.onstop = () => resolve();
+    });
+    if (r.mr.state !== 'inactive') r.mr.stop();
+    await done;
+    const blob = new Blob(r.chunks, { type: 'audio/webm' });
+    if (blob.size < 1000) {
+      setRec(null);
+      useUi.getState().toast('info', 'Gravação curta demais.');
+      return;
+    }
+    try {
+      const file = new File([blob], 'Mensagem de voz.webm', { type: 'audio/webm' });
+      const up = await api().upload<{ attachment: Attachment }>('/attachments', file);
+      void sendMessage(targetKey, target, crypto.randomUUID(), '', replyToId ?? undefined, [up.attachment.id]);
+      useUi.getState().setReplyTo(targetKey, null);
+    } catch (e) {
+      useUi.getState().toast('error', `Não deu para enviar a mensagem de voz: ${describeError(e)}`);
+    } finally {
+      setRec(null);
+    }
+  };
+
+  const startVoice = async () => {
+    if (rec || !canAttach) return;
+    const audio = useData.getState().settings?.audio;
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: audio?.echoCancellation ?? true,
+          noiseSuppression: audio?.noiseSuppression ?? true,
+          autoGainControl: audio?.autoGainControl ?? true,
+          ...(audio?.inputDeviceId ? { deviceId: audio.inputDeviceId } : {}),
+        },
+      });
+    } catch {
+      useUi.getState().toast('error', 'Não deu para usar o microfone.');
+      return;
+    }
+    const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 48_000 });
+    const timer = setInterval(() => {
+      setRec((cur) => {
+        if (!cur || cur === 'sending') return cur;
+        if (cur.seconds + 1 >= VOICE_MAX_S) void finishVoice(true);
+        return { seconds: cur.seconds + 1 };
+      });
+    }, 1000);
+    const r = { mr, stream, chunks: [] as Blob[], timer };
+    mr.ondataavailable = (e) => {
+      if (e.data.size) r.chunks.push(e.data);
+    };
+    recorder.current = r;
+    mr.start(250);
+    setRec({ seconds: 0 });
+  };
+
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
@@ -178,67 +265,106 @@ export function Composer({
           ))}
         </ul>
       )}
-      <div className="composer-row">
-        <button
-          className="icon-btn"
-          aria-label="Anexar arquivo ou criar enquete"
-          aria-haspopup="menu"
-          data-tip="Anexar ou criar enquete"
-          onClick={(e) =>
-            openContextMenu(
-              e,
-              [
-                ...(canAttach
-                  ? [{ label: 'Enviar arquivo', icon: 'attach' as const, onSelect: () => fileInput.current?.click() }]
-                  : []),
-                { label: 'Criar enquete', icon: 'poll' as const, onSelect: () => setPollOpen(true) },
-              ],
-              'Adicionar à mensagem',
-            )
-          }
-        >
-          <Icon name="plus-circle" />
-        </button>
-        {pollOpen && <CreatePollDialog target={target} onClose={() => setPollOpen(false)} />}
-        {canAttach && (
-          <>
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              hidden
-              onChange={(e) => {
-                if (e.target.files) addFiles(e.target.files);
-                e.target.value = '';
-              }}
-            />
-          </>
-        )}
-        <TextArea
-          bare
-          ref={input}
-          rows={1}
-          value={draft}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          maxLength={4000}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            if (e.target.value) typing();
-          }}
-          onKeyDown={onKey}
-          onPaste={onPaste}
-        />
-        <button
-          className="icon-btn"
-          aria-label="Enviar"
-          data-tip="Enviar (Enter)"
-          onClick={send}
-          disabled={!draft.trim() && !uploads.some((u) => u.status === 'done')}
-        >
-          <Icon name="send" />
-        </button>
-      </div>
+      {rec ? (
+        <div className="composer-row composer-rec" aria-live="polite">
+          <span className="rec-dot" aria-hidden />
+          <span className="rec-time">
+            {rec === 'sending' ? 'Enviando…' : `Gravando ${fmt(rec.seconds)} / ${fmt(VOICE_MAX_S)}`}
+          </span>
+          <span className="spacer" />
+          <button
+            className="icon-btn"
+            aria-label="Descartar gravação"
+            data-tip="Descartar"
+            disabled={rec === 'sending'}
+            onClick={() => void finishVoice(false)}
+          >
+            <Icon name="trash" />
+          </button>
+          <button
+            className="icon-btn"
+            aria-label="Enviar mensagem de voz"
+            data-tip="Enviar"
+            disabled={rec === 'sending'}
+            onClick={() => void finishVoice(true)}
+          >
+            <Icon name="send" />
+          </button>
+        </div>
+      ) : (
+        <div className="composer-row">
+          <button
+            className="icon-btn"
+            aria-label="Anexar arquivo ou criar enquete"
+            aria-haspopup="menu"
+            data-tip="Anexar ou criar enquete"
+            onClick={(e) =>
+              openContextMenu(
+                e,
+                [
+                  ...(canAttach
+                    ? [{ label: 'Enviar arquivo', icon: 'attach' as const, onSelect: () => fileInput.current?.click() }]
+                    : []),
+                  { label: 'Criar enquete', icon: 'poll' as const, onSelect: () => setPollOpen(true) },
+                ],
+                'Adicionar à mensagem',
+              )
+            }
+          >
+            <Icon name="plus-circle" />
+          </button>
+          {pollOpen && <CreatePollDialog target={target} onClose={() => setPollOpen(false)} />}
+          {canAttach && (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                hidden
+                onChange={(e) => {
+                  if (e.target.files) addFiles(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+            </>
+          )}
+          <TextArea
+            bare
+            ref={input}
+            rows={1}
+            value={draft}
+            placeholder={placeholder}
+            aria-label={placeholder}
+            maxLength={4000}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              if (e.target.value) typing();
+            }}
+            onKeyDown={onKey}
+            onPaste={onPaste}
+          />
+          {canAttach && !draft.trim() && !uploads.length && typeof MediaRecorder !== 'undefined' ? (
+            <button
+              className="icon-btn"
+              aria-label="Gravar mensagem de voz"
+              data-tip="Gravar mensagem de voz"
+              onClick={() => void startVoice()}
+            >
+              <Icon name="microphone" />
+            </button>
+          ) : (
+            <button
+              className="icon-btn"
+              aria-label="Enviar"
+              data-tip="Enviar (Enter)"
+              onClick={send}
+              disabled={!draft.trim() && !uploads.some((u) => u.status === 'done')}
+            >
+              <Icon name="send" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

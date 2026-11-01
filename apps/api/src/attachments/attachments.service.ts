@@ -163,6 +163,8 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
     const sniffed = await fileTypeFromBuffer(buf);
     let mime = sniffed?.mime as string | undefined;
     if (!mime && declaredMime === 'text/plain' && isProbablyText(buf)) mime = 'text/plain';
+    // o contêiner WebM é o mesmo para áudio e vídeo: a mensagem de voz do app chega declarada como áudio
+    if (mime === 'video/webm' && declaredMime === 'audio/webm') mime = 'audio/webm';
     if (!mime || !(UPLOAD_ALLOWED_MIME as readonly string[]).includes(mime)) {
       throw new BadRequestException(`tipo de arquivo não permitido (${mime ?? 'desconhecido'})`);
     }

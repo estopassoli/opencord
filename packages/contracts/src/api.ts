@@ -876,6 +876,8 @@ export const UPLOAD_ALLOWED_MIME = [
   'video/webm',
   'audio/mpeg',
   'audio/ogg',
+  /** mensagens de voz gravadas no app (WebM/Opus) */
+  'audio/webm',
   'application/pdf',
   'application/zip',
   'text/plain',

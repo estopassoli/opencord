@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '13:30',
+    kind: 'novo',
+    icon: 'microphone',
+    title: 'Mensagens de voz',
+    body: 'Com a caixa de mensagem vazia, o botão de enviar vira um microfone: clique, fale (até 5 minutos) e envie. Quem recebe vê a forma de onda, ouve com um clique e pode avançar clicando na onda. Usa o mesmo microfone e a mesma supressão de ruído da chamada.',
+  },
+  {
+    date: '2026-10-31',
     time: '13:00',
     kind: 'novo',
     icon: 'edit',

@@ -9,6 +9,7 @@ import { openContextMenu } from '../../components/ContextMenu';
 import { ProfileButton } from '../shell/ProfileButton';
 import { renderRich } from './rich';
 import { InviteEmbed, inviteCodesIn } from './InviteEmbed';
+import { VoiceNote } from './VoiceNote';
 import { PollCard } from './Poll';
 import { ReactionRoleChips, ReactionRolesDialog } from './ReactionRoles';
 import type { ChatTarget } from './ChatView';
@@ -308,6 +309,8 @@ export const MessageItem = memo(function MessageItem({
               </a>
             ) : a.mime.startsWith('video/') ? (
               <video key={a.id} src={a.url} controls className="attachment-video" preload="metadata" />
+            ) : a.mime.startsWith('audio/') ? (
+              <VoiceNote key={a.id} attachment={a} />
             ) : (
               <a key={a.id} href={a.url} className="attachment-file" target="_blank" rel="noreferrer">
                 <Icon name="download" size={18} />
