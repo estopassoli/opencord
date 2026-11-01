@@ -354,6 +354,19 @@ html[data-layout='vidro'] .tile[data-speaking='true'] {
     inset 0 0 0 2px var(--speaking),
     0 0 32px color-mix(in srgb, var(--speaking) 45%, transparent);
 }
+/* a pulsação de fala mora num pseudo-elemento (só opacidade: fica no compositor). Animar o próprio card trocava
+   a propriedade `animation` e, ao parar de falar, a entrada (escala 0,96 → 1) rodava de novo: a live "pulava". */
+html[data-layout='vidro'] .tile[data-speaking='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 2px var(--speaking),
+    inset 0 0 28px color-mix(in srgb, var(--speaking) 30%, transparent);
+  animation: vidro-speaking 1.6s ease-in-out infinite;
+}
 
 /* ---------- login ---------- */
 html[data-layout='vidro'] .auth {
@@ -802,14 +815,10 @@ html[data-layout='vidro'] {
 @keyframes vidro-speaking {
   0%,
   100% {
-    box-shadow:
-      inset 0 0 0 2px var(--speaking),
-      0 0 24px color-mix(in srgb, var(--speaking) 35%, transparent);
+    opacity: 0.3;
   }
   50% {
-    box-shadow:
-      inset 0 0 0 2px var(--speaking),
-      0 0 40px color-mix(in srgb, var(--speaking) 60%, transparent);
+    opacity: 1;
   }
 }
 
@@ -911,9 +920,6 @@ html[data-layout='vidro'] .oc-btn-primary:hover:not(:disabled) {
 html[data-layout='vidro'] .live-pill {
   animation: vidro-glow 2.4s ease-in-out infinite;
 }
-html[data-layout='vidro'] .tile[data-speaking='true'] {
-  animation: vidro-speaking 1.6s ease-in-out infinite;
-}
 html[data-layout='vidro'] .composer,
 html[data-layout='vidro'] .oc-input,
 html[data-layout='vidro'] .oc-textarea {
@@ -945,7 +951,7 @@ html[data-layout='vidro'] .cat-toggle .oc-icon {
   html[data-layout='vidro'] .highlight-card,
   html[data-layout='vidro'] .timeline-card,
   html[data-layout='vidro'] .live-pill,
-  html[data-layout='vidro'] .tile[data-speaking='true'] {
+  html[data-layout='vidro'] .tile[data-speaking='true']::after {
     animation: none;
   }
   html[data-layout='vidro'] .rail-item:hover,

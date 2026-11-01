@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '17:30',
+    kind: 'correção',
+    icon: 'screen',
+    title: 'Vidro: a live não "pula" mais quando quem transmite fala',
+    body: 'No visual Vidro, o card da transmissão dava uma encolhida e voltava toda vez que a pessoa parava de falar: a pulsação de fala trocava a animação de entrada do card, que rodava de novo. A pulsação agora é só um brilho na borda, e o card fica parado.',
+  },
+  {
+    date: '2026-11-01',
     time: '17:00',
     kind: 'correção',
     icon: 'star',
