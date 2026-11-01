@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '15:00',
+    kind: 'melhoria',
+    icon: 'star',
+    title: 'Vidro: configurações em lâminas e aurora sempre viva',
+    body: 'Cada seção das Configurações virou uma lâmina de vidro, com as linhas de dentro planas (a tabela do Sobre, o teste de microfone, os atalhos, a importação de fonte); as listas suspensas ficaram planas, com o item escolhido na cor do servidor. O fundo de luz não para mais com um jogo aberto: só desacelera um pouco. E a tela de configurações desfoca menos o fundo.',
+  },
+  {
+    date: '2026-11-01',
     time: '14:30',
     kind: 'correção',
     icon: 'soundboard',

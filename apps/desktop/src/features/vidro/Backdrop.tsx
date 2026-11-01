@@ -1,8 +1,8 @@
 /**
  * Fundo vivo do layout Vidro (three.js): uma aurora lenta de três luzes coloridas — a primeira é a cor do servidor
  * aberto — que deriva sob os painéis de vidro e pulsa de leve quando alguém fala
- * na chamada. Renderiza em meia resolução a até 30 fps; para com a janela escondida, com um jogo aberto (a placa de
- * vídeo é do jogo) e com "reduzir movimento" (um quadro parado).
+ * na chamada. Renderiza em meia resolução a até 30 fps (20 com um jogo aberto, para sobrar placa de vídeo); para só
+ * com a janela escondida, aceleração desligada ou "reduzir movimento" (um quadro parado).
  */
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
@@ -160,8 +160,9 @@ export function Backdrop() {
         gpuOff = p.activeGpuMode === 'off';
       })
       .catch(() => undefined);
-    const idle = () =>
-      gpuOff || document.hidden || useGames.getState().mine !== null || useReducedMotion.getState().reduced;
+    // sempre em movimento (pedido do mantenedor); com jogo aberto cai para 20 fps em vez de parar
+    const idle = () => gpuOff || document.hidden || useReducedMotion.getState().reduced;
+    const interval = () => (useGames.getState().mine ? 50 : 33);
     const render = (now: number) => {
       uniforms.uTime.value = (now - start) / 1000;
       uniforms.uPulse.value += (pulseTarget - uniforms.uPulse.value) * 0.05;
@@ -170,8 +171,8 @@ export function Backdrop() {
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
       if (idle()) return;
-      // 30 fps bastam para uma aurora: metade do custo
-      if (now - last < 33) return;
+      // 30 fps bastam para uma aurora (20 com jogo aberto): fração do custo
+      if (now - last < interval()) return;
       last = now;
       render(now);
     };

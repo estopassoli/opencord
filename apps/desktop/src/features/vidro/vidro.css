@@ -574,8 +574,7 @@ html[data-layout='vidro'] .friend-title {
 
 /* configurações (diálogo de tela cheia): a aurora segue visível atrás de um vidro escuro */
 html[data-layout='vidro'] .dialog-fullscreen::backdrop {
-  background: rgb(6 8 13 / 0.55);
-  backdrop-filter: blur(24px) saturate(1.4);
+  background: rgb(6 8 13 / 0.3);
 }
 html[data-layout='vidro'] .dialog-fullscreen .dialog-body,
 html[data-layout='vidro'] .fullscreen-body {
@@ -585,29 +584,24 @@ html[data-layout='vidro'] .fullscreen-body {
 html[data-layout='vidro'] .settings-tab:hover {
   background: var(--vidro-glass-2);
 }
-html[data-layout='vidro'] .oc-option,
-html[data-layout='vidro'] .keybind,
-html[data-layout='vidro'] .settings-kv,
-html[data-layout='vidro'] .mic-test,
-html[data-layout='vidro'] .font-importer {
-  background: var(--vidro-card);
-  border: 1px solid var(--vidro-line);
-  box-shadow: var(--vidro-card-edge);
+html[data-layout='vidro'] .oc-option {
+  border-radius: min(calc(8px * var(--radius-scale, 1)), 12px);
+  transition: background var(--dur-fast) var(--ease);
 }
-html[data-layout='vidro'] .oc-option[aria-selected='true'],
-html[data-layout='vidro'] .oc-option[aria-checked='true'] {
-  border-color: color-mix(in srgb, var(--brand) 65%, var(--vidro-line));
-  box-shadow:
-    var(--vidro-card-edge),
-    0 0 20px -6px color-mix(in srgb, var(--brand) 55%, transparent);
+html[data-layout='vidro'] .oc-option:hover,
+html[data-layout='vidro'] .oc-option-active {
+  background: var(--vidro-glass-2);
+}
+html[data-layout='vidro'] .oc-option[aria-selected='true'] {
+  background: color-mix(in srgb, var(--brand) 32%, var(--vidro-glass-2));
 }
 html[data-layout='vidro'] .oc-slider-track,
 html[data-layout='vidro'] .oc-switch-track {
   background: rgb(0 0 0 / 0.3);
 }
 html[data-layout='vidro'] .dialog-fullscreen {
-  background: rgb(6 8 13 / 0.45);
-  backdrop-filter: blur(28px) saturate(1.4);
+  background: rgb(6 8 13 / 0.4);
+  backdrop-filter: blur(14px) saturate(1.3);
 }
 html[data-layout='vidro'] .oc-radiogroup-cards .oc-radio {
   background: var(--vidro-card);
@@ -632,10 +626,6 @@ html[data-layout='vidro'][data-wallpaper='true'] .chat-scroll {
 }
 
 /* cartões e campos seguem a escala de cantos escolhida em Aparência */
-html[data-layout='vidro'] .settings-kv,
-html[data-layout='vidro'] .keybind,
-html[data-layout='vidro'] .mic-test,
-html[data-layout='vidro'] .font-importer,
 html[data-layout='vidro'] .webhook-item,
 html[data-layout='vidro'] .pin-item,
 html[data-layout='vidro'] .event-card,
@@ -959,4 +949,78 @@ html[data-layout='vidro'] .cat-toggle .oc-icon {
   html[data-layout='vidro'] .friends-panel-row:hover {
     transform: none;
   }
+}
+
+/* ---------- configurações: cada seção é uma lâmina; dentro dela, linhas planas ---------- */
+html[data-layout='vidro'] .settings-panel {
+  padding: 4px 4px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+html[data-layout='vidro'] .settings-section,
+html[data-layout='vidro'] .settings-section:first-child,
+html[data-layout='vidro'] .settings-section:last-child {
+  padding: 16px 18px;
+  border: 1px solid var(--vidro-line);
+  border-radius: min(calc(14px * var(--radius-scale, 1)), 18px);
+  background: var(--vidro-card);
+  box-shadow: var(--vidro-card-edge);
+}
+html[data-layout='vidro'] .settings-section-title {
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+html[data-layout='vidro'] .settings-kv {
+  padding: 10px 12px;
+  border-radius: min(calc(10px * var(--radius-scale, 1)), 14px);
+  background: rgb(0 0 0 / 0.18);
+  border: 1px solid rgb(255 255 255 / 0.06);
+}
+html[data-layout='vidro'] .keybind {
+  padding: 8px 0;
+  border-top: 1px solid var(--vidro-line);
+}
+html[data-layout='vidro'] .keybind:first-of-type {
+  border-top: 0;
+}
+html[data-layout='vidro'] .keybind-capture {
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: rgb(0 0 0 / 0.24);
+  border: 1px solid var(--vidro-line);
+  box-shadow: inset 0 1px 0 rgb(0 0 0 / 0.25);
+}
+html[data-layout='vidro'] .keybind-capture:hover {
+  border-color: rgb(255 255 255 / 0.2);
+}
+html[data-layout='vidro'] .mic-test,
+html[data-layout='vidro'] .font-importer {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+html[data-layout='vidro'] .mic-meter {
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.3);
+}
+html[data-layout='vidro'] .settings-tab[aria-selected='true'],
+html[data-layout='vidro'] .settings-tab[aria-current='page'] {
+  border-radius: min(calc(10px * var(--radius-scale, 1)), 14px);
+}
+
+/* ---------- home: cabeçalho e busca sobre o vidro ---------- */
+html[data-layout='vidro'] .home-header,
+html[data-layout='vidro'] .chat-header.home-header {
+  background: transparent;
+  border-bottom: 1px solid var(--vidro-line);
+}
+html[data-layout='vidro'] .home .oc-input {
+  background: rgb(0 0 0 / 0.2);
+}
+html[data-layout='vidro'] .list-title {
+  color: var(--text-2);
 }
