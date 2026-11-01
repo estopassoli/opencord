@@ -4,7 +4,7 @@
  * mostra a mensagem inteira; "Ir" leva até ela quando já está carregada na conversa.
  */
 import type { Message, SearchMessagesResponse } from '@opencord/contracts';
-import { Avatar, Button, Icon, Select } from '@opencord/ui';
+import { Avatar, Button, Icon, Select, TextField } from '@opencord/ui';
 import { useEffect, useRef, useState } from 'react';
 import { api, describeError } from '../../store/session';
 import { useData } from '../../store/data';
@@ -45,7 +45,8 @@ export function MessageSearch({
   const box = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
-  const channels = useData((s) => (serverId ? (s.details[serverId]?.channels ?? []) : []));
+  const serverChannels = useData((s) => (serverId ? s.details[serverId]?.channels : undefined));
+  const channels = serverChannels ?? [];
 
   // Ctrl+F abre a busca desta conversa (o Electron não tem o "localizar" do navegador)
   useEffect(() => {
@@ -151,19 +152,17 @@ export function MessageSearch({
               void run(0);
             }}
           >
-            <div className="search-input">
-              <Icon name="search" size={18} />
-              <input
-                ref={input}
-                type="search"
-                value={q}
-                placeholder={serverId && whole ? 'Buscar no servidor…' : 'Buscar nesta conversa…'}
-                aria-label="Texto da busca"
-                autoComplete="off"
-                spellCheck={false}
-                onChange={(e) => setQ(e.target.value)}
-              />
-            </div>
+            <TextField
+              ref={input}
+              type="search"
+              leadingIcon="search"
+              value={q}
+              placeholder={serverId && whole ? 'Buscar no servidor…' : 'Buscar nesta conversa…'}
+              aria-label="Texto da busca"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setQ(e.target.value)}
+            />
             <div className="search-filters">
               {serverId && (
                 <button
