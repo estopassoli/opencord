@@ -7,6 +7,7 @@ import {
   type Message,
   type PresenceStatus,
   type PlayingGame,
+  type ServerEvent,
   type ServerDetail,
   type ServerSummary,
   type UnreadState,
@@ -201,7 +202,7 @@ export const api = (): ApiClient => {
 
 // ---------- Carga inicial e ressincronização ----------
 export async function loadServer(serverId: string): Promise<ServerDetail> {
-  const [detail, voices, presence, games, statusTexts] = await Promise.all([
+  const [detail, voices, presence, games, statusTexts, events] = await Promise.all([
     api().request<ServerDetail>('GET', `/servers/${serverId}`),
     api().request<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`),
     api().request<Record<string, PresenceStatus>>('GET', `/servers/${serverId}/presence`),
@@ -212,9 +213,13 @@ export async function loadServer(serverId: string): Promise<ServerDetail> {
     api()
       .request<Record<string, string>>('GET', `/servers/${serverId}/status-texts`)
       .catch(() => ({}) as Record<string, string>),
+    api()
+      .request<ServerEvent[]>('GET', `/servers/${serverId}/events`)
+      .catch(() => [] as ServerEvent[]),
   ]);
   const data = useData.getState();
   data.setServerDetail(detail);
+  data.setEvents(serverId, events);
   for (const v of Object.values(data.voiceStates)) if (v.serverId === serverId) data.removeVoiceState(v.userId);
   for (const v of voices) useData.getState().setVoiceState(v);
   useData.setState((s) => ({
@@ -455,6 +460,8 @@ function wireRealtime(rt: RealtimeClient) {
     );
     rt.on('server:member:joined', (e) => d().upsertMember(e.serverId, e.member));
     rt.on('server:member:updated', (e) => d().upsertMember(e.serverId, e.member));
+    rt.on('event:changed', (e) => d().upsertEvent(e.event));
+    rt.on('event:deleted', (e) => d().removeEvent(e.serverId, e.eventId));
     rt.on('server:member:left', (e) => d().removeMember(e.serverId, e.userId));
     rt.on('channel:created', (c) => d().upsertChannel(c));
     rt.on('channel:updated', (c) => d().upsertChannel(c));

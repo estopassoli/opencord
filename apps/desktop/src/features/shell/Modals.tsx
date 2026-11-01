@@ -25,6 +25,7 @@ import { ScreenSourcePicker } from '../voice/ScreenSourcePicker';
 import { WatchTogetherDialog } from '../voice/WatchTogether';
 import { setFriendNickname } from '../../lib/names';
 import { QuickSwitcher } from './QuickSwitcher';
+import { EventsDialog } from './Events';
 
 export function Modals() {
   const modal = useUi((s) => s.modal);
@@ -61,6 +62,8 @@ export function Modals() {
       return <WatchTogetherDialog onClose={close} />;
     case 'create-category':
       return <CreateCategory serverId={modal.serverId} onClose={close} />;
+    case 'events':
+      return <EventsDialog serverId={modal.serverId} onClose={close} />;
     case 'settings':
       return <SettingsModal onClose={close} />;
     case 'server-settings':

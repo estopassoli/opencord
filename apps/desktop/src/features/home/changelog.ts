@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '14:30',
+    kind: 'novo',
+    icon: 'calendar',
+    title: 'Eventos da turma',
+    body: 'No topo da lista de canais tem "Eventos": marque a próxima jogatina com dia, hora, canal de voz e descrição. Cada um responde "Vou" ou "Talvez", todo mundo vê quem confirmou, e quem confirmou recebe um lembrete 15 minutos antes e um aviso na hora com o botão "Entrar na chamada". Quem criou (ou gerencia canais) edita e apaga.',
+  },
+  {
+    date: '2026-10-31',
     time: '14:00',
     kind: 'novo',
     icon: 'gamepad',

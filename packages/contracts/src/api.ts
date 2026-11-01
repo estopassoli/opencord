@@ -544,6 +544,39 @@ export const SearchMessagesResponse = z.object({
 });
 export type SearchMessagesResponse = z.infer<typeof SearchMessagesResponse>;
 
+// ---------- Eventos do servidor (ADR-0028) ----------
+export const RsvpStatus = z.enum(['going', 'maybe']);
+export type RsvpStatus = z.infer<typeof RsvpStatus>;
+export const ServerEvent = z.object({
+  id: Id,
+  serverId: Id,
+  /** canal de voz onde acontece (null = sem canal) */
+  channelId: Id.nullable(),
+  createdBy: UserPublic,
+  title: z.string(),
+  description: z.string(),
+  startsAt: IsoDate,
+  endsAt: IsoDate.nullable(),
+  /** quem confirmou (ids) */
+  going: z.array(Id),
+  maybe: z.array(Id),
+  /** minha resposta */
+  me: RsvpStatus.nullable(),
+});
+export type ServerEvent = z.infer<typeof ServerEvent>;
+export const CreateEventRequest = z.object({
+  title: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(1000).default(''),
+  channelId: Id.nullable().default(null),
+  startsAt: IsoDate,
+  endsAt: IsoDate.nullable().default(null),
+});
+export type CreateEventRequest = z.input<typeof CreateEventRequest>;
+export const UpdateEventRequest = CreateEventRequest.partial();
+export type UpdateEventRequest = z.input<typeof UpdateEventRequest>;
+export const RsvpRequest = z.object({ status: RsvpStatus.nullable() });
+export type RsvpRequest = z.infer<typeof RsvpRequest>;
+
 export const AckReadRequest = z.object({ messageId: Id });
 
 export const UnreadState = z.object({

@@ -31,6 +31,8 @@ model User {
   invites           Invite[]
   sounds            SoundEffect[]
   recordings        CallRecording[]
+  events            ServerEvent[]
+  eventRsvps        EventRsvp[]
   boardCards        BoardCard[]
   pollVotes         PollVote[]
   memberships       ServerMember[]
@@ -114,6 +116,7 @@ model Server {
   invites    Invite[]
   sounds     SoundEffect[]
   recordings CallRecording[]
+  events     ServerEvent[]
   members    ServerMember[]
   roles      Role[]
   categories Category[]
@@ -200,6 +203,7 @@ model Channel {
   cards      BoardCard[]                 @relation("BoardCards")
   sourced    BoardCard[]                 @relation("BoardCardSource")
   recordings CallRecording[]
+  events     ServerEvent[]
 
   @@index([serverId])
 }
@@ -508,4 +512,36 @@ model CallRecording {
 
   @@index([channelId, status])
   @@index([expiresAt])
+}
+
+/// Evento combinado no servidor ("sexta 21h, raid"), com confirmação de presença (ADR-0028).
+model ServerEvent {
+  id          String      @id @default(uuid(7)) @db.Uuid
+  serverId    String      @db.Uuid
+  /// canal de voz onde vai acontecer (opcional)
+  channelId   String?     @db.Uuid
+  createdById String      @db.Uuid
+  title       String
+  description String      @default("")
+  startsAt    DateTime    @db.Timestamptz(3)
+  endsAt      DateTime?   @db.Timestamptz(3)
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  server      Server      @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  channel     Channel?    @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  createdBy   User        @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  rsvps       EventRsvp[]
+
+  @@index([serverId, startsAt])
+}
+
+model EventRsvp {
+  eventId   String      @db.Uuid
+  userId    String      @db.Uuid
+  /// going | maybe
+  status    String
+  createdAt DateTime    @default(now()) @db.Timestamptz(3)
+  event     ServerEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
 }

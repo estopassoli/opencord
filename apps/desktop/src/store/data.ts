@@ -17,6 +17,7 @@ import type {
   UserPublic,
   UserSettings,
   VoiceMemberState,
+  ServerEvent,
 } from '@opencord/contracts';
 import { create } from 'zustand';
 
@@ -54,6 +55,11 @@ interface DataState {
 
   reset(): void;
   setServerDetail(d: ServerDetail): void;
+  /** eventos por servidor (ADR-0028), do mais próximo ao mais distante */
+  events: Record<string, ServerEvent[]>;
+  setEvents(serverId: string, list: ServerEvent[]): void;
+  upsertEvent(e: ServerEvent): void;
+  removeEvent(serverId: string, eventId: string): void;
   removeServer(id: string): void;
   upsertChannel(c: Channel): void;
   removeChannel(serverId: string, channelId: string): void;
@@ -184,6 +190,19 @@ export const useData = create<DataState>()((set) => ({
   removeMember: (serverId, userId) =>
     set((s) => withDetail(s, serverId, (d) => ({ ...d, members: d.members.filter((x) => x.user.id !== userId) }))),
   setVoiceState: (v) => set((s) => ({ voiceStates: { ...s.voiceStates, [v.userId]: v } })),
+  events: {},
+  setEvents: (serverId, list) => set((s) => ({ events: { ...s.events, [serverId]: list } })),
+  upsertEvent: (e) =>
+    set((s) => {
+      const cur = s.events[e.serverId] ?? [];
+      // o evento em tempo real não traz a minha resposta: mantém a que eu já tinha
+      const mine = cur.find((x) => x.id === e.id);
+      const merged = { ...e, me: e.me ?? mine?.me ?? null };
+      const list = [...cur.filter((x) => x.id !== e.id), merged].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+      return { events: { ...s.events, [e.serverId]: list } };
+    }),
+  removeEvent: (serverId, eventId) =>
+    set((s) => ({ events: { ...s.events, [serverId]: (s.events[serverId] ?? []).filter((e) => e.id !== eventId) } })),
   removeVoiceState: (userId) =>
     set((s) => {
       const v = { ...s.voiceStates };

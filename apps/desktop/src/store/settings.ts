@@ -33,6 +33,7 @@ export function applySettingsSideEffects(s: UserSettings) {
   void import('./voice').then(({ useVoice }) => useVoice.getState().applySettings(s));
   void import('./games').then(({ configureGames }) => configureGames(s));
   void import('../lib/overlay').then(({ startOverlay }) => startOverlay());
+  void import('../lib/event-reminders').then(({ startEventReminders }) => startEventReminders());
   void import('../lib/auto-idle').then(({ startAutoIdle }) => {
     if (!autoIdleStarted) {
       autoIdleStarted = true;

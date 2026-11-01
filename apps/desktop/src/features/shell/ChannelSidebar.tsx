@@ -4,6 +4,7 @@ import { Avatar, Icon } from '@opencord/ui';
 import { useMemo, useState } from 'react';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { useData } from '../../store/data';
+import { whenLabel } from '../../lib/when';
 import { api, describeError, markTargetRead } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
@@ -40,6 +41,8 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   const view = useUi((s) => s.view);
   const go = useUi((s) => s.go);
   const open = useUi((s) => s.openModal);
+  const eventCount = useData((s) => s.events[serverId]?.length ?? 0);
+  const nextEvent = useData((s) => s.events[serverId]?.[0]);
   const [collapsed, setCollapsedState] = useState<Record<string, boolean>>(loadCollapsed);
   const setCollapsed = (fn: (c: Record<string, boolean>) => Record<string, boolean>) =>
     setCollapsedState((c) => {
@@ -148,6 +151,20 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
           openContextMenu(e, items, 'Opções da lista de canais');
         }}
       >
+        <button
+          className="channel-row events-row"
+          onClick={() => open({ kind: 'events', serverId })}
+          aria-label={eventCount ? `Eventos: ${eventCount} marcados` : 'Eventos'}
+        >
+          <Icon name="calendar" size={18} />
+          <span className="truncate">Eventos</span>
+          {nextEvent && (
+            <span className="events-next truncate" data-tip={nextEvent.title}>
+              {new Date(nextEvent.startsAt).getTime() <= Date.now() ? 'agora' : whenLabel(nextEvent.startsAt)}
+            </span>
+          )}
+          {eventCount > 0 && <span className="events-count">{eventCount}</span>}
+        </button>
         {groups.map((g) => (
           <section key={g.id ?? 'none'} className="cat">
             {g.name && (

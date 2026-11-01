@@ -6749,3 +6749,89 @@ textarea,
 .rec-time {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- eventos do servidor ---- */
+.events-row {
+  margin-bottom: 4px;
+}
+.events-next {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-2);
+  max-width: 45%;
+}
+.events-count {
+  flex: none;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 18px;
+}
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: min(520px, 100%);
+}
+.event-card {
+  padding: 12px 14px;
+  background: var(--chat);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius-sm);
+}
+.event-card[data-started='true'] {
+  border-left-color: var(--success);
+}
+.event-when {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--brand-text);
+  font-weight: 600;
+}
+.event-card[data-started='true'] .event-when {
+  color: var(--success);
+}
+.event-when .muted {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+.event-title {
+  margin: 4px 0 0;
+  font-size: 1rem;
+}
+.event-desc {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.event-people {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.event-avatars {
+  display: inline-flex;
+}
+.event-avatars > * {
+  margin-right: -6px;
+  outline: 2px solid var(--chat);
+  border-radius: 50%;
+}
+.event-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}

@@ -10,6 +10,7 @@ import {
   Message,
   MessageBody,
   PresenceStatus,
+  ServerEvent,
   PlayingGame,
   ActiveRecording,
   CallRecording,
@@ -144,6 +145,9 @@ export interface ServerEvents {
   'presence:game:changed': { userId: string; game: PlayingGame | null };
   /** status personalizado da pessoa, como os outros veem (null quando limpou, ficou invisível ou offline) */
   'presence:text:changed': { userId: string; text: string | null };
+  /** evento do servidor criado/alterado/com presença nova (ADR-0028) */
+  'event:changed': { serverId: string; event: ServerEvent };
+  'event:deleted': { serverId: string; eventId: string };
   'voice:member:joined': VoiceMemberState;
   'voice:state:changed': VoiceMemberState;
   'voice:member:left': {
