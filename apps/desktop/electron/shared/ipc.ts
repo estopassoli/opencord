@@ -200,6 +200,14 @@ export const ErrorReport = z.object({
 });
 export type ErrorReport = z.infer<typeof ErrorReport>;
 
+/** memória de cada processo do app (Configurações → Sobre → Memória) */
+export interface ProcessMetric {
+  pid: number;
+  type: string;
+  /** working set, em MB */
+  mb: number;
+}
+
 export interface AppInfo {
   version: string;
   electron: string;
@@ -230,6 +238,7 @@ export interface OpenCordBridge {
   setBadge(count: number): Promise<void>;
   setTrayVoiceState(state: TrayVoiceState): Promise<void>;
   appInfo(): Promise<AppInfo>;
+  appMetrics(): Promise<ProcessMetric[]>;
   openExternal(url: string): Promise<void>;
   prefs: {
     get(): Promise<AppPrefsState>;

@@ -1,8 +1,18 @@
 import { askConfirm } from '../../components/AskDialog';
 import type { Me, UserSettings } from '@opencord/contracts';
 import { Button, ColorSwatches, RadioGroup, Select, Slider, Switch, TextField, type SelectOption } from '@opencord/ui';
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
-import type { AppInfo, AppPrefsState, GpuMode } from '../../../electron/shared/ipc';
+import {
+  Fragment,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
+import type { AppInfo, AppPrefsState, GpuMode, ProcessMetric } from '../../../electron/shared/ipc';
+import { clipsDiag } from '../../store/clips';
 import { Dialog } from '../../components/Dialog';
 import { bridge } from '../../lib/bridge';
 import { playSound } from '../../lib/sounds';
@@ -155,6 +165,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           <>
             <AboutTab />
             <HardwareAcceleration />
+            <MemorySection />
           </>
         )}
       </TabbedLayout>
@@ -1419,6 +1430,81 @@ function AboutTab() {
         </dl>
       )}
       {bridge && <UpdateCheck />}
+    </Section>
+  );
+}
+
+const PROCESS_LABEL: Record<string, string> = {
+  Browser: 'Processo principal',
+  Tab: 'Interface (janela)',
+  GPU: 'Placa de vídeo',
+  Utility: 'Auxiliar',
+  Zygote: 'Auxiliar',
+  Pepper: 'Plugin',
+  Unknown: 'Outro',
+};
+
+/** Memória por processo e pelas partes do app que guardam dados (para investigar consumo alto). */
+function MemorySection() {
+  const [rows, setRows] = useState<ProcessMetric[] | null>(null);
+  const [inside, setInside] = useState<{ heap: number; clips: number; videos: number } | null>(null);
+  const load = () => {
+    if (!bridge) return;
+    void bridge.appMetrics().then(setRows, () => setRows([]));
+    const perf = performance as Performance & { memory?: { usedJSHeapSize: number } };
+    setInside({
+      heap: Math.round((perf.memory?.usedJSHeapSize ?? 0) / 1048576),
+      clips: Math.round(clipsDiag().bytes / 1048576),
+      videos: document.querySelectorAll('video').length,
+    });
+  };
+  useEffect(load, []);
+  if (!bridge) return null;
+  const total = rows?.reduce((n, r) => n + r.mb, 0) ?? 0;
+  const text = () =>
+    [
+      `OpenCord memória (${new Date().toLocaleString()})`,
+      ...(rows ?? []).map((r) => `${PROCESS_LABEL[r.type] ?? r.type} (pid ${r.pid}): ${r.mb} MB`),
+      `total: ${total} MB`,
+      `interface: heap JS ${inside?.heap ?? '?'} MB · buffer de clipes ${inside?.clips ?? '?'} MB · vídeos na tela ${inside?.videos ?? '?'}`,
+    ].join('\n');
+  return (
+    <Section title="Memória" description="Quanto cada processo do app está usando agora.">
+      <dl className="settings-kv">
+        {rows?.map((r) => (
+          <Fragment key={r.pid}>
+            <dt>{PROCESS_LABEL[r.type] ?? r.type}</dt>
+            <dd>{r.mb} MB</dd>
+          </Fragment>
+        ))}
+        <dt>Total</dt>
+        <dd>{total} MB</dd>
+        {inside && (
+          <>
+            <dt>Interface: heap JS</dt>
+            <dd>{inside.heap} MB</dd>
+            <dt>Interface: buffer de clipes</dt>
+            <dd>{inside.clips} MB</dd>
+            <dt>Interface: vídeos na tela</dt>
+            <dd>{inside.videos}</dd>
+          </>
+        )}
+      </dl>
+      <div className="form-actions">
+        <Button size="sm" variant="secondary" icon="refresh" onClick={load}>
+          Atualizar
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          icon="copy"
+          onClick={() =>
+            void navigator.clipboard.writeText(text()).then(() => useUi.getState().toast('success', 'Copiado.'))
+          }
+        >
+          Copiar
+        </Button>
+      </div>
     </Section>
   );
 }

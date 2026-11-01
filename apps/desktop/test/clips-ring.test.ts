@@ -42,3 +42,25 @@ describe('memória dos clipes', () => {
     expect(r.bytes).toBe(0);
   });
 });
+
+describe('memória dos clipes: teto', () => {
+  const S = 1_000_000;
+  const big = (sec: number, key: boolean): StoredChunk => ({
+    ts: sec * S,
+    dur: S / 60,
+    key,
+    data: new Uint8Array(1000),
+  });
+  it('sem quadro-chave novo, o grupo não cresce além do teto', () => {
+    const r = new ChunkRing(60 * S, 5000);
+    r.pushVideo(big(0, true));
+    for (let i = 1; i < 20; i++) r.pushVideo(big(i, false));
+    expect(r.bytes).toBeLessThanOrEqual(5000);
+  });
+  it('com grupos, descarta os mais antigos até caber e a contagem bate', () => {
+    const r = new ChunkRing(60 * S, 4500);
+    for (let i = 0; i < 10; i++) r.pushVideo(big(i, true));
+    expect(r.bytes).toBe(4000);
+    expect(r.snapshot()?.video).toHaveLength(4);
+  });
+});

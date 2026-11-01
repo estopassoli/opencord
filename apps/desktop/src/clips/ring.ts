@@ -14,12 +14,19 @@ export interface StoredChunk {
   config?: VideoDecoderConfig | AudioDecoderConfig;
 }
 
+/** teto de memória do buffer: acima disso o grupo mais antigo sai mesmo que a janela ainda não tenha passado */
+export const RING_MAX_BYTES = 768 * 1024 * 1024;
+
 export class ChunkRing {
   private gops: StoredChunk[][] = [];
   /** áudio por trilha (0 = a mistura; as outras, cada fonte) */
   private audio: StoredChunk[][] = [];
+  private total = 0;
 
-  constructor(private readonly windowUs: number) {}
+  constructor(
+    private readonly windowUs: number,
+    private readonly maxBytes = RING_MAX_BYTES,
+  ) {}
 
   /** último instante recebido de cada trilha (diagnóstico de relógios) */
   lastVideoTs = 0;
@@ -33,6 +40,7 @@ export class ChunkRing {
       if (!c.key) return;
       this.gops.push([c]);
     } else this.gops[this.gops.length - 1]!.push(c);
+    this.total += c.data.byteLength;
     this.trim(c.ts);
   }
 
@@ -44,24 +52,33 @@ export class ChunkRing {
     // trilhas podem chegar fora de ordem (a 2 antes da 1): sem buracos no array, senão `trim` lê undefined
     while (this.audio.length <= track) this.audio.push([]);
     this.audio[track]!.push(c);
+    this.total += c.data.byteLength;
     this.trim(c.ts);
   }
 
   /** descarta grupos que terminaram antes da janela (mantém sempre o grupo em andamento) */
+  private dropGop() {
+    const g = this.gops.shift();
+    if (g) for (const c of g) this.total -= c.data.byteLength;
+  }
+
   private trim(now: number) {
     const from = now - this.windowUs;
-    while (this.gops.length > 1 && this.gops[1]![0]!.ts <= from) this.gops.shift();
+    while (this.gops.length > 1 && this.gops[1]![0]!.ts <= from) this.dropGop();
+    // teto de memória: codificador sem quadros-chave (ou bitrate altíssimo) não pode crescer sem fim
+    while (this.total > this.maxBytes && this.gops.length > 1) this.dropGop();
+    if (this.total > this.maxBytes && this.gops.length === 1) {
+      // um único grupo gigante: descarta e recomeça no próximo quadro-chave
+      this.dropGop();
+    }
     const start = this.gops[0]?.[0]?.ts ?? from;
     const cut = Math.min(from, start);
-    for (const a of this.audio) while (a.length && a[0]!.ts + a[0]!.dur < cut) a.shift();
+    for (const a of this.audio) while (a.length && a[0]!.ts + a[0]!.dur < cut) this.total -= a.shift()!.data.byteLength;
   }
 
   /** bytes guardados agora (para o limite de memória) */
   get bytes() {
-    let n = 0;
-    for (const g of this.gops) for (const c of g) n += c.data.byteLength;
-    for (const a of this.audio) for (const c of a) n += c.data.byteLength;
-    return n;
+    return this.total;
   }
 
   /**
@@ -83,5 +100,6 @@ export class ChunkRing {
   clear() {
     this.gops = [];
     this.audio = [];
+    this.total = 0;
   }
 }

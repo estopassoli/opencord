@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '16:00',
+    kind: 'melhoria',
+    icon: 'record',
+    title: 'Memória sob controle e visível',
+    body: 'O buffer dos clipes ganhou um teto de memória (768 MB): se a placa de vídeo parar de mandar quadros-chave, ele descarta o mais antigo em vez de crescer sem fim. E em Configurações → Sobre → Memória dá para ver quanto cada processo do app está usando, com "Copiar" para mandar o relatório.',
+  },
+  {
+    date: '2026-11-01',
     time: '15:00',
     kind: 'melhoria',
     icon: 'star',

@@ -38,6 +38,7 @@ const bridge: OpenCordBridge = {
   setBadge: (count) => ipcRenderer.invoke(IPC.badgeSet, count),
   setTrayVoiceState: (state) => ipcRenderer.invoke(IPC.trayVoiceState, state),
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
+  appMetrics: () => ipcRenderer.invoke(IPC.appMetrics),
   openExternal: (url) => ipcRenderer.invoke(IPC.openExternal, url),
   prefs: {
     get: () => ipcRenderer.invoke(IPC.prefsGet),

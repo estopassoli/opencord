@@ -38,6 +38,7 @@ import {
   WindowControl,
   WinAudioId,
   type AppInfo,
+  type ProcessMetric,
   type AppPrefsState,
   type ShortcutAction,
   type TrayAction,
@@ -392,6 +393,12 @@ function registerIpc() {
     voice = s;
     buildTrayMenu();
   });
+  handle(IPC.appMetrics, [], (): ProcessMetric[] =>
+    app
+      .getAppMetrics()
+      .map((m) => ({ pid: m.pid, type: m.type, mb: Math.round(m.memory.workingSetSize / 1024) }))
+      .sort((a, b) => b.mb - a.mb),
+  );
   handle(IPC.appInfo, [], (): AppInfo => ({
     version: app.getVersion(),
     electron: process.versions.electron,

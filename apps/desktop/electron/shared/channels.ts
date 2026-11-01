@@ -13,6 +13,7 @@ export const IPC = {
   windowState: 'window:state',
   badgeSet: 'badge:set',
   appInfo: 'app:info',
+  appMetrics: 'app:metrics',
   openExternal: 'app:open-external',
   trayVoiceState: 'tray:voice-state',
   updateStatus: 'update:status',
