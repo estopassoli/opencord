@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '14:30',
+    kind: 'correção',
+    icon: 'soundboard',
+    title: 'Soundboard abre em cima do botão',
+    body: 'O painel de efeitos sonoros abria deslocado para a direita, cortado na borda da tela. Agora nasce logo acima do botão que você clicou.',
+  },
+  {
+    date: '2026-11-01',
     time: '14:00',
     kind: 'melhoria',
     icon: 'star',

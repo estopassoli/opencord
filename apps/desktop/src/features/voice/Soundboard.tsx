@@ -16,6 +16,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { Dialog } from '../../components/Dialog';
 import { ServerIcon } from '../../components/ServerIcon';
 import { useData } from '../../store/data';
@@ -94,7 +95,9 @@ export function SoundboardPanel({ anchor, onClose }: { anchor: DOMRect; onClose:
     bottom: window.innerHeight - anchor.top + 8,
   };
 
-  return (
+  // portal no <body>: o painel é `fixed` com coordenadas da janela, e o .content (container-type) viraria o seu
+  // referencial se ele ficasse lá dentro — abria deslocado para a direita, cortado na borda
+  return createPortal(
     <div className="soundboard" ref={ref} role="dialog" aria-label="Efeitos sonoros" style={style}>
       <div className="soundboard-head">
         <TextField
@@ -193,7 +196,8 @@ export function SoundboardPanel({ anchor, onClose }: { anchor: DOMRect; onClose:
         </div>
       </div>
       {adding && serverId && <UploadSoundDialog serverId={serverId} onClose={() => setAdding(false)} />}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
