@@ -280,7 +280,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
         const j = await api().request<VoiceJoinResponse>('POST', `/voice/channels/${channelId}/join`);
         if (get().machine.generation !== gen) return; // usuário trocou/saiu nesse meio-tempo
         set({ perms: { canSpeak: j.canSpeak, canVideo: j.canVideo, canStream: j.canStream } });
-        dispatch({ type: 'AUTHORIZED', generation: gen });
+        dispatch({ type: 'AUTHORIZED', generation: gen, channelId: j.channelId });
         await connectWith(j, gen);
         if (get().selfMute || get().selfDeaf) pushState();
         syncTray();

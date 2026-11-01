@@ -8,6 +8,7 @@ import {
   type Role,
   type ServerDetail,
   type VoiceJoinResponse,
+  type Channel,
   type VoiceMemberState,
 } from '@opencord/contracts';
 import {
@@ -181,6 +182,40 @@ describe('voz com LiveKit real', () => {
     expect(
       (await http.req<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`, { token: owner.token })).body,
     ).toHaveLength(0);
+  });
+
+  it('criador de salas (ADR-0029): entrar cria uma sala temporária só sua; sair da sala vazia apaga', async () => {
+    const { alice, owner, serverId } = await setup();
+    const hub = await http.req<Channel>('POST', `/servers/${serverId}/channels`, {
+      token: owner.token,
+      body: { name: 'Criar sala', kind: 'voice', roomHub: true },
+    });
+    expect(hub.body.roomHub).toBe(true);
+    expect(
+      (
+        await http.req('POST', `/servers/${serverId}/channels`, {
+          token: owner.token,
+          body: { name: 'x', kind: 'text', roomHub: true },
+        })
+      ).status,
+    ).toBe(400);
+    const so = await sock(owner.token);
+    const created = nextEvent<Channel>(so, 'channel:created', (c) => c.temporary);
+    const j = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${hub.body.id}/join`, { token: alice.token });
+    expect(j.status).toBe(201);
+    const room = await created;
+    expect(j.body.channelId).toBe(room.id);
+    expect(room.name).toMatch(/^Sala de /);
+    expect(room.kind).toBe('voice');
+    const list = await http.req<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`, { token: owner.token });
+    expect(list.body.find((s) => s.userId === alice.id)?.channelId).toBe(room.id);
+    // sair: a sala some para todo mundo
+    const deleted = nextEvent<{ channelId: string }>(so, 'channel:deleted', (e) => e.channelId === room.id);
+    await http.req('POST', '/voice/leave', { token: alice.token });
+    await deleted;
+    expect(await prisma.channel.findUnique({ where: { id: room.id } })).toBeNull();
+    // o criador continua lá
+    expect(await prisma.channel.findUnique({ where: { id: hub.body.id } })).not.toBeNull();
   });
 
   it('kick do servidor remove o participante da SFU (revogação ativa, não só no banco)', async () => {

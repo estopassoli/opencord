@@ -17,7 +17,8 @@ export interface VoiceState {
 
 export type VoiceEvent =
   | { type: 'JOIN'; channelId: string }
-  | { type: 'AUTHORIZED'; generation: number }
+  /** `channelId`: a API pode ter posto a pessoa em outra sala (criador de salas, ADR-0029) */
+  | { type: 'AUTHORIZED'; generation: number; channelId?: string }
   | { type: 'CONNECTED'; generation: number }
   | { type: 'CONNECTION_LOST' }
   | { type: 'RECONNECTED' }
@@ -41,7 +42,7 @@ export function voiceReducer(s: VoiceState, e: VoiceEvent): VoiceState {
       return { status: 'authorizing', channelId: e.channelId, error: null, attempts: 0, generation: s.generation + 1 };
     case 'AUTHORIZED':
       if (s.status !== 'authorizing' || e.generation !== s.generation) return s;
-      return { ...s, status: 'connecting' };
+      return { ...s, status: 'connecting', channelId: e.channelId ?? s.channelId };
     case 'CONNECTED':
       if (!(s.status === 'connecting' || s.status === 'reconnecting') || e.generation !== s.generation) return s;
       return { ...s, status: 'connected', attempts: 0, error: null };

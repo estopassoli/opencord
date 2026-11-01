@@ -25,6 +25,7 @@ import { PrismaService } from '../common/prisma.service.js';
 import { RedisService } from '../common/redis.service.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { PermissionsService } from '../servers/permissions.service.js';
+import { ServersService } from '../servers/servers.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
 const MAX_PER_CHANNEL = 25;
@@ -77,6 +78,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     private readonly perms: PermissionsService,
     private readonly realtime: RealtimeService,
     private readonly events: DomainEvents,
+    private readonly servers: ServersService,
   ) {
     this.rooms = new RoomServiceClient(cfg.LIVEKIT_API_URL, cfg.LIVEKIT_API_KEY, cfg.LIVEKIT_API_SECRET);
     this.webhooks = new WebhookReceiver(cfg.LIVEKIT_API_KEY, cfg.LIVEKIT_API_SECRET);
@@ -245,6 +247,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
   async join(userId: string, channelId: string): Promise<VoiceJoinResponse> {
     const access = await this.perms.requireChannel(channelId, userId, Permission.CONNECT);
     if (access.kind !== 'voice') throw new BadRequestException('não é um canal de voz');
+    // criador de salas (ADR-0029): a pessoa entra numa sala temporária nova, não no criador
+    const hub = await this.prisma.channel.findUnique({ where: { id: channelId }, select: { roomHub: true } });
+    if (hub?.roomHub) return this.join(userId, (await this.servers.createTemporaryRoom(channelId, userId)).id);
     const current = await this.stateOf(userId);
     const occupants = await this.r.scard(`voice:channel:${channelId}`);
     if (occupants >= MAX_PER_CHANNEL && current?.channelId !== channelId)
@@ -340,6 +345,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     });
     if (notifyUser)
       this.realtime.toUser(s.userId, 'voice:force-disconnect', { channelId: s.channelId, reason: notifyUser });
+    // sala temporária vazia some (ADR-0029)
+    if ((await this.r.scard(`voice:channel:${s.channelId}`)) === 0)
+      await this.servers.deleteTemporaryRoom(s.channelId).catch(() => undefined);
   }
 
   async updateSelf(

@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '15:00',
+    kind: 'novo',
+    icon: 'plus-circle',
+    title: 'Canal de voz que cria salas',
+    body: 'Ao criar um canal de voz (ou no botão direito de um que já existe), marque "Criador de salas temporárias". Quem entra nele ganha uma sala só sua, "Sala de Fulano", logo abaixo, com as mesmas permissões. Quando a última pessoa sai, a sala some sozinha. Bom para a turma se dividir sem encher o servidor de canais.',
+  },
+  {
+    date: '2026-10-31',
     time: '14:30',
     kind: 'novo',
     icon: 'calendar',

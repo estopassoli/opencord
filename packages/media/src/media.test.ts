@@ -26,6 +26,10 @@ describe('voiceReducer', () => {
     const s1 = voiceReducer(initialVoiceState, { type: 'JOIN', channelId: 'c1' });
     expect(s1.status).toBe('authorizing');
     const s2 = voiceReducer(s1, { type: 'AUTHORIZED', generation: s1.generation });
+    // a API pode ter posto a pessoa em outra sala (criador de salas, ADR-0029)
+    expect(voiceReducer(s1, { type: 'AUTHORIZED', generation: s1.generation, channelId: 'sala-nova' }).channelId).toBe(
+      'sala-nova',
+    );
     const s3 = voiceReducer(s2, { type: 'CONNECTED', generation: s1.generation });
     expect(s3).toMatchObject({ status: 'connected', channelId: 'c1', attempts: 0 });
   });

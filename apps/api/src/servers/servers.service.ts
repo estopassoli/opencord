@@ -623,7 +623,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
   }
 
   // ---------- Canais ----------
-  private async emitChannel(serverId: string, channelId: string, ev: 'channel:created' | 'channel:updated') {
+  async emitChannel(serverId: string, channelId: string, ev: 'channel:created' | 'channel:updated') {
     // Payload inclui myPermissions, que varia por usuário: enviar individualmente a cada membro conectado que vê o canal.
     const members = await this.prisma.serverMember.findMany({ where: { serverId }, select: { userId: true } });
     const c = await this.prisma.channel.findUniqueOrThrow({ where: { id: channelId }, include: { overrides: true } });
@@ -686,9 +686,11 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       kind: 'text' | 'voice' | 'board';
       categoryId?: string | null | undefined;
       topic?: string | null | undefined;
+      roomHub?: boolean | undefined;
     },
   ): Promise<Channel> {
     await this.perms.requireServer(serverId, actorId, Permission.MANAGE_CHANNELS);
+    if (dto.roomHub && dto.kind !== 'voice') throw new BadRequestException('só canal de voz cria salas');
     if ((await this.prisma.channel.count({ where: { serverId } })) >= MAX_CHANNELS)
       throw new BadRequestException('limite de canais');
     if (dto.categoryId) {
@@ -707,6 +709,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
         categoryId: dto.categoryId ?? null,
         topic: dto.topic ?? null,
         position: (max._max.position ?? -1) + 1,
+        roomHub: Boolean(dto.roomHub),
       },
       include: { overrides: true },
     });
@@ -727,10 +730,12 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       position?: number | undefined;
       overrides?: PermissionOverrideDto[] | undefined;
       boardId?: string | null | undefined;
+      roomHub?: boolean | undefined;
     },
   ): Promise<Channel> {
     const existing = await this.prisma.channel.findUnique({ where: { id: channelId } });
     if (!existing) throw notFound('canal');
+    if (dto.roomHub && existing.kind !== 'voice') throw new BadRequestException('só canal de voz cria salas');
     // permissão no próprio canal: quem não vê o canal (VIEW_CHANNEL negado) recebe 404, como em todo o resto
     const access = await this.perms.requireChannel(channelId, actorId, Permission.MANAGE_CHANNELS);
     if (dto.overrides) {
@@ -759,6 +764,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
         where: { id: channelId },
         data: {
           ...(dto.boardId !== undefined ? { boardId: dto.boardId } : {}),
+          ...(dto.roomHub !== undefined ? { roomHub: dto.roomHub } : {}),
           ...(dto.name ? { name: dto.name } : {}),
           ...(dto.topic !== undefined ? { topic: dto.topic } : {}),
           ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
@@ -782,6 +788,53 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     await this.emitChannel(existing.serverId, channelId, 'channel:updated');
     const c = await this.prisma.channel.findUniqueOrThrow({ where: { id: channelId }, include: { overrides: true } });
     return channel(c, (await this.perms.channelsFor(access, [c])).get(c.id) ?? 0);
+  }
+
+  /**
+   * Sala temporária a partir de um criador de salas (ADR-0029): mesma categoria e mesmas permissões do criador, logo
+   * abaixo dele, com o nome de quem entrou. Sem checagem de MANAGE_CHANNELS: quem pode entrar no criador pode abrir
+   * uma sala.
+   */
+  async createTemporaryRoom(hubId: string, userId: string): Promise<{ id: string }> {
+    const hub = await this.prisma.channel.findUniqueOrThrow({ where: { id: hubId }, include: { overrides: true } });
+    if ((await this.prisma.channel.count({ where: { serverId: hub.serverId } })) >= MAX_CHANNELS)
+      throw new BadRequestException('limite de canais');
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { displayName: true } });
+    const c = await this.prisma.channel.create({
+      data: {
+        serverId: hub.serverId,
+        name: `Sala de ${user.displayName}`.slice(0, 64),
+        kind: 'voice',
+        categoryId: hub.categoryId,
+        position: hub.position + 1,
+        temporary: true,
+        overrides: {
+          create: hub.overrides.map((o) => ({
+            subjectType: o.subjectType,
+            subjectId: o.subjectId,
+            allow: o.allow,
+            deny: o.deny,
+          })),
+        },
+      },
+    });
+    // as salas seguintes ficam abaixo (empurra o que vinha depois do criador)
+    await this.prisma.channel.updateMany({
+      where: { serverId: hub.serverId, categoryId: hub.categoryId, position: { gt: hub.position }, id: { not: c.id } },
+      data: { position: { increment: 1 } },
+    });
+    await this.realtime.syncServer(hub.serverId);
+    await this.emitChannel(hub.serverId, c.id, 'channel:created');
+    return { id: c.id };
+  }
+
+  /** Sala temporária vazia some (ADR-0029). */
+  async deleteTemporaryRoom(channelId: string) {
+    const c = await this.prisma.channel.findUnique({ where: { id: channelId } });
+    if (!c?.temporary) return;
+    this.events.emit({ type: 'channel.deleted', serverId: c.serverId, channelId });
+    this.realtime.emit(rooms.server(c.serverId), 'channel:deleted', { serverId: c.serverId, channelId });
+    await this.prisma.channel.delete({ where: { id: channelId } }).catch(() => undefined);
   }
 
   async deleteChannel(channelId: string, actorId: string) {

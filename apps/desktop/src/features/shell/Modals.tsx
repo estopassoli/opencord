@@ -8,7 +8,7 @@ import type {
   ServerDetail,
   ServerDirectoryEntry,
 } from '@opencord/contracts';
-import { Button, Icon, RadioGroup, TextField } from '@opencord/ui';
+import { Button, Icon, RadioGroup, Switch, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { ServerIcon } from '../../components/ServerIcon';
@@ -543,11 +543,13 @@ function CreateCategory({ serverId, onClose }: { serverId: string; onClose: () =
 function CreateChannel({ modal, onClose }: { modal: Extract<Modal, { kind: 'create-channel' }>; onClose: () => void }) {
   const [name, setName] = useState('');
   const [kind, setKind] = useState<ChannelKind>(modal.channelKind);
+  const [roomHub, setRoomHub] = useState(false);
   const { busy, error, submit } = useSubmit(async () => {
     const c = await api().request<Channel>('POST', `/servers/${modal.serverId}/channels`, {
       name,
       kind,
       categoryId: modal.categoryId,
+      ...(kind === 'voice' && roomHub ? { roomHub: true } : {}),
     });
     useData.getState().upsertChannel(c);
     if (c.kind !== 'voice') useUi.getState().go({ kind: 'server', serverId: modal.serverId, channelId: c.id });
@@ -575,6 +577,14 @@ function CreateChannel({ modal, onClose }: { modal: Extract<Modal, { kind: 'crea
           maxLength={64}
           autoFocus
         />
+        {kind === 'voice' && (
+          <Switch
+            label="Criador de salas temporárias"
+            description="Quem entrar neste canal ganha uma sala de voz só sua ('Sala de Fulano'), que some quando esvazia."
+            checked={roomHub}
+            onChange={setRoomHub}
+          />
+        )}
         {error && (
           <p className="form-error" role="alert">
             {error}

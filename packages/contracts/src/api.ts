@@ -173,6 +173,10 @@ export const Channel = z.object({
   overrides: z.array(PermissionOverrideDto),
   /** canal de texto que alimenta um quadro kanban: cada mensagem nova vira card nele (ADR-0017) */
   boardId: Id.nullable().default(null),
+  /** canal de voz "criador de salas": entrar nele cria uma sala temporária só sua (ADR-0029) */
+  roomHub: z.boolean().default(false),
+  /** sala temporária: some quando a última pessoa sai */
+  temporary: z.boolean().default(false),
 });
 export type Channel = z.infer<typeof Channel>;
 
@@ -283,6 +287,8 @@ export const CreateChannelRequest = z.object({
   kind: ChannelKind,
   categoryId: Id.nullable().optional(),
   topic: z.string().max(1024).nullable().optional(),
+  /** só canal de voz: criador de salas temporárias (ADR-0029) */
+  roomHub: z.boolean().optional(),
 });
 export type CreateChannelRequest = z.input<typeof CreateChannelRequest>;
 
@@ -294,6 +300,8 @@ export const UpdateChannelRequest = z.object({
   overrides: z.array(PermissionOverrideDto).max(100).optional(),
   /** canal de texto: quadro kanban alimentado pelas mensagens dele (null desliga) */
   boardId: Id.nullable().optional(),
+  /** canal de voz: liga/desliga o criador de salas temporárias (ADR-0029) */
+  roomHub: z.boolean().optional(),
 });
 export type UpdateChannelRequest = z.input<typeof UpdateChannelRequest>;
 

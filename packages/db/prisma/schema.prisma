@@ -191,6 +191,10 @@ model Channel {
   topic      String?
   position   Int
   createdAt  DateTime                    @default(now()) @db.Timestamptz(3)
+  /// canal de voz "criador de salas": entrar nele cria uma sala temporária e põe a pessoa lá (ADR-0029)
+  roomHub    Boolean                     @default(false)
+  /// sala temporária criada por um criador de salas: some quando esvazia
+  temporary  Boolean                     @default(false)
   server     Server                      @relation(fields: [serverId], references: [id], onDelete: Cascade)
   category   Category?                   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   overrides  ChannelPermissionOverride[]

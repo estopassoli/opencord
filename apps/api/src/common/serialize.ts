@@ -58,6 +58,8 @@ export const channel = (
     categoryId: string | null;
     kind: 'text' | 'voice' | 'board';
     boardId?: string | null;
+    roomHub?: boolean;
+    temporary?: boolean;
     name: string;
     topic: string | null;
     position: number;
@@ -74,6 +76,8 @@ export const channel = (
   position: c.position,
   myPermissions,
   boardId: c.boardId ?? null,
+  roomHub: c.roomHub ?? false,
+  temporary: c.temporary ?? false,
   overrides: c.overrides.map((o) => ({
     subjectType: o.subjectType,
     subjectId: o.subjectId,

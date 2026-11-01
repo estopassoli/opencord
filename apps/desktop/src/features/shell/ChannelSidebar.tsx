@@ -252,6 +252,22 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                                     icon: 'edit' as const,
                                     onSelect: () => open({ kind: 'server-settings', serverId, tab: 'channels' }),
                                   },
+                                  ...(c.kind === 'voice' && !c.temporary
+                                    ? [
+                                        {
+                                          label: 'Criador de salas temporárias',
+                                          icon: 'plus-circle' as const,
+                                          hint: 'Entrar cria uma sala só sua',
+                                          checked: c.roomHub,
+                                          onSelect: () =>
+                                            void api()
+                                              .request('PATCH', `/channels/${c.id}`, { roomHub: !c.roomHub })
+                                              .catch((err: unknown) =>
+                                                useUi.getState().toast('error', describeError(err)),
+                                              ),
+                                        },
+                                      ]
+                                    : []),
                                   {
                                     label: 'Excluir canal',
                                     icon: 'trash' as const,
@@ -284,8 +300,10 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                         if (c.kind === 'voice' && voiceChannel !== c.id) void useVoice.getState().join(c.id, serverId);
                       }}
                     >
-                      <Icon name={CHANNEL_ICON[c.kind]} size={18} />
+                      <Icon name={c.roomHub ? 'plus-circle' : CHANNEL_ICON[c.kind]} size={18} />
                       <span className="truncate">{c.name}</span>
+                      {c.roomHub && <span className="small muted">cria uma sala</span>}
+                      {c.temporary && <Icon name="clock" size={14} label="Sala temporária: some quando esvazia" />}
                       {!hasPermission(c.myPermissions, Permission.SEND_MESSAGES) && c.kind === 'text' && (
                         <Icon name="lock" size={14} label="Somente leitura" />
                       )}
