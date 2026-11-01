@@ -298,24 +298,22 @@ html[data-layout='vidro'] .toast {
     0 30px 70px -20px rgb(0 0 0 / 0.75);
 }
 /* superfícies grandes que podem ter popovers/listas fixas dentro: vidro escuro num ::before (ver .vidro-panel) */
+/* (sem mexer na posição: cada um mantém a sua — fixed, absolute ou estática; um ::before precisa só de um
+   ancestral posicionado, e todos estes já são) */
 html[data-layout='vidro'] .dialog-body,
 html[data-layout='vidro'] .context-menu,
 html[data-layout='vidro'] .clip-viewer,
 html[data-layout='vidro'] .profile-card,
 html[data-layout='vidro'] .soundboard,
 html[data-layout='vidro'] .music-player {
-  position: relative;
   isolation: isolate;
   background: transparent;
   border: 1px solid var(--vidro-line);
   box-shadow: 0 30px 70px -20px rgb(0 0 0 / 0.8);
 }
-html[data-layout='vidro'] .soundboard,
-html[data-layout='vidro'] .music-player {
-  position: fixed;
-}
-html[data-layout='vidro'] .music-player {
-  position: absolute;
+html[data-layout='vidro'] .dialog-body,
+html[data-layout='vidro'] .clip-viewer {
+  position: relative;
 }
 html[data-layout='vidro'] .dialog-body::before,
 html[data-layout='vidro'] .context-menu::before,
