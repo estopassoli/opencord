@@ -83,7 +83,7 @@ html[data-layout='vidro'] .vidro-panel {
   min-height: 0;
   min-width: 0;
   border: 0;
-  border-radius: calc(22px * var(--radius-scale, 1));
+  border-radius: 20px;
   background: transparent;
   overflow: clip;
   isolation: isolate;
@@ -256,7 +256,7 @@ html[data-layout='vidro'] .composer {
   background: var(--vidro-glass-2);
   border: 1px solid var(--vidro-line);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
-  border-radius: calc(14px * var(--radius-scale, 1));
+  border-radius: min(calc(14px * var(--radius-scale, 1)), 18px);
 }
 html[data-layout='vidro'] .composer:focus-within {
   border-color: color-mix(in srgb, var(--brand) 60%, var(--vidro-line));
@@ -363,7 +363,7 @@ html[data-layout='vidro'] .auth-card {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.12),
     0 30px 70px -20px rgb(0 0 0 / 0.8);
-  border-radius: calc(22px * var(--radius-scale, 1));
+  border-radius: 20px;
 }
 
 /* ---------- barras de rolagem discretas ---------- */
@@ -448,12 +448,12 @@ html[data-layout='vidro'] .highlight-card:hover {
 html[data-layout='vidro'] .tabs {
   padding: 3px;
   gap: 2px;
-  border-radius: calc(12px * var(--radius-scale, 1));
+  border-radius: min(calc(12px * var(--radius-scale, 1)), 16px);
   background: rgb(0 0 0 / 0.22);
   box-shadow: inset 0 1px 0 rgb(0 0 0 / 0.3);
 }
 html[data-layout='vidro'] .tab {
-  border-radius: calc(9px * var(--radius-scale, 1));
+  border-radius: min(calc(9px * var(--radius-scale, 1)), 13px);
 }
 html[data-layout='vidro'] .tab:hover {
   background: var(--vidro-glass-2);
@@ -644,7 +644,7 @@ html[data-layout='vidro'] .event-card,
 html[data-layout='vidro'] .highlight-card,
 html[data-layout='vidro'] .timeline-card,
 html[data-layout='vidro'] .now-card {
-  border-radius: calc(10px * var(--radius-scale, 1));
+  border-radius: min(calc(10px * var(--radius-scale, 1)), 16px);
 }
 
 /* ---------- controles da chamada: uma cápsula de vidro com botões redondos ---------- */
