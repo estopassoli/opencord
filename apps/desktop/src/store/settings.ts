@@ -1,5 +1,6 @@
 import type { UserSettings } from '@opencord/contracts';
 import { bridge } from '../lib/bridge';
+import { rememberAppearance } from '../lib/appearance-boot';
 import { accentTokens, FONT_STACK_FALLBACK } from '../lib/theme';
 import { api } from './session';
 import { useData } from './data';
@@ -55,6 +56,8 @@ export function applySettingsSideEffects(s: UserSettings) {
 export function applyAppearanceTokens(a: UserSettings['appearance'], accentOverride: string | null = null) {
   const root = document.documentElement;
   root.dataset.surface = a.surface;
+  root.dataset.palette = a.palette;
+  rememberAppearance(a);
   root.style.setProperty('--radius-scale', String(a.radiusScale));
   if (a.fontFamily.trim()) root.style.setProperty('--font', `"${a.fontFamily.trim()}", ${FONT_STACK_FALLBACK}`);
   else root.style.removeProperty('--font');

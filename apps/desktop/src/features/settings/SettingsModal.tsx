@@ -25,6 +25,7 @@ import {
   useImportedFonts,
 } from '../../lib/fonts';
 import { isFontAvailable } from '../../lib/theme';
+import { currentTheme, themeById } from '../../lib/themes';
 import { useLayout } from '../../lib/layout';
 import { useData } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
@@ -34,6 +35,7 @@ import './settings.css';
 import { deviceLabel } from '../voice/devices';
 import { AvatarPicker } from './AvatarPicker';
 import { GamesTab } from './GamesTab';
+import { ThemeGallery } from './ThemeGallery';
 
 // ---------------------------------------------------------------------------
 // Layout de abas verticais (compartilhado com as configurações do servidor)
@@ -973,11 +975,6 @@ function setAppearance(patch: Partial<UserSettings['appearance']>) {
   updateSettings((s) => ({ ...s, appearance: { ...s.appearance, ...patch } }));
 }
 
-const THEME_OPTIONS: readonly { value: UserSettings['appearance']['theme']; label: string }[] = [
-  { value: 'dark', label: 'Escuro' },
-  { value: 'light', label: 'Claro' },
-];
-
 const REDUCED_MOTION_OPTIONS: readonly SelectOption<UserSettings['appearance']['reducedMotion']>[] = [
   { value: 'system', label: 'Seguir o sistema' },
   { value: 'on', label: 'Sempre reduzir' },
@@ -1002,14 +999,6 @@ export const DEFAULT_ACCENT = ACCENTS[0];
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const FONT_NAME_RE = /^[\p{L}\p{N} ._-]*$/u;
 
-const SURFACE_OPTIONS: readonly { value: UserSettings['appearance']['surface']; label: string; description: string }[] =
-  [
-    { value: 'default', label: 'Grafite', description: 'Cinza neutro (padrão).' },
-    { value: 'midnight', label: 'Meia-noite', description: 'Azul bem escuro.' },
-    { value: 'oled', label: 'OLED', description: 'Preto puro.' },
-    { value: 'slate', label: 'Ardósia', description: 'Cinza mais claro.' },
-  ];
-
 const FONT_PRESETS: readonly SelectOption<string>[] = [
   { value: '', label: 'Padrão (Inter)' },
   { value: 'Segoe UI Variable Text', label: 'Segoe UI Variable' },
@@ -1024,8 +1013,16 @@ const FONT_PRESETS: readonly SelectOption<string>[] = [
 
 const DEFAULT_APPEARANCE: Pick<
   UserSettings['appearance'],
-  'accent' | 'surface' | 'radiusScale' | 'fontFamily' | 'fontScale' | 'compact'
-> = { accent: DEFAULT_ACCENT, surface: 'default', radiusScale: 1, fontFamily: '', fontScale: 1, compact: true };
+  'accent' | 'surface' | 'palette' | 'radiusScale' | 'fontFamily' | 'fontScale' | 'compact'
+> = {
+  accent: DEFAULT_ACCENT,
+  surface: 'default',
+  palette: 'default',
+  radiusScale: 1,
+  fontFamily: '',
+  fontScale: 1,
+  compact: true,
+};
 
 function AppearanceTab({ settings }: { settings: UserSettings }) {
   const a = settings.appearance;
@@ -1044,14 +1041,19 @@ function AppearanceTab({ settings }: { settings: UserSettings }) {
   const fontMissing = a.fontFamily !== '' && !isFontAvailable(a.fontFamily);
   return (
     <>
-      <Section title="Tema">
-        <RadioGroup
-          label="Tema"
-          hideLabel
-          variant="cards"
-          value={a.theme}
-          options={THEME_OPTIONS}
-          onChange={(v) => setAppearance({ theme: v })}
+      <Section
+        title="Tema"
+        description="Escuros e claros, cada um com a sua cor de destaque; dá para trocar a cor abaixo."
+      >
+        <ThemeGallery
+          value={currentTheme(a)}
+          onChange={(t) => {
+            // a cor de destaque só troca junto se a pessoa não a personalizou (ainda é a sugerida pelo tema atual)
+            const suggested = themeById(currentTheme(a)).patch.accent ?? DEFAULT_ACCENT;
+            const custom = a.accent.toLowerCase() !== suggested.toLowerCase();
+            const { accent, ...rest } = t.patch;
+            setAppearance(custom ? rest : { ...rest, accent: accent ?? DEFAULT_ACCENT });
+          }}
         />
       </Section>
       <Section title="Visual">
@@ -1083,17 +1085,6 @@ function AppearanceTab({ settings }: { settings: UserSettings }) {
             if (HEX_RE.test(v)) setAppearance({ accent: v.toLowerCase() });
           }}
         />
-        {a.theme === 'dark' ? (
-          <RadioGroup
-            label="Fundo"
-            variant="cards"
-            value={a.surface}
-            options={SURFACE_OPTIONS}
-            onChange={(v) => setAppearance({ surface: v })}
-          />
-        ) : (
-          <p className="muted small">Os tons de fundo valem para o tema escuro.</p>
-        )}
       </Section>
       <Section title="Formas">
         <Slider

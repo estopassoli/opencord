@@ -25,6 +25,8 @@ const FRAG = /* glsl */ `
   uniform vec3 uA;
   uniform vec3 uB;
   uniform vec3 uC;
+  uniform vec3 uBase;
+  uniform float uLight;
 
   // ruído simplex 2D (Ashima/IQ, domínio público)
   vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -74,12 +76,19 @@ const FRAG = /* glsl */ `
     float lb = exp(-2.3 * dot(q - cb, q - cb));
     float lc = exp(-3.2 * dot(q - cc, q - cc));
     float grain = fbm(q * 2.5 + t * 0.5) * 0.5 + 0.5;
-    vec3 base = vec3(0.024, 0.031, 0.051);
+    vec3 base = uBase;
     vec3 col = base;
     float gain = 0.5 + uPulse * 0.35;
-    col += uA * la * gain * (0.7 + 0.5 * grain);
-    col += uB * lb * gain * (0.7 + 0.5 * (1.0 - grain));
-    col += uC * lc * gain * 0.85;
+    if (uLight > 0.5) {
+      // esquema claro: as luzes tingem o fundo claro (somar estouraria em branco)
+      col = mix(col, uA, clamp(la * gain * (0.7 + 0.5 * grain), 0.0, 0.6));
+      col = mix(col, uB, clamp(lb * gain * (0.7 + 0.5 * (1.0 - grain)), 0.0, 0.55));
+      col = mix(col, uC, clamp(lc * gain * 0.85, 0.0, 0.5));
+    } else {
+      col += uA * la * gain * (0.7 + 0.5 * grain);
+      col += uB * lb * gain * (0.7 + 0.5 * (1.0 - grain));
+      col += uC * lc * gain * 0.85;
+    }
     // vinheta suave, para os painéis das bordas descansarem sobre o escuro
     float vig = smoothstep(1.5, 0.45, length(p * vec2(0.9, 1.0)));
     col = mix(base, col, vig);
@@ -119,6 +128,8 @@ function mount(host: HTMLDivElement): { teardown(): void; lost(): boolean; tryRe
     uA: { value: new THREE.Vector3(...hexToVec(FALLBACK[0] as string)) },
     uB: { value: new THREE.Vector3(...hexToVec(FALLBACK[1] as string)) },
     uC: { value: new THREE.Vector3(...hexToVec(FALLBACK[2] as string)) },
+    uBase: { value: new THREE.Vector3(0.024, 0.031, 0.051) },
+    uLight: { value: 0 },
   };
   const mat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms, depthTest: false });
   scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
@@ -134,13 +145,32 @@ function mount(host: HTMLDivElement): { teardown(): void; lost(): boolean; tryRe
   const ro = new ResizeObserver(resize);
   ro.observe(host);
 
-  // a primeira luz é a cor do servidor aberto (tema por servidor); sem cor, a do tema da pessoa
+  // a primeira luz é a cor do servidor aberto (tema por servidor); sem cor, a do tema da pessoa.
+  // As outras duas e o fundo vêm do tema escolhido (variáveis --aurora-b/--aurora-c/--vidro-bg do vidro.css).
+  let themeKey = '';
   const colors = () => {
     const { view } = useUi.getState();
     const { details, settings } = useData.getState();
     const server = view.kind === 'server' ? details[view.serverId] : undefined;
     const accent = server?.accent ?? settings?.appearance.accent ?? (FALLBACK[0] as string);
     uniforms.uA.value.set(...hexToVec(accent));
+    // os atributos do <html> são aplicados logo depois de o store mudar: lê no microtask seguinte
+    queueMicrotask(() => {
+      const root = document.documentElement;
+      const key = `${root.dataset.theme}|${root.dataset.surface}|${root.dataset.palette}`;
+      if (key === themeKey) return;
+      themeKey = key;
+      const cs = getComputedStyle(root);
+      const read = (name: string, fallback: string) => {
+        const v = cs.getPropertyValue(name).trim();
+        return /^#[0-9a-f]{6}$/i.test(v) ? v : fallback;
+      };
+      uniforms.uB.value.set(...hexToVec(read('--aurora-b', FALLBACK[1] as string)));
+      uniforms.uC.value.set(...hexToVec(read('--aurora-c', FALLBACK[2] as string)));
+      uniforms.uBase.value.set(...hexToVec(read('--vidro-bg', '#06080d')));
+      uniforms.uLight.value = root.dataset.theme === 'light' ? 1 : 0;
+      render(performance.now());
+    });
   };
   colors();
   const unsubUi = useUi.subscribe(colors);

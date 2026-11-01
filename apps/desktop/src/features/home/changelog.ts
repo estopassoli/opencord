@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '18:00',
+    kind: 'novo',
+    icon: 'star',
+    title: 'Galeria de temas',
+    body: 'Configurações → Aparência → Tema virou uma galeria com 16 temas: os quatro escuros de antes (Grafite, Meia-noite, OLED, Ardósia), oito novos (Ártico, Oceano, Floresta, Lavanda, Rosé, Brasa, Café, Neon) e quatro claros (Claro, Papel, Névoa, Menta). Cada um vem com a sua cor de destaque, que continua ajustável. No visual Vidro, a aurora do fundo muda de cor junto, e os temas claros ganharam um vidro leitoso.',
+  },
+  {
+    date: '2026-11-01',
     time: '17:30',
     kind: 'correção',
     icon: 'screen',

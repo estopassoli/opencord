@@ -711,3 +711,98 @@ button.admin-stat:focus-visible {
   flex: 1;
   min-width: 0;
 }
+
+/* ---------- galeria de temas (Aparência → Tema) ---------- */
+.theme-gallery {
+  display: grid;
+  gap: 14px;
+}
+.theme-group {
+  display: grid;
+  gap: 8px;
+}
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  gap: 10px;
+}
+.theme-card {
+  display: grid;
+  gap: 8px;
+  padding: 6px 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: calc(10px * var(--radius-scale, 1));
+  background: var(--sidebar);
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur) var(--ease),
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.theme-card:hover {
+  border-color: var(--text-muted);
+  transform: translateY(-1px);
+}
+.theme-card[aria-checked='true'] {
+  border-color: var(--brand);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+.theme-card:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.theme-preview {
+  display: grid;
+  grid-template-columns: 22% 1fr;
+  height: 64px;
+  border-radius: calc(7px * var(--radius-scale, 1));
+  overflow: hidden;
+  background: var(--p-chat);
+  position: relative;
+}
+.theme-preview::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(70% 70% at 85% 20%, color-mix(in srgb, var(--p-glow) 55%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.theme-preview-rail {
+  background: var(--p-rail);
+}
+.theme-preview-chat {
+  display: grid;
+  align-content: end;
+  gap: 5px;
+  padding: 8px;
+  position: relative;
+  z-index: 1;
+}
+.theme-preview-line {
+  height: 5px;
+  width: 80%;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--p-text) 55%, transparent);
+}
+.theme-preview-line.short {
+  width: 50%;
+  background: color-mix(in srgb, var(--p-text) 30%, transparent);
+}
+.theme-preview-btn {
+  height: 9px;
+  width: 34%;
+  border-radius: 4px;
+  background: var(--p-accent);
+}
+.theme-card-text {
+  display: grid;
+  gap: 1px;
+  padding: 0 2px;
+}
+.theme-card-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+}

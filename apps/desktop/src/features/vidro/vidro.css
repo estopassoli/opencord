@@ -9,6 +9,9 @@
 html[data-layout='vidro'] {
   --font-display: 'Sora Variable', var(--font);
   --vidro-bg: #06080d;
+  /* luzes da aurora (a primeira é a cor do servidor/pessoa; estas duas vêm do tema) — lidas pelo Backdrop */
+  --aurora-b: #7b6cff;
+  --aurora-c: #39c6ff;
   --vidro-glass: rgb(255 255 255 / 0.055);
   --vidro-tint: rgb(8 10 16 / 0.5);
   --vidro-glass-2: rgb(255 255 255 / 0.09);
@@ -29,7 +32,16 @@ html[data-layout='vidro'] {
         rgb(255 255 255 / 0.16)
       )
       border-box;
-  /* tokens das superfícies traduzidos para vidro (menus, cartões e diálogos escurecem o que há atrás) */
+  --shadow: 0 30px 70px -20px rgb(0 0 0 / 0.75);
+  --rail-width: 64px;
+}
+/*
+ * Tokens das superfícies traduzidos para vidro (menus, cartões e diálogos escurecem o que há atrás). O seletor
+ * leva [data-theme][data-palette] só para pesar mais que os temas/tons do tokens.css, que são opacos.
+ */
+html[data-layout='vidro'],
+html[data-layout='vidro'][data-theme][data-palette],
+html[data-layout='vidro'][data-theme][data-surface] {
   --rail: rgb(10 12 18 / 0.74);
   --sidebar: var(--vidro-ink);
   --chat: rgb(14 17 24 / 0.55);
@@ -37,8 +49,114 @@ html[data-layout='vidro'] {
   --interactive: var(--vidro-glass-2);
   --interactive-hover: var(--vidro-glass-3);
   --border: var(--vidro-line);
-  --shadow: 0 30px 70px -20px rgb(0 0 0 / 0.75);
-  --rail-width: 64px;
+}
+
+/* ---------- temas no Vidro: o fundo e a tinta do vidro seguem o tema; as luzes da aurora também ---------- */
+html[data-layout='vidro'][data-surface='midnight'] {
+  --vidro-bg: #05070f;
+  --aurora-b: #4d56fd;
+  --aurora-c: #39c6ff;
+}
+html[data-layout='vidro'][data-surface='oled'] {
+  --vidro-bg: #000000;
+  --vidro-ink: rgb(0 0 0 / 0.72);
+  --aurora-b: #39c6ff;
+  --aurora-c: #7b6cff;
+}
+html[data-layout='vidro'][data-palette='artico'] {
+  --vidro-bg: #0b1019;
+  --vidro-ink: rgb(14 19 28 / 0.72);
+  --aurora-b: #5fa8d3;
+  --aurora-c: #8fbcbb;
+}
+html[data-layout='vidro'][data-palette='oceano'] {
+  --vidro-bg: #040b0f;
+  --vidro-ink: rgb(8 18 22 / 0.72);
+  --aurora-b: #1fb2c9;
+  --aurora-c: #3d6bff;
+}
+html[data-layout='vidro'][data-palette='floresta'] {
+  --vidro-bg: #060c08;
+  --vidro-ink: rgb(10 18 13 / 0.72);
+  --aurora-b: #2fa36a;
+  --aurora-c: #a9d35a;
+}
+html[data-layout='vidro'][data-palette='lavanda'] {
+  --vidro-bg: #090611;
+  --vidro-ink: rgb(16 12 24 / 0.72);
+  --aurora-b: #9b7bff;
+  --aurora-c: #ff7ad9;
+}
+html[data-layout='vidro'][data-palette='rose'] {
+  --vidro-bg: #0d060a;
+  --vidro-ink: rgb(22 12 18 / 0.72);
+  --aurora-b: #ff5fa2;
+  --aurora-c: #ff9f6e;
+}
+html[data-layout='vidro'][data-palette='brasa'] {
+  --vidro-bg: #0c0705;
+  --vidro-ink: rgb(22 13 10 / 0.72);
+  --aurora-b: #ff6a3d;
+  --aurora-c: #ffc14d;
+}
+html[data-layout='vidro'][data-palette='cafe'] {
+  --vidro-bg: #0a0705;
+  --vidro-ink: rgb(20 15 11 / 0.72);
+  --aurora-b: #c58a4a;
+  --aurora-c: #7a5cff;
+}
+html[data-layout='vidro'][data-palette='neon'] {
+  --vidro-bg: #020203;
+  --vidro-ink: rgb(4 4 6 / 0.74);
+  --aurora-b: #2ee6a6;
+  --aurora-c: #ff2e88;
+}
+/* esquema claro: vidro leitoso sobre um fundo claro; a aurora tinge em vez de iluminar (Backdrop.tsx) */
+html[data-layout='vidro'][data-theme='light'],
+html[data-layout='vidro'][data-theme='light'][data-palette] {
+  --sidebar: var(--vidro-ink);
+  --interactive: var(--vidro-glass-2);
+  --interactive-hover: var(--vidro-glass-3);
+  --border: var(--vidro-line);
+  --vidro-bg: #dfe3ea;
+  --vidro-glass: rgb(255 255 255 / 0.42);
+  --vidro-tint: rgb(255 255 255 / 0.4);
+  --vidro-glass-2: rgb(0 0 0 / 0.05);
+  --vidro-glass-3: rgb(0 0 0 / 0.09);
+  --vidro-line: rgb(0 0 0 / 0.08);
+  --vidro-ink: rgb(255 255 255 / 0.58);
+  --vidro-glass-stack:
+    linear-gradient(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.3)) padding-box,
+    linear-gradient(var(--vidro-tint), var(--vidro-tint)) padding-box,
+    linear-gradient(
+        var(--light-angle),
+        rgb(255 255 255 / 0.9),
+        rgb(255 255 255 / 0.4) 32%,
+        rgb(255 255 255 / 0.3) 62%,
+        rgb(255 255 255 / 0.7)
+      )
+      border-box;
+  --rail: rgb(255 255 255 / 0.5);
+  --chat: rgb(255 255 255 / 0.38);
+  --elevated: rgb(255 255 255 / 0.88);
+  --shadow: 0 30px 70px -20px rgb(30 40 60 / 0.35);
+  --aurora-b: #6cc7ff;
+  --aurora-c: #9b7bff;
+}
+html[data-layout='vidro'][data-theme='light'][data-palette='papel'] {
+  --vidro-bg: #e9e3d8;
+  --aurora-b: #f0b27a;
+  --aurora-c: #e0559b;
+}
+html[data-layout='vidro'][data-theme='light'][data-palette='nevoa'] {
+  --vidro-bg: #dfe6f0;
+  --aurora-b: #6cc7ff;
+  --aurora-c: #9b7bff;
+}
+html[data-layout='vidro'][data-theme='light'][data-palette='menta'] {
+  --vidro-bg: #dbe9e1;
+  --aurora-b: #3fb27f;
+  --aurora-c: #6cc7ff;
 }
 
 /* ---------- casca ---------- */
@@ -51,8 +169,9 @@ html[data-layout='vidro'] .vidro-shell {
   height: 100%;
   padding: 0 12px 12px;
   background:
-    radial-gradient(60% 50% at 20% 30%, rgb(123 108 255 / 0.35), transparent 70%),
-    radial-gradient(50% 45% at 80% 70%, rgb(57 198 255 / 0.28), transparent 70%), var(--vidro-bg);
+    radial-gradient(60% 50% at 20% 30%, color-mix(in srgb, var(--aurora-b) 35%, transparent), transparent 70%),
+    radial-gradient(50% 45% at 80% 70%, color-mix(in srgb, var(--aurora-c) 28%, transparent), transparent 70%),
+    var(--vidro-bg);
   overflow: hidden;
 }
 html[data-layout='vidro'] .vidro-backdrop-host {
@@ -69,8 +188,9 @@ html[data-layout='vidro'] .vidro-backdrop {
   transition: opacity 400ms var(--ease);
   /* sem WebGL (ou antes do primeiro quadro): um gradiente parado no mesmo espírito */
   background:
-    radial-gradient(60% 50% at 20% 30%, rgb(123 108 255 / 0.35), transparent 70%),
-    radial-gradient(50% 45% at 80% 70%, rgb(57 198 255 / 0.28), transparent 70%), var(--vidro-bg);
+    radial-gradient(60% 50% at 20% 30%, color-mix(in srgb, var(--aurora-b) 35%, transparent), transparent 70%),
+    radial-gradient(50% 45% at 80% 70%, color-mix(in srgb, var(--aurora-c) 28%, transparent), transparent 70%),
+    var(--vidro-bg);
 }
 html[data-layout='vidro'] .titlebar {
   grid-column: 1 / -1;
@@ -371,8 +491,9 @@ html[data-layout='vidro'] .tile[data-speaking='true']::after {
 /* ---------- login ---------- */
 html[data-layout='vidro'] .auth {
   background:
-    radial-gradient(60% 50% at 20% 30%, rgb(123 108 255 / 0.35), transparent 70%),
-    radial-gradient(50% 45% at 80% 70%, rgb(57 198 255 / 0.28), transparent 70%), var(--vidro-bg);
+    radial-gradient(60% 50% at 20% 30%, color-mix(in srgb, var(--aurora-b) 35%, transparent), transparent 70%),
+    radial-gradient(50% 45% at 80% 70%, color-mix(in srgb, var(--aurora-c) 28%, transparent), transparent 70%),
+    var(--vidro-bg);
 }
 html[data-layout='vidro'] .auth-card {
   background: var(--vidro-glass);

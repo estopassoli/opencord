@@ -22,6 +22,9 @@ Alta familiaridade com o Discord Desktop em estrutura, densidade, navegação e 
 
 Não copiar tokens internos de terceiros. Definir focus, hover, border, success, warning e muted semanticamente. Verificar WCAG AA para texto e controles.
 
+## Temas (galeria, 2026-11-01)
+Aparência → Tema é uma galeria de 16 temas (`apps/desktop/src/lib/themes.ts`): os quatro tons escuros antigos (`surface`), o claro, oito escuros e três claros novos (`appearance.palette`, tokens em `packages/ui/src/tokens.css` sob `[data-palette]`). Cada tema sugere uma cor de destaque (aplicada só se a pessoa não personalizou a sua) e, no Vidro, as luzes da aurora (`--aurora-b/--aurora-c`) e o fundo (`--vidro-bg`); o esquema claro tem vidro leitoso. Teste de contraste: `apps/desktop/test/themes.test.ts` (texto mudo ≥ 4.5:1 sobre `--chat`). A escolha fica espelhada em `localStorage` (`oc-appearance`) só para aplicar antes do login, sem piscar.
+
 ## Layout Vidro (padrão desde 2026-11-01, ADR-0031)
 Fundo vivo em three.js e três painéis de vidro (navegação, conteúdo, lateral) sobre as mesmas telas; tokens de superfície traduzidos para vidro em `apps/desktop/src/features/vidro/vidro.css`. O clássico abaixo continua disponível (Ctrl+Alt+L).
 

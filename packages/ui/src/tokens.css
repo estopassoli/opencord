@@ -110,6 +110,110 @@
   --status-offline: #80858e;
 }
 
+/*
+ * Temas da galeria (Aparência → Tema). Cada um tinge as superfícies e sugere uma cor de destaque; o texto segue
+ * o esquema (escuro/claro) do tema. Texto mudo ≥ 4.5:1 em --chat (teste em apps/desktop/test/themes.test.ts).
+ */
+:root[data-theme][data-palette='artico'] {
+  --rail: #171c26;
+  --sidebar: #1f2532;
+  --chat: #272e3c;
+  --elevated: #323a4b;
+  --interactive: #3c4557;
+  --interactive-hover: #465068;
+  --border: #39415a;
+}
+:root[data-theme][data-palette='floresta'] {
+  --rail: #0e1511;
+  --sidebar: #151f19;
+  --chat: #1b2720;
+  --elevated: #243229;
+  --interactive: #2e4034;
+  --interactive-hover: #384a3e;
+  --border: #2b3b31;
+}
+:root[data-theme][data-palette='brasa'] {
+  --rail: #19100e;
+  --sidebar: #221714;
+  --chat: #2a1d19;
+  --elevated: #362722;
+  --interactive: #42302a;
+  --interactive-hover: #4e3a33;
+  --border: #40302a;
+}
+:root[data-theme][data-palette='oceano'] {
+  --rail: #091318;
+  --sidebar: #0f1c22;
+  --chat: #14242c;
+  --elevated: #1d3038;
+  --interactive: #264048;
+  --interactive-hover: #2f4b54;
+  --border: #24383f;
+}
+:root[data-theme][data-palette='lavanda'] {
+  --rail: #15111f;
+  --sidebar: #1d1829;
+  --chat: #251f34;
+  --elevated: #302942;
+  --interactive: #3b334f;
+  --interactive-hover: #463d5c;
+  --border: #392f4d;
+}
+:root[data-theme][data-palette='rose'] {
+  --rail: #1b1017;
+  --sidebar: #24161f;
+  --chat: #2c1c27;
+  --elevated: #382631;
+  --interactive: #44303c;
+  --interactive-hover: #503a48;
+  --border: #422e3a;
+}
+:root[data-theme][data-palette='neon'] {
+  --rail: #050507;
+  --sidebar: #0b0b0f;
+  --chat: #101016;
+  --elevated: #191922;
+  --interactive: #23232d;
+  --interactive-hover: #2c2c38;
+  --border: #22222c;
+}
+:root[data-theme][data-palette='cafe'] {
+  --rail: #161210;
+  --sidebar: #1f1a16;
+  --chat: #26211c;
+  --elevated: #312a25;
+  --interactive: #3c342e;
+  --interactive-hover: #463d37;
+  --border: #3a322c;
+}
+:root[data-theme][data-palette='papel'] {
+  --rail: #e6e0d4;
+  --sidebar: #f1ece2;
+  --chat: #faf7f0;
+  --elevated: #ffffff;
+  --interactive: #e4ddcf;
+  --interactive-hover: #d8cfbe;
+  --border: #d8d0c2;
+}
+:root[data-theme][data-palette='nevoa'] {
+  --rail: #dde3ec;
+  --sidebar: #eaeef4;
+  --chat: #f7f9fc;
+  --elevated: #ffffff;
+  --interactive: #dde3ec;
+  --interactive-hover: #cfd7e3;
+  --border: #cfd7e3;
+}
+:root[data-theme][data-palette='menta'] {
+  --rail: #d9e9e0;
+  --sidebar: #e8f2ec;
+  --chat: #f6fbf8;
+  --elevated: #ffffff;
+  --interactive: #d9e9e0;
+  --interactive-hover: #c9ddd1;
+  --border: #cadbd1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion='full']) {
     --dur-fast: 0ms;

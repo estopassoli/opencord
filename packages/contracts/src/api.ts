@@ -805,6 +805,23 @@ export const UserSettingsV1 = z.object({
         .default('#4d56fd'),
       /** tom das superfícies do tema escuro */
       surface: z.enum(['default', 'midnight', 'oled', 'slate']).default('default'),
+      /** tema completo da galeria (Aparência → Tema); 'default' = só tema + tom */
+      palette: z
+        .enum([
+          'default',
+          'artico',
+          'floresta',
+          'brasa',
+          'oceano',
+          'lavanda',
+          'rose',
+          'neon',
+          'cafe',
+          'papel',
+          'nevoa',
+          'menta',
+        ])
+        .default('default'),
       /** multiplicador dos cantos arredondados (0 = retos) */
       radiusScale: z.number().min(0).max(2).default(1),
       /** família de fonte instalada no sistema; vazio = fonte padrão do app */
