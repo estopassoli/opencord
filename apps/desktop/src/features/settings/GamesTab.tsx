@@ -25,28 +25,29 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
   return (
     <>
       {bridge && (
-        <Section
-          title="Overlay no jogo"
-          description="Com um jogo aberto, uma janelinha transparente no canto do monitor principal mostra quem está na chamada (quem fala acende), se você está mudo e os avisos do app. Não recebe clique. Jogos em tela cheia exclusiva ficam por cima dela; use janela sem borda."
-        >
-          <Switch label="Mostrar o overlay" checked={overlay.enabled} onChange={(v) => overlay.set({ enabled: v })} />
-          <Select
-            label="Canto"
-            value={overlay.corner}
-            onChange={(v) => overlay.set({ corner: v })}
-            options={[
-              { value: 'tl', label: 'Superior esquerdo' },
-              { value: 'tr', label: 'Superior direito' },
-              { value: 'bl', label: 'Inferior esquerdo' },
-              { value: 'br', label: 'Inferior direito' },
-            ]}
+        <Section title="Overlay no jogo">
+          <Switch
+            label="Quem está falando, por cima do jogo"
+            description="Não aparece em tela cheia exclusiva."
+            checked={overlay.enabled}
+            onChange={(v) => overlay.set({ enabled: v })}
           />
+          {overlay.enabled && (
+            <Select
+              label="Canto"
+              value={overlay.corner}
+              onChange={(v) => overlay.set({ corner: v })}
+              options={[
+                { value: 'tl', label: 'Superior esquerdo' },
+                { value: 'tr', label: 'Superior direito' },
+                { value: 'bl', label: 'Inferior esquerdo' },
+                { value: 'br', label: 'Inferior direito' },
+              ]}
+            />
+          )}
         </Section>
       )}
-      <Section
-        title="Jogo atual"
-        description="O OpenCord reconhece jogos da Steam e os mais conhecidos fora dela. Só o nome do jogo e há quanto tempo você joga aparecem para os outros; ficar invisível também esconde."
-      >
+      <Section title="Jogo atual">
         <Switch
           label="Mostrar o jogo que estou jogando"
           checked={g.showPlaying}
@@ -62,16 +63,13 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
         </p>
       </Section>
       {bridge && (
-        <Section
-          title="Clipes"
-          description="Com um jogo aberto, o OpenCord guarda na memória os últimos segundos da tela principal e do som do computador (inclusive a chamada). O atalho salva um vídeo MP4 na pasta de clipes. Nada é enviado ao servidor."
-        >
+        <Section title="Clipes">
           <Switch
-            label="Criar clipes"
+            label={settings.keybinds.saveClip ? `Salvar clipe com ${settings.keybinds.saveClip}` : 'Salvar clipes'}
             description={
               settings.keybinds.saveClip
-                ? `Atalho: ${settings.keybinds.saveClip} (mude em Atalhos). Usa a placa de vídeo e memória enquanto o jogo está aberto.`
-                : 'Sem atalho definido: escolha um em Atalhos.'
+                ? 'Os últimos segundos do jogo, com o som, na pasta de clipes.'
+                : 'Escolha um atalho em Atalhos.'
             }
             checked={g.clips}
             onChange={(v) => set({ clips: v })}
@@ -115,8 +113,8 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
             />
           </div>
           <Slider
-            label="Qualidade do clipe"
-            hint="Mais alta deixa o arquivo maior."
+            label="Qualidade"
+            hint={`Cerca de ${estimateMb(g)} MB por clipe.`}
             min={10}
             max={100}
             step={5}
@@ -124,9 +122,6 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
             value={g.clipQuality}
             onChange={(v) => set({ clipQuality: v })}
           />
-          <p className="small muted">
-            Cerca de {estimateMb(g)} MB por clipe (e o mesmo de memória enquanto o jogo está aberto).
-          </p>
           <ClipOutputs off={g.clipOutputsOff ?? []} onChange={(clipOutputsOff) => set({ clipOutputsOff })} />
           <ClipsFolder />
         </Section>
@@ -134,7 +129,7 @@ export function GamesTab({ settings }: { settings: UserSettings }) {
       {bridge && (
         <Section
           title="Jogos adicionados por você"
-          description="Seu jogo não aparece? Abra o jogo, escolha o programa dele na lista e dê um nome."
+          description="Seu jogo não aparece? Abra-o e escolha o programa na lista."
         >
           <AddCustomGame custom={g.custom} onAdd={(c) => set({ custom: [...g.custom, c] })} />
           {g.custom.length > 0 && (
@@ -269,10 +264,8 @@ function ClipOutputs({ off, onChange }: { off: string[]; onChange: (off: string[
   if (!list?.length) return null;
   return (
     <fieldset className="games-outputs">
-      <legend className="small">Som gravado nos clipes</legend>
-      <p className="small muted">
-        Cada saída ligada vira uma trilha no clipe, junto com o seu microfone, as vozes da chamada e os efeitos.
-      </p>
+      <legend className="small">Som gravado</legend>
+      <p className="small muted">Cada saída ligada vira uma trilha separada no clipe.</p>
       {list.map((d) => (
         <Switch
           key={d.id}

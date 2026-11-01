@@ -1043,12 +1043,10 @@ function AppearanceTab({ settings }: { settings: UserSettings }) {
           onChange={(v) => setAppearance({ theme: v })}
         />
       </Section>
-      <Section
-        title="Visual"
-        description="O visual Vidro tem um fundo de luz em movimento e painéis de vidro fosco. Desligado, volta o visual clássico. Vale neste computador; Ctrl+Alt+L também alterna."
-      >
+      <Section title="Visual">
         <Switch
           label="Glassmorfismo (visual Vidro)"
+          description="Desligado, volta o visual clássico. Ctrl+Alt+L também alterna."
           checked={layout === 'vidro'}
           onChange={(v) => useLayout.getState().setLayout(v ? 'vidro' : 'classico')}
         />

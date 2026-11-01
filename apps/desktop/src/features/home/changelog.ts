@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '13:00',
+    kind: 'correção',
+    icon: 'star',
+    title: 'Ajustes no visual Vidro',
+    body: 'Player de música, soundboard e popovers que ficavam transparentes ou escondidos atrás dos painéis; campos de texto respeitando os cantos arredondados escolhidos em Aparência; o papel de parede do servidor voltou a aparecer (por baixo do vidro do chat). A aba Jogos das configurações ficou mais curta: só o essencial, sem parágrafos.',
+  },
+  {
+    date: '2026-11-01',
     time: '12:00',
     kind: 'novo',
     icon: 'star',
