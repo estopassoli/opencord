@@ -94,125 +94,127 @@ function hexToVec(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
-export function Backdrop() {
-  const ref = useRef<HTMLCanvasElement>(null);
+/** Uma instância do fundo: canvas + renderizador. Devolve como desmontar e se o contexto está perdido. */
+function mount(host: HTMLDivElement): { teardown(): void; lost(): boolean; tryRestore(): void } | null {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'vidro-backdrop';
+  canvas.setAttribute('aria-hidden', 'true');
+  host.appendChild(canvas);
+  let renderer: THREE.WebGLRenderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'low-power' });
+  } catch {
+    canvas.remove();
+    return null; // sem WebGL: fica o gradiente do CSS
+  }
+  // pedida ANTES de qualquer perda: num contexto perdido, getExtension devolve null
+  const loseExt = renderer.getContext().getExtension('WEBGL_lose_context');
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1) * 0.5);
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const uniforms = {
+    uRes: { value: new THREE.Vector2(1, 1) },
+    uTime: { value: 0 },
+    uPulse: { value: 0 },
+    uA: { value: new THREE.Vector3(...hexToVec(FALLBACK[0] as string)) },
+    uB: { value: new THREE.Vector3(...hexToVec(FALLBACK[1] as string)) },
+    uC: { value: new THREE.Vector3(...hexToVec(FALLBACK[2] as string)) },
+  };
+  const mat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms, depthTest: false });
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
 
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'low-power' });
-    } catch {
-      return; // sem WebGL: fica o gradiente do CSS
-    }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1) * 0.5);
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const uniforms = {
-      uRes: { value: new THREE.Vector2(1, 1) },
-      uTime: { value: 0 },
-      uPulse: { value: 0 },
-      uA: { value: new THREE.Vector3(...hexToVec(FALLBACK[0] as string)) },
-      uB: { value: new THREE.Vector3(...hexToVec(FALLBACK[1] as string)) },
-      uC: { value: new THREE.Vector3(...hexToVec(FALLBACK[2] as string)) },
-    };
-    const mat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms, depthTest: false });
-    scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
+  const resize = () => {
+    const w = host.clientWidth || window.innerWidth;
+    const h = host.clientHeight || window.innerHeight;
+    renderer.setSize(w, h, false);
+    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+    uniforms.uRes.value.set(size.x, size.y);
+  };
+  resize();
+  const ro = new ResizeObserver(resize);
+  ro.observe(host);
 
-    const resize = () => {
-      const w = canvas.clientWidth || window.innerWidth;
-      const h = canvas.clientHeight || window.innerHeight;
-      renderer.setSize(w, h, false);
-      const s = renderer.getDrawingBufferSize(new THREE.Vector2());
-      uniforms.uRes.value.set(s.x, s.y);
-    };
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
+  // a primeira luz é a cor do servidor aberto (tema por servidor); sem cor, a do tema da pessoa
+  const colors = () => {
+    const { view } = useUi.getState();
+    const { details, settings } = useData.getState();
+    const server = view.kind === 'server' ? details[view.serverId] : undefined;
+    const accent = server?.accent ?? settings?.appearance.accent ?? (FALLBACK[0] as string);
+    uniforms.uA.value.set(...hexToVec(accent));
+  };
+  colors();
+  const unsubUi = useUi.subscribe(colors);
+  const unsubData = useData.subscribe(colors);
 
-    // a primeira luz é a cor do servidor aberto (tema por servidor); sem cor, a do tema da pessoa
-    const colors = () => {
-      const { view } = useUi.getState();
-      const { details, settings } = useData.getState();
-      const server = view.kind === 'server' ? details[view.serverId] : undefined;
-      const accent = server?.accent ?? settings?.appearance.accent ?? (FALLBACK[0] as string);
-      uniforms.uA.value.set(...hexToVec(accent));
-    };
-    colors();
-    const unsubUi = useUi.subscribe(colors);
-    const unsubData = useData.subscribe(colors);
+  // quem fala na chamada faz o fundo respirar
+  let pulseTarget = 0;
+  const unsubVoice = useVoice.subscribe((st) => {
+    pulseTarget = Math.min(1, st.participants.filter((p) => p.speaking).length * 0.5);
+  });
 
-    // quem fala na chamada faz o fundo respirar
-    let pulseTarget = 0;
-    const unsubVoice = useVoice.subscribe((s) => {
-      pulseTarget = Math.min(1, s.participants.filter((p) => p.speaking).length * 0.5);
-    });
-
-    let frame = 0;
-    let last = 0;
-    const start = performance.now();
-    // sem aceleração de hardware (preferência "off") a aurora fica num quadro só: WebGL por software custa caro
-    let gpuOff = false;
-    void bridge?.prefs
-      .get()
-      .then((p) => {
-        gpuOff = p.activeGpuMode === 'off';
-      })
-      .catch(() => undefined);
-    // sempre em movimento (pedido do mantenedor); com jogo aberto cai para 20 fps em vez de parar
-    const idle = () => gpuOff || document.hidden || useReducedMotion.getState().reduced;
-    const interval = () => (useGames.getState().mine ? 50 : 33);
-    const render = (now: number) => {
-      uniforms.uTime.value = (now - start) / 1000;
-      uniforms.uPulse.value += (pulseTarget - uniforms.uPulse.value) * 0.05;
-      renderer.render(scene, camera);
-    };
-    const loop = (now: number) => {
-      frame = requestAnimationFrame(loop);
-      if (idle()) return;
-      // 30 fps bastam para uma aurora (20 com jogo aberto): fração do custo
-      if (now - last < interval()) return;
-      last = now;
-      render(now);
-    };
-    render(start);
+  let frame = 0;
+  let last = 0;
+  const start = performance.now();
+  // sem aceleração de hardware (preferência "off") a aurora fica num quadro só: WebGL por software custa caro
+  let gpuOff = false;
+  void bridge?.prefs
+    .get()
+    .then((p) => {
+      gpuOff = p.activeGpuMode === 'off';
+    })
+    .catch(() => undefined);
+  // sempre em movimento (pedido do mantenedor); com jogo aberto cai para 20 fps em vez de parar
+  const idle = () => gpuOff || document.hidden || useReducedMotion.getState().reduced;
+  const interval = () => (useGames.getState().mine ? 50 : 33);
+  let lost = false;
+  const render = (now: number) => {
+    if (lost) return;
+    uniforms.uTime.value = (now - start) / 1000;
+    uniforms.uPulse.value += (pulseTarget - uniforms.uPulse.value) * 0.05;
+    renderer.render(scene, camera);
+  };
+  const loop = (now: number) => {
     frame = requestAnimationFrame(loop);
+    if (idle()) return;
+    // 30 fps bastam para uma aurora (20 com jogo aberto): fração do custo
+    if (now - last < interval()) return;
+    last = now;
+    render(now);
+  };
+  render(start);
+  frame = requestAnimationFrame(loop);
 
-    // contexto WebGL perdido (jogo pesado na mesma placa, janela muito tempo minimizada): o canvas ficaria preto para
-    // sempre. Escondemos o canvas (fica o gradiente do CSS) e pedimos a restauração; o three recria os programas.
-    let lost = false;
-    const onLost = (e: Event) => {
-      e.preventDefault();
-      lost = true;
-      canvas.style.opacity = '0';
-    };
-    const onRestored = () => {
-      lost = false;
-      canvas.style.opacity = '1';
-      resize();
-      render(performance.now());
-    };
-    canvas.addEventListener('webglcontextlost', onLost);
-    canvas.addEventListener('webglcontextrestored', onRestored);
-    const watchdog = setInterval(() => {
-      if (!lost && !renderer.getContext().isContextLost()) return;
-      lost = true;
-      canvas.style.opacity = '0';
+  // contexto WebGL perdido (jogo pesado na mesma placa, janela muito tempo minimizada): o canvas ficaria preto.
+  // Escondido, aparece o gradiente do CSS; o Backdrop tenta restaurar e, se não voltar, monta um canvas novo.
+  const onLost = (e: Event) => {
+    e.preventDefault();
+    lost = true;
+    canvas.style.opacity = '0';
+  };
+  const onRestored = () => {
+    lost = false;
+    canvas.style.opacity = '1';
+    resize();
+    render(performance.now());
+  };
+  canvas.addEventListener('webglcontextlost', onLost);
+  canvas.addEventListener('webglcontextrestored', onRestored);
+  // ao voltar de um estado parado (jogo fechou, aba visível) um quadro novo, mesmo com movimento reduzido
+  const unsubGames = useGames.subscribe(() => render(performance.now()));
+  const onVis = () => render(performance.now());
+  document.addEventListener('visibilitychange', onVis);
+
+  return {
+    lost: () => lost || renderer.getContext().isContextLost(),
+    tryRestore: () => {
       try {
-        renderer.forceContextRestore();
+        loseExt?.restoreContext();
       } catch {
-        /* sem suporte à extensão: fica o gradiente do CSS */
+        /* sem a extensão: o Backdrop recria o canvas */
       }
-    }, 4000);
-    // ao voltar de um estado parado (jogo fechou, aba visível) um quadro novo, mesmo com movimento reduzido
-    const unsubGames = useGames.subscribe(() => render(performance.now()));
-    const onVis = () => render(performance.now());
-    document.addEventListener('visibilitychange', onVis);
-
-    return () => {
+    },
+    teardown() {
       cancelAnimationFrame(frame);
-      clearInterval(watchdog);
       canvas.removeEventListener('webglcontextlost', onLost);
       canvas.removeEventListener('webglcontextrestored', onRestored);
       ro.disconnect();
@@ -223,8 +225,45 @@ export function Backdrop() {
       document.removeEventListener('visibilitychange', onVis);
       mat.dispose();
       renderer.dispose();
+      canvas.remove();
+    },
+  };
+}
+
+export function Backdrop() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const host = ref.current;
+    if (!host) return;
+    let current = mount(host);
+    let lostSince = 0;
+    // vigia: perdeu o contexto → pede restauração; sem resposta em 4 s → canvas novo do zero
+    const watchdog = setInterval(() => {
+      if (!current) {
+        current = mount(host);
+        return;
+      }
+      if (!current.lost()) {
+        lostSince = 0;
+        return;
+      }
+      if (!lostSince) {
+        lostSince = Date.now();
+        current.tryRestore();
+        return;
+      }
+      if (Date.now() - lostSince > 4000) {
+        current.teardown();
+        current = mount(host);
+        lostSince = 0;
+      }
+    }, 1500);
+    return () => {
+      clearInterval(watchdog);
+      current?.teardown();
     };
   }, []);
 
-  return <canvas ref={ref} className="vidro-backdrop" aria-hidden />;
+  return <div ref={ref} className="vidro-backdrop-host" aria-hidden />;
 }
