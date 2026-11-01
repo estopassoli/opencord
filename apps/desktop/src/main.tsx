@@ -1,5 +1,7 @@
 // Inter (SIL OFL 1.1), embutida localmente: a CSP do app não permite fontes externas.
 import '@fontsource-variable/inter';
+// Sora (SIL OFL 1.1), local: fonte de display do layout Vidro
+import '@fontsource-variable/sora';
 import '@opencord/ui/tokens.css';
 import '@opencord/ui/icon.css';
 import '@opencord/ui/forms.css';
@@ -8,6 +10,7 @@ import './styles/motion.css';
 import './styles/mobile.css';
 import './styles/server-folders.css';
 import './features/clips/clips.css';
+import './features/vidro/vidro.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';

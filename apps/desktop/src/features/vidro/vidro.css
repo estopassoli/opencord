@@ -1,0 +1,350 @@
+/*
+ * Layout Vidro (redesign em teste). Tudo aqui vale só com <html data-layout="vidro">.
+ *
+ * Ideia: a luz vem de trás. O fundo (three.js) é a única coisa colorida e viva; os painéis são lâminas de vidro
+ * fosco com espessura (brilho na borda de cima, sombra embaixo) cuja reflexão acompanha o ponteiro: o ângulo da
+ * luz especular e um leve parallax mudam com o mouse. Dentro dos painéis, as telas do clássico continuam planas.
+ */
+
+html[data-layout='vidro'] {
+  --font-display: 'Sora Variable', var(--font);
+  --vidro-bg: #06080d;
+  --vidro-glass: rgb(255 255 255 / 0.055);
+  --vidro-tint: rgb(8 10 16 / 0.5);
+  --vidro-glass-2: rgb(255 255 255 / 0.09);
+  --vidro-glass-3: rgb(255 255 255 / 0.14);
+  --vidro-line: rgb(255 255 255 / 0.1);
+  --vidro-ink: rgb(10 12 18 / 0.72);
+  --light-angle: calc(135deg + var(--mx, 0) * 40deg - var(--my, 0) * 25deg);
+  /* tokens das superfícies traduzidos para vidro (menus, cartões e diálogos escurecem o que há atrás) */
+  --rail: transparent;
+  --sidebar: var(--vidro-ink);
+  --chat: rgb(14 17 24 / 0.55);
+  --elevated: rgb(22 26 36 / 0.82);
+  --interactive: var(--vidro-glass-2);
+  --interactive-hover: var(--vidro-glass-3);
+  --border: var(--vidro-line);
+  --shadow: 0 30px 70px -20px rgb(0 0 0 / 0.75);
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --rail-width: 64px;
+}
+
+/* ---------- casca ---------- */
+html[data-layout='vidro'] .vidro-shell {
+  position: relative;
+  display: grid;
+  grid-template-rows: 32px minmax(0, 1fr);
+  grid-template-columns: calc(var(--sidebar-width, 300px) + var(--rail-width)) minmax(0, 1fr) auto;
+  gap: 12px;
+  height: 100%;
+  padding: 0 12px 12px;
+  background: var(--vidro-bg);
+  overflow: hidden;
+}
+html[data-layout='vidro'] .vidro-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  display: block;
+  /* sem WebGL (ou antes do primeiro quadro): um gradiente parado no mesmo espírito */
+  background:
+    radial-gradient(60% 50% at 20% 30%, rgb(123 108 255 / 0.35), transparent 70%),
+    radial-gradient(50% 45% at 80% 70%, rgb(57 198 255 / 0.28), transparent 70%), var(--vidro-bg);
+}
+html[data-layout='vidro'] .titlebar {
+  grid-column: 1 / -1;
+  position: relative;
+  z-index: 2;
+  background: transparent;
+}
+
+/* a lâmina de vidro */
+html[data-layout='vidro'] .vidro-panel {
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  background:
+    linear-gradient(rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.03)) padding-box,
+    linear-gradient(var(--vidro-tint), var(--vidro-tint)) padding-box,
+    linear-gradient(
+        var(--light-angle),
+        rgb(255 255 255 / 0.34),
+        rgb(255 255 255 / 0.06) 32%,
+        rgb(255 255 255 / 0.03) 62%,
+        rgb(255 255 255 / 0.16)
+      )
+      border-box;
+  backdrop-filter: blur(28px) saturate(1.55);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    inset 0 -1px 0 rgb(0 0 0 / 0.25),
+    0 30px 60px -28px rgb(0 0 0 / 0.8);
+  overflow: clip;
+  /* parallax: os painéis se movem um pouco contra o ponteiro (menos que o fundo) */
+  translate: calc(var(--mx, 0) * -5px) calc(var(--my, 0) * -5px);
+  animation: vidro-rise 560ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+@keyframes vidro-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.99);
+  }
+}
+html[data-layout='vidro'] .vidro-main {
+  display: flex;
+  flex-direction: column;
+}
+html[data-layout='vidro'] .vidro-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  animation: vidro-fade 200ms var(--ease-out) both;
+}
+@keyframes vidro-fade {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+}
+html[data-layout='vidro'] .vidro-side {
+  display: flex;
+  min-width: 0;
+}
+html[data-layout='vidro'] .vidro-side > * {
+  min-width: 0;
+}
+
+/* posições na grade (o clássico marca grid-row nos mesmos elementos: aqui elas são explícitas) */
+html[data-layout='vidro'] .vidro-nav {
+  grid-column: 1;
+  grid-row: 2;
+}
+html[data-layout='vidro'] .vidro-main {
+  grid-column: 2;
+  grid-row: 2;
+  border-top: 1px solid transparent;
+}
+html[data-layout='vidro'] .vidro-side {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+/* navegação: rail (coluna estreita) + canais, painel do usuário embaixo dos canais */
+html[data-layout='vidro'] .vidro-nav {
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+html[data-layout='vidro'] .vidro-nav > .rail {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  background: transparent;
+  border-right: 1px solid var(--vidro-line);
+  padding: 14px 0 12px;
+}
+html[data-layout='vidro'] .vidro-nav > .sidebar {
+  grid-column: 2;
+  grid-row: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+html[data-layout='vidro'] .vidro-nav > .sidebar .sidebar-scroll {
+  padding-bottom: 8px;
+}
+html[data-layout='vidro'] .vidro-nav > .dock {
+  position: static;
+  grid-column: 2;
+  grid-row: 2;
+  width: auto;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--vidro-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+html[data-layout='vidro'] .content {
+  background: transparent;
+}
+html[data-layout='vidro'] .sidebar-header,
+html[data-layout='vidro'] .chat-header {
+  border-bottom: 1px solid var(--vidro-line);
+  background: transparent;
+  box-shadow: none;
+}
+html[data-layout='vidro'] .members {
+  background: transparent;
+  width: 260px;
+}
+html[data-layout='vidro'] .thread-panel {
+  width: 340px;
+}
+
+/* ---------- tipografia ---------- */
+html[data-layout='vidro'] .chat-header h2,
+html[data-layout='vidro'] .server-name,
+html[data-layout='vidro'] .chat-start h3,
+html[data-layout='vidro'] .stage-idle h2,
+html[data-layout='vidro'] .home h1,
+html[data-layout='vidro'] .home h2,
+html[data-layout='vidro'] .dialog h2,
+html[data-layout='vidro'] .settings-section-title,
+html[data-layout='vidro'] .event-title,
+html[data-layout='vidro'] .user-dock-names strong {
+  font-family: var(--font-display);
+  letter-spacing: -0.012em;
+}
+html[data-layout='vidro'] .chat-header h2 {
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+html[data-layout='vidro'] .cat-header,
+html[data-layout='vidro'] .members-title,
+html[data-layout='vidro'] .friends-panel-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- controles sobre vidro ---------- */
+html[data-layout='vidro'] .rail-item {
+  background: var(--vidro-glass-2);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  transition:
+    border-radius var(--dur) var(--ease),
+    background var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+html[data-layout='vidro'] .rail-item:hover {
+  background: var(--vidro-glass-3);
+}
+html[data-layout='vidro'] .rail-item[aria-current='page'] {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 0 0 2px color-mix(in srgb, var(--brand) 70%, transparent),
+    0 0 24px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+html[data-layout='vidro'] .channel-row:hover {
+  background: var(--vidro-glass-2);
+}
+html[data-layout='vidro'] .channel-row[aria-current='page'] {
+  background: var(--vidro-glass-3);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+html[data-layout='vidro'] .composer {
+  background: var(--vidro-glass-2);
+  border: 1px solid var(--vidro-line);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  border-radius: 14px;
+}
+html[data-layout='vidro'] .composer:focus-within {
+  border-color: color-mix(in srgb, var(--brand) 60%, var(--vidro-line));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent);
+}
+html[data-layout='vidro'] .msg:hover {
+  background: rgb(255 255 255 / 0.035);
+}
+html[data-layout='vidro'] .icon-btn:hover {
+  background: var(--vidro-glass-2);
+}
+html[data-layout='vidro'] .oc-btn-secondary {
+  background: var(--vidro-glass-2);
+  border: 1px solid var(--vidro-line);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1);
+}
+html[data-layout='vidro'] .oc-btn-secondary:hover:not(:disabled) {
+  background: var(--vidro-glass-3);
+}
+html[data-layout='vidro'] .oc-btn-primary {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 8px 24px -8px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+html[data-layout='vidro'] .oc-input,
+html[data-layout='vidro'] .oc-input-wrap {
+  background: rgb(0 0 0 / 0.22);
+  border-color: var(--vidro-line);
+}
+
+/* superfícies flutuantes: vidro mais escuro e desfocado (ficam por cima do fundo vivo) */
+html[data-layout='vidro'] .dialog,
+html[data-layout='vidro'] .context-menu,
+html[data-layout='vidro'] .menu,
+html[data-layout='vidro'] .pins-panel,
+html[data-layout='vidro'] .tooltip,
+html[data-layout='vidro'] .toast,
+html[data-layout='vidro'] .clip-viewer,
+html[data-layout='vidro'] .profile-card {
+  background: var(--elevated);
+  backdrop-filter: blur(30px) saturate(1.5);
+  border: 1px solid var(--vidro-line);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    0 30px 70px -20px rgb(0 0 0 / 0.75);
+}
+html[data-layout='vidro'] .dialog-backdrop {
+  background: rgb(0 0 0 / 0.35);
+  backdrop-filter: blur(6px);
+}
+
+/* palco de voz: as lâminas das pessoas também são vidro */
+html[data-layout='vidro'] .tile {
+  background: var(--vidro-glass);
+  border: 1px solid var(--vidro-line);
+}
+html[data-layout='vidro'] .tile[data-speaking='true'] {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px var(--speaking),
+    0 0 32px color-mix(in srgb, var(--speaking) 45%, transparent);
+}
+
+/* ---------- login ---------- */
+html[data-layout='vidro'] .auth {
+  background:
+    radial-gradient(60% 50% at 20% 30%, rgb(123 108 255 / 0.35), transparent 70%),
+    radial-gradient(50% 45% at 80% 70%, rgb(57 198 255 / 0.28), transparent 70%), var(--vidro-bg);
+}
+html[data-layout='vidro'] .auth-card {
+  background: var(--vidro-glass);
+  backdrop-filter: blur(28px) saturate(1.5);
+  border: 1px solid var(--vidro-line);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    0 30px 70px -20px rgb(0 0 0 / 0.8);
+  border-radius: 22px;
+}
+
+/* ---------- barras de rolagem discretas ---------- */
+html[data-layout='vidro'] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html[data-layout='vidro'] ::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.12);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+html[data-layout='vidro'] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- movimento reduzido ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html[data-layout='vidro'] .vidro-panel,
+  html[data-layout='vidro'] .vidro-view {
+    animation: none;
+    translate: none;
+  }
+}

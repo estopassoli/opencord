@@ -6,6 +6,8 @@ import { Toasts } from './components/Toasts';
 import { GlobalTips } from './components/GlobalTips';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { AppShell } from './features/shell/AppShell';
+import { VidroShell } from './features/vidro/VidroShell';
+import { useLayout } from './lib/layout';
 import { bridge } from './lib/bridge';
 import { openRoute } from './store/notify';
 import { useSession } from './store/session';
@@ -15,6 +17,19 @@ import { useVoice } from './store/voice';
 
 export function App() {
   const status = useSession((s) => s.status);
+  const layout = useLayout((s) => s.layout);
+
+  // Ctrl+Alt+L alterna entre o layout clássico e o Vidro (teste do redesign); tecla física, por causa do AltGr
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey && e.altKey && e.code === 'KeyL')) return;
+      e.preventDefault();
+      const l = useLayout.getState();
+      l.setLayout(l.layout === 'vidro' ? 'classico' : 'vidro');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // link de convite (/invite/<código>, capturado em main.tsx): abre assim que a pessoa entrar
   useEffect(() => {
@@ -70,9 +85,7 @@ export function App() {
       ) : status === 'anonymous' ? (
         <AuthScreen />
       ) : (
-        <AvatarProvider>
-          <AppShell />
-        </AvatarProvider>
+        <AvatarProvider>{layout === 'vidro' ? <VidroShell /> : <AppShell />}</AvatarProvider>
       )}
       <Toasts />
       <AskHost />

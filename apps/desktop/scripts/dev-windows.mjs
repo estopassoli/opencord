@@ -6,6 +6,8 @@ import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 const devUrl = process.env.OPENCORD_DEV_URL ?? 'http://localhost:5173';
+// perfil do Electron (sessão, servidor salvo): outro nome isola testes, ex. o dev:vidro contra o servidor remoto
+const profile = (process.env.OPENCORD_DEV_PROFILE ?? 'dev-profile').replace(/[^\w-]/g, '');
 const localAppData = execSync('cmd.exe /c echo %LOCALAPPDATA%', { cwd: '/mnt/c' }).toString().trim();
 const winDir = path.join(
   localAppData.replace(/^([A-Za-z]):\\/, (_, d) => `/mnt/${d.toLowerCase()}/`).replace(/\\/g, '/'),
@@ -35,7 +37,7 @@ spawn(
   'cmd.exe',
   [
     '/c',
-    `cd /d %LOCALAPPDATA%\\OpenCordDev\\app && set OPENCORD_DEV_URL=${devUrl}&& node_modules\\electron\\dist\\electron.exe . --user-data-dir=%LOCALAPPDATA%\\OpenCordDev\\dev-profile`,
+    `cd /d %LOCALAPPDATA%\\OpenCordDev\\app && set OPENCORD_DEV_URL=${devUrl}&& node_modules\\electron\\dist\\electron.exe . --user-data-dir=%LOCALAPPDATA%\\OpenCordDev\\${profile}`,
   ],
   {
     cwd: '/mnt/c',

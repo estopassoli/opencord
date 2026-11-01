@@ -19,7 +19,7 @@ function useUpdateStatus(): UpdateStatus {
 }
 
 /** Botão de atualização (só no app desktop): baixando → pronta (Windows) ou disponível (abre o download). */
-function UpdateButton() {
+export function UpdateButton() {
   const s = useUpdateStatus();
   // hooks antes do return: o estado muda de "idle" para "pronta" com o componente montado
   const [dialog, setDialog] = useState(false);
@@ -56,7 +56,7 @@ function UpdateButton() {
  * Minimizar, maximizar/restaurar e fechar, desenhados pelo app (Windows/Linux; no macOS ficam os botões do sistema).
  * Substituem a sobreposição nativa (titleBarOverlay), que atrasava a apresentação de cada quadro da interface.
  */
-function WindowControls() {
+export function WindowControls() {
   const [maximized, setMaximized] = useState(false);
   useEffect(() => {
     if (!bridge) return;

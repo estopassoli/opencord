@@ -17,6 +17,7 @@ import {
 import { create } from 'zustand';
 import { ApiClient, ApiError, normalizeServerUrl, type SessionTokens } from '../lib/api';
 import { bridge, secrets } from '../lib/bridge';
+import { FORCED_SERVER_URL } from '../lib/config';
 import { RealtimeClient } from '../lib/realtime';
 import { keyOf, useData, useMessages, type FriendWithPresence } from './data';
 import { useUi } from './ui';
@@ -97,6 +98,9 @@ export const useSession = create<SessionState>()((set, get) => {
     const serverUrl = (await secrets.get('serverUrl')) ?? '';
     const raw = await secrets.get('session');
     if (!serverUrl || !raw) return set({ status: 'anonymous', serverUrl });
+    // sessão salva de outro servidor (perfil compartilhado no teste contra remoto): pede login de novo
+    if (FORCED_SERVER_URL && serverUrl !== FORCED_SERVER_URL)
+      return set({ status: 'anonymous', serverUrl: FORCED_SERVER_URL });
     try {
       const t = JSON.parse(raw) as SessionTokens;
       const api = makeApi(serverUrl);

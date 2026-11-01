@@ -3,7 +3,7 @@ import { Button, Icon, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiClient, normalizeServerUrl } from '../../lib/api';
 import { isDesktop, secrets } from '../../lib/bridge';
-import { DEFAULT_SERVER_URL } from '../../lib/config';
+import { DEFAULT_SERVER_URL, FORCED_SERVER_URL } from '../../lib/config';
 import { pendingInvite } from '../../lib/invite';
 import { describeError, useSession } from '../../store/session';
 
@@ -35,7 +35,7 @@ export function AuthScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void secrets.get('serverUrl').then((u) => setServerUrl(u || DEFAULT_SERVER_URL));
+    void secrets.get('serverUrl').then((u) => setServerUrl(FORCED_SERVER_URL ?? (u || DEFAULT_SERVER_URL)));
   }, []);
 
   // descobre nome da instância e se exige código de acesso

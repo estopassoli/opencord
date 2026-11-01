@@ -28,19 +28,13 @@ import { FriendsPanel } from './FriendsPanel';
 import { DmProfilePanel, useDmPeer } from './DmProfilePanel';
 import { ConnectionBanner } from './ConnectionBanner';
 
-/** Layout: rail de servidores | sidebar (canais/DMs + dock) | conteúdo | membros. Cada região rola de forma independente. */
-export function AppShell() {
+/**
+ * Comportamentos comuns aos dois layouts (clássico e Vidro): canal padrão ao abrir um servidor, contador na bandeja,
+ * Ctrl+K e push-to-talk com a janela em foco.
+ */
+export function useShellBehavior() {
   const view = useUi((s) => s.view);
-  const showMembers = useUi((s) => s.showMembers);
-  const thread = useUi((s) => s.thread);
-  const dmProfileOpen = useUi((s) => s.dmProfile);
-  const dmPeer = useDmPeer(view.kind === 'dm' ? view.conversationId : null);
-  // perfil aberto: o painel de amigos fica só com os avatares (dois painéis largos apertariam a conversa)
-  const dmProfileShown = dmProfileOpen && Boolean(dmPeer);
-  const panel = useUi((s) => s.panel);
-  const mobile = useIsMobile();
   const detail = useData((s) => (view.kind === 'server' ? s.details[view.serverId] : undefined));
-  const sidebarWidth = useData((s) => Math.max(s.settings?.sidebarWidth ?? 300, 300));
   const unreadTotal = useData((s) =>
     Object.values(s.unread).reduce((n, u) => n + u.mentionCount + (u.conversationId ? u.unreadCount : 0), 0),
   );
@@ -97,6 +91,22 @@ export function AppShell() {
       window.removeEventListener('blur', blur);
     };
   }, []);
+}
+
+/** Layout: rail de servidores | sidebar (canais/DMs + dock) | conteúdo | membros. Cada região rola de forma independente. */
+export function AppShell() {
+  const view = useUi((s) => s.view);
+  const showMembers = useUi((s) => s.showMembers);
+  const thread = useUi((s) => s.thread);
+  const dmProfileOpen = useUi((s) => s.dmProfile);
+  const dmPeer = useDmPeer(view.kind === 'dm' ? view.conversationId : null);
+  // perfil aberto: o painel de amigos fica só com os avatares (dois painéis largos apertariam a conversa)
+  const dmProfileShown = dmProfileOpen && Boolean(dmPeer);
+  const panel = useUi((s) => s.panel);
+  const mobile = useIsMobile();
+  const detail = useData((s) => (view.kind === 'server' ? s.details[view.serverId] : undefined));
+  const sidebarWidth = useData((s) => Math.max(s.settings?.sidebarWidth ?? 300, 300));
+  useShellBehavior();
 
   // Celular: Esc fecha a gaveta; deslizar da borda esquerda abre a navegação, deslizar para o lado fecha.
   useEffect(() => {
