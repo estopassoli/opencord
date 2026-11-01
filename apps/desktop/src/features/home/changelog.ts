@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
+    time: '14:00',
+    kind: 'melhoria',
+    icon: 'star',
+    title: 'Vidro com movimento',
+    body: 'Menus e popovers nascem do ponto onde você clicou, diálogos surgem com um leve zoom, avisos deslizam, mensagens novas entram com um deslize, cards e lives aparecem com escala, servidores crescem ao passar o mouse, botões afundam ao clicar e o selo AO VIVO pulsa. Tudo respeita "reduzir movimento" do sistema. E o menu que abria lá embaixo e empurrava o app para cima foi consertado.',
+  },
+  {
+    date: '2026-11-01',
     time: '13:00',
     kind: 'correção',
     icon: 'star',

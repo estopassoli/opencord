@@ -744,3 +744,219 @@ html[data-layout='vidro'] .music-pill {
 html[data-layout='vidro'] .music-pill .oc-btn {
   border-radius: 999px;
 }
+
+/* ---------- segurança: a janela do app nunca rola (um popover mal posicionado não pode arrastar o layout) ---------- */
+html[data-layout='vidro'],
+html[data-layout='vidro'] body,
+html[data-layout='vidro'] #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ---------- movimento: tudo que abre, surge; tudo que responde ao mouse, reage ---------- */
+html[data-layout='vidro'] {
+  --vidro-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+}
+@keyframes vidro-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.94);
+  }
+}
+@keyframes vidro-pop-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+}
+@keyframes vidro-dialog {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.965);
+  }
+}
+@keyframes vidro-toast {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes vidro-msg {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes vidro-tile {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes vidro-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--danger) 0%, transparent);
+  }
+}
+@keyframes vidro-speaking {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 2px var(--speaking),
+      0 0 24px color-mix(in srgb, var(--speaking) 35%, transparent);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 2px var(--speaking),
+      0 0 40px color-mix(in srgb, var(--speaking) 60%, transparent);
+  }
+}
+
+/* o que abre: menus e popovers nascem do ponto onde foram chamados */
+html[data-layout='vidro'] .context-menu {
+  transform-origin: top left;
+  animation: vidro-pop 180ms var(--vidro-spring) both;
+}
+html[data-layout='vidro'] .context-menu[data-side='left'] {
+  transform-origin: top right;
+}
+html[data-layout='vidro'] .pins-panel,
+html[data-layout='vidro'] .oc-listbox,
+html[data-layout='vidro'] .profile-card,
+html[data-layout='vidro'] .tooltip {
+  transform-origin: top center;
+  animation: vidro-pop 180ms var(--vidro-spring) both;
+}
+html[data-layout='vidro'] .menu-up,
+html[data-layout='vidro'] .music-player,
+html[data-layout='vidro'] .soundboard {
+  transform-origin: bottom center;
+  animation: vidro-pop-up 200ms var(--vidro-spring) both;
+}
+html[data-layout='vidro'] .dialog:not(.dialog-fullscreen) .dialog-body {
+  animation: vidro-dialog 240ms var(--vidro-spring) both;
+}
+html[data-layout='vidro'] .dialog-fullscreen .fullscreen-body {
+  animation: vidro-msg 220ms var(--ease-out) both;
+}
+html[data-layout='vidro'] .toast {
+  animation: vidro-toast 260ms var(--vidro-spring) both;
+}
+html[data-layout='vidro'] .msg {
+  animation: vidro-msg 200ms var(--ease-out) both;
+}
+html[data-layout='vidro'] .tile,
+html[data-layout='vidro'] .now-card,
+html[data-layout='vidro'] .event-card,
+html[data-layout='vidro'] .highlight-card,
+html[data-layout='vidro'] .timeline-card {
+  animation: vidro-tile 260ms var(--ease-out) both;
+}
+
+/* o que responde ao mouse */
+html[data-layout='vidro'] .rail-item {
+  transition:
+    transform var(--dur) var(--vidro-spring),
+    border-radius var(--dur) var(--ease),
+    background var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+html[data-layout='vidro'] .rail-item:hover {
+  transform: scale(1.08);
+}
+html[data-layout='vidro'] .rail-item:active {
+  transform: scale(0.96);
+}
+html[data-layout='vidro'] .channel-row,
+html[data-layout='vidro'] .member-row,
+html[data-layout='vidro'] .friend-row,
+html[data-layout='vidro'] .dm-row,
+html[data-layout='vidro'] .friends-panel-row {
+  transition:
+    background var(--dur-fast) var(--ease),
+    transform var(--dur) var(--vidro-spring);
+}
+html[data-layout='vidro'] .channel-row:hover,
+html[data-layout='vidro'] .member-row:hover,
+html[data-layout='vidro'] .friend-row:hover,
+html[data-layout='vidro'] .dm-row:hover,
+html[data-layout='vidro'] .friends-panel-row:hover {
+  transform: translateX(3px);
+}
+html[data-layout='vidro'] .icon-btn,
+html[data-layout='vidro'] .oc-btn,
+html[data-layout='vidro'] .round-btn,
+html[data-layout='vidro'] .tab,
+html[data-layout='vidro'] .reaction {
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    transform var(--dur) var(--vidro-spring),
+    box-shadow var(--dur) var(--ease);
+}
+html[data-layout='vidro'] .icon-btn:active,
+html[data-layout='vidro'] .oc-btn:active:not(:disabled),
+html[data-layout='vidro'] .round-btn:active,
+html[data-layout='vidro'] .call-btn:active:not(:disabled),
+html[data-layout='vidro'] .reaction:active {
+  transform: scale(0.94);
+}
+html[data-layout='vidro'] .oc-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 10px 28px -8px color-mix(in srgb, var(--brand) 80%, transparent);
+}
+html[data-layout='vidro'] .live-pill {
+  animation: vidro-glow 2.4s ease-in-out infinite;
+}
+html[data-layout='vidro'] .tile[data-speaking='true'] {
+  animation: vidro-speaking 1.6s ease-in-out infinite;
+}
+html[data-layout='vidro'] .composer,
+html[data-layout='vidro'] .oc-input,
+html[data-layout='vidro'] .oc-textarea {
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+html[data-layout='vidro'] .cat-toggle .oc-icon {
+  transition: transform var(--dur) var(--vidro-spring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-layout='vidro'] .context-menu,
+  html[data-layout='vidro'] .pins-panel,
+  html[data-layout='vidro'] .oc-listbox,
+  html[data-layout='vidro'] .profile-card,
+  html[data-layout='vidro'] .tooltip,
+  html[data-layout='vidro'] .menu-up,
+  html[data-layout='vidro'] .music-player,
+  html[data-layout='vidro'] .soundboard,
+  html[data-layout='vidro'] .dialog-body,
+  html[data-layout='vidro'] .fullscreen-body,
+  html[data-layout='vidro'] .toast,
+  html[data-layout='vidro'] .msg,
+  html[data-layout='vidro'] .tile,
+  html[data-layout='vidro'] .now-card,
+  html[data-layout='vidro'] .event-card,
+  html[data-layout='vidro'] .highlight-card,
+  html[data-layout='vidro'] .timeline-card,
+  html[data-layout='vidro'] .live-pill,
+  html[data-layout='vidro'] .tile[data-speaking='true'] {
+    animation: none;
+  }
+  html[data-layout='vidro'] .rail-item:hover,
+  html[data-layout='vidro'] .channel-row:hover,
+  html[data-layout='vidro'] .member-row:hover,
+  html[data-layout='vidro'] .friend-row:hover,
+  html[data-layout='vidro'] .dm-row:hover,
+  html[data-layout='vidro'] .friends-panel-row:hover {
+    transform: none;
+  }
+}
