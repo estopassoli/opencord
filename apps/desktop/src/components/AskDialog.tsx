@@ -6,14 +6,21 @@ import { Dialog } from './Dialog';
 /**
  * Confirmações e perguntas no tema do app, no lugar do `confirm()`/`prompt()` nativos (caixa cinza do Windows com
  * o nome do pacote no título). `await askConfirm(...)` devolve true/false; `await askText(...)` devolve o texto ou
- * null se cancelar.
+ * null se cancelar; `await askChoice(...)` devolve a opção escolhida ou null.
  */
+interface Choice {
+  id: string;
+  label: string;
+  /** ação destrutiva: botão vermelho */
+  danger?: boolean;
+}
+
 interface Ask {
   id: number;
   title: string;
   message: string;
-  confirmLabel: string;
-  danger: boolean;
+  /** botões além de "Cancelar" (da esquerda para a direita; o último recebe o foco e responde ao Enter) */
+  choices: Choice[];
   /** pergunta com campo de texto (prompt) */
   input?: { label: string; placeholder?: string };
   resolve: (v: string | null) => void;
@@ -22,9 +29,22 @@ interface Ask {
 const useAsk = create<{ queue: Ask[] }>(() => ({ queue: [] }));
 
 let seq = 0;
-function ask(a: Omit<Ask, 'resolve' | 'id'>): Promise<string | null> {
+function ask(a: Omit<Ask, 'resolve' | 'id'>, signal?: AbortSignal): Promise<string | null> {
   const id = ++seq;
-  return new Promise((resolve) => useAsk.setState((s) => ({ queue: [...s.queue, { ...a, id, resolve }] })));
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve(null);
+    useAsk.setState((s) => ({ queue: [...s.queue, { ...a, id, resolve }] }));
+    // a pergunta perdeu o sentido (ex.: quem pediu desistiu): some sem resposta
+    signal?.addEventListener(
+      'abort',
+      () => {
+        if (!useAsk.getState().queue.some((q) => q.id === id)) return;
+        useAsk.setState((s) => ({ queue: s.queue.filter((q) => q.id !== id) }));
+        resolve(null);
+      },
+      { once: true },
+    );
+  });
 }
 
 export interface ConfirmOptions {
@@ -32,15 +52,19 @@ export interface ConfirmOptions {
   confirmLabel?: string;
   /** ação destrutiva (excluir, expulsar): botão vermelho */
   danger?: boolean;
+  /** fecha a pergunta sozinha (resposta: cancelar) */
+  signal?: AbortSignal;
 }
 
 export async function askConfirm(message: string, o: ConfirmOptions = {}): Promise<boolean> {
-  const r = await ask({
-    title: o.title ?? 'Tem certeza?',
-    message,
-    confirmLabel: o.confirmLabel ?? 'Confirmar',
-    danger: o.danger ?? false,
-  });
+  const r = await ask(
+    {
+      title: o.title ?? 'Tem certeza?',
+      message,
+      choices: [{ id: 'ok', label: o.confirmLabel ?? 'Confirmar', danger: o.danger ?? false }],
+    },
+    o.signal,
+  );
   return r !== null;
 }
 
@@ -48,13 +72,23 @@ export function askText(
   message: string,
   o: ConfirmOptions & { label: string; placeholder?: string },
 ): Promise<string | null> {
-  return ask({
-    title: o.title ?? 'Tem certeza?',
-    message,
-    confirmLabel: o.confirmLabel ?? 'Confirmar',
-    danger: o.danger ?? false,
-    input: { label: o.label, placeholder: o.placeholder },
-  });
+  return ask(
+    {
+      title: o.title ?? 'Tem certeza?',
+      message,
+      choices: [{ id: 'ok', label: o.confirmLabel ?? 'Confirmar', danger: o.danger ?? false }],
+      input: { label: o.label, placeholder: o.placeholder },
+    },
+    o.signal,
+  );
+}
+
+/** Pergunta com mais de uma resposta possível (além de cancelar); devolve o id da escolhida. */
+export function askChoice<T extends string>(
+  message: string,
+  o: { title: string; choices: { id: T; label: string; danger?: boolean }[]; signal?: AbortSignal },
+): Promise<T | null> {
+  return ask({ title: o.title, message, choices: o.choices }, o.signal) as Promise<T | null>;
 }
 
 /** Montado uma vez na raiz do app; mostra uma pergunta por vez. */
@@ -69,6 +103,8 @@ function AskView({ a }: { a: Ask }) {
     useAsk.setState((s) => ({ queue: s.queue.slice(1) }));
     a.resolve(v);
   };
+  const main = a.choices[a.choices.length - 1];
+  const answer = (c: Choice) => done(a.input ? text : c.id);
   return (
     <Dialog
       title={a.title}
@@ -78,14 +114,17 @@ function AskView({ a }: { a: Ask }) {
           <Button variant="secondary" onClick={() => done(null)}>
             Cancelar
           </Button>
-          <Button
-            variant={a.danger ? 'danger' : 'primary'}
-            // Enter confirma (foco começa aqui quando não há campo)
-            autoFocus={!a.input}
-            onClick={() => done(a.input ? text : '')}
-          >
-            {a.confirmLabel}
-          </Button>
+          {a.choices.map((c) => (
+            <Button
+              key={c.id}
+              variant={c.danger ? 'danger' : c === main ? 'primary' : 'secondary'}
+              // Enter confirma (foco começa aqui quando não há campo)
+              autoFocus={!a.input && c === main}
+              onClick={() => answer(c)}
+            >
+              {c.label}
+            </Button>
+          ))}
         </>
       }
     >
@@ -93,7 +132,7 @@ function AskView({ a }: { a: Ask }) {
         className="ask-body"
         onSubmit={(e) => {
           e.preventDefault();
-          done(a.input ? text : '');
+          if (main) answer(main);
         }}
       >
         <p className="ask-message">{a.message}</p>

@@ -22,6 +22,7 @@ import { useActivity } from './activity';
 import { useMusic } from './music';
 import { useScenes } from './scenes';
 import { nameFor } from '../lib/names';
+import { attachRemoteControl, detachRemoteControl, remoteControl } from '../voice/remote-control';
 
 interface VoiceStore {
   machine: VoiceState;
@@ -68,6 +69,11 @@ let engine: VoiceEngine | null = null;
 // trocar de cena (ou editar a ativa) durante a live atualiza a composição sem reiniciar a transmissão
 useScenes.setState({ onLiveChange: (scene) => void engine?.setScene(scene) });
 let ptt: PushToTalk | null = null;
+/** sair da sala também encerra o controle remoto (dos dois lados) */
+async function disconnectEngine() {
+  detachRemoteControl();
+  await engine?.disconnect();
+}
 
 function prefsFrom(s: UserSettings | null): AudioPrefs {
   const a = s?.audio;
@@ -192,6 +198,16 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     for (const [id, v] of Object.entries(s.screenVolume)) engine.setScreenVolume(id, v);
     const reconnecting = get().machine.status === 'reconnecting';
     await engine.connect(j.url, j.token, { canSpeak: j.canSpeak, selfMute: s.selfMute, selfDeaf: s.selfDeaf });
+    // controle remoto (ADR-0026): só com a tela inteira ao vivo, sem cena
+    if (engine.room)
+      attachRemoteControl(engine.room, () => {
+        const { stream } = get();
+        if (!bridge?.remoteInput) return { reason: 'platform' };
+        if (stream.status !== 'live') return { reason: 'no-stream' };
+        if (stream.sourceKind !== 'screen' || !stream.sourceId?.startsWith('screen:')) return { reason: 'window' };
+        if (engine?.hasScene()) return { reason: 'scene' };
+        return { sourceId: stream.sourceId };
+      });
     dispatch({ type: 'CONNECTED', generation });
     const { serverId: sid, machine: m } = get();
     if (sid && m.channelId)
@@ -216,7 +232,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       const cur = get().machine;
       if (cur.status !== 'reconnecting' || cur.channelId !== machine.channelId) return;
       try {
-        await engine?.disconnect();
+        await disconnectEngine();
         const j = await api().request<VoiceJoinResponse>('POST', `/voice/channels/${machine.channelId}/join`);
         await connectWith(j, cur.generation);
         dispatch({ type: 'RECONNECTED' });
@@ -227,7 +243,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       }
     }
     dispatch({ type: 'FAILED', error: 'Não foi possível reconectar à chamada.' });
-    await engine?.disconnect();
+    await disconnectEngine();
   }
 
   return {
@@ -270,7 +286,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
         syncTray();
       } catch (e) {
         dispatch({ type: 'FAILED', error: describeError(e), generation: gen });
-        await engine?.disconnect().catch(() => undefined);
+        await disconnectEngine().catch(() => undefined);
         await api()
           .request('POST', '/voice/leave')
           .catch(() => undefined);
@@ -280,7 +296,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
 
     async leave() {
       ptt?.reset();
-      await engine?.disconnect().catch(() => undefined);
+      await disconnectEngine().catch(() => undefined);
       const wasIn = get().machine.status !== 'disconnected';
       dispatch({ type: 'LEAVE' });
       // saiu por vontade própria: não oferece voltar ao reabrir
@@ -295,7 +311,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
 
     forcedOut(reason) {
       ptt?.reset();
-      void engine?.disconnect();
+      void disconnectEngine();
       dispatch({ type: 'FORCED_OUT', reason });
       forgetLastCall();
       playSound('leave');
@@ -414,6 +430,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     async stopStream() {
       if (get().stream.status === 'idle') return;
       sdispatch({ type: 'STOP' });
+      remoteControl()?.stopHosting('stream');
       await engine?.stopStream();
       sdispatch({ type: 'STOPPED' });
       playSound('streamStop');

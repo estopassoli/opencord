@@ -2,6 +2,7 @@ import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import {
   AddCircleIcon,
   Copy02Icon,
+  Cursor01Icon,
   SquareIcon,
   MinusSignIcon,
   Alert02Icon,
@@ -158,6 +159,7 @@ const ICONS = {
   search: Search01Icon,
   eye: ViewIcon,
   'eye-off': ViewOffIcon,
+  cursor: Cursor01Icon,
   block: UnavailableIcon,
   'user-plus': UserAdd01Icon,
   'user-minus': UserRemove01Icon,

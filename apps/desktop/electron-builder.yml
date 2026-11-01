@@ -19,10 +19,13 @@ files:
   - package.json
 asar: true
 win:
-  # captura de cada saída de áudio do Windows para os clipes (ADR-0024; scripts/build-win-audio.mjs)
+  # auxiliares nativos (scripts/build-win-audio.mjs): som de cada saída e da live (ADR-0024/0025) e mouse/teclado do
+  # controle remoto (ADR-0026)
   extraResources:
     - from: resources/win/oc-audio.exe
       to: oc-audio.exe
+    - from: resources/win/oc-input.exe
+      to: oc-input.exe
   target:
     - target: nsis
       arch: [x64]

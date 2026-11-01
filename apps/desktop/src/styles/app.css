@@ -6564,3 +6564,36 @@ textarea,
   color: var(--text-muted);
   white-space: pre-line;
 }
+
+/* ---- controle remoto (ADR-0026) ---- */
+/* camada por cima da live de quem me deixou controlar: recebe mouse, rodinha e teclado */
+.remote-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  outline: none;
+  touch-action: none;
+}
+.remote-overlay:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.remote-hint {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  max-width: calc(100% - 16px);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--warning);
+  color: #000;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.remote-chip {
+  color: var(--warning);
+}

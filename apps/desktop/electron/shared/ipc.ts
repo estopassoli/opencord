@@ -3,6 +3,7 @@
  * Todo argumento é validado no main com estes schemas; canais fora da allowlist não existem.
  */
 import { z } from 'zod';
+import type { RemoteInputEvent, RemoteInputStartArgs, RemoteInputStop } from './remote-input';
 
 export { IPC } from './channels';
 
@@ -259,6 +260,16 @@ export interface OpenCordBridge {
     start(id: string): Promise<boolean>;
     stop(id: string): Promise<void>;
   };
+  /**
+   * mouse e teclado de quem controla este PC (ADR-0026); só no Windows. `start` só depois que a pessoa aceitou o pedido;
+   * false se não deu para começar (fora do Windows, tela não encontrada)
+   */
+  remoteInput: {
+    available(): Promise<boolean>;
+    start(args: RemoteInputStartArgs): Promise<boolean>;
+    send(ev: RemoteInputEvent): void;
+    stop(): Promise<void>;
+  };
   /** registra um erro da janela no crash-log.txt */
   reportError(report: ErrorReport): Promise<void>;
   updates: {
@@ -275,4 +286,6 @@ export interface OpenCordBridge {
   on(event: 'window-state', cb: (state: WindowState) => void): () => void;
   on(event: 'game', cb: (game: DetectedGameDto | null) => void): () => void;
   on(event: 'win-audio', cb: (chunk: WinAudioChunk) => void): () => void;
+  /** o controle remoto parou deste lado (atalho de emergência, botão da faixa, oc-input encerrado) */
+  on(event: 'remote-input-stop', cb: (reason: RemoteInputStop) => void): () => void;
 }

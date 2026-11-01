@@ -20,6 +20,8 @@ import { bestTileWidth } from './tileLayout';
 import { copyLiveDiagnostics } from './liveDiag';
 import { memberMenu } from '../shell/ProfileButton';
 import { RecordButton, RecordingBadge, RecordingsButton, useRecordingLoad } from './Recording';
+import { RemoteOverlay } from './RemoteOverlay';
+import { remoteControl, useRemote } from '../../voice/remote-control';
 
 const NO_MEMBERS: Member[] = [];
 
@@ -511,6 +513,20 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
   const mobile = useIsMobile();
   const watching = p.watchingScreen;
   const engineWatch = (on: boolean) => useVoice.getState().watch(p.identity, on);
+  // controle remoto (ADR-0026): pedir, parar, e a camada que captura mouse e teclado enquanto eu controlo
+  const remote = useRemote();
+  const controllingThis = remote.controlling?.identity === p.identity;
+  const requestingThis = remote.requesting?.identity === p.identity;
+  const canControl = !p.isLocal && watching && !elsewhere && !mobile;
+  const controlAction = !canControl
+    ? null
+    : controllingThis
+      ? { label: 'Parar de controlar', run: () => remoteControl()?.stopControlling(true) }
+      : requestingThis
+        ? { label: 'Cancelar pedido de controle', run: () => remoteControl()?.cancelRequest() }
+        : !remote.controlling && !remote.requesting
+          ? { label: 'Controlar o computador', run: () => remoteControl()?.request(p.identity) }
+          : null;
   const fullscreen = () => {
     const doc = box.current?.ownerDocument ?? document;
     if (doc.fullscreenElement) void doc.exitFullscreen();
@@ -550,6 +566,13 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
         },
       });
     if (watching) items.push({ label: 'Tela cheia', icon: 'maximize', onSelect: fullscreen });
+    if (controlAction) items.push({ label: controlAction.label, icon: 'cursor', onSelect: controlAction.run });
+    if (p.isLocal && remote.controlledBy)
+      items.push({
+        label: 'Parar o controle remoto',
+        icon: 'cursor',
+        onSelect: () => remoteControl()?.stopHosting('local'),
+      });
     if (!p.isLocal && watching)
       items.push({ label: 'Parar de assistir', icon: 'eye-off', onSelect: () => engineWatch(false) });
     if (!p.isLocal && !watching) items.push({ label: 'Assistir', icon: 'play', onSelect: () => engineWatch(true) });
@@ -590,7 +613,10 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
           </Button>
         </div>
       ) : watching ? (
-        <Video identity={p.identity} source="screen" />
+        <>
+          <Video identity={p.identity} source="screen" />
+          {controllingThis && remote.controlling && <RemoteOverlay name={p.name} kb={remote.controlling.kb} />}
+        </>
       ) : (
         <div className="stream-cover" data-preview={p.previewUrl ? 'true' : undefined}>
           {p.previewUrl && <img className="stream-preview" src={p.previewUrl} alt="" draggable={false} />}
@@ -606,6 +632,9 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
         <span className="live-pill">AO VIVO</span>
         <span className="truncate">{p.isLocal ? 'Sua transmissão' : p.name}</span>
         {!p.screenAudio && <span className="small muted">sem áudio</span>}
+        {p.isLocal && remote.controlledBy && (
+          <span className="small remote-chip">{remote.controlledBy.name} está controlando</span>
+        )}
       </div>
       {watching && !elsewhere && (
         // os botões têm ação própria: não repassam o clique para o card (que alternaria o destaque)
@@ -654,6 +683,28 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
           <button className="icon-btn" aria-label="Tela cheia" data-tip="Tela cheia" onClick={fullscreen}>
             <Icon name="maximize" />
           </button>
+          {controlAction && (
+            <button
+              className="icon-btn"
+              aria-label={controlAction.label}
+              aria-pressed={controllingThis || requestingThis ? 'true' : undefined}
+              data-tip={controlAction.label}
+              onClick={controlAction.run}
+            >
+              <Icon name="cursor" />
+            </button>
+          )}
+          {p.isLocal && remote.controlledBy && (
+            <button
+              className="icon-btn"
+              aria-label="Parar o controle remoto"
+              aria-pressed="true"
+              data-tip="Parar o controle remoto"
+              onClick={() => remoteControl()?.stopHosting('local')}
+            >
+              <Icon name="cursor" />
+            </button>
+          )}
           {!p.isLocal && (
             <button
               className="icon-btn"

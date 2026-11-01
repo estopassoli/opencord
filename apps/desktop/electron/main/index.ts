@@ -14,6 +14,7 @@ import {
   session,
   shell,
   Tray,
+  type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from 'electron';
 import os from 'node:os';
@@ -42,6 +43,8 @@ import {
   type TrayAction,
 } from '../shared/ipc';
 import { installDisplayMediaHandler, listSources, selectSource } from './capture';
+import { RemoteInputEvent, RemoteInputStartArgs } from '../shared/remote-input';
+import { armPanic, remoteInputAvailable, sendRemoteInput, startRemoteInput, stopRemoteInput } from './remote-input';
 import { secureAvailable, secureDelete, secureGet, secureSet } from './secure-store';
 import { appIcon, badgeIcon, trayIcon } from './icons';
 import { readAppPrefs, writeAppPrefs } from './app-prefs';
@@ -120,7 +123,7 @@ function isAppPage(url: string): boolean {
   }
 }
 
-function isTrustedSender(e: IpcMainInvokeEvent): boolean {
+function isTrustedSender(e: IpcMainInvokeEvent | IpcMainEvent): boolean {
   if (!win || e.sender.id !== win.webContents.id) return false;
   return isAppPage(e.senderFrame?.url ?? '');
 }
@@ -189,10 +192,14 @@ function createWindow() {
   win.webContents.on('render-process-gone', (_e, d) => {
     logRendererError({ where: 'window', message: `processo da janela encerrado: ${d.reason} (código ${d.exitCode})` });
     stopAllOutputs();
+    stopRemoteInput();
   });
-  // recarregar a janela perde quem ouvia o som das saídas
+  // recarregar a janela perde quem ouvia o som das saídas (e quem controlava este PC)
   win.webContents.on('did-start-navigation', (e) => {
-    if (e.isMainFrame && !e.isSameDocument) stopAllOutputs();
+    if (e.isMainFrame && !e.isSameDocument) {
+      stopAllOutputs();
+      stopRemoteInput();
+    }
   });
   win.removeMenu();
   win.once('ready-to-show', () => win?.show());
@@ -342,6 +349,8 @@ function registerIpc() {
       const ok = globalShortcut.register(accel, () => send(IPC.evShortcut, action));
       (ok ? registered : failed).push(accel);
     }
+    // o unregisterAll acima também tirou o atalho de emergência do controle remoto
+    armPanic();
     return { registered, failed };
   });
   handle(IPC.windowFlash, [], () => {
@@ -402,6 +411,16 @@ function registerIpc() {
   handle(IPC.winAudioList, [], () => listOutputs());
   handle(IPC.winAudioStart, [WinAudioId], (id) => (win ? startOutput(id, win.webContents, IPC.evWinAudio) : false));
   handle(IPC.winAudioStop, [WinAudioId], (id) => stopOutput(id));
+  handle(IPC.remoteInputAvailable, [], () => remoteInputAvailable());
+  handle(IPC.remoteInputStart, [RemoteInputStartArgs], (a) =>
+    startRemoteInput(a, (reason) => send(IPC.evRemoteInputStop, reason)),
+  );
+  handle(IPC.remoteInputStop, [], () => stopRemoteInput());
+  ipcMain.on(IPC.remoteInputSend, (e, raw: unknown) => {
+    if (!isTrustedSender(e)) return;
+    const ev = RemoteInputEvent.safeParse(raw);
+    if (ev.success) sendRemoteInput(ev.data);
+  });
   handle(IPC.appRelaunch, [], () => {
     quitting = true;
     app.relaunch();
@@ -449,6 +468,7 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   games.stop();
   stopAllOutputs();
+  stopRemoteInput();
 });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

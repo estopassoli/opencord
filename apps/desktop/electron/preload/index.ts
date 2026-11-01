@@ -15,6 +15,7 @@ const EVENT_CHANNELS = {
   'window-state': IPC.evWindowState,
   game: IPC.evGame,
   'win-audio': IPC.evWinAudio,
+  'remote-input-stop': IPC.evRemoteInputStop,
 } as const;
 
 const bridge: OpenCordBridge = {
@@ -63,6 +64,13 @@ const bridge: OpenCordBridge = {
     list: () => ipcRenderer.invoke(IPC.winAudioList),
     start: (id) => ipcRenderer.invoke(IPC.winAudioStart, id),
     stop: (id) => ipcRenderer.invoke(IPC.winAudioStop, id),
+  },
+  remoteInput: {
+    available: () => ipcRenderer.invoke(IPC.remoteInputAvailable),
+    start: (args) => ipcRenderer.invoke(IPC.remoteInputStart, args),
+    // sem resposta: um evento por movimento do mouse não precisa de ida e volta
+    send: (ev) => ipcRenderer.send(IPC.remoteInputSend, ev),
+    stop: () => ipcRenderer.invoke(IPC.remoteInputStop),
   },
   reportError: (report) => ipcRenderer.invoke(IPC.errorReport, report),
   updates: {

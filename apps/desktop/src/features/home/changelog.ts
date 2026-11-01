@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '12:00',
+    kind: 'novo',
+    icon: 'cursor',
+    title: 'Controlar o computador de quem transmite',
+    body: 'Assistindo à live de alguém da chamada, clique em "Controlar o computador" (botão do card ou botão direito). A pessoa recebe um pedido e escolhe "Só o mouse" ou "Mouse e teclado". Enquanto durar, uma faixa no topo da tela dela mostra quem está controlando, com o botão "Parar"; Ctrl+Alt+Shift+S encerra na hora, de qualquer lado. Funciona com a live da tela inteira (sem cena) e só quem recebe o controle precisa estar no Windows. Janelas de administrador não recebem o controle.',
+  },
+  {
+    date: '2026-10-31',
     time: '11:00',
     kind: 'melhoria',
     icon: 'check',

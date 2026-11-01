@@ -38,6 +38,10 @@ export const IPC = {
   winAudioList: 'win-audio:list',
   winAudioStart: 'win-audio:start',
   winAudioStop: 'win-audio:stop',
+  remoteInputAvailable: 'remote-input:available',
+  remoteInputStart: 'remote-input:start',
+  remoteInputSend: 'remote-input:send',
+  remoteInputStop: 'remote-input:stop',
   // eventos main → renderer
   evShortcut: 'ev:shortcut',
   evNotificationClick: 'ev:notification-click',
@@ -47,4 +51,5 @@ export const IPC = {
   evWindowState: 'ev:window-state',
   evGame: 'ev:game',
   evWinAudio: 'ev:win-audio',
+  evRemoteInputStop: 'ev:remote-input-stop',
 } as const;
