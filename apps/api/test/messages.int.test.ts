@@ -145,6 +145,47 @@ describe('mensagens (RF-03)', () => {
     expect(page2.body.messages.find((m) => m.id === parent.body.id)?.reactions[0]?.count).toBe(1);
   });
 
+  it('busca: por palavra (todas), por pessoa, por link; no servidor só em canais que eu vejo', async () => {
+    const { alice, owner, serverId, channelId } = await setup();
+    await send(alice.token, channelId, 'o clipe do boss ficou bom');
+    await send(owner.token, channelId, 'manda o Clipe do BOSS de novo');
+    await send(owner.token, channelId, 'olha isso https://exemplo.com/boss');
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const everyone = d.body.roles.find((r) => r.isEveryone) as Role;
+    const secret = await http.req<{ id: string }>('POST', `/servers/${serverId}/channels`, {
+      token: owner.token,
+      body: { name: 'staff', kind: 'text' },
+    });
+    await http.req('PATCH', `/channels/${secret.body.id}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'role', subjectId: everyone.id, allow: 0, deny: Permission.VIEW_CHANNEL }] },
+    });
+    await send(owner.token, secret.body.id, 'boss secreto');
+    type R = { messages: Message[]; total: number };
+    const q = (token: string, params: string) =>
+      http.req<R>('GET', `/servers/${serverId}/messages/search?${params}`, { token });
+    // todas as palavras, sem diferenciar maiúsculas
+    expect((await q(alice.token, 'q=clipe+boss')).body.total).toBe(2);
+    // só nos canais que a alice vê: o "staff" fica de fora; o dono vê os 4
+    expect((await q(alice.token, 'q=boss')).body.total).toBe(3);
+    expect((await q(owner.token, 'q=boss')).body.total).toBe(4);
+    expect((await q(alice.token, `q=boss&authorId=${alice.id}`)).body.total).toBe(1);
+    expect((await q(alice.token, 'q=boss&has=link')).body.messages.map((m) => m.body)).toEqual([
+      'olha isso https://exemplo.com/boss',
+    ]);
+    expect((await q(alice.token, `q=boss&channelId=${secret.body.id}`)).body.total).toBe(0);
+    // paginação por offset, mais recente primeiro
+    const p1 = await q(owner.token, 'q=boss&limit=2');
+    const p2 = await q(owner.token, 'q=boss&limit=2&offset=2');
+    expect(p1.body.messages).toHaveLength(2);
+    expect(p2.body.messages).toHaveLength(2);
+    expect(new Set([...p1.body.messages, ...p2.body.messages].map((m) => m.id)).size).toBe(4);
+    // quem não é do servidor: 404
+    const out = await outsider(http);
+    expect((await q(out.token, 'q=boss')).status).toBe(404);
+    expect((await q(alice.token, 'q=')).status).toBe(400);
+  });
+
   it('negação de SEND_MESSAGES por override é respeitada', async () => {
     const { alice, owner, serverId, channelId } = await setup();
     const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });

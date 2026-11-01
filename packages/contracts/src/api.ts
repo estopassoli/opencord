@@ -525,6 +525,25 @@ export const MessagePage = z.object({
 });
 export type MessagePage = z.infer<typeof MessagePage>;
 
+/** Busca de mensagens num servidor (todos os canais que eu vejo) ou numa conversa. Palavras separadas: todas precisam aparecer. */
+export const SearchMessagesQuery = z.object({
+  q: z.string().trim().min(1).max(200),
+  /** só neste canal (busca no servidor) */
+  channelId: Id.optional(),
+  authorId: Id.optional(),
+  /** só mensagens com link, com arquivo ou com imagem */
+  has: z.enum(['link', 'file', 'image']).optional(),
+  offset: z.coerce.number().int().min(0).max(1000).default(0),
+  limit: z.coerce.number().int().min(1).max(50).default(25),
+});
+export type SearchMessagesQuery = z.input<typeof SearchMessagesQuery>;
+export const SearchMessagesResponse = z.object({
+  messages: z.array(Message),
+  /** total de resultados (para "mais resultados") */
+  total: z.number().int().nonnegative(),
+});
+export type SearchMessagesResponse = z.infer<typeof SearchMessagesResponse>;
+
 export const AckReadRequest = z.object({ messageId: Id });
 
 export const UnreadState = z.object({

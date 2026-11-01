@@ -11,6 +11,7 @@ import { useDmPeer } from '../shell/DmProfilePanel';
 import { MessageItem } from './MessageItem';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { PinnedMessages } from './PinnedMessages';
+import { MessageSearch } from './MessageSearch';
 import { useAliases } from '../../lib/names';
 
 export type ChatTarget =
@@ -151,6 +152,16 @@ export function ChatView({ target }: { target: ChatTarget }) {
         <h2 className="truncate">{title}</h2>
         {channel?.topic && <span className="chat-topic truncate">{channel.topic}</span>}
         <span className="spacer" />
+        <MessageSearch
+          target={target}
+          serverId={channel?.serverId}
+          people={
+            channel
+              ? (members ?? []).map((m) => ({ id: m.user.id, name: nameOf(m.user.id) }))
+              : (conv?.members ?? []).map((u) => ({ id: u.id, name: nameOf(u.id) }))
+          }
+          nameOf={nameOf}
+        />
         <PinnedMessages
           target={target}
           canUnpin={!channel || hasPermission(perms, Permission.MANAGE_MESSAGES)}

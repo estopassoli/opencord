@@ -12,6 +12,7 @@ import {
   type MessagePage,
   type Poll,
   type ReactionSummary,
+  type SearchMessagesResponse,
   type UnreadState,
 } from '@opencord/contracts';
 import { Prisma } from '@opencord/db';
@@ -416,6 +417,76 @@ export class MessagesService {
   }
 
   /** Mensagens fixadas, mais recente primeiro. */
+  /**
+   * Busca por texto (cada palavra precisa aparecer no corpo ou no nome de um anexo, sem diferenciar maiúsculas).
+   * No servidor, só nos canais de texto em que vejo o histórico. Sem índice próprio: ILIKE por palavra, suficiente
+   * para o tamanho das instâncias de hoje (ver docs/DECISIONS.md, busca de mensagens).
+   */
+  async search(
+    userId: string,
+    scope: { serverId: string } | { conversationId: string },
+    q: {
+      q: string;
+      channelId?: string | undefined;
+      authorId?: string | undefined;
+      has?: 'link' | 'file' | 'image' | undefined;
+      offset: number;
+      limit: number;
+    },
+  ): Promise<SearchMessagesResponse> {
+    let where: Prisma.MessageWhereInput;
+    if ('serverId' in scope) {
+      const access = await this.perms.server(scope.serverId, userId);
+      const channels = await this.prisma.channel.findMany({
+        where: { serverId: scope.serverId, kind: 'text', ...(q.channelId ? { id: q.channelId } : {}) },
+        select: { id: true, overrides: true },
+      });
+      const need = Permission.VIEW_CHANNEL | Permission.READ_HISTORY;
+      const ids = [...(await this.perms.channelsFor(access, channels))]
+        .filter(([, p]) => hasPermission(p, need))
+        .map(([id]) => id);
+      if (ids.length === 0) return { messages: [], total: 0 };
+      where = { channelId: { in: ids } };
+    } else {
+      const a = await this.access(userId, { conversationId: scope.conversationId });
+      where = this.targetWhere(a);
+    }
+    const words = q.q.split(/\s+/).filter(Boolean).slice(0, 8);
+    const has: Prisma.MessageWhereInput[] =
+      q.has === 'link'
+        ? [{ OR: [{ body: { contains: 'http://' } }, { body: { contains: 'https://' } }] }]
+        : q.has === 'file'
+          ? [{ attachments: { some: {} } }]
+          : q.has === 'image'
+            ? [{ attachments: { some: { mime: { startsWith: 'image/' } } } }]
+            : [];
+    const full: Prisma.MessageWhereInput = {
+      ...where,
+      deletedAt: null,
+      ...(q.authorId ? { authorId: q.authorId } : {}),
+      AND: [
+        ...words.map((w) => ({
+          OR: [
+            { body: { contains: w, mode: 'insensitive' as const } },
+            { attachments: { some: { originalName: { contains: w, mode: 'insensitive' as const } } } },
+          ],
+        })),
+        ...has,
+      ],
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.message.findMany({
+        where: full,
+        include: MESSAGE_INCLUDE,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: q.offset,
+        take: q.limit,
+      }),
+      this.prisma.message.count({ where: full }),
+    ]);
+    return { messages: rows.map((m) => this.serialize(m, userId)), total };
+  }
+
   async pins(userId: string, target: Target): Promise<Message[]> {
     const a = await this.access(userId, target);
     if (!hasPermission(a.perms, Permission.READ_HISTORY)) throw forbidden('sem acesso ao histórico');

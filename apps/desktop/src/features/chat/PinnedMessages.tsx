@@ -12,7 +12,7 @@ import { renderRich } from './rich';
 const path = (t: ChatTarget) => (t.channelId ? `/channels/${t.channelId}` : `/conversations/${t.conversationId}`);
 
 /** Leva até a mensagem se ela já estiver carregada na conversa. */
-function jumpTo(id: string): boolean {
+export function jumpTo(id: string): boolean {
   const el = document.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(id)}"]`);
   if (!el) return false;
   el.scrollIntoView({ block: 'center', behavior: 'smooth' });

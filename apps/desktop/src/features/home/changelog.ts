@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
+    time: '12:30',
+    kind: 'novo',
+    icon: 'search',
+    title: 'Busca de mensagens',
+    body: 'A lupa no cabeçalho da conversa (ou Ctrl+F) procura por texto no canal, no servidor inteiro ou na conversa direta. Dá para filtrar por pessoa e por "Links", "Arquivos" ou "Imagens"; o nome dos arquivos também conta. Clique em "Ir" para chegar na mensagem.',
+  },
+  {
+    date: '2026-10-31',
     time: '12:00',
     kind: 'novo',
     icon: 'cursor',
