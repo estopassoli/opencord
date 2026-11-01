@@ -50,7 +50,9 @@ html[data-layout='vidro'] .vidro-shell {
   gap: 12px;
   height: 100%;
   padding: 0 12px 12px;
-  background: var(--vidro-bg);
+  background:
+    radial-gradient(60% 50% at 20% 30%, rgb(123 108 255 / 0.35), transparent 70%),
+    radial-gradient(50% 45% at 80% 70%, rgb(57 198 255 / 0.28), transparent 70%), var(--vidro-bg);
   overflow: hidden;
 }
 html[data-layout='vidro'] .vidro-backdrop {
@@ -60,6 +62,7 @@ html[data-layout='vidro'] .vidro-backdrop {
   height: 100%;
   z-index: 0;
   display: block;
+  transition: opacity 400ms var(--ease);
   /* sem WebGL (ou antes do primeiro quadro): um gradiente parado no mesmo espírito */
   background:
     radial-gradient(60% 50% at 20% 30%, rgb(123 108 255 / 0.35), transparent 70%),

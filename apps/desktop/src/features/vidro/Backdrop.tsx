@@ -178,6 +178,33 @@ export function Backdrop() {
     };
     render(start);
     frame = requestAnimationFrame(loop);
+
+    // contexto WebGL perdido (jogo pesado na mesma placa, janela muito tempo minimizada): o canvas ficaria preto para
+    // sempre. Escondemos o canvas (fica o gradiente do CSS) e pedimos a restauração; o three recria os programas.
+    let lost = false;
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      lost = true;
+      canvas.style.opacity = '0';
+    };
+    const onRestored = () => {
+      lost = false;
+      canvas.style.opacity = '1';
+      resize();
+      render(performance.now());
+    };
+    canvas.addEventListener('webglcontextlost', onLost);
+    canvas.addEventListener('webglcontextrestored', onRestored);
+    const watchdog = setInterval(() => {
+      if (!lost && !renderer.getContext().isContextLost()) return;
+      lost = true;
+      canvas.style.opacity = '0';
+      try {
+        renderer.forceContextRestore();
+      } catch {
+        /* sem suporte à extensão: fica o gradiente do CSS */
+      }
+    }, 4000);
     // ao voltar de um estado parado (jogo fechou, aba visível) um quadro novo, mesmo com movimento reduzido
     const unsubGames = useGames.subscribe(() => render(performance.now()));
     const onVis = () => render(performance.now());
@@ -185,6 +212,9 @@ export function Backdrop() {
 
     return () => {
       cancelAnimationFrame(frame);
+      clearInterval(watchdog);
+      canvas.removeEventListener('webglcontextlost', onLost);
+      canvas.removeEventListener('webglcontextrestored', onRestored);
       ro.disconnect();
       unsubUi();
       unsubData();
