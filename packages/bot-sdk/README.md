@@ -13,8 +13,9 @@ Licença MIT (o restante do OpenCord é AGPL-3.0): seu bot não herda nenhuma ob
 pnpm add @opencord-chat/bot      # ou npm i @opencord-chat/bot
 ```
 
-Para usar a versão do repositório antes de uma publicação: `pnpm --filter @opencord-chat/bot build` dentro do
-monorepo e, no seu projeto, `pnpm add file:../opencord/packages/bot-sdk`.
+Página no npm: https://www.npmjs.com/package/@opencord-chat/bot. Para usar a versão do repositório antes de uma
+publicação: `pnpm --filter @opencord-chat/bot build` dentro do monorepo e, no seu projeto,
+`pnpm add file:../opencord/packages/bot-sdk`.
 
 ## Usar
 

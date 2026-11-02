@@ -144,6 +144,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-02 | Super admin intocável (adendo ADR-0013) | int `servers.int.test.ts` 16/16 (dono 403 ao expulsar/mudar cargos do admin) + `voice.int.test.ts` 16/16; typecheck api/desktop | verde | depende do deploy da API pendente |
 | 2026-11-02 | SDK `@opencord-chat/bot` pronto para o npm (adendo ADR-0032) | build + `bundle-types` + `npm pack --dry-run`; consumidor isolado instalando o tarball (tsc + bot real contra a API local) | verde | publicação depende de org/pacote no npm e tag `bot-sdk-v0.1.0` |
 | 2026-11-02 | Guia de bots com resultados reais (docs/BOTS.md §4) | `packages/bot-sdk/examples/tour.mjs` contra a API local: 52 blocos de resultado; `bots.int.test.ts` com `GET /me` → `bot: true` | verde | — |
+| 2026-11-02 | `@opencord-chat/bot@0.1.0` publicado no npm | `npm view` (MIT, latest 0.1.0, 2026-11-02 14:02 UTC); instalado do registro em projeto limpo e bot real contra a API local | verde | trusted publisher no npm pendente para as próximas versões saírem por tag |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

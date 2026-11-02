@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '11:05',
+    kind: 'novo',
+    icon: 'upload',
+    title: 'SDK de bots publicado no npm',
+    body: 'pnpm add @opencord-chat/bot já funciona: versão 0.1.0, licença MIT, sem precisar clonar o repositório. Guia em docs/BOTS.md.',
+  },
+  {
+    date: '2026-11-02',
     time: '11:00',
     kind: 'melhoria',
     icon: 'chat',
