@@ -64,6 +64,11 @@ export async function entriesBetween(repo, from, to) {
   return now.filter((e) => !seen.has(key(e)));
 }
 
+/** `@nome` e `#123` virariam menção a pessoa/issue do GitHub: vão em código para ficarem só texto. */
+export function escapeMentions(text) {
+  return text.replace(/(^|[^`\w])([@#][\p{L}\p{N}_-]+)/gu, (_, before, token) => `${before}\`${token}\``);
+}
+
 export function toMarkdown(entries, title) {
   const lines = [];
   if (title) lines.push(`## ${title}`, '');
@@ -75,13 +80,16 @@ export function toMarkdown(entries, title) {
     const list = entries.filter((e) => e.kind === kind);
     if (!list.length) continue;
     lines.push(`### ${KIND_TITLE[kind]}`, '');
-    for (const e of list) lines.push(`- **${e.title}** — ${e.body}`);
+    for (const e of list) lines.push(`- **${escapeMentions(e.title)}** — ${escapeMentions(e.body)}`);
     lines.push('');
   }
   return lines.join('\n');
 }
 
-if (args.includes('--markdown')) {
+const isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (!isMain) {
+  // importado como módulo (backfill): nada a fazer
+} else if (args.includes('--markdown')) {
   const to = flag('--to');
   if (!to) throw new Error('informe --to <ref>');
   const repo = flag('--repo') ?? process.cwd();
@@ -98,8 +106,6 @@ if (args.includes('--markdown')) {
   }));
   writeFileSync(out, JSON.stringify({ entries }));
   console.log(`${entries.length} novidades → ${out}`);
-} else if (!import.meta.url.endsWith(process.argv[1] ?? '')) {
-  // importado como módulo: nada a fazer
 } else {
   throw new Error('informe o arquivo de saída ou --markdown');
 }

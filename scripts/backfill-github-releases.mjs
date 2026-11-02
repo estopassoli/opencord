@@ -3,7 +3,8 @@
 // publicou (versão = 0.2.<número do run>, nos pushes bem-sucedidos no main), com as novidades do changelog que
 // entraram entre uma publicação e a anterior. Idempotente: pula releases que já existem.
 //
-// Uso: node scripts/backfill-github-releases.mjs [--dry-run] [--map-old <ref-antigo> --map-new <ref-novo>]
+// Uso: node scripts/backfill-github-releases.mjs [--dry-run] [--refresh-notes] [--map-old <ref-antigo> --map-new <ref-novo>]
+//   --refresh-notes: regera e substitui o texto das releases que já existem (ex.: após corrigir o gerador).
 //   --map-old/--map-new: se o histórico foi reescrito (mesmos commits, shas novos), mapeia o sha antigo do run
 //   para o novo comparando as duas linhagens posição a posição.
 // Precisa do `gh` autenticado com permissão de escrever no repositório. Rode da raiz do repositório.
@@ -15,6 +16,7 @@ import { entriesBetween, toMarkdown } from '../apps/desktop/scripts/release-note
 
 const args = process.argv.slice(2);
 const dry = args.includes('--dry-run');
+const refresh = args.includes('--refresh-notes');
 const flag = (n) => {
   const i = args.indexOf(n);
   return i === -1 ? undefined : args[i + 1];
@@ -80,7 +82,7 @@ try {
     const prev = releases[i - 1];
     const last = i === releases.length - 1;
     const version = rel.tag.slice(1);
-    if (existing.has(rel.tag)) {
+    if (existing.has(rel.tag) && !refresh) {
       console.log(`= ${rel.tag} já existe`);
       continue;
     }
@@ -91,8 +93,14 @@ try {
       : '\n---\n_Primeira versão publicada (tag v0.2.0, 29/10/2026)._\n';
     const file = join(dir, `${rel.tag}.md`);
     writeFileSync(file, body);
-    console.log(`+ ${rel.tag} @ ${rel.sha.slice(0, 7)} (${entries.length} novidades)${dry ? ' [dry-run]' : ''}`);
+    const verb = existing.has(rel.tag) ? '~' : '+';
+    console.log(`${verb} ${rel.tag} @ ${rel.sha.slice(0, 7)} (${entries.length} novidades)${dry ? ' [dry-run]' : ''}`);
     if (dry) continue;
+    if (existing.has(rel.tag)) {
+      sh('gh', ['release', 'edit', rel.tag, '--repo', repo, '--notes-file', file]);
+      created++;
+      continue;
+    }
     sh('gh', [
       'release',
       'create',
@@ -112,4 +120,6 @@ try {
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
-console.log(dry ? `dry-run: ${releases.length} versões` : `${created} releases criadas`);
+console.log(
+  dry ? `dry-run: ${releases.length} versões` : `${created} releases ${refresh ? 'atualizadas/criadas' : 'criadas'}`,
+);
