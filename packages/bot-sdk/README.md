@@ -37,7 +37,40 @@ client.on(Events.MessageCreate, async (m) => {
 await client.login();
 ```
 
-Exemplo completo com comando de barra: [`examples/ping.mjs`](./examples/ping.mjs).
+Exemplo completo (comando de barra com autocompletar, botões, menu, modal e comando de contexto):
+[`examples/ping.mjs`](./examples/ping.mjs).
+
+## O que há de novo na 0.2.0
+
+- **Embeds de verdade**: `EmbedBuilder.toJSON()` vira um cartão (cor, autor, campos, imagem, rodapé); `setColor`
+  aceita `0xRRGGBB`, `'#rrggbb'` ou nomes (`Colors`). `toMarkdown()` continua existindo.
+- **Componentes e modais**: `ActionRowBuilder`, `ButtonBuilder`, `StringSelectMenuBuilder` (+ `User`/`Role`/
+  `ChannelSelectMenuBuilder`), `ModalBuilder`, `TextInputBuilder`; em `send`/`reply`/`edit` via `components`.
+- **Interações por tipo**: `ChatInputCommandInteraction` (subcomandos, `getRole`, `getMentionable`),
+  `UserContextMenuCommandInteraction`, `MessageContextMenuCommandInteraction`, `ButtonInteraction`,
+  `*SelectMenuInteraction` (`update`, `deferUpdate`), `ModalSubmitInteraction` (`fields.getTextInputValue`),
+  `AutocompleteInteraction` (`respond`); `showModal`, `awaitModalSubmit`, `files` com upload, `flags`.
+- **Coletores**: `message.createMessageComponentCollector`, `awaitMessageComponent`, `channel.createMessageCollector`,
+  `awaitMessages` — também em cartões efêmeros (`response.createMessageComponentCollector()`).
+- **Comandos v2**: `addSubcommand`, `addSubcommandGroup`, `addRoleOption`, `addMentionableOption`, `setAutocomplete`,
+  `setMinValue`/`setMaxValue`/`setMinLength`/`setMaxLength`, `addChannelTypes`, `setDefaultMemberPermissions`,
+  `setGuildIds`; `ContextMenuCommandBuilder`; `AttachmentBuilder`.
+- **Moderação e gestão**: `member.kick/ban/timeout`, `member.roles.add/remove/set`, `guild.bans`, `guild.channels.create/
+  edit/delete` (categorias com `ChannelType.GuildCategory`), `guild.roles.create/edit/delete`, `guild.edit/leave`,
+  `guild.invites.create`, `guild.fetchAuditLogs`, `guild.fetchWebhooks`/`channel.createWebhook`/`webhook.send`,
+  `guild.scheduledEvents` (+ `event.rsvp`), `channel.bulkDelete`, `message.reactions.removeAll`, `message.fetch`,
+  `PermissionsBitField`/`PermissionFlagsBits` (`member.permissions` agora inclui `@everyone` e dono), `Collection`.
+- **Já existia na API, agora no SDK**: enquetes (`send({ poll })`, `message.poll.vote/end`, `pollUpdate`),
+  `channel.sendTyping` + `typingStart`, presença (`client.user.setPresence/setStatus/setActivity/setStatusText`,
+  `presenceUpdate`, `guild.presences`), busca (`channel.messages.search`, `guild.messages.search`), `fetchPinned`,
+  `fetchReplies`, `setReactionRoles`, `users.fetch` com `profile`, `user.block`, `client.fetchInvite`.
+- **Eventos novos**: `guildBanAdd/Remove`, `guildMemberUpdate`, `roleCreate/Update/Delete`, `categoryCreate/Update/
+  Delete`, `guildScheduledEventCreate/Update/Delete`, `messageReactionRemoveAll`, `messageDeleteBulk`,
+  `channelPinsUpdate`, `typingStart`, `presenceUpdate`, `pollUpdate`, `guildUpdate`, `userUpdate`, `warn`, `rateLimited`.
+- **Escala**: fila REST com concorrência (4) e retentativa em 429 (`Retry-After`) e 5xx/rede; evento `rateLimited`;
+  retomada após queda (`sync:resume` → `messageCreate` do que perdeu, depois `resume`); `client.ws.status`;
+  `ShardingManager` (divide os **servidores** entre processos: `OPENCORD_SHARD_ID`/`OPENCORD_SHARD_COUNT`).
+- Compatível com o código da 0.1: só o limite de opções por comando subiu de 10 para 25 (ADR-0034).
 
 ## Desenvolver o SDK
 
@@ -57,5 +90,5 @@ configurado uma vez na página do pacote no npm (Settings → Trusted publisher 
 
 ```sh
 # subir a versão em packages/bot-sdk/package.json, commitar e:
-git tag bot-sdk-v0.1.0 && git push origin bot-sdk-v0.1.0
+git tag bot-sdk-v0.2.0 && git push origin bot-sdk-v0.2.0
 ```

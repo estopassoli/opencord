@@ -60,10 +60,10 @@ describe('SlashCommandBuilder', () => {
     ).toThrow(/escolhas só em string/);
   });
 
-  it('limita a 10 opções', () => {
+  it('limita a 25 opções (limite da ADR-0034; era 10 na 0.1)', () => {
     const b = new SlashCommandBuilder().setName('c').setDescription('c');
-    for (let i = 0; i < 10; i++) b.addStringOption((o) => o.setName(`o${i}`).setDescription('x'));
-    expect(() => b.addStringOption((o) => o.setName('o10').setDescription('x'))).toThrow(/até 10 opções/);
+    for (let i = 0; i < 25; i++) b.addStringOption((o) => o.setName(`o${i}`).setDescription('x'));
+    expect(() => b.addStringOption((o) => o.setName('o25').setDescription('x'))).toThrow(/até 25 opções/);
   });
 });
 

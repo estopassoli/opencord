@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Interaction, Message as MessageDto, UserPublic } from '@opencord/contracts';
-import { Client, Message, type SocketLike, type SocketOptions } from '../src/index.js';
+import { ChatInputCommandInteraction, Client, Message, type SocketLike, type SocketOptions } from '../src/index.js';
 
 /** socket falso: guarda handlers e o que o cliente emitiu; `fire` simula um evento do servidor (com envelope) */
 class FakeSocket implements SocketLike {
@@ -57,6 +57,8 @@ function messageDto(over: Partial<MessageDto> = {}): MessageDto {
     poll: null,
     reactionRoles: [],
     replyCount: 0,
+    embeds: [],
+    components: [],
     ...over,
   };
 }
@@ -211,10 +213,13 @@ describe('Client', () => {
   it('interaction:created vira interactionCreate; options e reply efêmera', async () => {
     const { client, calls, socket } = setup();
     await client.login('ocb_teste');
-    const got: Parameters<Parameters<typeof client.on<'interactionCreate'>>[1]>[0][] = [];
-    client.on('interactionCreate', (i) => got.push(i));
+    const got: ChatInputCommandInteraction[] = [];
+    client.on('interactionCreate', (i) => {
+      if (i.isChatInputCommand()) got.push(i);
+    });
     const dto: Interaction = {
       id: INTERACTION_ID,
+      type: 'command',
       serverId: SERVER_ID,
       channelId: CHANNEL_ID,
       botId: 'bot-row',
@@ -253,10 +258,13 @@ describe('Client', () => {
   it('deferReply chama /defer e editReply depois responde; reply com mensagem + editReply faz PATCH', async () => {
     const { client, calls, socket } = setup();
     await client.login('ocb_teste');
-    const got: Parameters<Parameters<typeof client.on<'interactionCreate'>>[1]>[0][] = [];
-    client.on('interactionCreate', (i) => got.push(i));
+    const got: ChatInputCommandInteraction[] = [];
+    client.on('interactionCreate', (i) => {
+      if (i.isChatInputCommand()) got.push(i);
+    });
     const base: Interaction = {
       id: INTERACTION_ID,
+      type: 'command',
       serverId: SERVER_ID,
       channelId: CHANNEL_ID,
       botId: 'bot-row',

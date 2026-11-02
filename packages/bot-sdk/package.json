@@ -1,6 +1,6 @@
 {
   "name": "@opencord-chat/bot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "SDK para criar bots do OpenCord (mesma forma de uso que a comunidade conhece de bots de chat).",
   "license": "MIT",
   "type": "module",
