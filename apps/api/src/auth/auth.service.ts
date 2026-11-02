@@ -66,10 +66,13 @@ export class AuthService {
     passwordHash: string | null;
     createdAt: Date;
     isInstanceAdmin?: boolean;
+    isBot?: boolean;
+    isWebhook?: boolean;
   }): Me {
     return {
       id: u.id,
-      bot: false,
+      // selo APP também em GET /me: o SDK de bots confere `bot` para saber que o token é de bot (ADR-0032)
+      bot: (u.isBot ?? false) || (u.isWebhook ?? false),
       email: u.email,
       username: u.username,
       displayName: u.displayName,

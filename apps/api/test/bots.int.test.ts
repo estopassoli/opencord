@@ -90,6 +90,8 @@ describe('bots: criar, token, autenticação', () => {
     const me = await http.req<Bot>('GET', '/bots/@me', { token: created.token });
     expect(me.status).toBe(200);
     expect(me.body.id).toBe(created.id);
+    // GET /me marca `bot: true` (o SDK confere isso no login)
+    expect((await http.req<{ bot: boolean }>('GET', '/me', { token: created.token })).body.bot).toBe(true);
     // …e pessoa não usa a rota do bot
     expect((await http.req('GET', '/bots/@me', { token: alice.token })).status).toBe(403);
     // …e no socket (evento ready)

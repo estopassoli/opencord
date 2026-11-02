@@ -1,8 +1,12 @@
 # Bots e aplicativos
 
 Guia para quem desenvolve bots para o OpenCord (ADR-0032). Um bot é um usuário com token: entra em servidores como
-membro, recebe cargos, manda mensagens, reage e responde a comandos de barra. O SDK `@opencord-chat/bot` usa os nomes que a
-comunidade de bots já conhece; quem preferir fala direto com a API REST e o gateway (seção 5).
+membro, recebe cargos, manda mensagens, reage e responde a comandos de barra. O SDK `@opencord-chat/bot` (MIT) usa os
+nomes que a comunidade de bots já conhece; quem preferir fala direto com a API REST e o gateway (seção 6).
+
+Todos os blocos "Resultado" deste guia foram obtidos rodando o código contra uma API real (roteiro em
+`packages/bot-sdk/examples/`, mesma versão do SDK). Os ids são UUIDs v7; os nomes de usuário de bots são gerados
+(`bot-xxxxxx`).
 
 ## 1. Criar um bot no app
 
@@ -18,10 +22,10 @@ Configurações do servidor → **Bots** → adicionar da lista pública ou cola
 `MANAGE_SERVER`. O bot entra como membro comum: dê cargos a ele como daria a uma pessoa — as permissões que valem são
 as dos cargos (ver canal, enviar mensagens, gerenciar mensagens…). Remover o bot é na mesma tela.
 
-## 3. Primeiro bot em 20 linhas
+## 3. Instalar e primeiro bot
 
 ```sh
-pnpm add @opencord-chat/bot        # npm: @opencord-chat/bot (MIT); do repositório: pnpm add file:…/packages/bot-sdk
+pnpm add @opencord-chat/bot        # npm (MIT); do repositório: pnpm add file:…/packages/bot-sdk
 export OPENCORD_URL=https://api.seu-opencord.dev
 export OPENCORD_TOKEN=ocb_...
 ```
@@ -51,45 +55,632 @@ client.on(Events.InteractionCreate, async (i) => {
 await client.login();
 ```
 
+Resultado no terminal (`node bot.mjs`):
+
+```
+online como bot-0b1407
+```
+
+No app: alguém escreve `!ping` e o bot responde `pong` citando a mensagem; ao digitar `/` no composer aparece
+`/ola` com a opção `nome`; `/ola nome:Bruno` mostra um cartão "Olá, Bruno!" só para quem usou o comando.
+
 Exemplo completo: `packages/bot-sdk/examples/ping.mjs`.
 
-O que o `Client` expõe:
+## 4. Referência do SDK, com resultados
 
-| Membro                                                                                              | O que faz                                                                        |
-| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `new Client({ baseUrl?, intents?, partials?, cache? })`                                             | `baseUrl` ou `OPENCORD_URL`; `intents`/`partials` são aceitos e ignorados        |
-| `login(token?)`, `destroy()`                                                                        | token ou `OPENCORD_TOKEN`; conecta ao gateway e mantém o heartbeat               |
-| `user` (`ClientUser`), `guilds.cache`/`fetch(id)`, `channels.cache`/`fetch(id)`, `users.fetch(id)`  | caches carregados no `ready` (servidores, canais, membros, cargos)               |
-| `application.commands.set([...])`                                                                   | `PUT /bots/@me/commands`; aceita `SlashCommandBuilder` ou objetos do contrato    |
-| Eventos `ready`, `messageCreate/Update/Delete`, `messageReactionAdd/Remove`, `interactionCreate`    | também `guildMemberAdd/Remove`, `guildCreate/Delete`, `channelCreate/Update/Delete`, `error`, `disconnect`, `debug`, `resume` |
-| `Message`                                                                                           | `content`, `author`, `channel`, `guild`, `mentions`, `reference`; `reply`, `react`, `edit`, `delete`, `pin` |
-| `ChatInputCommandInteraction`                                                                       | `commandName`, `user`, `member`, `options.getString/Integer/Number/Boolean/User/Channel`; `reply`, `deferReply`, `editReply`, `followUp` |
-| `EmbedBuilder`                                                                                      | vira markdown (`toMarkdown()`); `embeds: [...]` em `send`/`reply` concatena ao texto |
-| `REST` + `Routes`                                                                                   | `new REST().setToken(t).put(Routes.applicationCommands(id), { body })`           |
+Cenário usado nos exemplos: Ana criou o servidor **Clube do Livro** (canais `#geral` e `Sala`) e o bot
+**Bibliotecário**, e o adicionou ao servidor. Bruno entra mais tarde.
 
-`ready` é emitido uma vez; depois de uma queda o socket reconecta sozinho, recarrega os caches e emite `resume`.
+### 4.1 Client
 
-## 4. Comandos de barra e interações
+```js
+const client = new Client({ baseUrl: 'http://localhost:3000' }); // ou OPENCORD_URL
+client.on(Events.Debug, (m) => console.log('[debug]', m));
+client.once(Events.ClientReady, (c) => console.log(c.user));
+await client.login('ocb_...'); // ou OPENCORD_TOKEN
+```
+
+Resultado:
+
+```
+[debug] gateway pronto (sessão bot:01a19c7d-a0a8-7f30-84ed-927fde8b6c36); heartbeat a cada 25000 ms
+ClientUser {
+  id: '01a19c7d-a0a8-7f30-84ed-92800e860693',
+  username: 'bot-0b1407',
+  displayName: 'Bibliotecário',
+  bot: true,
+  avatarKey: null
+}
+```
+
+| Membro                                     | O que faz                                                                                                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `new Client({ baseUrl?, cache?, intents?, partials? })` | `baseUrl` ou `OPENCORD_URL`; `cache: false` não carrega servidores no `ready`; `intents`/`partials` são aceitos e ignorados |
+| `login(token?)`                            | token ou `OPENCORD_TOKEN`; busca `/me` e `/bots/@me`, conecta ao gateway e mantém o heartbeat. Resolve com o token                         |
+| `destroy()`                                | fecha o gateway; o bot aparece offline                                                                                                      |
+| `user`                                     | `ClientUser` (um `User`) depois do `login`                                                                                                  |
+| `isReady()`, `readyAt`, `uptime`, `ws.ping` | estado da conexão; `ws.ping` é a latência do último heartbeat em ms                                                                        |
+| `application.fetch()`                      | o registro do bot (`GET /bots/@me`)                                                                                                         |
+| `application.commands.set([...])` / `fetch()` | registra (substitui) e lista os comandos de barra                                                                                        |
+| `guilds.cache` / `guilds.fetch(id)`        | `Map<id, Guild>`; `fetch` recarrega canais, cargos e membros                                                                                |
+| `channels.cache` / `channels.fetch(id)`    | `Map<id, TextChannel>` com todos os canais dos servidores do bot                                                                            |
+| `users.cache` / `users.fetch(id)`          | `Map<id, User>`; `fetch` consulta o perfil público                                                                                          |
+| `rest`                                     | `RestClient` já autenticado: `rest.get/post/put/patch/delete(caminho, corpo)` para qualquer rota da API                                     |
+
+```js
+console.log(client.isReady(), client.uptime, client.ws.ping, client.readyAt);
+console.log(await client.application.fetch());
+```
+
+Resultado:
+
+```
+true 0 2 2026-11-02T13:40:41.294Z
+{
+  id: '01a19c7d-a0a8-7f30-84ed-927fde8b6c36',
+  user: { id: '01a19c7d-a0a8-7f30-84ed-92800e860693', username: 'bot-0b1407', displayName: 'Bibliotecário', avatarKey: null, bot: true },
+  ownerId: '01a19c7d-a08b-7703-aebe-c36995af23c7',
+  description: 'Organiza as leituras',
+  public: false,
+  createdAt: '2026-11-02T13:40:41.256Z',
+  lastSeenAt: '2026-11-02T13:40:41.270Z',
+  commands: []
+}
+```
+
+```js
+for (const g of client.guilds.cache.values())
+  console.log({ id: g.id, name: g.name, memberCount: g.memberCount, myPermissions: g.myPermissions });
+```
+
+Resultado:
+
+```
+{ id: '01a19c7d-a099-7563-bc8a-0300624e4c94', name: 'Clube do Livro', memberCount: 2, myPermissions: 1979 }
+```
+
+`myPermissions` são os bits de `Permission` (`packages/contracts/src/permissions.ts`) que o bot tem no servidor —
+aqui, os de `@everyone`.
+
+`ready` é emitido **uma vez**. Depois de uma queda o socket reconecta sozinho, recarrega os caches e emite `resume`.
+Ao final:
+
+```js
+client.destroy();
+console.log(client.isReady(), client.uptime); // false null
+```
+
+### 4.2 Comandos de barra: `SlashCommandBuilder`, `commands.set`, `REST`
+
+```js
+const cmds = await client.application.commands.set([
+  new SlashCommandBuilder()
+    .setName('ola')
+    .setDescription('Cumprimenta alguém')
+    .addStringOption((o) => o.setName('nome').setDescription('Quem cumprimentar').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('sorteio')
+    .setDescription('Sorteia um número')
+    .addIntegerOption((o) => o.setName('maximo').setDescription('Até quanto').setRequired(true))
+    .addBooleanOption((o) => o.setName('publico').setDescription('Mostrar para todos'))
+    .addUserOption((o) => o.setName('para').setDescription('Quem ganha'))
+    .addChannelOption((o) => o.setName('canal').setDescription('Onde anunciar'))
+    .addStringOption((o) =>
+      o.setName('tema').setDescription('Tema').addChoices({ name: 'Ficção', value: 'ficcao' }, { name: 'Técnico', value: 'tecnico' }),
+    ),
+  new SlashCommandBuilder().setName('demorado').setDescription('Leva alguns segundos'),
+]);
+console.log(cmds);
+```
+
+Resultado (`BotCommand[]`, o que ficou salvo):
+
+```
+[
+  {
+    name: 'ola',
+    description: 'Cumprimenta alguém',
+    options: [ { name: 'nome', description: 'Quem cumprimentar', type: 'string', required: true, choices: [] } ]
+  },
+  {
+    name: 'sorteio',
+    description: 'Sorteia um número',
+    options: [
+      { name: 'maximo',  description: 'Até quanto',          type: 'integer', required: true,  choices: [] },
+      { name: 'publico', description: 'Mostrar para todos',  type: 'boolean', required: false, choices: [] },
+      { name: 'para',    description: 'Quem ganha',          type: 'user',    required: false, choices: [] },
+      { name: 'canal',   description: 'Onde anunciar',       type: 'channel', required: false, choices: [] },
+      { name: 'tema',    description: 'Tema',                type: 'string',  required: false,
+        choices: [ { name: 'Ficção', value: 'ficcao' }, { name: 'Técnico', value: 'tecnico' } ] }
+    ]
+  },
+  { name: 'demorado', description: 'Leva alguns segundos', options: [] }
+]
+```
+
+```js
+console.log((await client.application.commands.fetch()).map((c) => c.name));
+```
+
+Resultado: `[ 'ola', 'sorteio', 'demorado' ]`. É isso que o app lista ao digitar `/` em qualquer servidor em que
+o bot é membro (`GET /servers/:id/commands` devolve `[{ botId, bot, commands }]`).
+
+Métodos do builder: `setName`, `setDescription`, `addStringOption`, `addIntegerOption`, `addNumberOption`,
+`addBooleanOption`, `addUserOption`, `addChannelOption`, `toJSON()`. Na opção: `setName`, `setDescription`,
+`setRequired`, `addChoices(...{ name, value })` (só string/integer/number). Aceitos e ignorados, para o código portado
+compilar: `setDefaultMemberPermissions`, `setDMPermission`, `setNSFW`, `setAutocomplete`, `setMinValue`,
+`setMaxValue`, `setMinLength`, `setMaxLength`.
+
+O builder valida antes de chamar a API:
+
+```js
+new SlashCommandBuilder().setName('Ola!').setDescription('x').toJSON();
+// Error: comando: nome "Ola!" inválido (minúsculas, dígitos, _ ou -, até 32 caracteres)
+
+new SlashCommandBuilder().setName('x').setDescription('x')
+  .addStringOption((o) => o.setName('a').setDescription('a'))
+  .addStringOption((o) => o.setName('b').setDescription('b').setRequired(true))
+  .toJSON();
+// Error: comando "x": a opção obrigatória "b" precisa vir antes das opcionais
+```
+
+Quem registra comandos "à moda antiga" usa `REST` + `Routes`:
+
+```js
+import { REST, Routes } from '@opencord-chat/bot';
+
+const rest = new REST({ baseUrl: process.env.OPENCORD_URL }).setToken(process.env.OPENCORD_TOKEN);
+const bot = await rest.put(Routes.applicationCommands(botId), { body: cmds });
+console.log(bot.commands.map((c) => c.name));
+```
+
+Resultado: `[ 'ola', 'sorteio', 'demorado' ]`. `Routes.applicationGuildCommands()` leva ao mesmo lugar: comandos
+são **globais** (valem em todo servidor em que o bot é membro). Outros caminhos: `Routes.channelMessages(canalId)`
+→ `/channels/<id>/messages`, `Routes.interactionReply(id)` → `/interactions/<id>/reply`, `Routes.user()` → `/me`.
+
+### 4.3 Interações (`interactionCreate`, `ChatInputCommandInteraction`)
+
+Ana usa `/sorteio maximo:10 publico:true para:@Bruno canal:#geral tema:Ficção`:
+
+```js
+client.on(Events.InteractionCreate, async (i) => {
+  console.log({
+    id: i.id, commandName: i.commandName, user: i.user.tag, member: i.member?.displayName,
+    guild: i.guild?.name, channel: String(i.channel), createdAt: i.createdAt,
+    isChatInputCommand: i.isChatInputCommand(), isButton: i.isButton(),
+  });
+});
+```
+
+Resultado:
+
+```
+{
+  id: '9619c73c-d903-4577-9e33-5a31d3576d97',
+  commandName: 'sorteio',
+  user: 'ana_403g',
+  member: 'Ana-403g',
+  guild: 'Clube do Livro',
+  channel: '#geral',
+  createdAt: 2026-11-02T13:40:41.543Z,
+  isChatInputCommand: true,
+  isButton: false
+}
+```
+
+Lendo as opções:
+
+```js
+console.log({
+  getInteger: i.options.getInteger('maximo', true),
+  getBoolean: i.options.getBoolean('publico'),
+  getUser: i.options.getUser('para')?.tag,
+  getMember: i.options.getMember('para')?.displayName,
+  getChannel: String(i.options.getChannel('canal')),
+  getString: i.options.getString('tema'),
+  ausente: i.options.getString('inexistente'),
+  data: i.options.data,
+});
+i.options.getString('inexistente', true);
+```
+
+Resultado:
+
+```
+{
+  getInteger: 10,
+  getBoolean: true,
+  getUser: 'bruno_403g',
+  getMember: 'Bruno-403g',
+  getChannel: '#geral',
+  getString: 'ficcao',
+  ausente: null,
+  data: [
+    { name: 'maximo', value: 10 },
+    { name: 'publico', value: true },
+    { name: 'para', value: '01a19c7d-a1a2-7c60-ba56-db13dca4146e' },
+    { name: 'canal', value: '01a19c7d-a09c-7493-a68b-2684ddf4abb1' },
+    { name: 'tema', value: 'ficcao' }
+  ]
+}
+Error: opção obrigatória "inexistente" não informada
+```
+
+`getNumber` funciona como `getInteger`. `getSubcommand()` devolve `null` (não há subcomandos); `getUser`/`getChannel`
+devolvem um objeto só com o id quando a pessoa ou o canal não estão no cache.
+
+Respondendo:
+
+```js
+const r1 = await i.reply({ content: 'Sorteado: **7** (de 10)', ephemeral: true });
+console.log(r1, i.replied);
+await i.reply('de novo');
+```
+
+Resultado:
+
+```
+{ messageId: null } true
+Error: interação já respondida: use editReply ou followUp
+```
+
+Efêmera (`messageId: null`): só quem usou o comando vê, como um cartão no chat; não vira mensagem do canal. Resposta
+normal vira uma mensagem comum do bot e devolve o id dela:
+
+```js
+// Bruno usou /ola nome:Bruno
+const r2 = await i.reply(`Olá, ${i.options.getString('nome', true)}!`);
+const msg = await i.fetchReply();
+const edited = await i.editReply('Olá, Bruno! (editado)');
+const extra = await i.followUp({ embeds: [new EmbedBuilder().setTitle('Dica').setDescription('Use /sorteio para sortear.')] });
+await i.deleteReply();
+```
+
+Resultado, passo a passo:
+
+```
+reply      → { messageId: '01a19c7d-a1d6-7963-a784-b3b224aed6c1' }
+fetchReply → Message { id: '01a19c7d-a1d6-…', content: 'Olá, Bruno!', author: 'bot-0b1407' }
+editReply  → Message { id: '01a19c7d-a1d6-…', content: 'Olá, Bruno! (editado)', editedAt: 2026-11-02T13:40:41.579Z }
+followUp   → Message { id: '01a19c7d-a1f3-7f82-a443-7111ed7f3ccd', content: '**Dica**\nUse /sorteio para sortear.' }
+deleteReply → (sem retorno; a mensagem da resposta some do canal)
+```
+
+Trabalho demorado: `deferReply()` mostra "pensando…" e ganha até 15 min para responder.
+
+```js
+await i.deferReply();
+console.log(i.deferred, i.replied); // true false
+await fazerAlgoDemorado();
+console.log(await i.editReply('Pronto! Levou 1,5 s.'), i.replied);
+```
+
+Resultado:
+
+```
+true false
+{ messageId: '01a19c7d-a7ee-7fb0-9400-f440b07dc48b' } true
+```
+
+Responder tarde demais (interação expirada, 180 s sem resposta) ou a um id inexistente:
+
+```js
+await client.rest.post('/interactions/00000000-0000-4000-8000-000000000000/reply', { content: 'tarde', ephemeral: false });
+```
+
+Resultado:
+
+```
+OpenCordAPIError { status: 404, message: 'interação não encontrado', method: 'POST', path: '/interactions/…/reply' }
+```
+
+Campos e métodos: `id`, `commandName`, `user`, `member`, `guild`, `guildId`, `channel`, `channelId`, `createdAt`,
+`createdTimestamp`, `options`, `replied`, `deferred`; `reply`, `deferReply({ ephemeral? })`, `editReply`,
+`followUp`, `fetchReply`, `deleteReply`; `isChatInputCommand()`/`isCommand()`/`isRepliable()`/`inGuild()` → `true`;
+`isButton()`/`isStringSelectMenu()`/`isModalSubmit()`/`isAutocomplete()` → `false`.
+
+### 4.4 Mensagens: `TextChannel.send`, `Message`, `EmbedBuilder`
+
+```js
+const guild = client.guilds.cache.get(serverId);
+const channel = [...guild.channels.cache.values()].find((c) => c.name === 'geral');
+const m = await channel.send('Bem-vindos ao Clube do Livro!');
+console.log({ id: m.id, content: m.content, author: m.author.tag, bot: m.author.bot, channel: String(m.channel),
+  guild: m.guild?.name, createdAt: m.createdAt, url: m.url, inGuild: m.inGuild() });
+```
+
+Resultado:
+
+```
+{
+  id: '01a19c7d-a0eb-7bf0-8696-667581ff01e9',
+  content: 'Bem-vindos ao Clube do Livro!',
+  author: 'bot-0b1407',
+  bot: true,
+  channel: '#geral',
+  guild: 'Clube do Livro',
+  createdAt: 2026-11-02T13:40:41.324Z,
+  url: 'http://localhost:3000/messages/01a19c7d-a0eb-7bf0-8696-667581ff01e9',
+  inGuild: true
+}
+```
+
+Embeds não existem no OpenCord: `EmbedBuilder` vira **markdown** que o app renderiza.
+
+```js
+const embed = new EmbedBuilder()
+  .setTitle('Leitura do mês')
+  .setURL('https://exemplo.dev/livro')
+  .setDescription('Vamos ler juntos até dia 30.')
+  .addFields({ name: 'Livro', value: 'Dom Casmurro' }, { name: 'Páginas', value: '256', inline: true })
+  .setFooter({ text: 'Clube do Livro' })
+  .setTimestamp(new Date('2026-11-02T10:00:00-03:00'));
+console.log(embed.toMarkdown());
+const m2 = await channel.send({ content: 'Anúncio:', embeds: [embed] });
+console.log(m2.content);
+```
+
+Resultado:
+
+```
+**[Leitura do mês](https://exemplo.dev/livro)**
+Vamos ler juntos até dia 30.
+**Livro**: Dom Casmurro
+**Páginas**: 256
+_Clube do Livro • 02/11/2026, 10:00:00_
+```
+
+e `m2.content` é `'Anúncio:'`, uma linha em branco e o mesmo bloco. `setColor` é aceito e ignorado; `setImage`/
+`setThumbnail` viram o link; `setAuthor` vira a primeira linha.
+
+Recebendo uma mensagem (Ana escreve `@Bibliotecário !ping`):
+
+```js
+client.on(Events.MessageCreate, (m) => {
+  if (m.author.bot) return;
+  console.log({ id: m.id, content: m.content, author: m.author.tag, member: m.member?.displayName, guild: m.guild?.name,
+    channel: String(m.channel), mentionsMe: m.mentions.has(client.user), users: [...m.mentions.users.keys()],
+    everyone: m.mentions.everyone });
+});
+```
+
+Resultado:
+
+```
+{
+  id: '01a19c7d-a10d-7010-a5a8-8c9ff0d3c2f3',
+  content: '<@01a19c7d-a0a8-7f30-84ed-92800e860693> !ping',
+  author: 'ana_403g',
+  member: 'Ana-403g',
+  guild: 'Clube do Livro',
+  channel: '#geral',
+  mentionsMe: true,
+  users: [ '01a19c7d-a0a8-7f30-84ed-92800e860693' ],
+  everyone: false
+}
+```
+
+Menções chegam como `<@id>` no texto. Respondendo, reagindo, editando, fixando e apagando:
+
+```js
+const pong = await m.reply('pong');
+console.log(pong.reference);
+```
+
+Resultado:
+
+```
+{ messageId: '01a19c7d-a10d-7010-a5a8-8c9ff0d3c2f3', channelId: '01a19c7d-a09c-7493-a68b-2684ddf4abb1', guildId: '01a19c7d-a099-7563-bc8a-0300624e4c94' }
+```
+
+```js
+client.on(Events.MessageReactionAdd, (reaction, user) =>
+  console.log('+', reaction.emoji.name, reaction.count, reaction.message.id, reaction.message.partial, user.tag));
+client.on(Events.MessageReactionRemove, (reaction) => console.log('-', reaction.emoji.name, reaction.count));
+await m.react('👍');
+await m.unreact('👍');
+```
+
+Resultado (o bot recebe as próprias reações):
+
+```
++ 👍 1 01a19c7d-a10d-7010-a5a8-8c9ff0d3c2f3 true bot-0b1407
+- 👍 0
+```
+
+```js
+client.on(Events.MessageUpdate, (oldM, newM) => console.log('update', oldM, newM.content));
+const edited = await pong.edit('pong (editado)');
+console.log(edited.content, edited.editedAt);
+```
+
+Resultado:
+
+```
+update null pong (editado)
+pong (editado) 2026-11-02T13:40:41.400Z
+```
+
+`messageUpdate` traz `old` como `null`: a API não guarda a versão anterior.
+
+```js
+await pong.pin();
+```
+
+Resultado, com o bot só com `@everyone`:
+
+```
+OpenCordAPIError { status: 403, message: 'permissão insuficiente', method: 'PUT', path: '/messages/01a19c7d-a11a-…/pin' }
+```
+
+Fixar exige `MANAGE_MESSAGES`. Ana cria o cargo "Moderação" com essa permissão e dá ao bot; depois de
+`guild.fetch()`:
+
+```js
+const me = guild.members.cache.get(client.user.id);
+console.log([...me.roles.cache.values()].map((r) => r.name), me.permissions, guild.myPermissions);
+await pong.pin();   // agora fixa: pinnedAt '2026-11-02T13:40:41.440Z'
+await pong.unpin(); // pinnedAt volta a null
+```
+
+Resultado:
+
+```
+[ 'Moderação' ] 4 1983
+```
+
+```js
+client.on(Events.MessageDelete, (p) => console.log({ id: p.id, partial: p.partial, channelId: p.channelId, inGuild: p.inGuild() }));
+await pong.delete();
+```
+
+Resultado (`PartialMessage`: só o id é conhecido; `p.fetch()` tenta recuperar entre as 100 mais recentes):
+
+```
+{ id: '01a19c7d-a11a-7e83-860b-c1c594596ad1', partial: true, channelId: '01a19c7d-a09c-7493-a68b-2684ddf4abb1', inGuild: true }
+```
+
+Histórico:
+
+```js
+const page = await channel.messages.fetch({ limit: 3 });
+console.log([...page.values()].map((x) => `${x.author.tag}: ${x.content.split('\n')[0]}`));
+```
+
+Resultado (mais recente primeiro; mensagem apagada vem como lápide com `deleted: true` e texto vazio):
+
+```
+[ 'bot-0b1407: ', 'ana_403g: <@01a19c7d-a0a8-7f30-84ed-92800e860693> !ping', 'bot-0b1407: Anúncio:' ]
+```
+
+Campos de `Message`: `id`, `content`, `author` (`User`), `member`, `channel`, `channelId`, `conversationId` (DM),
+`guild`, `guildId`, `createdAt`, `createdTimestamp`, `editedAt`, `deleted`, `mentions` (`users`, `everyone`,
+`has()`), `reference`, `reactions`, `attachments`, `pinnedAt`, `url`, `partial: false`. Métodos: `reply`, `react`,
+`unreact`, `edit`, `delete`, `pin`, `unpin`, `inGuild()`, `toString()` (o conteúdo).
+
+### 4.5 Usuários e conversas diretas
+
+```js
+const ana = await client.users.fetch(anaId);
+console.log({ username: ana.username, displayName: ana.displayName, tag: ana.tag, globalName: ana.globalName, bot: ana.bot, mention: String(ana) });
+const dm = await ana.createDM();
+console.log({ id: dm.id, type: dm.type, guild: dm.guild, isDMBased: dm.isDMBased() });
+const sent = await ana.send('Oi, Ana! Mensagem direta do bot.');
+console.log({ id: sent.id, content: sent.content, conversationId: sent.conversationId, guild: sent.guild, inGuild: sent.inGuild() });
+```
+
+Resultado:
+
+```
+{ username: 'ana_403g', displayName: 'Ana-403g', tag: 'ana_403g', globalName: 'Ana-403g', bot: false, mention: '<@01a19c7d-a08b-7703-aebe-c36995af23c7>' }
+{ id: '01a19c7d-a18a-7e91-ac38-41ec5a3ac79c', type: 'dm', guild: null, isDMBased: true }
+{ id: '01a19c7d-a198-7863-98f2-9d13c962ce60', content: 'Oi, Ana! Mensagem direta do bot.', conversationId: '01a19c7d-a18a-…', guild: null, inGuild: false }
+```
+
+Não há discriminador: `tag` é o próprio `username`. `User.toString()` gera a menção. `DMChannel` tem `send` e
+`messages.fetch` como um canal de texto; mensagens de DM chegam em `messageCreate` com `conversationId` preenchido
+e `guild` `null`.
+
+### 4.6 Servidores, cargos, canais e membros
+
+```js
+const guild = client.guilds.cache.get(serverId);
+console.log([...guild.channels.cache.values()].map((c) => ({ id: c.id, name: c.name, type: c.type, str: String(c) })));
+console.log([...guild.roles.cache.values()].map((r) => ({ name: r.name, position: r.position, permissions: r.permissions, isEveryone: r.isEveryone })));
+const ana = await guild.members.fetch(anaId);
+console.log({ id: ana.id, displayName: ana.displayName, nickname: ana.nickname, joinedAt: ana.joinedAt, roleIds: ana.roleIds, permissions: ana.permissions, mention: String(ana) });
+```
+
+Resultado:
+
+```
+[
+  { id: '01a19c7d-a09c-7493-a68b-2684ddf4abb1', name: 'geral', type: 'text', str: '#geral' },
+  { id: '01a19c7d-a09d-73f0-bc4e-1f256976fe20', name: 'Sala', type: 'voice', str: '#Sala' }
+]
+[ { name: '@everyone', position: 0, permissions: 1979, isEveryone: true } ]
+{
+  id: '01a19c7d-a08b-7703-aebe-c36995af23c7',
+  displayName: 'Ana-403g',
+  nickname: null,
+  joinedAt: 2026-11-02T13:40:41.243Z,
+  roleIds: [],
+  permissions: 0,
+  mention: '<@01a19c7d-a08b-7703-aebe-c36995af23c7>'
+}
+```
+
+`GuildMember.permissions` soma os bits dos **cargos** do membro (não inclui `@everyone` nem o fato de ser dono: Ana é
+dona e aparece com `0`). Para "o que o bot pode fazer" use `guild.myPermissions` e `channel.myPermissions`.
+`guild.members.fetch()` sem id recarrega e devolve o `Map` inteiro.
+
+Eventos de membros e canais (Bruno entra por convite, Ana cria `#resenhas`, expulsa Bruno e remove o bot):
+
+```js
+client.on(Events.GuildMemberAdd, (m) => console.log('entrou', m.displayName, m.guild.name, m.joinedAt));
+client.on(Events.ChannelCreate, (c) => console.log('canal', c.name, c.type, c.guild?.name, c.isTextBased(), c.myPermissions));
+client.on(Events.GuildMemberRemove, (m) => console.log('saiu', m.displayName));
+client.on(Events.GuildDelete, (g) => console.log('fora de', g.name, client.guilds.cache.size));
+```
+
+Resultado:
+
+```
+entrou Bruno-403g Clube do Livro 2026-11-02T13:40:41.527Z
+canal resenhas text Clube do Livro true 1983
+saiu Bruno-403g
+fora de Clube do Livro 0
+```
+
+`guildCreate` dispara quando alguém adiciona o bot a um servidor; `guildDelete` quando o bot é removido ou o
+servidor é excluído. `channelUpdate(old, new)` e `channelDelete(channel)` seguem o mesmo padrão.
+
+### 4.7 Todos os eventos
+
+| Evento (`Events.*`)                                  | Argumentos                                   | Quando                                                     |
+| ---------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
+| `ClientReady` (`'ready'`)                            | `(client)`                                   | uma vez, com os caches carregados                          |
+| `'resume'`                                           | —                                            | reconectou depois de uma queda (caches recarregados)       |
+| `MessageCreate`                                      | `(message)`                                  | mensagem em canal ou DM que o bot vê (inclusive as dele)   |
+| `MessageUpdate`                                      | `(null, message)`                            | edição                                                     |
+| `MessageDelete`                                      | `(partialMessage)`                           | exclusão                                                   |
+| `MessageReactionAdd` / `MessageReactionRemove`       | `(reaction, user)`                           | reação colocada/tirada                                     |
+| `InteractionCreate`                                  | `(interaction)`                              | alguém usou um comando do bot                              |
+| `GuildMemberAdd` / `GuildMemberRemove`               | `(member)`                                   | entrou/saiu (ou expulso) de um servidor do bot             |
+| `GuildCreate` / `GuildDelete`                        | `(guild)`                                    | bot adicionado / removido (ou servidor excluído)           |
+| `ChannelCreate` / `ChannelUpdate` / `ChannelDelete`  | `(channel)` / `(old, new)` / `(channel)`     | canais do servidor                                         |
+| `Error`                                              | `(error)`                                    | token recusado, sessão revogada, erro num handler          |
+| `Disconnect`                                         | `(reason)`                                   | gateway caiu (reconecta sozinho)                           |
+| `Debug`                                              | `(text)`                                     | diagnóstico (conexão, heartbeat, falhas de cache)          |
+
+### 4.8 Erros
+
+- `OpenCordAPIError` (de `@opencord-chat/bot`): qualquer resposta não-2xx da API. Campos `status`, `message`,
+  `details` (nos 400 de validação, `[{ path, message }]`), `method`, `path`. Exemplos reais acima: 403 "permissão
+  insuficiente", 404 "interação não encontrado".
+- `Error` comum: validação local (builders, `reply()` repetido, mensagem vazia: `mensagem vazia: informe content ou ao
+  menos um embed`, URL/token ausentes).
+- Erros dentro de um handler de evento vão para `Events.Error` se houver ouvinte; senão para `Events.Debug` (o
+  processo não cai).
+
+## 5. Regras das interações
 
 - **Registro:** `PUT /bots/@me/commands` substitui a lista inteira (até 50 comandos, 10 opções cada, 25 escolhas por
   opção). Nomes: `[a-z0-9_-]{1,32}`; descrições de 1 a 100 caracteres; **opções obrigatórias antes das opcionais**.
-  Tipos: `string`, `integer`, `number`, `boolean`, `user`, `channel`. Comandos são **globais**: valem em todo servidor
-  em que o bot é membro; o app os mostra ao digitar `/` no composer.
+  Tipos: `string`, `integer`, `number`, `boolean`, `user`, `channel`. Comandos são **globais**.
 - **Ciclo:** a pessoa usa `/ola nome:Ana` → a API valida (permissão `SEND_MESSAGES` no canal, opções contra a
   definição, bot conectado — senão **409 bot offline**) → o bot recebe `interaction:created` → responde.
 - **TTL:** a interação espera **180 s** por `reply`; `defer` ("pensando…") estende para **15 min**. Depois disso o
   `reply` devolve 404/410.
-- **`reply({ content, ephemeral })`:** efêmera → só quem usou o comando vê (evento `interaction:replied`, não vira
-  mensagem); normal → mensagem comum do bot no canal, e a resposta traz `messageId` (o SDK usa em `editReply` via
-  `PATCH /messages/:id`).
-- **`deferReply()` + `editReply()`:** para trabalho demorado. `followUp()` manda outra mensagem no canal.
+- **Efêmera** (`ephemeral: true`): só quem usou o comando vê; não vira mensagem (`messageId: null`). **Normal:**
+  mensagem comum do bot no canal, e `messageId` permite `editReply`/`fetchReply`/`deleteReply`.
 - Não há botões, menus, modais, autocompletar nem subcomandos nesta fase.
 
-## 5. Referência para quem não usa o SDK
+## 6. Referência para quem não usa o SDK
 
 **Autenticação.** `Authorization: Bearer ocb_…` em toda rota; o mesmo token no handshake do Socket.IO
 (`auth: { token }`). O token é de bot (`sessionId = bot:<id>`): qualquer rota de usuário vale (mensagens, reações,
-membros, canais, presença), com as permissões de membro.
+membros, canais, presença), com as permissões de membro. `GET /me` devolve o usuário do bot com `bot: true`.
 
 **Rotas de bot.**
 
@@ -102,10 +693,12 @@ membros, canais, presença), com as permissões de membro.
 | `GET /servers/:id/commands`                    | comandos disponíveis no servidor (por bot membro) — é o que o app lista no composer  |
 | `GET /channels/:id/messages?limit=&before=`    | histórico                                                                            |
 | `POST /channels/:id/messages`                  | `{ requestId: uuid, body, replyToId? }` → `Message`                                  |
-| `POST /conversations/:id/messages`             | mesmo corpo, em conversa direta (`POST /conversations { userIds }` abre uma)         |
+| `POST /conversations` `{ userIds }`            | abre (ou reaproveita) uma conversa direta → `{ id, … }`                              |
+| `POST /conversations/:id/messages`             | mesmo corpo da mensagem de canal, em conversa direta                                 |
 | `PATCH /messages/:id` `{ body }`               | editar                                                                               |
 | `DELETE /messages/:id`                         | apagar                                                                               |
 | `PUT`/`DELETE /messages/:id/reactions/:emoji`  | reagir / tirar reação (emoji URL-encoded)                                            |
+| `PUT`/`DELETE /messages/:id/pin`               | fixar / desafixar (`MANAGE_MESSAGES`)                                                |
 | `POST /interactions/:id/defer`                 | "pensando…" (204)                                                                    |
 | `POST /interactions/:id/reply`                 | `{ content, ephemeral }` → `{ messageId \| null }`                                   |
 
@@ -125,21 +718,21 @@ que interessam a um bot: `chat:message:created|updated|deleted`, `chat:reaction:
 **Limites.** 300 requisições/min por IP (vale para bots); 10 bots por pessoa; 50 comandos, 10 opções, 25 escolhas;
 mensagens até 4000 caracteres; payload do socket até 64 KB.
 
-## 6. Portando do discord.js
+## 7. Portando do discord.js
 
 A compatibilidade é de **forma de uso**, não de protocolo: o SDK foi escrito do zero sobre a API do OpenCord. Para
 um bot de mensagens e comandos, trocar o import e o token costuma bastar.
 
 | No discord.js                                           | No OpenCord                                                                                          |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `import { … } from 'discord.js'`                        | `import { … } from '@opencord-chat/bot'`                                                                  |
+| `import { … } from 'discord.js'`                        | `import { … } from '@opencord-chat/bot'`                                                             |
 | `client.login(DISCORD_TOKEN)`                           | `client.login(OPENCORD_TOKEN)` + `baseUrl`/`OPENCORD_URL` (cada instância tem a própria API)         |
 | `intents: [GatewayIntentBits.…]`, `partials`            | aceitos e ignorados: o bot recebe os eventos dos servidores em que é membro, conforme os cargos      |
 | ids snowflake (`'1234…'`)                               | UUIDs; nada de `SnowflakeUtil`/timestamps extraídos do id                                            |
 | `guild`                                                 | servidor (`Guild` continua sendo o nome no SDK; `guildId` = id do servidor)                          |
 | `message.guild`/`guildId`                               | iguais; `null` em conversa direta; precisam do cache de canais (carregado no `ready`)                |
 | `user.tag`, `user#1234`                                 | `tag` = `username` (não há discriminador); `user.toString()` → `<@uuid>`                             |
-| `EmbedBuilder` + `embeds: [...]`                        | vira markdown concatenado ao texto (título em negrito, campos `**nome**: valor`, rodapé em itálico); `setColor` ignorado; imagens viram links |
+| `EmbedBuilder` + `embeds: [...]`                        | vira markdown concatenado ao texto (seção 4.4); `setColor` ignorado; imagens viram links             |
 | Botões, menus, modais, autocompletar, subcomandos       | não existem nesta fase (`isButton()` etc. devolvem `false`)                                          |
 | Voz (`@discordjs/voice`)                                | não há; o bot não entra em chamadas                                                                  |
 | `PermissionFlagsBits`, `setDefaultMemberPermissions`    | permissões são os cargos do OpenCord (`member.permissions` com os bits de `@opencord/contracts`); o setter é aceito e ignorado |
@@ -149,7 +742,7 @@ um bot de mensagens e comandos, trocar o import e o token costuma bastar.
 | `client.on('ready')` a cada reconexão                   | `ready` uma vez; reconexão emite `resume`                                                            |
 | OAuth2 / link de convite do bot                         | adicionar pela tela Configurações do servidor → Bots                                                 |
 
-## 7. Limites e segurança
+## 8. Limites e segurança
 
 - O servidor guarda só o **SHA-256** do token; vazou → **Gerar novo token** (o antigo morre na hora) e troque no
   ambiente do bot. Nunca commite o token; use `OPENCORD_TOKEN`.

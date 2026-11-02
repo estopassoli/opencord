@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '11:00',
+    kind: 'melhoria',
+    icon: 'chat',
+    title: 'Guia de bots com resultados reais',
+    body: 'docs/BOTS.md agora mostra cada método do SDK com exemplo e o resultado exato que ele devolve (comandos, interações, mensagens, embeds, DMs, eventos, erros), tudo obtido rodando contra uma API real. A rota GET /me passou a marcar bot: true para tokens de bot.',
+  },
+  {
+    date: '2026-11-02',
     time: '10:30',
     kind: 'melhoria',
     icon: 'upload',
