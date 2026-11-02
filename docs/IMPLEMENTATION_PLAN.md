@@ -151,6 +151,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-02 | Celular: layout revisado + app instalável (ADR-0035) | `apps/desktop/test/pwa.test.ts` 6/6; unit desktop completo verde; typecheck/lint; capturas headless 390×844 e 844×390 (gavetas opacas, membros, chamada, live em destaque); SW `activated` com 12 entradas em cache; manifesto 3 ícones | verde | instalação em Android/iPhone reais ainda não validada |
 | 2026-11-02 | Moderação por IA antes de publicar (ADR-0036) | int `ai-moderation.int.test.ts` 7/7 com stub da Anthropic + suíte 186/186; desktop typecheck/lint/unit 201/201 | verde | migração `20261102030000_ai_moderation` + `ffmpeg` na imagem da API antes do deploy; `ANTHROPIC_API_KEY` em produção (segredo); validar vereditos reais |
 | 2026-11-02 | Bloqueio automático + dispositivo (adendo ADR-0036) | int `ai-moderation.int.test.ts` 10/10; unit API `media.test.ts`; desktop `hardware-id.test.ts`; typecheck/lint | verde | migração `20261102040000_device_bans` antes da API nova; chaves desligadas por padrão no painel |
+| 2026-11-02 | Bots públicos oficiais (ADR-0037) | `apps/bots` unit 11/11; int `official-bots.int.test.ts` 2/2; prova real com 6 bots contra a API local (smoke-bots.out: 20 comandos/botões) | verde | migração `20261102050000_official_bots` antes da API nova; serviço `bots` precisa subir na infra com `OFFICIAL_BOTS_SECRET` |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

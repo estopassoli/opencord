@@ -87,7 +87,22 @@ services:
       PUBLIC_API_URL: ${PUBLIC_API_URL:?defina PUBLIC_API_URL}
     ports: ['127.0.0.1:8080:80']
 
+
+  # Bots públicos oficiais (ADR-0037): entram em qualquer servidor pelo diretório "Adicionar bot".
+  bots:
+    build: { context: ../.., dockerfile: infra/docker/bots.Dockerfile }
+    restart: unless-stopped
+    environment:
+      OPENCORD_URL: http://api:3000
+      # mesmo valor definido na API (OFFICIAL_BOTS_SECRET): os bots pedem o próprio token na subida
+      OFFICIAL_BOTS_SECRET: ${OFFICIAL_BOTS_SECRET:-}
+      # Oráculo (IA); vazio = o bot avisa que a IA está desligada
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes: [botsdata:/data]
+    depends_on: [api]
+
 volumes:
   pgdata:
   uploads:
   minio:
+  botsdata:

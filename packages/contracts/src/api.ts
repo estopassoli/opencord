@@ -1025,6 +1025,15 @@ export const CreateBotRequest = z.object({
 export type CreateBotRequest = z.infer<typeof CreateBotRequest>;
 export const UpdateBotRequest = CreateBotRequest.partial();
 export type UpdateBotRequest = z.infer<typeof UpdateBotRequest>;
+/** Bots oficiais (ADR-0037): o container dos bots pede o próprio token com o segredo compartilhado com a API. */
+export const OfficialBotClaimRequest = z.object({
+  key: z.string().regex(/^[A-Z0-9_]{2,32}$/),
+  name: z.string().trim().min(1).max(32),
+  description: z.string().trim().max(200).default(''),
+  secret: z.string().min(16).max(256),
+});
+export type OfficialBotClaimRequest = z.input<typeof OfficialBotClaimRequest>;
+
 export const SetBotCommandsRequest = z.object({
   commands: z
     .array(BotCommand)

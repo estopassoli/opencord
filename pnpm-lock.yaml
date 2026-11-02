@@ -291,6 +291,28 @@ importers:
         specifier: 3.2.7
         version: 3.2.7(@types/node@24.19.2)(jiti@2.7.0)(jsdom@27.4.0(supports-color@7.2.0))(supports-color@7.2.0)(tsx@4.23.15)
 
+  apps/bots:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^1.3.0
+        version: 1.3.0(zod@4.6.7)
+      '@opencord-chat/bot':
+        specifier: workspace:*
+        version: link:../../packages/bot-sdk
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: 24.19.2
+        version: 24.19.2
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/node@24.19.2)(jiti@2.7.0)(jsdom@27.4.0(supports-color@7.2.0))(supports-color@7.2.0)(tsx@4.23.15)
+
   apps/desktop:
     dependencies:
       '@fontsource-variable/inter':

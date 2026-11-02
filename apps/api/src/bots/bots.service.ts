@@ -3,7 +3,7 @@
  * servidores como membro comum (quem tem MANAGE_SERVER adiciona), registra comandos de barra e recebe os mesmos
  * eventos do gateway que qualquer pessoa. Aqui: ciclo de vida do bot, token, comandos e entrada/saída de servidores.
  */
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
   BOT_TOKEN_PREFIX,
   BotCommand,
@@ -17,7 +17,9 @@ import {
   type UpdateBotRequest,
 } from '@opencord/contracts';
 import type { Prisma } from '@opencord/db';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { APP_CONFIG, type AppConfig } from '../config/config.js';
+import { InstanceService } from '../admin/instance.service.js';
 import { z } from 'zod';
 import type { AuthUser } from '../common/auth.js';
 import { forbidden, notFound } from '../common/errors.js';
@@ -75,6 +77,8 @@ export class BotsService {
     private readonly realtime: RealtimeService,
     private readonly tokens: TokenService,
     private readonly avatars: AvatarService,
+    @Inject(APP_CONFIG) private readonly cfg: AppConfig,
+    private readonly instance: InstanceService,
   ) {}
 
   /** Bot da requisição autenticada com token `ocb_…`; pessoa → 403. */
@@ -115,6 +119,47 @@ export class BotsService {
         public: dto.public,
         tokenHash,
         // usuário próprio do bot: sem senha, sem e-mail, sem apelido reservado; só o token autentica
+        user: { create: { username: `bot-${randomBytes(3).toString('hex')}`, displayName: dto.name, isBot: true } },
+      },
+      include: INCLUDE,
+    });
+    return { ...serializeBot(row), token };
+  }
+
+  /**
+   * Bots oficiais (ADR-0037): com o segredo certo, devolve o token do bot `key` (do criador da instância, público),
+   * criando-o se não existir. O token anterior deixa de valer (o container pede um novo a cada subida).
+   */
+  async claimOfficial(dto: { key: string; name: string; description: string; secret: string }): Promise<BotWithToken> {
+    const secret = this.cfg.OFFICIAL_BOTS_SECRET;
+    if (!secret) throw notFound('recurso');
+    const a = Buffer.from(dto.secret);
+    const b = Buffer.from(secret);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) throw forbidden('segredo inválido');
+    const ownerId = await this.instance.creatorId();
+    if (!ownerId) throw new BadRequestException('instância sem servidor oficial: crie-o antes dos bots oficiais');
+    const { token, tokenHash } = newToken();
+    const existing = await this.prisma.bot.findFirst({
+      where: { ownerId, officialKey: dto.key },
+      include: INCLUDE,
+    });
+    if (existing) {
+      const row = await this.prisma.bot.update({
+        where: { id: existing.id },
+        data: { tokenHash, public: true, description: dto.description },
+        include: INCLUDE,
+      });
+      this.tokens.invalidateCache([botSessionId(existing.id)]);
+      await this.realtime.disconnectUser(existing.userId, 'token_regenerated');
+      return { ...serializeBot(row), token };
+    }
+    const row = await this.prisma.bot.create({
+      data: {
+        owner: { connect: { id: ownerId } },
+        description: dto.description,
+        public: true,
+        officialKey: dto.key,
+        tokenHash,
         user: { create: { username: `bot-${randomBytes(3).toString('hex')}`, displayName: dto.name, isBot: true } },
       },
       include: INCLUDE,

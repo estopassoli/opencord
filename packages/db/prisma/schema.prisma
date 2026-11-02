@@ -689,10 +689,14 @@ model Bot {
   tokenHash   String    @unique
   /// comandos de barra (BotCommand[] do contrato)
   commands    Json      @default("[]")
+  /// bot oficial da instância (ADR-0037): chave fixa (YOU6, DINAMO…) pela qual o container dos bots o reconhece
+  officialKey String?
   createdAt   DateTime  @default(now()) @db.Timestamptz(3)
   lastSeenAt  DateTime? @db.Timestamptz(3)
   user        User      @relation("BotUser", fields: [userId], references: [id], onDelete: Cascade)
   owner       User      @relation("BotOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, officialKey])
 
   @@index([ownerId])
 }

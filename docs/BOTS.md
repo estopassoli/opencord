@@ -8,6 +8,14 @@ Todos os blocos "Resultado" deste guia foram obtidos rodando o código contra um
 `packages/bot-sdk/examples/`, mesma versão do SDK). Os ids são UUIDs v7; os nomes de usuário de bots são gerados
 (`bot-xxxxxx`).
 
+## 0. Bots oficiais prontos (ADR-0037)
+
+Em Configurações do servidor → Bots → Adicionar, qualquer servidor encontra os bots oficiais da instância: **YOU6**
+(níveis e boas-vindas), **Dínamo** (automod e avisos), **Carlos** (tags, lembretes, sorteios), **Dank Mineiro**
+(economia de brincadeira), **Tíquete** (tickets) e **Oráculo** (IA). Depois de adicionar, dê ao bot um cargo com
+o que ele precisa: Dínamo pede "Gerenciar mensagens" e "Castigar membros"; Tíquete pede "Gerenciar canais" e
+"Gerenciar cargos". O código deles está em `apps/bots` e serve de exemplo completo do SDK.
+
 ## 1. Criar um bot no app
 
 1. Configurações → **Aplicativos** → **Novo bot**: nome, descrição e se é público (aparece na lista "Adicionar bot"

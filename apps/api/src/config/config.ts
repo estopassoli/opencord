@@ -83,6 +83,8 @@ export const ConfigSchema = z.object({
   MODERATION_AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(12_000),
   /** true: IA indisponível retém a mensagem em vez de liberar. */
   MODERATION_AI_FAIL_CLOSED: bool.default(false),
+  /** Bots oficiais (ADR-0037): segredo compartilhado com o container dos bots; sem ele a rota de claim não existe. */
+  OFFICIAL_BOTS_SECRET: z.string().min(16).optional(),
   /** Autocompletar de comandos de bot (ADR-0034): quanto a API espera o bot antes de devolver sem sugestões. */
   AUTOCOMPLETE_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(AUTOCOMPLETE_TIMEOUT_MS),
 });

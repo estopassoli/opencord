@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
 import {
+  OfficialBotClaimRequest,
   AddBotToServerRequest,
   CreateBotRequest,
   CreateInteractionRequest,
@@ -12,7 +13,7 @@ import {
   UpdateBotRequest,
 } from '@opencord/contracts';
 import type { z } from 'zod';
-import { CurrentUser, type AuthUser } from '../common/auth.js';
+import { CurrentUser, Public, type AuthUser } from '../common/auth.js';
 import { zodPipe } from '../common/zod.pipe.js';
 import { BotsService } from './bots.service.js';
 import { InteractionsService } from './interactions.service.js';
@@ -36,6 +37,13 @@ export class BotsController {
   @Post('me/bots')
   create(@CurrentUser() u: AuthUser, @Body(zodPipe(CreateBotRequest)) dto: z.infer<typeof CreateBotRequest>) {
     return this.bots.create(u, dto);
+  }
+
+  /** Bots oficiais (ADR-0037): container dos bots pede o token com o segredo compartilhado (rota pública). */
+  @Public()
+  @Post('bots/official/claim')
+  claimOfficial(@Body(zodPipe(OfficialBotClaimRequest)) dto: z.infer<typeof OfficialBotClaimRequest>) {
+    return this.bots.claimOfficial(dto);
   }
 
   // ---------- Diretório e o próprio bot (as rotas fixas vêm antes de `bots/:id`) ----------
