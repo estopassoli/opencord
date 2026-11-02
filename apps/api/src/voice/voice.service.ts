@@ -250,6 +250,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     if (access.kind !== 'voice') throw new BadRequestException('não é um canal de voz');
     // em castigo (ADR-0034) não entra em voz
     assertNotTimedOut(access);
+    // invisível (ADR-0013) não entra em voz: a chamada mostraria a pessoa
+    if (access.hidden) throw forbidden('fique visível no servidor para entrar em voz');
     // criador de salas (ADR-0029): a pessoa entra numa sala temporária nova, não no criador
     const hub = await this.prisma.channel.findUnique({ where: { id: channelId }, select: { roomHub: true } });
     if (hub?.roomHub) return this.join(userId, (await this.servers.createTemporaryRoom(channelId, userId)).id);

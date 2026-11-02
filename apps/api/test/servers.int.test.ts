@@ -414,6 +414,64 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     expect(dir.body.map((d) => d.id)).not.toContain(priv.body.id);
   });
 
+  it('super admin invisível: entra sem aparecer em lista, contagem e presença; alterna para visível com eventos', async () => {
+    const { alice } = await setup();
+    const priv = await http.req<ServerDetail>('POST', '/servers', { token: alice.token, body: { name: 'Vigiado' } });
+    const boss = await register(http);
+    await prisma.user.update({ where: { id: boss.id }, data: { isInstanceAdmin: true } });
+    const joined = await http.req<ServerDetail>('POST', `/admin/servers/${priv.body.id}/join`, {
+      token: boss.token,
+      body: { hidden: true },
+    });
+    expect(joined.status).toBe(201);
+    // o próprio admin se vê, marcado; a dona não vê o admin
+    expect(joined.body.members.find((m) => m.user.id === boss.id)?.hidden).toBe(true);
+    const forAlice = await http.req<ServerDetail>('GET', `/servers/${priv.body.id}`, { token: alice.token });
+    expect(forAlice.body.members.map((m) => m.user.id)).not.toContain(boss.id);
+    // contagens e presença sem o admin; painel marca invisível
+    const list = await http.req<AdminServerEntry[]>('GET', '/admin/servers', { token: boss.token });
+    const entry = list.body.find((s) => s.id === priv.body.id);
+    expect(entry).toMatchObject({ joined: true, hidden: true, memberCount: 1 });
+    const presence = await http.req<Record<string, unknown>>('GET', `/servers/${priv.body.id}/presence`, {
+      token: alice.token,
+    });
+    expect(JSON.stringify(presence.body)).not.toContain(boss.id);
+    // registro só na auditoria global, não na do servidor
+    const serverAudit = await http.req<{ action: string; actorId: string }[]>(
+      'GET',
+      `/servers/${priv.body.id}/audit-log`,
+      { token: alice.token },
+    );
+    expect(serverAudit.body.some((e) => e.actorId === boss.id)).toBe(false);
+    expect(
+      await prisma.auditLog.findFirst({ where: { actorId: boss.id, action: 'admin.server.join_hidden' } }),
+    ).not.toBeNull();
+    // invisível não entra em voz
+    const voice = priv.body.channels.find((c) => c.kind === 'voice')!;
+    expect((await http.req('POST', `/voice/channels/${voice.id}/join`, { token: boss.token })).status).toBe(403);
+    // fica visível: a dona passa a ver, com member.join na auditoria do servidor
+    const shown = await http.req<{ hidden?: boolean }>('PUT', `/admin/servers/${priv.body.id}/hidden`, {
+      token: boss.token,
+      body: { hidden: false },
+    });
+    expect(shown.status).toBe(200);
+    expect(shown.body.hidden).toBeUndefined();
+    const again = await http.req<ServerDetail>('GET', `/servers/${priv.body.id}`, { token: alice.token });
+    expect(again.body.members.map((m) => m.user.id)).toContain(boss.id);
+    expect(
+      await prisma.auditLog.findFirst({ where: { serverId: priv.body.id, actorId: boss.id, action: 'member.join' } }),
+    ).not.toBeNull();
+    // e some de novo
+    await http.req('PUT', `/admin/servers/${priv.body.id}/hidden`, { token: boss.token, body: { hidden: true } });
+    const gone = await http.req<ServerDetail>('GET', `/servers/${priv.body.id}`, { token: alice.token });
+    expect(gone.body.members.map((m) => m.user.id)).not.toContain(boss.id);
+    // quem não é admin não usa a rota
+    expect(
+      (await http.req('PUT', `/admin/servers/${priv.body.id}/hidden`, { token: alice.token, body: { hidden: true } }))
+        .status,
+    ).toBe(404);
+  });
+
   it('dar cargo não entrega bits que o ator não tem; overrides do expulso somem', async () => {
     const { serverId, alice, owner } = await setup();
     const mk = (name: string, permissions: number) =>

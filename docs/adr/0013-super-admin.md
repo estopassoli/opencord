@@ -46,3 +46,23 @@ Pedido do mantenedor: "quero poder atribuir o selo verificado para outros perfis
 - **Reversão:** `ALTER TABLE "User" DROP COLUMN "verified";` e voltar a imagem anterior.
 - **Evidência:** `admin.int.test.ts` (marca/desmarca, 404 para quem não é admin, perfil público e auditoria).
 
+## Adendo (2026-11-02): modo invisível
+Pedido do mantenedor: ficar nos servidores "de forma invisível" para moderar o que é postado, depois de ter sido
+expulso de alguns (antes do adendo que tornou o super admin intocável).
+- `ServerMember.hidden` (migração `20261102020000_member_hidden`, aditiva), só para quem é `isInstanceAdmin`:
+  `POST /admin/servers/:id/join { hidden: true }` e `PUT /admin/servers/:id/hidden { hidden }`.
+- Invisível: não aparece em `GET /servers/:id` (exceto para si, com `hidden: true`), nem nas contagens de membros
+  (diretório, painel, prévia de convite), nem em `GET /servers/:id/presence`/status; a presença dele não é enviada à
+  sala do servidor; "digitando" não é anunciado; `server:member:joined/updated/left` não são emitidos; servidores em
+  que está invisível não contam como "em comum" no perfil. Ao ficar invisível os membros recebem `server:member:left`
+  e `presence:changed offline`; ao ficar visível, `server:member:joined` + presença, com `member.join` na auditoria
+  do servidor (como a entrada visível de sempre).
+- Em voz não entra enquanto invisível (403 "fique visível no servidor para entrar em voz"): a chamada mostraria a
+  pessoa. Mensagens que ele enviar são visíveis normalmente (é o esperado ao moderar).
+- Registro: entrada/saída/alternância invisíveis ficam na **auditoria global** (`admin.server.join_hidden`,
+  `admin.server.hide`, `admin.server.leave_hidden`), visível só no painel do super admin — a ADR original dizia "não
+  há acesso escondido" dos membros; isso deixa de valer para o modo invisível, por decisão do mantenedor.
+- **Reversão:** `ALTER TABLE "ServerMember" DROP COLUMN "hidden";` e voltar a imagem anterior.
+- **Evidência:** `servers.int.test.ts` (entrada invisível: lista/contagem/presença sem o admin, visão própria com
+  `hidden`, alternância visível/invisível com eventos).
+

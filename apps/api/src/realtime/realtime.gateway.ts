@@ -201,12 +201,14 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         const key = `typing:${a.channelId ?? a.conversationId}:${userId}`;
         if (active) await this.redis.client.set(key, '1', 'EX', TYPING_TTL_S);
         else await this.redis.client.del(key);
-        socket
-          .to(a.room)
-          .emit(
-            'chat:typing',
-            envelope(randomUUID(), { channelId: a.channelId, conversationId: a.conversationId, userId, active }),
-          );
+        // super admin invisível (ADR-0013) não anuncia que está digitando
+        if (!a.hidden)
+          socket
+            .to(a.room)
+            .emit(
+              'chat:typing',
+              envelope(randomUUID(), { channelId: a.channelId, conversationId: a.conversationId, userId, active }),
+            );
         return null as R;
       }
       case 'chat:read': {

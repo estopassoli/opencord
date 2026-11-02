@@ -142,7 +142,7 @@ export class ModerationService {
       reason: dto.reason?.trim() || null,
     });
     const dto2 = member(m);
-    this.realtime.emit(rooms.server(serverId), 'server:member:updated', { serverId, member: dto2 });
+    if (!m.hidden) this.realtime.emit(rooms.server(serverId), 'server:member:updated', { serverId, member: dto2 });
     if (until) this.events.emit({ type: 'member.timeout', serverId, userId: targetId });
     return dto2;
   }

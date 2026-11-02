@@ -160,7 +160,8 @@ export class PresenceService {
   /** Quem acompanha a presença da pessoa: servidores dela, amigos e ela mesma (outras sessões). */
   private async targets(userId: string): Promise<string[]> {
     const [servers, friends] = await Promise.all([
-      this.prisma.serverMember.findMany({ where: { userId }, select: { serverId: true } }),
+      // super admin invisível (ADR-0013): a presença dele não vai para a sala desse servidor
+      this.prisma.serverMember.findMany({ where: { userId, hidden: false }, select: { serverId: true } }),
       this.prisma.friendship.findMany({
         where: { status: 'accepted', OR: [{ requesterId: userId }, { addresseeId: userId }] },
         select: { requesterId: true, addresseeId: true },

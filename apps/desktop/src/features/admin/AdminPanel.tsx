@@ -158,19 +158,37 @@ function ServersTab({ onClose }: { onClose: () => void }) {
     useUi.getState().go({ kind: 'server', serverId: id, channelId: null });
     onClose();
   };
-  const join = async (s: AdminServerEntry) => {
+  const join = async (s: AdminServerEntry, hidden: boolean) => {
+    const q = hidden
+      ? 'Você entra sem aparecer na lista de membros, na presença nem nas contagens. Fica registrado só na auditoria do painel. Em voz você não entra enquanto invisível.'
+      : 'A entrada fica registrada e os membros veem você.';
     if (
-      !(await askConfirm('A entrada fica registrada e os membros veem você.', {
-        title: `Entrar em "${s.name}" como super admin`,
-        confirmLabel: 'Entrar',
+      !(await askConfirm(q, {
+        title: `Entrar em "${s.name}" ${hidden ? 'invisível' : 'como super admin'}`,
+        confirmLabel: hidden ? 'Entrar invisível' : 'Entrar',
       }))
     )
       return;
     setBusy(s.id);
     try {
-      await api().request<ServerDetail>('POST', `/admin/servers/${s.id}/join`);
+      await api().request<ServerDetail>('POST', `/admin/servers/${s.id}/join`, { hidden });
       await loadServer(s.id);
       go(s.id);
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setBusy(null);
+    }
+  };
+  /** Visível ↔ invisível no servidor em que já participa (adendo da ADR-0013). */
+  const toggleHidden = async (s: AdminServerEntry) => {
+    const hidden = !s.hidden;
+    setBusy(s.id);
+    try {
+      await api().request('PUT', `/admin/servers/${s.id}/hidden`, { hidden });
+      setList((l) => l?.map((x) => (x.id === s.id ? { ...x, hidden } : x)) ?? l);
+      await loadServer(s.id);
+      useUi.getState().toast('success', hidden ? 'Agora você está invisível.' : 'Agora os membros veem você.');
     } catch (e) {
       toastError(e);
     } finally {
@@ -192,7 +210,7 @@ function ServersTab({ onClose }: { onClose: () => void }) {
   return (
     <Section
       title={`Servidores · ${list.length}`}
-      description="Entrar fica registrado na auditoria e os membros veem você. O selo de verificado não muda a privacidade."
+      description="Entrar visível fica na auditoria do servidor; invisível, só na auditoria do painel. O selo não muda a privacidade."
     >
       <TextField
         aria-label="Buscar servidor"
@@ -230,13 +248,40 @@ function ServersTab({ onClose }: { onClose: () => void }) {
               </Button>
             )}
             {s.joined ? (
-              <Button variant="secondary" size="sm" onClick={() => go(s.id)}>
-                Abrir
-              </Button>
+              <>
+                {s.hidden && (
+                  <span className="admin-pill" data-tone="brand">
+                    invisível
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={s.hidden ? 'eye' : 'eye-off'}
+                  disabled={busy === s.id}
+                  onClick={() => void toggleHidden(s)}
+                >
+                  {s.hidden ? 'Ficar visível' : 'Ficar invisível'}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => go(s.id)}>
+                  Abrir
+                </Button>
+              </>
             ) : (
-              <Button size="sm" icon="shield" disabled={busy === s.id} onClick={() => void join(s)}>
-                Entrar
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="eye-off"
+                  disabled={busy === s.id}
+                  onClick={() => void join(s, true)}
+                >
+                  Entrar invisível
+                </Button>
+                <Button size="sm" icon="shield" disabled={busy === s.id} onClick={() => void join(s, false)}>
+                  Entrar
+                </Button>
+              </>
             )}
           </li>
         ))}

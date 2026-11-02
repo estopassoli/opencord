@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
+  type Member,
   ALL_PERMISSIONS,
   Permission,
   hasPermission,
@@ -147,7 +148,12 @@ export class ServersService {
         roles: { orderBy: { position: 'asc' } },
         categories: { orderBy: { position: 'asc' } },
         channels: { include: { overrides: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
-        members: { include: MEMBER_INCLUDE, orderBy: { joinedAt: 'asc' } },
+        // super admin invisível (ADR-0013): só ele mesmo se vê na lista
+        members: {
+          where: { OR: [{ hidden: false }, { userId }] },
+          include: MEMBER_INCLUDE,
+          orderBy: { joinedAt: 'asc' },
+        },
       },
     });
     const chPerms = await this.perms.channelsFor(access, s.channels);
@@ -202,6 +208,14 @@ export class ServersService {
     const server = await this.prisma.server.findUnique({ where: { id: serverId }, select: { official: true } });
     if (server?.official) throw new BadRequestException('não é possível sair do servidor oficial');
     await this.removeMembership(serverId, userId);
+    if (access.hidden) {
+      // invisível (ADR-0013): sai sem avisar o servidor; registro só na auditoria global
+      await this.audit.log(userId, null, 'admin.server.leave_hidden', serverId, {});
+      this.events.emit({ type: 'member.removed', serverId, userId, reason: 'left' });
+      this.realtime.toUser(userId, 'server:removed', { serverId, reason: 'left' });
+      await this.realtime.syncUserRooms(userId);
+      return;
+    }
     await this.audit.log(userId, serverId, 'member.leave', userId, {});
     this.events.emit({ type: 'member.removed', serverId, userId, reason: 'left' });
     await this.realtime.memberRemoved(serverId, userId, 'left');
@@ -216,7 +230,7 @@ export class ServersService {
         id: true,
         name: true,
         iconKey: true,
-        _count: { select: { members: true } },
+        _count: { select: { members: { where: { hidden: false } } } },
         members: { where: { userId }, select: { userId: true } },
       },
     });
@@ -304,8 +318,8 @@ export class ServersService {
         official: true,
         verified: true,
         owner: { select: { id: true, displayName: true } },
-        _count: { select: { members: true } },
-        members: { where: { userId }, select: { userId: true } },
+        _count: { select: { members: { where: { hidden: false } } } },
+        members: { where: { userId }, select: { userId: true, hidden: true } },
       },
     });
     return rows.map((r) => ({
@@ -317,15 +331,63 @@ export class ServersService {
       owner: r.owner,
       memberCount: r._count.members,
       joined: r.members.length > 0,
+      ...(r.members[0]?.hidden ? { hidden: true } : {}),
     }));
   }
 
-  /** O admin entra em qualquer servidor; fica registrado na auditoria e todos veem a entrada. */
-  async adminJoin(serverId: string, userId: string): Promise<ServerDetail> {
+  /**
+   * O admin entra em qualquer servidor. Visível: fica na auditoria do servidor e todos veem a entrada. Invisível
+   * (adendo da ADR-0013): não aparece em listas, contagens, presença nem "digitando"; o registro fica só na
+   * auditoria global do painel do super admin.
+   */
+  async adminJoin(serverId: string, userId: string, hidden = false): Promise<ServerDetail> {
     await this.requireInstanceAdmin(userId);
     const server = await this.prisma.server.findUnique({ where: { id: serverId }, select: { id: true } });
     if (!server) throw notFound('servidor');
-    return this.addMember(serverId, userId, { via: 'instance-admin' });
+    if (!hidden) return this.addMember(serverId, userId, { via: 'instance-admin' });
+    const existing = await this.prisma.serverMember.findUnique({
+      where: { serverId_userId: { serverId, userId } },
+      select: { hidden: true },
+    });
+    if (existing) {
+      if (!existing.hidden) await this.adminSetHidden(serverId, userId, true);
+      return this.detail(serverId, userId);
+    }
+    await this.assertNotBanned(serverId, userId);
+    await this.prisma.serverMember.create({ data: { serverId, userId, hidden: true } });
+    await this.audit.log(userId, null, 'admin.server.join_hidden', serverId, {});
+    await this.realtime.syncUserRooms(userId);
+    return this.detail(serverId, userId);
+  }
+
+  /** Alterna a própria participação do admin entre visível e invisível (adendo da ADR-0013). */
+  async adminSetHidden(serverId: string, userId: string, hidden: boolean): Promise<Member> {
+    await this.requireInstanceAdmin(userId);
+    const m = await this.prisma.serverMember.findUnique({
+      where: { serverId_userId: { serverId, userId } },
+      include: MEMBER_INCLUDE,
+    });
+    if (!m) throw notFound('servidor');
+    if (m.hidden === hidden) return member(m);
+    const updated = await this.prisma.serverMember.update({
+      where: { serverId_userId: { serverId, userId } },
+      data: { hidden },
+      include: MEMBER_INCLUDE,
+    });
+    if (hidden) {
+      await this.audit.log(userId, null, 'admin.server.hide', serverId, {});
+      // para os membros é como se tivesse saído
+      this.realtime.emit(rooms.server(serverId), 'server:member:left', { serverId, userId, reason: 'left' });
+      this.realtime.emit(rooms.server(serverId), 'presence:changed', { userId, status: 'offline' });
+    } else {
+      await this.audit.log(userId, serverId, 'member.join', userId, { via: 'instance-admin' });
+      this.realtime.emit(rooms.server(serverId), 'server:member:joined', { serverId, member: member(updated) });
+      this.realtime.emit(rooms.server(serverId), 'presence:changed', {
+        userId,
+        status: await this.presence.visible(userId),
+      });
+    }
+    return member(updated);
   }
 
   /** Selo de verificado (só o selo; privacidade e entrada não mudam). Avisa os membros na hora. */
@@ -358,7 +420,7 @@ export class ServersService {
   async previewInvite(code: string, userId: string): Promise<InvitePreview> {
     const inv = await this.findInvite(code);
     const [memberCount, me] = await Promise.all([
-      this.prisma.serverMember.count({ where: { serverId: inv.serverId } }),
+      this.prisma.serverMember.count({ where: { serverId: inv.serverId, hidden: false } }),
       this.prisma.serverMember.findUnique({ where: { serverId_userId: { serverId: inv.serverId, userId } } }),
     ]);
     const s = inv.server;
@@ -426,9 +488,9 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
   }
 
   async listMemberIds(serverId: string): Promise<string[]> {
-    return (await this.prisma.serverMember.findMany({ where: { serverId }, select: { userId: true } })).map(
-      (m) => m.userId,
-    );
+    return (
+      await this.prisma.serverMember.findMany({ where: { serverId, hidden: false }, select: { userId: true } })
+    ).map((m) => m.userId);
   }
 
   /** Chamado após um usuário existente entrar via convite. */
@@ -498,7 +560,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       where: { serverId_userId: { serverId, userId: targetId } },
       include: MEMBER_INCLUDE,
     });
-    this.realtime.emit(rooms.server(serverId), 'server:member:updated', { serverId, member: member(m) });
+    if (!m.hidden) this.realtime.emit(rooms.server(serverId), 'server:member:updated', { serverId, member: member(m) });
     await this.permissionsChanged(serverId);
     return member(m);
   }
@@ -531,7 +593,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       where: { serverId_userId: { serverId, userId } },
       include: MEMBER_INCLUDE,
     });
-    this.realtime.emit(rooms.server(serverId), 'server:member:updated', { serverId, member: member(m) });
+    if (!m.hidden) this.realtime.emit(rooms.server(serverId), 'server:member:updated', { serverId, member: member(m) });
     await this.permissionsChanged(serverId);
   }
 
@@ -542,7 +604,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       data: { nickname: nickname?.trim() || null },
       include: MEMBER_INCLUDE,
     });
-    this.realtime.emit(rooms.server(serverId), 'server:member:updated', { serverId, member: member(m) });
+    if (!m.hidden) this.realtime.emit(rooms.server(serverId), 'server:member:updated', { serverId, member: member(m) });
     return member(m);
   }
 

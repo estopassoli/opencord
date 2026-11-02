@@ -103,6 +103,11 @@ export function MemberList({ serverId }: { serverId: string }) {
                     </span>
                     <SubLine userId={m.user.id} className="small" />
                   </span>
+                  {m.hidden && (
+                    <span className="owner-tag" data-tip="Só você se vê aqui">
+                      <Icon name="eye-off" size={12} label="Invisível" /> invisível
+                    </span>
+                  )}
                   {isTimedOut(m.timeoutUntil) && (
                     <span
                       className="member-timeout"

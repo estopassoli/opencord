@@ -233,6 +233,8 @@ export const Member = z.object({
   nickname: z.string().nullable(),
   /** castigo (ADR-0034): até quando não pode escrever, reagir nem entrar em voz; null = sem castigo */
   timeoutUntil: IsoDate.nullable().default(null),
+  /** super admin invisível (ADR-0013): só vem na própria visão; para os outros o membro nem aparece */
+  hidden: z.boolean().optional(),
 });
 export type Member = z.infer<typeof Member>;
 
@@ -398,8 +400,16 @@ export const AdminServerEntry = ServerDirectoryEntry.extend({
   official: z.boolean(),
   verified: z.boolean(),
   owner: z.object({ id: Id, displayName: z.string() }),
+  /** o admin participa sem aparecer para os membros */
+  hidden: z.boolean().optional(),
 });
 export type AdminServerEntry = z.infer<typeof AdminServerEntry>;
+/** POST /admin/servers/:id/join: `hidden` entra sem aparecer para os membros (registro só na auditoria global) */
+export const AdminJoinRequest = z.object({ hidden: z.boolean().default(false) });
+export type AdminJoinRequest = z.input<typeof AdminJoinRequest>;
+/** PUT /admin/servers/:id/hidden: alterna a própria participação entre visível e invisível */
+export const SetMemberHiddenRequest = z.object({ hidden: z.boolean() });
+export type SetMemberHiddenRequest = z.infer<typeof SetMemberHiddenRequest>;
 
 /** Código de convite: 10 caracteres alfanuméricos. Aceita também o link inteiro (o código é o final). */
 export const INVITE_CODE = /^[A-Za-z0-9]{10}$/;

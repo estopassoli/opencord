@@ -77,7 +77,8 @@ export class SocialService {
     const [friendship, servers, convo, myFriends, theirFriends] = await Promise.all([
       this.prisma.friendship.findFirst({ where: { userLowId: low, userHighId: high, status: 'accepted' } }),
       this.prisma.server.findMany({
-        where: { AND: [{ members: { some: { userId: viewerId } } }, { members: { some: { userId } } }] },
+        // servidor em que a pessoa está invisível (ADR-0013) não conta como "em comum"
+        where: { AND: [{ members: { some: { userId: viewerId } } }, { members: { some: { userId, hidden: false } } }] },
         select: { id: true, name: true, iconKey: true, official: true },
         orderBy: { createdAt: 'asc' },
       }),

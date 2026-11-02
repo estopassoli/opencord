@@ -20,6 +20,8 @@ export interface ServerAccess {
   topPosition: number;
   /** castigo (ADR-0034) em vigor: até quando não escreve, reage nem entra em voz; null = livre */
   timeoutUntil: Date | null;
+  /** super admin invisível neste servidor (ADR-0013): não anuncia presença, digitação nem entra em voz */
+  hidden: boolean;
 }
 
 /**
@@ -61,6 +63,7 @@ export class PermissionsService {
           where: { userId },
           select: {
             timeoutUntil: true,
+            hidden: true,
             roles: { select: { roleId: true } },
             user: { select: { isInstanceAdmin: true } },
           },
@@ -90,6 +93,7 @@ export class PermissionsService {
       base: computeBasePermissions(ctx),
       topPosition: userId === server.ownerId || admin ? Number.POSITIVE_INFINITY : Math.max(0, ...positions),
       timeoutUntil: activeTimeout(member.timeoutUntil),
+      hidden: member.hidden,
     };
   }
 

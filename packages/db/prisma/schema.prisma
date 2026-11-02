@@ -148,6 +148,8 @@ model ServerMember {
   joinedAt DateTime     @default(now()) @db.Timestamptz(3)
   /// castigo (ADR-0034): até quando não escreve, reage nem entra em voz
   timeoutUntil DateTime? @db.Timestamptz(3)
+  /// super admin invisível (adendo ADR-0013): não aparece em listas, contagens nem presença; só ele se vê
+  hidden   Boolean      @default(false)
   server   Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
   user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   roles    MemberRole[]

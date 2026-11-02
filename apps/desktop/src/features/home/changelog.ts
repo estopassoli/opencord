@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '14:30',
+    kind: 'novo',
+    icon: 'eye-off',
+    title: 'Super admin invisível',
+    body: 'No painel do super admin, "Entrar invisível" entra num servidor sem aparecer na lista de membros, na presença nem nas contagens; "Ficar invisível" faz o mesmo onde você já está. Serve para moderar sem chamar atenção. Em voz você não entra enquanto invisível, e a lista de membros marca "invisível" só para você.',
+  },
+  {
+    date: '2026-11-02',
     time: '14:00',
     kind: 'melhoria',
     icon: 'user',

@@ -29,6 +29,8 @@ import {
   UpdateChannelRequest,
   UpdateRoleRequest,
   UpdateServerRequest,
+  AdminJoinRequest,
+  SetMemberHiddenRequest,
 } from '@opencord/contracts';
 import { z } from 'zod';
 import { CurrentUser, Public, type AuthUser } from '../common/auth.js';
@@ -134,8 +136,22 @@ export class ServersController {
   }
 
   @Post('admin/servers/:id/join')
-  adminJoin(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
-    return this.servers.adminJoin(id, u.userId);
+  adminJoin(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(AdminJoinRequest.default({ hidden: false }))) body: z.infer<typeof AdminJoinRequest>,
+  ) {
+    return this.servers.adminJoin(id, u.userId, body.hidden);
+  }
+
+  /** Alterna a própria participação do super admin entre visível e invisível (adendo da ADR-0013). */
+  @Put('admin/servers/:id/hidden')
+  adminSetHidden(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(SetMemberHiddenRequest)) body: z.infer<typeof SetMemberHiddenRequest>,
+  ) {
+    return this.servers.adminSetHidden(id, u.userId, body.hidden);
   }
 
   @Put('admin/servers/:id/verified')

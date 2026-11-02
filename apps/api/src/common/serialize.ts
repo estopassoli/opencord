@@ -123,12 +123,14 @@ export const member = (m: {
   joinedAt: Date;
   nickname: string | null;
   timeoutUntil?: Date | null;
+  hidden?: boolean;
 }): Member => ({
   user: userPublic(m.user),
   roleIds: m.roles.map((r) => r.roleId),
   joinedAt: m.joinedAt.toISOString(),
   nickname: m.nickname,
   timeoutUntil: activeTimeout(m.timeoutUntil)?.toISOString() ?? null,
+  ...(m.hidden ? { hidden: true } : {}),
 });
 
 export const MEMBER_INCLUDE = { user: { select: USER_PUBLIC_SELECT }, roles: { select: { roleId: true } } } as const;

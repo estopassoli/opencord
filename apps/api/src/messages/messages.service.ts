@@ -79,6 +79,8 @@ interface TargetAccess {
   perms: number;
   /** castigo (ADR-0034) em vigor no servidor do canal; null em DMs */
   timeoutUntil: Date | null;
+  /** super admin invisível no servidor (ADR-0013): não anuncia "digitando" */
+  hidden: boolean;
   memberIds?: string[];
 }
 
@@ -107,6 +109,7 @@ export class MessagesService {
         serverId: a.serverId,
         perms: a.perms,
         timeoutUntil: a.timeoutUntil,
+        hidden: a.hidden,
       };
     }
     const conv = await this.prisma.conversation.findUnique({
@@ -128,6 +131,7 @@ export class MessagesService {
       serverId: null,
       perms: dmPerms,
       timeoutUntil: null,
+      hidden: false,
       memberIds,
     };
   }
