@@ -31,6 +31,7 @@ import {
   DashboardSquare01Icon,
   Delete02Icon,
   Download01Icon,
+  SmartPhone01Icon,
   Film01Icon,
   GameController03Icon,
   RecordIcon,
@@ -193,6 +194,7 @@ const ICONS = {
   'window-maximize': SquareIcon,
   'window-restore': Copy02Icon,
   'pin-off': PinOffIcon,
+  smartphone: SmartPhone01Icon,
 } satisfies Record<string, IconSvgElement>;
 
 export type IconName = keyof typeof ICONS;

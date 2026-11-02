@@ -20,11 +20,15 @@ import { useVoice } from './store/voice';
 import { useSounds } from './store/sounds';
 import { capturePendingInvite } from './lib/invite';
 import { applyRememberedAppearance } from './lib/appearance-boot';
+import { setupPwa } from './lib/pwa';
+import { useUi } from './store/ui';
 
 // link de convite aberto no navegador: guarda o código antes da primeira tela (o login já o mostra)
 capturePendingInvite();
 // tema escolhido da última vez, antes de as configurações chegarem (sem piscar no escuro padrão)
 applyRememberedAppearance();
+// navegador: service worker (instalável no celular) e aviso quando chega versão nova
+setupPwa(() => useUi.getState().toast('info', 'OpenCord atualizado. Vale na próxima vez que abrir.'));
 
 // Diagnóstico somente leitura para suporte/E2E (não expõe tokens nem conteúdo).
 (window as unknown as { __opencordSoundsHeard: () => number }).__opencordSoundsHeard = () => useSounds.getState().heard;

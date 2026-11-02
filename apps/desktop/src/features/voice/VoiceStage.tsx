@@ -16,6 +16,7 @@ import { SceneEditor } from './SceneEditor';
 import { sceneMenu } from './sceneMenu';
 import { useActivity } from '../../store/activity';
 import { useIsMobile } from '../../lib/media';
+import { isDesktop } from '../../lib/bridge';
 import { bestTileWidth } from './tileLayout';
 import { copyLiveDiagnostics } from './liveDiag';
 import { memberMenu } from '../shell/ProfileButton';
@@ -808,6 +809,9 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
     })),
   );
   const live = v.streamStatus === 'live';
+  // navegador de celular sem captura de tela (iOS, Android): o botão de transmitir não aparece
+  const mobile = useIsMobile();
+  const canCapture = isDesktop || typeof navigator.mediaDevices?.getDisplayMedia === 'function';
   const activityOn = useActivity((s) => s.state !== null);
   const panel = useUi((s) => s.activitiesOpen);
   const setPanel = (v: boolean | ((o: boolean) => boolean)) =>
@@ -890,17 +894,19 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
               <Icon name="soundboard" />
             </button>
           </Tooltip>
-          <Tooltip label={live ? 'Parar transmissão' : 'Transmitir tela'}>
-            <button
-              className="call-btn"
-              aria-pressed={live}
-              aria-label={live ? 'Parar transmissão' : 'Transmitir tela'}
-              disabled={!v.perms.canStream || v.streamStatus === 'starting' || v.streamStatus === 'stopping'}
-              onClick={() => (live ? void v.stopStream() : v.openStreamPicker())}
-            >
-              <Icon name="screen" />
-            </button>
-          </Tooltip>
+          {(canCapture || live || !mobile) && (
+            <Tooltip label={live ? 'Parar transmissão' : 'Transmitir tela'}>
+              <button
+                className="call-btn"
+                aria-pressed={live}
+                aria-label={live ? 'Parar transmissão' : 'Transmitir tela'}
+                disabled={!v.perms.canStream || v.streamStatus === 'starting' || v.streamStatus === 'stopping'}
+                onClick={() => (live ? void v.stopStream() : v.openStreamPicker())}
+              >
+                <Icon name="screen" />
+              </button>
+            </Tooltip>
+          )}
           {live && sceneLive && (
             <Tooltip label="Trocar de cena">
               <button

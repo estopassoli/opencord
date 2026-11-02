@@ -14,6 +14,7 @@ import {
 import type { AppInfo, AppPrefsState, GpuMode, ProcessMetric, RendererMemory } from '../../../electron/shared/ipc';
 import { clipsDiag } from '../../store/clips';
 import { Dialog } from '../../components/Dialog';
+import { InstallAppBlock } from '../../components/InstallApp';
 import { bridge } from '../../lib/bridge';
 import { playSound } from '../../lib/sounds';
 import {
@@ -1402,7 +1403,10 @@ function AboutTab() {
   return (
     <Section title="Sobre o OpenCord">
       {!bridge ? (
-        <p className="muted">Executando no navegador.</p>
+        <>
+          <p className="muted">Executando no navegador.</p>
+          <InstallAppBlock />
+        </>
       ) : error ? (
         <p className="form-error">Não foi possível obter as informações do aplicativo.</p>
       ) : !info ? (

@@ -148,6 +148,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-02 | Bots v2 (ADR-0034): embeds, componentes, modais, autocompletar, comandos v2, moderação, SDK 0.2.0 | API int 178/178 (`messages`, `moderation`, `bots`, `interactions`); desktop unit 189/189; SDK 64/64; tour real `examples/tour-v2.mjs` (27 blocos); capturas headless (cartão, modal, autocompletar, menu Apps/Castigo/Banir, diálogo de banir) | verde | migração `20261102010000_bots_v2` precisa rodar em produção ANTES do deploy da API; SDK 0.2.0 publicado depois do deploy |
 | 2026-11-02 | Super admin invisível (adendo ADR-0013) | int `servers.int.test.ts` (entrada invisível, contagens, presença, alternância); typecheck api/desktop | verde | migração `20261102020000_member_hidden` em produção antes do deploy |
 | 2026-11-02 | Selo de verificado em perfis (adendo ADR-0013) + card de servidores em comum no Vidro | int `admin.int.test.ts` (marca/desmarca, 404, perfil, auditoria); typecheck api/desktop | verde | migração `20261102000000_user_verified` pendente em produção |
+| 2026-11-02 | Celular: layout revisado + app instalável (ADR-0035) | `apps/desktop/test/pwa.test.ts` 6/6; unit desktop completo verde; typecheck/lint; capturas headless 390×844 e 844×390 (gavetas opacas, membros, chamada, live em destaque); SW `activated` com 12 entradas em cache; manifesto 3 ícones | verde | instalação em Android/iPhone reais ainda não validada |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

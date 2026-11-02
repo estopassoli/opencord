@@ -6,6 +6,7 @@ import { useMemo, useState, type CSSProperties, type HTMLAttributes, type ReactN
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Dialog } from '../../components/Dialog';
 import { DownloadAppRailItem } from '../../components/DownloadApp';
+import { InstallAppRailItem } from '../../components/InstallApp';
 import { Tooltip } from '../../components/Tooltip';
 import {
   applyDrop,
@@ -327,6 +328,7 @@ export function ServerRail() {
           </RailItem>
         )}
         <DownloadAppRailItem />
+        <InstallAppRailItem />
       </ul>
       {editing && (
         <FolderDialog

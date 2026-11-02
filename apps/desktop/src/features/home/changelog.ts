@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '19:30',
+    kind: 'novo',
+    icon: 'smartphone',
+    title: 'Instale no celular',
+    body: 'A versão no navegador virou um app instalável: no Android, toque em "Instalar o OpenCord" na barra de servidores (ou em Configurações → Sobre) e ele vai para a tela inicial, abrindo em tela cheia; no iPhone, use Compartilhar → "Adicionar à Tela de Início". Sem rede, o app abre e avisa que está reconectando.',
+  },
+  {
+    date: '2026-11-02',
+    time: '19:00',
+    kind: 'correção',
+    icon: 'smartphone',
+    title: 'Celular: gavetas, listas e chamada arrumadas',
+    body: 'No layout Vidro, o menu de servidores e canais e a lista de membros ficavam transparentes no celular e o chat vazava por trás; agora são opacos. O painel do usuário não cobre mais o fim das listas. Na chamada, a barra de controles cabe na tela (saem o seletor de microfone, atividades, efeitos e gravação), a transmissão em destaque fica na proporção certa com os participantes em grade embaixo, e o cabeçalho mostra só o canal e o selo AO VIVO.',
+  },
+  {
+    date: '2026-11-02',
     time: '14:30',
     kind: 'novo',
     icon: 'eye-off',

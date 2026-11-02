@@ -29,6 +29,10 @@ A instância mantida pelo autor roda as mesmas imagens deste repositório, num c
 | PostgreSQL / Redis | instâncias gerenciadas à parte, com réplica e backup periódico |
 
 - TLS no proxy de borda; a mídia WebRTC não passa pelo proxy.
+- **App instalável no celular (PWA, ADR-0035)**: o build do renderer gera `sw.js` e traz `manifest.webmanifest` +
+  `icons/`; o nginx do app já os serve com `no-cache` (só arquivos com hash são imutáveis). Precisa de HTTPS no host do
+  app (já é o caso) e de uma imagem `web` nova a cada mudança do renderer, como hoje; não há passo extra. O Electron
+  ignora o manifesto e nunca registra o worker.
 - **Migrações não rodam na subida da API**: a cada deploy com migração nova, aplicar antes com
   `prisma migrate deploy --schema /app/prisma/schema.prisma` (CLI incluída na imagem).
 - Atrás de um proxy/CDN que reescreve o `X-Forwarded-For`, defina `CLIENT_IP_HEADER` com o cabeçalho do IP real (ex.: `cf-connecting-ip`) e **aceite na origem só conexões vindas desse proxy**; sem isso, os limites por IP ficam divididos entre todos ou podem ser forjados.

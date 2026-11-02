@@ -3000,6 +3000,12 @@ body {
 a.rail-item {
   text-decoration: none;
 }
+.install-block {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin-bottom: 12px;
+}
 .download-others {
   margin: 6px 0 0;
   font-size: 12px;

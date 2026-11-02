@@ -95,6 +95,31 @@
   .shell[data-panel='nav'] :is(.rail, .sidebar, .dock) {
     transform: none;
   }
+  /* o painel do usuário flutua sobre o pé das listas: elas terminam acima dele */
+  .rail {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+  .sidebar .sidebar-scroll {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+
+  /* Vidro no celular: sem o fundo vivo, as lâminas translúcidas deixariam o chat vazar por trás das
+     gavetas; aqui as superfícies ficam opacas (tons do fundo do tema) */
+  html[data-layout='vidro'] .shell {
+    --rail: var(--vidro-bg);
+    --sidebar: color-mix(in srgb, var(--vidro-bg), #fff 4%);
+    --chat: color-mix(in srgb, var(--vidro-bg), #fff 2%);
+    --elevated: color-mix(in srgb, var(--vidro-bg), #fff 9%);
+  }
+  html[data-layout='vidro'] .shell .content {
+    background: var(--chat);
+  }
+  html[data-layout='vidro'] .shell .members {
+    background: var(--sidebar);
+  }
+  html[data-layout='vidro'] .shell .dock {
+    background: var(--elevated);
+  }
 
   /* ---------- gaveta de membros (direita) ---------- */
   .members {
@@ -246,11 +271,91 @@
   }
 
   /* ---------- voz ---------- */
-  .stage-grid {
-    padding: 8px 8px 96px;
+  /* cabeçalho: só o nome do canal e o selo AO VIVO cabem; quem transmite e a qualidade ficam no card */
+  .stage-header .stage-live-who,
+  .stage-header .live-badge-q {
+    display: none;
   }
+  .stage-grid {
+    padding: 8px 8px calc(84px + env(safe-area-inset-bottom));
+  }
+  /* barra de controles: ocupa a largura da tela, sem estourar; o que não cabe no polegar sai
+     (seletor de microfone, atividades, efeitos sonoros, gravação, tela cheia do palco) */
   .call-controls {
-    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 50%;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    max-width: calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right));
+    justify-content: center;
+    gap: 6px;
+  }
+  .call-controls .call-group {
+    gap: 2px;
+    padding: 3px;
+  }
+  .call-controls .call-btn {
+    min-width: 42px;
+    height: 42px;
+    padding: 0 8px;
+  }
+  .call-controls .call-hangup {
+    min-width: 56px;
+    height: 46px;
+  }
+  .call-controls .call-chevron,
+  .call-controls .activities-btn,
+  .call-controls .soundboard-btn,
+  .call-controls .rec-btn,
+  .call-fullscreen {
+    display: none;
+  }
+  /* destaque (live/câmera) em pé: o vídeo fica na proporção dele e a faixa de membros vira grade embaixo,
+     terminando antes da barra de controles */
+  .stage-focus {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px 8px calc(76px + env(safe-area-inset-bottom));
+  }
+  .stage-focus > .tile,
+  .stage-focus > .stage-split {
+    aspect-ratio: 16 / 9;
+    max-height: 60dvh;
+    width: 100%;
+  }
+  .stage-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  .strip-wrap {
+    min-height: 0;
+    align-content: start;
+  }
+  .stage-strip {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    max-height: none;
+    overflow-y: auto;
+    width: 100%;
+  }
+  .stage-strip > li {
+    flex: 1 1 calc(50% - 4px);
+    max-width: calc(50% - 4px);
+  }
+  .stage-strip .tile[data-compact='true'] {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+  }
+  .stage-focus[data-strip='hidden'] .stage-strip {
+    max-height: 0;
+  }
+  .strip-toggle {
+    top: -12px;
+  }
+  /* sem hover: as ações do card em destaque ficam sempre à vista */
+  .stage-focus > .tile .tile-actions,
+  .stage-split .tile .tile-actions {
+    display: flex;
   }
 
   /* toasts acima do composer */
@@ -258,6 +363,41 @@
     left: 8px;
     right: 8px;
     bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
+
+/* celular deitado: pouca altura, então a live ocupa o que sobra e a faixa de participantes volta a ser uma linha */
+@media (max-height: 500px) and (pointer: coarse) {
+  .stage-focus {
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 6px;
+    padding-bottom: calc(68px + env(safe-area-inset-bottom));
+  }
+  .stage-focus > .tile,
+  .stage-focus > .stage-split {
+    aspect-ratio: auto;
+    max-height: none;
+    height: 100%;
+  }
+  .stage-split {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+  }
+  .stage-strip {
+    flex-wrap: nowrap;
+    justify-content: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: 72px;
+  }
+  .stage-strip > li {
+    flex: none;
+    max-width: none;
+  }
+  .stage-strip .tile[data-compact='true'] {
+    width: 112px;
+    height: 64px;
+    aspect-ratio: auto;
   }
 }
 

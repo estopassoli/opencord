@@ -1,8 +1,9 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+import { pwaPlugin } from './scripts/pwa.mjs';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), pwaPlugin()],
   // caminhos relativos: o renderer empacotado é carregado via file:// pelo Electron
   base: './',
   build: { outDir: 'dist', emptyOutDir: true, sourcemap: true, target: 'chrome140' },
