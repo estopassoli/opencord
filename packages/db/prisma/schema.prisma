@@ -46,6 +46,7 @@ model User {
   boardCards        BoardCard[]
   pollVotes         PollVote[]
   memberships       ServerMember[]
+  bans              ServerBan[]          @relation("BannedUser")
   messages          Message[]
   reactions         Reaction[]
   readStates        ReadState[]
@@ -132,6 +133,7 @@ model Server {
   events     ServerEvent[]
   webhooks   Webhook[]
   slackLinks SlackLink[]
+  bans       ServerBan[]
   members    ServerMember[]
   roles      Role[]
   categories Category[]
@@ -144,9 +146,25 @@ model ServerMember {
   userId   String       @db.Uuid
   nickname String?
   joinedAt DateTime     @default(now()) @db.Timestamptz(3)
+  /// castigo (ADR-0034): até quando não escreve, reage nem entra em voz
+  timeoutUntil DateTime? @db.Timestamptz(3)
   server   Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
   user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   roles    MemberRole[]
+
+  @@id([serverId, userId])
+  @@index([userId])
+}
+
+/// Banimento (ADR-0034): quem está aqui não entra no servidor (convite, diretório, bot) até ser desbanido.
+model ServerBan {
+  serverId    String   @db.Uuid
+  userId      String   @db.Uuid
+  reason      String?
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  user        User     @relation("BannedUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([serverId, userId])
   @@index([userId])
@@ -372,6 +390,10 @@ model Message {
   /** Fixada no canal/conversa (quem fixou fica em pinnedById, sem relação). */
   pinnedAt       DateTime?     @db.Timestamptz(3)
   pinnedById     String?       @db.Uuid
+  /// cartões ricos (ADR-0034): array de Embed do contrato; só bots/webhooks
+  embeds         Json          @default("[]")
+  /// botões e menus (ADR-0034): array de ActionRow do contrato; só bots
+  components     Json          @default("[]")
   author         User          @relation(fields: [authorId], references: [id])
   channel        Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
