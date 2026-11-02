@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '10:30',
+    kind: 'melhoria',
+    icon: 'upload',
+    title: 'SDK de bots com nome de npm e licença MIT',
+    body: 'O SDK passa a se chamar @opencord-chat/bot e fica sob licença MIT: o seu bot não herda a licença do OpenCord. Assim que for publicado, instala com pnpm add @opencord-chat/bot; até lá continua valendo a cópia do repositório (docs/BOTS.md).',
+  },
+  {
+    date: '2026-11-02',
     time: '10:00',
     kind: 'melhoria',
     icon: 'shield',
@@ -40,7 +48,7 @@ export const CHANGELOG: ChangeEntry[] = [
     kind: 'novo',
     icon: 'chat',
     title: 'Bots: crie o seu',
-    body: 'Configurações → Aplicativos cria bots com token próprio; quem gerencia um servidor adiciona o bot em Configurações do servidor → Bots. Bots registram comandos de barra (digite / no chat), recebem mensagens em tempo real e respondem, inclusive só para você. O SDK @opencord/bot usa os mesmos nomes do discord.js, então portar um bot costuma ser trocar o import e o token (guia em docs/BOTS.md).',
+    body: 'Configurações → Aplicativos cria bots com token próprio; quem gerencia um servidor adiciona o bot em Configurações do servidor → Bots. Bots registram comandos de barra (digite / no chat), recebem mensagens em tempo real e respondem, inclusive só para você. O SDK @opencord-chat/bot usa os mesmos nomes do discord.js, então portar um bot costuma ser trocar o import e o token (guia em docs/BOTS.md).',
   },
   {
     date: '2026-11-01',

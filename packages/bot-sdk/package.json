@@ -1,8 +1,8 @@
 {
-  "name": "@opencord/bot",
+  "name": "@opencord-chat/bot",
   "version": "0.1.0",
   "description": "SDK para criar bots do OpenCord (mesma forma de uso que a comunidade conhece de bots de chat).",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,22 +14,44 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
+  "sideEffects": false,
   "engines": {
     "node": ">=20.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/estopassoli/opencord.git",
+    "directory": "packages/bot-sdk"
+  },
+  "homepage": "https://github.com/estopassoli/opencord/blob/main/docs/BOTS.md",
+  "bugs": "https://github.com/estopassoli/opencord/issues",
+  "keywords": [
+    "opencord",
+    "bot",
+    "sdk",
+    "chat",
+    "self-hosted"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/bundle-types.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src test examples",
-    "test": "vitest run"
+    "lint": "eslint src test examples scripts",
+    "test": "vitest run",
+    "prepack": "node scripts/check-pack.mjs"
   },
   "dependencies": {
-    "@opencord/contracts": "workspace:*",
-    "socket.io-client": "4.8.3"
+    "socket.io-client": "4.8.3",
+    "zod": "4.6.7"
   },
   "devDependencies": {
+    "@opencord/contracts": "workspace:*",
     "@types/node": "24.19.2",
     "typescript": "6.0.3",
     "vitest": "3.2.7"

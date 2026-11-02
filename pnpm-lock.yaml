@@ -381,13 +381,16 @@ importers:
 
   packages/bot-sdk:
     dependencies:
-      '@opencord/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       socket.io-client:
         specifier: 4.8.3
         version: 4.8.3(supports-color@7.2.0)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
     devDependencies:
+      '@opencord/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2

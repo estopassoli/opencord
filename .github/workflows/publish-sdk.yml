@@ -1,0 +1,42 @@
+name: Publicar SDK de bots no npm
+# Publica @opencord-chat/bot quando uma tag `bot-sdk-vX.Y.Z` é criada. Usa "trusted publishing" do npm (OIDC):
+# não há token guardado no repositório; o pacote no npm precisa ter este workflow configurado como publicador confiável
+# (npmjs.com → pacote → Settings → Trusted publisher: estopassoli/opencord, publish-sdk.yml).
+on:
+  push:
+    tags: ['bot-sdk-v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - name: A tag precisa bater com a versão do package.json
+        run: |
+          tag="${GITHUB_REF_NAME#bot-sdk-v}"
+          version="$(node -p "require('./packages/bot-sdk/package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "tag bot-sdk-v$tag ≠ package.json $version"; exit 1
+          fi
+      - run: pnpm --filter @opencord/contracts build
+      - run: pnpm --filter @opencord-chat/bot build
+      - run: pnpm --filter @opencord-chat/bot typecheck
+      - run: pnpm --filter @opencord-chat/bot lint
+      - run: pnpm --filter @opencord-chat/bot test
+      - name: npm recente (trusted publishing exige npm ≥ 11.5)
+        run: npm install -g npm@latest && npm --version
+      - name: Publicar com proveniência
+        working-directory: packages/bot-sdk
+        run: npm publish --access public --provenance

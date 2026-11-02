@@ -26,7 +26,7 @@ do zero sobre a API e o gateway do OpenCord.
   409. O bot responde com `POST /interactions/:id/reply {content, ephemeral}`: efêmera vira o evento
   `interaction:replied` só para quem usou o comando; normal vira mensagem comum do bot no canal (devolve
   `messageId`, que o SDK edita com `PATCH /messages/:id`). `POST /interactions/:id/defer` avisa "pensando…".
-- **SDK `@opencord/bot`** (`packages/bot-sdk`, Node 20+): `Client`, eventos (`ready`, `messageCreate`,
+- **SDK `@opencord-chat/bot`** (`packages/bot-sdk`, Node 20+): `Client`, eventos (`ready`, `messageCreate`,
   `interactionCreate`, …), `Message.reply/react`, `ChatInputCommandInteraction.reply/deferReply/editReply` com
   `options.getString/getInteger/…`, `SlashCommandBuilder`, `EmbedBuilder` (vira markdown), `Events`,
   `GatewayIntentBits` (aceito e ignorado). Trocar o import de `discord.js` e o token costuma bastar para um bot de
@@ -50,3 +50,19 @@ do zero sobre a API e o gateway do OpenCord.
   `bot:*`. Limites: 10 bots por pessoa, 50 comandos por bot, 10 opções por comando; limite global de requisições por
   IP vale para bots.
 - Sem voz, botões, menus ou modais nesta fase; embeds viram markdown. Não há loja nem verificação de bots.
+
+## Adendo (2026-11-02): nome no npm e licença do SDK
+- O escopo `@opencord` no npm pertence a outro projeto (opencord.xyz, `@opencord/client`) e `opencord` sem escopo é
+  uma lib de terceiros. O SDK passa a chamar `@opencord-chat/bot` (organização `@opencord-chat`, livre na data). O
+  pacote interno `@opencord/contracts` mantém o nome: é privado e nunca sai do monorepo.
+- **Licença do SDK: MIT** (decisão do mantenedor). Com AGPL todo bot que importasse o SDK herdaria a licença; para um
+  SDK, MIT é o que a comunidade espera. Só `packages/bot-sdk` muda; o restante continua AGPL-3.0-only.
+- **Autossuficiência:** o SDK importa apenas tipos do contracts, então o JS publicado não depende dele. O build
+  (`scripts/bundle-types.mjs`) copia as declarações do contracts para `dist/contracts/` e reescreve os imports dos
+  `.d.ts`; `zod` vira dependência porque essas declarações o referenciam. `prepack` (`scripts/check-pack.mjs`) recusa
+  um tarball que ainda referencie `@opencord/contracts` ou que não seja MIT.
+- **Publicação:** workflow `publish-sdk.yml` em tag `bot-sdk-vX.Y.Z` (precisa bater com `package.json`), com
+  "trusted publishing" do npm (OIDC, `--provenance`), sem token guardado. Pendente do mantenedor: criar a organização
+  `@opencord-chat` no npm, o pacote, e configurar o publicador confiável (repositório `estopassoli/opencord`, workflow
+  `publish-sdk.yml`). Nenhuma publicação acontece sem a tag.
+

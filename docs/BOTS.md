@@ -1,7 +1,7 @@
 # Bots e aplicativos
 
 Guia para quem desenvolve bots para o OpenCord (ADR-0032). Um bot é um usuário com token: entra em servidores como
-membro, recebe cargos, manda mensagens, reage e responde a comandos de barra. O SDK `@opencord/bot` usa os nomes que a
+membro, recebe cargos, manda mensagens, reage e responde a comandos de barra. O SDK `@opencord-chat/bot` usa os nomes que a
 comunidade de bots já conhece; quem preferir fala direto com a API REST e o gateway (seção 5).
 
 ## 1. Criar um bot no app
@@ -21,13 +21,13 @@ as dos cargos (ver canal, enviar mensagens, gerenciar mensagens…). Remover o b
 ## 3. Primeiro bot em 20 linhas
 
 ```sh
-pnpm --filter @opencord/bot build   # dentro do repositório; depois `pnpm add file:…/packages/bot-sdk` no seu projeto
+pnpm add @opencord-chat/bot        # npm: @opencord-chat/bot (MIT); do repositório: pnpm add file:…/packages/bot-sdk
 export OPENCORD_URL=https://api.seu-opencord.dev
 export OPENCORD_TOKEN=ocb_...
 ```
 
 ```js
-import { Client, Events, SlashCommandBuilder } from '@opencord/bot';
+import { Client, Events, SlashCommandBuilder } from '@opencord-chat/bot';
 
 const client = new Client();
 
@@ -132,7 +132,7 @@ um bot de mensagens e comandos, trocar o import e o token costuma bastar.
 
 | No discord.js                                           | No OpenCord                                                                                          |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `import { … } from 'discord.js'`                        | `import { … } from '@opencord/bot'`                                                                  |
+| `import { … } from 'discord.js'`                        | `import { … } from '@opencord-chat/bot'`                                                                  |
 | `client.login(DISCORD_TOKEN)`                           | `client.login(OPENCORD_TOKEN)` + `baseUrl`/`OPENCORD_URL` (cada instância tem a própria API)         |
 | `intents: [GatewayIntentBits.…]`, `partials`            | aceitos e ignorados: o bot recebe os eventos dos servidores em que é membro, conforme os cargos      |
 | ids snowflake (`'1234…'`)                               | UUIDs; nada de `SnowflakeUtil`/timestamps extraídos do id                                            |

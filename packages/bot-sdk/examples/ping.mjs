@@ -1,6 +1,6 @@
 // Bot de exemplo: responde "pong" a `!ping` e registra o comando /ola com a opção `nome`.
 // Rode com OPENCORD_URL e OPENCORD_TOKEN no ambiente (veja o README).
-import { Client, Events, GatewayIntentBits, SlashCommandBuilder } from '@opencord/bot';
+import { Client, Events, GatewayIntentBits, SlashCommandBuilder } from '@opencord-chat/bot';
 
 if (!process.env.OPENCORD_TOKEN || !process.env.OPENCORD_URL) {
   console.error('defina OPENCORD_URL (ex.: https://api.seu-opencord.dev) e OPENCORD_TOKEN (token do bot, ocb_…)');
