@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '12:30',
+    kind: 'melhoria',
+    icon: 'tag',
+    title: 'Versões publicadas no GitHub',
+    body: 'Cada versão do app agora vira uma release no GitHub (github.com/estopassoli/opencord/releases) com os instaladores e a lista do que mudou. As versões antigas foram registradas retroativamente com as novidades de cada uma.',
+  },
+  {
+    date: '2026-11-02',
     time: '12:00',
     kind: 'correção',
     icon: 'verified',

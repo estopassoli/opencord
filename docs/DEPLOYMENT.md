@@ -55,3 +55,11 @@ Secrets no GitHub (Settings → Secrets → Actions): `DOWNLOADS_SSH_KEY` (conte
 - **Assistir juntos (YouTube)**: funciona sem configuração (por link). Para a **pesquisa**, crie uma chave da YouTube Data API v3 no Google Cloud (restrinja à API do YouTube) e defina `YOUTUBE_API_KEY` na API; a cota grátis dá ~100 pesquisas/dia. Sem a chave, o app mostra só o campo de link.
 - Na instância pública não há coturn/TURN por enquanto: o fallback quando UDP é bloqueado é ICE/TCP. Redes que só liberam 443 não conectam a mídia.
 - A configuração específica do cluster (stacks, rotas, firewall) fica fora deste repositório.
+
+## Releases no GitHub
+Cada push no `main` que gera instaladores também cria a release `v0.2.<run>` no GitHub (job `publish` do
+`desktop.yml`): tag no commit, instaladores de Windows/macOS/Linux anexados e as novidades do changelog que entraram
+desde a release anterior (`apps/desktop/scripts/release-notes.mjs --markdown`). O workflow não dispara em tags: a tag
+nasce da release. Para registrar versões antigas: `node scripts/backfill-github-releases.mjs [--dry-run]` (uma release
+por run bem-sucedido, com as novidades entre uma publicação e a anterior; idempotente).
+
