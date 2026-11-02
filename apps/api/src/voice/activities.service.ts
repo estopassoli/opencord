@@ -10,7 +10,7 @@ import { forbidden } from '../common/errors.js';
 import { RedisService } from '../common/redis.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
-import { VoiceService } from './voice.service.js';
+import { requireServerId, VoiceService } from './voice.service.js';
 
 /** A sessão some sozinha se ninguém mexer por muito tempo (e é apagada quando a chamada esvazia). */
 const TTL_S = 6 * 60 * 60;
@@ -37,7 +37,7 @@ export class ActivitiesService {
   private async requireInCall(userId: string, channelId: string): Promise<string> {
     const s = await this.voice.stateOf(userId);
     if (!s || s.channelId !== channelId) throw forbidden('entre na chamada para usar a atividade');
-    return s.serverId;
+    return requireServerId(s.serverId);
   }
 
   /** Tocar/pausar/pular para o grupo, trocar e encerrar: só quem iniciou (os outros pausam só para si, no app). */

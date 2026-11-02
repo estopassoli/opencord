@@ -27,20 +27,41 @@ import { remoteControl, useRemote } from '../../voice/remote-control';
 const NO_MEMBERS: Member[] = [];
 
 /** Palco do canal de voz: grade de participantes, câmeras e streams (Go Live) com destaque e tela cheia. */
-export function VoiceStage({ channelId, serverId }: { channelId: string; serverId: string }) {
+/**
+ * `serverId` null = chamada privada (ADR-0038): `channelId` é o id da conversa; sem gravação, atividades, música,
+ * soundboard nem moderação de voz. Nome e membros vêm da conversa.
+ */
+export function VoiceStage({ channelId, serverId }: { channelId: string; serverId: string | null }) {
   const machine = useVoice((s) => s.machine);
   const participants = useVoice((s) => s.participants);
   const focused = useUi((s) => s.focusedStream);
   const sideId = useUi((s) => s.sideStream);
   const activity = useActivity((s) => s.state);
-  const channel = useData((s) => s.details[serverId]?.channels.find((c) => c.id === channelId));
+  const privateCall = serverId === null;
+  const channel = useData((s) =>
+    serverId ? s.details[serverId]?.channels.find((c) => c.id === channelId) : undefined,
+  );
+  const conversation = useData((s) => (privateCall ? s.conversations.find((c) => c.id === channelId) : undefined));
+  const meId = useData((s) => s.me?.id);
+  const stageName =
+    channel?.name ??
+    conversation?.name ??
+    conversation?.members
+      .filter((m) => m.id !== meId)
+      .map((m) => m.displayName)
+      .join(', ') ??
+    '';
   // seletores que derivam arrays precisam de comparação rasa (zustand v5 + useSyncExternalStore)
   const others = useData(useShallow((s) => Object.values(s.voiceStates).filter((v) => v.channelId === channelId)));
-  const members = useData((s) => s.details[serverId]?.members) ?? NO_MEMBERS;
+  const serverMembers = useData((s) => (serverId ? s.details[serverId]?.members : undefined)) ?? NO_MEMBERS;
+  const nameOfUser = (id: string) =>
+    serverMembers.find((x) => x.user.id === id)?.user.displayName ??
+    conversation?.members.find((m) => m.id === id)?.displayName ??
+    '?';
   const here = machine.channelId === channelId && isInCall(machine);
   const mobileShell = useIsMobile();
   const stageRef = useRef<HTMLElement>(null);
-  useRecordingLoad(channelId);
+  useRecordingLoad(privateCall ? null : channelId);
   // ref por estado: a grade monta e desmonta ao alternar com a live em destaque, e a medição precisa acompanhar
   const [gridEl, setGridEl] = useState<HTMLUListElement | null>(null);
   const tileCount = here
@@ -50,23 +71,25 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
 
   if (!here) {
     return (
-      <section className="stage stage-idle" aria-label={`Canal de voz ${channel?.name ?? ''}`}>
+      <section
+        className="stage stage-idle"
+        aria-label={privateCall ? `Chamada com ${stageName}` : `Canal de voz ${stageName}`}
+      >
         {/* celular: sem a barra lateral à vista, o menu é o caminho de volta para canais e servidores */}
         {mobileShell && (
           <header className="chat-header stage-header stage-idle-header">
             <MobileNavButton />
-            <h2 className="truncate">{channel?.name}</h2>
+            <h2 className="truncate">{stageName}</h2>
           </header>
         )}
-        <Icon name="speaker" size={48} />
-        <h2>{channel?.name}</h2>
+        <Icon name={privateCall ? 'phone' : 'speaker'} size={48} />
+        <h2>{stageName}</h2>
         <p className="muted">{others.length ? `${others.length} pessoa(s) na chamada` : 'Ninguém aqui ainda.'}</p>
         <ul className="stage-preview">
           {others.map((v) => {
-            const m = members.find((x) => x.user.id === v.userId);
             return (
               <li key={v.userId}>
-                <Avatar id={v.userId} name={m?.user.displayName ?? '?'} size={48} />
+                <Avatar id={v.userId} name={nameOfUser(v.userId)} size={48} />
               </li>
             );
           })}
@@ -74,7 +97,11 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
         <Button
           size="lg"
           icon="speaker"
-          onClick={() => void useVoice.getState().join(channelId, serverId)}
+          onClick={() =>
+            void (serverId
+              ? useVoice.getState().join(channelId, serverId)
+              : useVoice.getState().joinConversation(channelId))
+          }
           disabled={machine.status === 'authorizing' || machine.status === 'connecting'}
         >
           {machine.status === 'authorizing' || machine.status === 'connecting' ? 'Conectando…' : 'Entrar na chamada'}
@@ -97,7 +124,8 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
     <section className="stage" aria-label={`Chamada em ${channel?.name ?? ''}`} ref={stageRef}>
       <StageHeader
         channelId={channelId}
-        channelName={channel?.name ?? ''}
+        channelName={stageName}
+        privateCall={privateCall}
         focus={focus}
         activity={activityFocused}
         mobile
@@ -143,7 +171,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
           ))}
         </ul>
       )}
-      <CallControls stageRef={stageRef} />
+      <CallControls stageRef={stageRef} privateCall={privateCall} />
     </section>
   );
 }
@@ -174,19 +202,21 @@ function StageHeader({
   focus,
   activity,
   mobile,
+  privateCall,
 }: {
   channelId: string;
   channelName: string;
   focus: ParticipantView | null;
   activity?: boolean;
   mobile?: boolean;
+  privateCall?: boolean;
 }) {
   const source = useVoice((s) => s.streamSource);
   const title = useActivity((s) => s.state?.title);
   return (
     <header className="chat-header stage-header">
       {mobile && <MobileNavButton />}
-      <Icon name="speaker" size={22} />
+      <Icon name={privateCall ? 'phone' : 'speaker'} size={22} />
       <h2 className="truncate">{channelName}</h2>
       {focus && (
         <span className="stage-live-who truncate">
@@ -206,8 +236,8 @@ function StageHeader({
         </span>
       )}
       <span className="spacer" />
-      <RecordingBadge channelId={channelId} />
-      <RecordingsButton channelId={channelId} />
+      {!privateCall && <RecordingBadge channelId={channelId} />}
+      {!privateCall && <RecordingsButton channelId={channelId} />}
       <LiveBadge focus={focus} />
     </header>
   );
@@ -799,7 +829,15 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
 }
 
 /** Barra de controles da chamada (centralizada embaixo do palco). */
-function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElement | null>; popout?: boolean }) {
+function CallControls({
+  stageRef,
+  popout,
+  privateCall,
+}: {
+  stageRef: React.RefObject<HTMLElement | null>;
+  popout?: boolean;
+  privateCall?: boolean;
+}) {
   // Seletor raso: a barra não re-renderiza a cada estatística da live ou mudança de participante.
   const v = useVoice(
     useShallow((s) => ({
@@ -877,31 +915,35 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
           </Tooltip>
         </div>
         <div className="call-group">
-          <Tooltip label="Atividades">
-            <button
-              className="call-btn activities-btn"
-              aria-label="Atividades"
-              aria-haspopup="dialog"
-              aria-expanded={panel}
-              aria-pressed={activityOn}
-              onClick={() => setPanel((o) => !o)}
-            >
-              <Icon name="activities" />
-            </button>
-          </Tooltip>
-          <Tooltip label="Efeitos sonoros">
-            <button
-              className="call-btn soundboard-btn"
-              aria-label="Efeitos sonoros"
-              aria-haspopup="dialog"
-              aria-expanded={Boolean(soundAnchor)}
-              onClick={(e) =>
-                setSoundAnchor(soundAnchor ? null : (e.currentTarget as HTMLElement).getBoundingClientRect())
-              }
-            >
-              <Icon name="soundboard" />
-            </button>
-          </Tooltip>
+          {!privateCall && (
+            <Tooltip label="Atividades">
+              <button
+                className="call-btn activities-btn"
+                aria-label="Atividades"
+                aria-haspopup="dialog"
+                aria-expanded={panel}
+                aria-pressed={activityOn}
+                onClick={() => setPanel((o) => !o)}
+              >
+                <Icon name="activities" />
+              </button>
+            </Tooltip>
+          )}
+          {!privateCall && (
+            <Tooltip label="Efeitos sonoros">
+              <button
+                className="call-btn soundboard-btn"
+                aria-label="Efeitos sonoros"
+                aria-haspopup="dialog"
+                aria-expanded={Boolean(soundAnchor)}
+                onClick={(e) =>
+                  setSoundAnchor(soundAnchor ? null : (e.currentTarget as HTMLElement).getBoundingClientRect())
+                }
+              >
+                <Icon name="soundboard" />
+              </button>
+            </Tooltip>
+          )}
           {(canCapture || live || !mobile) && (
             <Tooltip label={live ? 'Parar transmissão' : 'Transmitir tela'}>
               <button
@@ -945,7 +987,7 @@ function CallControls({ stageRef, popout }: { stageRef: React.RefObject<HTMLElem
             </button>
           </Tooltip>
         </div>
-        <RecordButton />
+        {!privateCall && <RecordButton />}
         <Tooltip label="Sair da chamada">
           <button className="call-btn call-hangup" aria-label="Sair da chamada" onClick={() => void v.leave()}>
             <Icon name="hangup" />

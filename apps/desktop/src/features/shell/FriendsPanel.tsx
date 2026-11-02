@@ -45,7 +45,7 @@ export function FriendsPanel({ forceCompact }: { forceCompact?: boolean }) {
   const sub = (f: FriendWithPresence) => {
     const v = voiceStates[f.user.id];
     if (!v) return statusTexts[f.user.id] ?? STATUS_LABEL[statusOf(f)];
-    const ch = details[v.serverId]?.channels.find((c) => c.id === v.channelId)?.name;
+    const ch = v.serverId ? details[v.serverId]?.channels.find((c) => c.id === v.channelId)?.name : 'chamada privada';
     return `${v.streaming ? 'Transmitindo' : 'Em voz'}${ch ? ` · ${ch}` : ''}`;
   };
   const sections: { id: string; title: string; icon: 'speaker' | 'users'; list: FriendWithPresence[] }[] = [

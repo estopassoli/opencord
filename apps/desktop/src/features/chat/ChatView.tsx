@@ -8,6 +8,8 @@ import { keyOf, useData, useMessages, type TargetKey } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
 import { ApiError } from '../../lib/api';
 import { useUi } from '../../store/ui';
+import { useVoice } from '../../store/voice';
+import { DmCallBar } from './DmCallBar';
 import { Composer } from './Composer';
 import { EphemeralReplies } from './EphemeralReplies';
 import { useDmPeer } from '../shell/DmProfilePanel';
@@ -180,6 +182,16 @@ export function ChatView({ target }: { target: ChatTarget }) {
           canUnpin={!channel || hasPermission(perms, Permission.MANAGE_MESSAGES)}
           nameOf={nameOf}
         />
+        {!channel && target.conversationId && (
+          <button
+            className="icon-btn"
+            aria-label="Ligar"
+            data-tip="Começar uma chamada"
+            onClick={() => void useVoice.getState().joinConversation(target.conversationId as string)}
+          >
+            <Icon name="phone" />
+          </button>
+        )}
         {!channel && dmPeer && (
           <button
             className="icon-btn"
@@ -226,6 +238,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
           </button>
         )}
       </header>
+      {target.conversationId && <DmCallBar conversationId={target.conversationId} />}
       <div
         className="chat-scroll"
         ref={scroller}

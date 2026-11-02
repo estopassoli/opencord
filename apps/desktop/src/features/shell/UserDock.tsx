@@ -123,6 +123,14 @@ export function UserDock() {
                   {channel.name} / {server.name}
                 </button>
               )}
+              {v.conversationId && (
+                <button
+                  className="link-btn voice-dock-where truncate"
+                  onClick={() => useUi.getState().go({ kind: 'dm', conversationId: v.conversationId as string })}
+                >
+                  Chamada privada
+                </button>
+              )}
             </span>
             {inCall && (
               <Tooltip label={noise ? 'Supressão de ruído: ligada' : 'Supressão de ruído: desligada'}>

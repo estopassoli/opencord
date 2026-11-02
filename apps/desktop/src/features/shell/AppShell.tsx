@@ -190,7 +190,13 @@ export function AppShell() {
           key={`${view.kind}-${view.kind === 'server' ? view.channelId : view.kind === 'dm' ? view.conversationId : ''}`}
         >
           {view.kind === 'home' && (view.tab === 'news' ? <NewsView /> : <HomeView />)}
-          {view.kind === 'dm' && (
+          {view.kind === 'dm' && myCall === view.conversationId && (
+            <div className="dm-call-split">
+              <VoiceStage channelId={view.conversationId} serverId={null} />
+              <ChatView key={view.conversationId} target={{ conversationId: view.conversationId }} />
+            </div>
+          )}
+          {view.kind === 'dm' && myCall !== view.conversationId && (
             <ChatView key={view.conversationId} target={{ conversationId: view.conversationId }} />
           )}
           {view.kind === 'server' && channel?.kind === 'text' && (

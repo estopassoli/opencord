@@ -45,6 +45,17 @@ export class VoiceController {
     return this.voice.join(u.userId, channelId);
   }
 
+  /** chamada privada (ADR-0038) */
+  @Post('voice/conversations/:id/join')
+  joinConversation(@CurrentUser() u: AuthUser, @Param('id', id) conversationId: string) {
+    return this.voice.joinConversation(u.userId, conversationId);
+  }
+
+  @Get('conversations/:id/voice-states')
+  listConversation(@CurrentUser() u: AuthUser, @Param('id', id) conversationId: string) {
+    return this.voice.listConversation(u.userId, conversationId);
+  }
+
   @Post('voice/leave')
   @HttpCode(204)
   async leave(@CurrentUser() u: AuthUser) {

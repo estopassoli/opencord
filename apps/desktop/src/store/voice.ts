@@ -28,6 +28,8 @@ interface VoiceStore {
   machine: VoiceState;
   stream: StreamState;
   serverId: string | null;
+  /** chamada privada (ADR-0038): id da conversa; null em canal de servidor */
+  conversationId: string | null;
   participants: ParticipantView[];
   selfMute: boolean;
   selfDeaf: boolean;
@@ -38,6 +40,8 @@ interface VoiceStore {
   streamSource: string | null;
   perms: { canSpeak: boolean; canVideo: boolean; canStream: boolean };
   join(channelId: string, serverId: string): Promise<void>;
+  /** chamada privada (ADR-0038): entra na chamada da conversa direta/grupo */
+  joinConversation(conversationId: string): Promise<void>;
   leave(): Promise<void>;
   forcedOut(reason: string): void;
   toggleMute(): Promise<void>;
@@ -214,8 +218,9 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     if (sid && m.channelId)
       writeLocal(LAST_CALL_KEY, { serverId: sid, channelId: m.channelId, at: Date.now() } satisfies LastCall);
     // atividade já em andamento nesta chamada (Assistir juntos)
-    if (j.channelId) void useActivity.getState().load(j.channelId);
-    if (j.channelId) void useMusic.getState().load(j.channelId);
+    // atividades e música são do servidor; em chamada privada (ADR-0038) não existem
+    if (j.channelId && !j.conversationId) void useActivity.getState().load(j.channelId);
+    if (j.channelId && !j.conversationId) void useMusic.getState().load(j.channelId);
     if (!reconnecting) playSound('join');
   }
 
@@ -251,6 +256,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     machine: initialVoiceState,
     stream: initialStreamState,
     serverId: null,
+    conversationId: null,
     participants: [],
     selfMute: false,
     selfDeaf: false,
@@ -276,10 +282,44 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       }
       dispatch({ type: 'JOIN', channelId });
       const gen = get().machine.generation;
-      set({ serverId, camera: false, stream: initialStreamState });
+      set({ serverId, conversationId: null, camera: false, stream: initialStreamState });
       try {
         const j = await api().request<VoiceJoinResponse>('POST', `/voice/channels/${channelId}/join`);
         if (get().machine.generation !== gen) return; // usuário trocou/saiu nesse meio-tempo
+        set({ perms: { canSpeak: j.canSpeak, canVideo: j.canVideo, canStream: j.canStream } });
+        dispatch({ type: 'AUTHORIZED', generation: gen, channelId: j.channelId });
+        await connectWith(j, gen);
+        if (get().selfMute || get().selfDeaf) pushState();
+        syncTray();
+      } catch (e) {
+        dispatch({ type: 'FAILED', error: describeError(e), generation: gen });
+        await disconnectEngine().catch(() => undefined);
+        await api()
+          .request('POST', '/voice/leave')
+          .catch(() => undefined);
+        useUi.getState().toast('error', `Falha ao entrar na chamada: ${describeError(e)}`);
+      }
+    },
+
+    async joinConversation(conversationId) {
+      const prev = get().machine;
+      if (
+        prev.channelId === conversationId &&
+        (prev.status === 'connected' || prev.status === 'connecting' || prev.status === 'authorizing')
+      )
+        return;
+      if (engine && prev.status !== 'disconnected') {
+        await get()
+          .stopStream()
+          .catch(() => undefined);
+        await engine.disconnect();
+      }
+      dispatch({ type: 'JOIN', channelId: conversationId });
+      const gen = get().machine.generation;
+      set({ serverId: null, conversationId, camera: false, stream: initialStreamState });
+      try {
+        const j = await api().request<VoiceJoinResponse>('POST', `/voice/conversations/${conversationId}/join`);
+        if (get().machine.generation !== gen) return;
         set({ perms: { canSpeak: j.canSpeak, canVideo: j.canVideo, canStream: j.canStream } });
         dispatch({ type: 'AUTHORIZED', generation: gen, channelId: j.channelId });
         await connectWith(j, gen);
@@ -305,7 +345,14 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       useActivity.getState().reset();
       useMusic.getState().reset();
       if (wasIn) playSound('leave');
-      set({ serverId: null, participants: [], camera: false, stream: initialStreamState, stats: null });
+      set({
+        serverId: null,
+        conversationId: null,
+        participants: [],
+        camera: false,
+        stream: initialStreamState,
+        stats: null,
+      });
       if (wasIn) await withApiSafe((a) => a.request('POST', '/voice/leave'));
       syncTray();
     },
@@ -316,7 +363,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       dispatch({ type: 'FORCED_OUT', reason });
       forgetLastCall();
       playSound('leave');
-      set({ serverId: null, participants: [], camera: false, stream: initialStreamState });
+      set({ serverId: null, conversationId: null, participants: [], camera: false, stream: initialStreamState });
       useUi.getState().toast('error', reason);
       syncTray();
     },

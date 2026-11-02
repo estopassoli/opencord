@@ -22,6 +22,7 @@ import {
   Bug01Icon,
   Calendar03Icon,
   CallEnd01Icon,
+  Call02Icon,
   Cancel01Icon,
   ChartBarLineIcon,
   CheckmarkBadge01Icon,
@@ -197,6 +198,7 @@ const ICONS = {
   'pin-off': PinOffIcon,
   smartphone: SmartPhone01Icon,
   keyboard: KeyboardIcon,
+  phone: Call02Icon,
 } satisfies Record<string, IconSvgElement>;
 
 export type IconName = keyof typeof ICONS;

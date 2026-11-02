@@ -39,7 +39,7 @@ export function FullProfileDialog({ userId, onClose }: { userId: string; onClose
   const status = useData((s) => s.presence[userId] ?? 'offline');
   const voice = useData((s) => s.voiceStates[userId]);
   const channelName = useData((s) =>
-    voice ? s.details[voice.serverId]?.channels.find((c) => c.id === voice.channelId)?.name : undefined,
+    voice?.serverId ? s.details[voice.serverId]?.channels.find((c) => c.id === voice.channelId)?.name : undefined,
   );
   const serverName = useData((s) => (voice ? s.servers.find((x) => x.id === voice.serverId)?.name : undefined));
   const friendship = useData((s) => s.friends.find((f) => f.user.id === userId && f.status === 'accepted'));
@@ -173,7 +173,10 @@ export function FullProfileDialog({ userId, onClose }: { userId: string; onClose
                   <button
                     className="full-profile-activity"
                     onClick={() => {
-                      useUi.getState().go({ kind: 'server', serverId: voice.serverId, channelId: voice.channelId });
+                      if (voice.serverId)
+                        useUi.getState().go({ kind: 'server', serverId: voice.serverId, channelId: voice.channelId });
+                      else if (voice.conversationId)
+                        useUi.getState().go({ kind: 'dm', conversationId: voice.conversationId });
                       onClose();
                     }}
                   >

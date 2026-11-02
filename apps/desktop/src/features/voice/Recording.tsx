@@ -40,9 +40,9 @@ const nameOf = (userId: string) => {
 };
 
 /** Carrega o estado da gravação do canal ao abrir o palco. */
-export function useRecordingLoad(channelId: string) {
+export function useRecordingLoad(channelId: string | null) {
   useEffect(() => {
-    void useRecording.getState().load(channelId);
+    if (channelId) void useRecording.getState().load(channelId);
   }, [channelId]);
 }
 

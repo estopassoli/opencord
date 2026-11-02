@@ -31,7 +31,11 @@ export function DmProfilePanel({ conversationId }: { conversationId: string }) {
   const status = useData((s) => (peer ? (s.presence[peer.id] ?? 'offline') : 'offline'));
   const voice = useData((s) => (peer ? s.voiceStates[peer.id] : undefined));
   const channelName = useData((s) =>
-    voice ? s.details[voice.serverId]?.channels.find((c) => c.id === voice.channelId)?.name : undefined,
+    voice?.serverId
+      ? s.details[voice.serverId]?.channels.find((c) => c.id === voice.channelId)?.name
+      : voice
+        ? 'chamada privada'
+        : undefined,
   );
   const [profile, setProfile] = useState<UserProfile | null>(null);
   useEffect(() => {
@@ -68,7 +72,9 @@ export function DmProfilePanel({ conversationId }: { conversationId: string }) {
           <button
             className="dm-profile-voice"
             onClick={() =>
-              useUi.getState().go({ kind: 'server', serverId: voice.serverId, channelId: voice.channelId })
+              voice.serverId
+                ? useUi.getState().go({ kind: 'server', serverId: voice.serverId, channelId: voice.channelId })
+                : voice.conversationId && useUi.getState().go({ kind: 'dm', conversationId: voice.conversationId })
             }
           >
             <Icon name={voice.streaming ? 'screen' : 'speaker'} size={16} />

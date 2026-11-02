@@ -18,7 +18,7 @@ import { RedisService } from '../common/redis.service.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { PermissionsService } from '../servers/permissions.service.js';
-import { VoiceService } from '../voice/voice.service.js';
+import { requireServerId, VoiceService } from '../voice/voice.service.js';
 
 /** tipos aceitos pelos bytes (o declarado pelo cliente não vale) */
 const AUDIO = new Set(['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/vnd.wave']);
@@ -186,7 +186,7 @@ export class SoundsService {
       await this.redis.client.set(heardKey(channelId, soundId), '1', 'PX', HEARD_GRANT_MS);
     this.realtime.emit(rooms.channel(channelId), 'sound:played', {
       channelId,
-      serverId: state.serverId,
+      serverId: requireServerId(state.serverId),
       soundId,
       userId,
       volume: s.volume,

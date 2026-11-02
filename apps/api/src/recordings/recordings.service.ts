@@ -30,7 +30,7 @@ import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { PermissionsService } from '../servers/permissions.service.js';
-import { VoiceService } from '../voice/voice.service.js';
+import { requireServerId, VoiceService } from '../voice/voice.service.js';
 
 /** a gravação "viva" some se o app de quem grava parar de avisar (caiu, fechou) */
 const ALIVE_TTL_S = 120;
@@ -124,7 +124,7 @@ export class RecordingsService implements OnModuleInit, OnModuleDestroy {
     const now = new Date();
     const row = await this.prisma.callRecording.create({
       data: {
-        serverId: state.serverId,
+        serverId: requireServerId(state.serverId),
         channelId,
         createdById: userId,
         storageKey: 'pending',
@@ -141,8 +141,8 @@ export class RecordingsService implements OnModuleInit, OnModuleDestroy {
       await this.discard({ ...row, storageKey, uploadId });
       throw new ConflictException('esta chamada já está sendo gravada');
     }
-    await this.audit.log(userId, state.serverId, 'recording.start', row.id, { channelId });
-    this.announce(state.serverId, channelId, active);
+    await this.audit.log(userId, row.serverId, 'recording.start', row.id, { channelId });
+    this.announce(row.serverId, channelId, active);
     return { id: row.id, partBytes: RECORDING_PART_BYTES };
   }
 

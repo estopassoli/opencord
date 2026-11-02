@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '21:30',
+    kind: 'novo',
+    icon: 'phone',
+    title: 'Chamadas privadas',
+    body: 'Agora dá para ligar direto numa conversa, a dois ou em grupo: o botão de telefone no topo da conversa começa a chamada, quem está do outro lado recebe o aviso com "Atender", e a chamada aparece em cima da conversa com voz, câmera e transmissão de tela. Quem entrar na conversa depois vê quem está na chamada e entra pelo botão.',
+  },
+  {
+    date: '2026-11-02',
     time: '21:00',
     kind: 'novo',
     icon: 'shield',

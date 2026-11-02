@@ -42,6 +42,12 @@ interface StoredState extends VoiceMemberState {
   confirmed: boolean;
 }
 
+/** Gravação, soundboard, atividades e música pertencem a um servidor: em chamada privada (ADR-0038) não existem. */
+export function requireServerId(serverId: string | null | undefined): string {
+  if (!serverId) throw new BadRequestException('indisponível em chamada privada');
+  return serverId;
+}
+
 export function sourcesFor(perms: number): TrackSource[] {
   const s: TrackSource[] = [];
   if (hasPermission(perms, Permission.SPEAK)) s.push(TrackSource.MICROPHONE);
@@ -118,6 +124,11 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     return this.redis.client;
   }
 
+  /** Sala do realtime que acompanha esta sessão: canal do servidor ou conversa (chamada privada, ADR-0038). */
+  private roomOf(s: { channelId: string; conversationId?: string | null | undefined }): string {
+    return s.conversationId ? rooms.conversation(s.conversationId) : rooms.channel(s.channelId);
+  }
+
   /** Nome de sala opaco: não revela IDs internos à SFU nem a terceiros. */
   roomNameFor(channelId: string): string {
     return `vc_${createHmac('sha256', this.cfg.LIVEKIT_API_SECRET).update(channelId).digest('base64url').slice(0, 22)}`;
@@ -162,7 +173,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       serverNow: now,
     };
     await this.r.set(`activity:${s.channelId}`, JSON.stringify(out), 'KEEPTTL');
-    this.realtime.emit(rooms.channel(s.channelId), 'activity:state', out);
+    this.realtime.emit(this.roomOf(s), 'activity:state', out);
   }
 
   /** DJ da música saiu: quem está na chamada há mais tempo assume a fila (decisão do mantenedor, ADR-0014). */
@@ -188,7 +199,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       revision: m.revision + 1,
     };
     await this.r.set(`music:${s.channelId}`, JSON.stringify(out), 'KEEPTTL');
-    this.realtime.emit(rooms.channel(s.channelId), 'music:state', { ...out, serverNow: now });
+    this.realtime.emit(this.roomOf(s), 'music:state', { ...out, serverNow: now });
   }
 
   private async clear(s: StoredState) {
@@ -198,13 +209,11 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     if ((await this.r.scard(`voice:channel:${s.channelId}`)) === 0) {
       await this.r.srem('voice:channels', s.channelId);
       // chamada vazia: as atividades (Assistir juntos e música) acabam junto
-      if ((await this.r.del(`activity:${s.channelId}`)) > 0)
-        this.realtime.emit(rooms.channel(s.channelId), 'activity:ended', {
-          channelId: s.channelId,
-          serverId: s.serverId,
-        });
-      if ((await this.r.del(`music:${s.channelId}`)) > 0)
-        this.realtime.emit(rooms.channel(s.channelId), 'music:ended', { channelId: s.channelId, serverId: s.serverId });
+      const serverId = s.serverId;
+      if ((await this.r.del(`activity:${s.channelId}`)) > 0 && serverId)
+        this.realtime.emit(this.roomOf(s), 'activity:ended', { channelId: s.channelId, serverId });
+      if ((await this.r.del(`music:${s.channelId}`)) > 0 && serverId)
+        this.realtime.emit(this.roomOf(s), 'music:ended', { channelId: s.channelId, serverId });
     }
   }
 
@@ -227,7 +236,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     await this.r.set(`voice:preview:${userId}`, buf, 'EX', PREVIEW_TTL_SECONDS);
     s.previewAt = new Date().toISOString();
     await this.save(s);
-    this.realtime.emit(rooms.channel(s.channelId), 'voice:state:changed', this.publicState(s));
+    this.realtime.emit(this.roomOf(s), 'voice:state:changed', this.publicState(s));
   }
 
   /** Prévia de alguém: só para quem pode ver o canal em que a pessoa está transmitindo. */
@@ -286,6 +295,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       userId,
       channelId,
       serverId: access.serverId,
+      conversationId: null,
       selfMute: current?.channelId === channelId ? current.selfMute : false,
       selfDeaf: current?.channelId === channelId ? current.selfDeaf : false,
       serverMute: serverMuted,
@@ -298,7 +308,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     };
     await this.save(state);
     if (current?.channelId !== channelId)
-      this.realtime.emit(rooms.channel(channelId), 'voice:member:joined', this.publicState(state));
+      this.realtime.emit(this.roomOf(state), 'voice:member:joined', this.publicState(state));
     return {
       url: this.cfg.LIVEKIT_URL,
       token,
@@ -309,6 +319,114 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       canVideo: sources.includes(TrackSource.CAMERA),
       canStream: sources.includes(TrackSource.SCREEN_SHARE),
     };
+  }
+
+  /**
+   * Chamada privada (ADR-0038): quem é da conversa entra; todos podem falar, ligar câmera e transmitir. A sala da
+   * SFU é derivada do id da conversa; os eventos vão para a sala da conversa no realtime. Quem abre a chamada
+   * (ninguém dentro) "toca" para os outros membros (notificação `call`).
+   */
+  async joinConversation(userId: string, conversationId: string): Promise<VoiceJoinResponse> {
+    const conv = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { members: { select: { userId: true } } },
+    });
+    const memberIds = conv?.members.map((m) => m.userId) ?? [];
+    if (!conv || !memberIds.includes(userId)) throw notFound('conversa');
+    const others = memberIds.filter((m) => m !== userId);
+    const block = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: userId, blockedId: { in: others } },
+          { blockedId: userId, blockerId: { in: others } },
+        ],
+      },
+      select: { blockerId: true },
+    });
+    if (block) throw forbidden('há um bloqueio entre os participantes');
+    const current = await this.stateOf(userId);
+    const occupants = await this.r.scard(`voice:channel:${conversationId}`);
+    if (occupants >= MAX_PER_CHANNEL && current?.channelId !== conversationId)
+      throw new BadRequestException('chamada cheia');
+    if (current && current.channelId !== conversationId) await this.endSession(current, 'moved');
+    const roomName = this.roomNameFor(`conv:${conversationId}`);
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { displayName: true } });
+    const sources = [
+      TrackSource.MICROPHONE,
+      TrackSource.CAMERA,
+      TrackSource.SCREEN_SHARE,
+      TrackSource.SCREEN_SHARE_AUDIO,
+    ];
+    const at = new AccessToken(this.cfg.LIVEKIT_API_KEY, this.cfg.LIVEKIT_API_SECRET, {
+      identity: userId,
+      name: user.displayName,
+      ttl: this.cfg.LIVEKIT_TOKEN_TTL_SECONDS,
+      metadata: JSON.stringify({ channelId: conversationId, conversationId }),
+    });
+    at.addGrant({
+      room: roomName,
+      roomJoin: true,
+      roomCreate: true,
+      ...permissionFor(sources),
+      canUpdateOwnMetadata: false,
+      hidden: false,
+    });
+    const token = await at.toJwt();
+    const same = current?.channelId === conversationId;
+    const state: StoredState = {
+      userId,
+      channelId: conversationId,
+      serverId: null,
+      conversationId,
+      selfMute: same ? current.selfMute : false,
+      selfDeaf: same ? current.selfDeaf : false,
+      serverMute: false,
+      video: false,
+      streaming: false,
+      previewAt: null,
+      joinedAt: same ? current.joinedAt : new Date().toISOString(),
+      roomName,
+      confirmed: same ? current.confirmed : false,
+    };
+    await this.save(state);
+    if (!same) {
+      this.realtime.emit(this.roomOf(state), 'voice:member:joined', this.publicState(state));
+      // chamada começando: toca para os outros (notificação; o app mostra "Atender")
+      if (occupants === 0)
+        for (const uid of others)
+          this.realtime.toUser(uid, 'notification:created', {
+            kind: 'call',
+            title: `${user.displayName} está chamando`,
+            body: 'Toque para entrar na chamada.',
+            conversationId,
+          });
+    }
+    return {
+      url: this.cfg.LIVEKIT_URL,
+      token,
+      roomName,
+      expiresAt: new Date(Date.now() + this.cfg.LIVEKIT_TOKEN_TTL_SECONDS * 1000).toISOString(),
+      channelId: conversationId,
+      conversationId,
+      canSpeak: true,
+      canVideo: true,
+      canStream: true,
+    };
+  }
+
+  /** Quem está na chamada privada desta conversa (só para membros dela). */
+  async listConversation(userId: string, conversationId: string): Promise<VoiceMemberState[]> {
+    const member = await this.prisma.conversationMember.findFirst({
+      where: { conversationId, userId },
+      select: { userId: true },
+    });
+    if (!member) throw notFound('conversa');
+    const out: VoiceMemberState[] = [];
+    for (const uid of await this.r.smembers(`voice:channel:${conversationId}`)) {
+      const s = await this.stateOf(uid);
+      if (s?.channelId === conversationId) out.push(this.publicState(s));
+    }
+    return out;
   }
 
   async isServerMuted(serverId: string, userId: string): Promise<boolean> {
@@ -342,16 +460,17 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
   ) {
     await this.clear(s);
     await this.rooms.removeParticipant(s.roomName, s.userId).catch(() => undefined);
-    this.realtime.emit(rooms.channel(s.channelId), 'voice:member:left', {
+    this.realtime.emit(this.roomOf(s), 'voice:member:left', {
       userId: s.userId,
       channelId: s.channelId,
       serverId: s.serverId,
+      conversationId: s.conversationId ?? null,
       reason,
     });
     if (notifyUser)
       this.realtime.toUser(s.userId, 'voice:force-disconnect', { channelId: s.channelId, reason: notifyUser });
     // sala temporária vazia some (ADR-0029)
-    if ((await this.r.scard(`voice:channel:${s.channelId}`)) === 0)
+    if (s.serverId && (await this.r.scard(`voice:channel:${s.channelId}`)) === 0)
       await this.servers.deleteTemporaryRoom(s.channelId).catch(() => undefined);
   }
 
@@ -367,19 +486,21 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       if (dto.selfDeaf) s.selfMute = true;
     }
     await this.save(s);
-    this.realtime.emit(rooms.channel(s.channelId), 'voice:state:changed', this.publicState(s));
+    this.realtime.emit(this.roomOf(s), 'voice:state:changed', this.publicState(s));
     return this.publicState(s);
   }
 
   async serverMute(actorId: string, targetId: string, muted: boolean) {
     const s = await this.stateOf(targetId);
     if (!s) throw new BadRequestException('membro não está em voz');
-    const actor = await this.perms.requireServer(s.serverId, actorId, Permission.MUTE_MEMBERS);
-    this.perms.assertAbove(actor, await this.perms.memberTop(s.serverId, targetId, actor.ownerId));
+    // moderação de voz é do servidor; numa chamada privada não há moderador (ADR-0038)
+    const serverId = requireServerId(s.serverId);
+    const actor = await this.perms.requireServer(serverId, actorId, Permission.MUTE_MEMBERS);
+    this.perms.assertAbove(actor, await this.perms.memberTop(serverId, targetId, actor.ownerId));
     s.serverMute = muted;
     await this.save(s);
-    if (muted) await this.r.sadd(mutedKey(s.serverId), targetId);
-    else await this.r.srem(mutedKey(s.serverId), targetId);
+    if (muted) await this.r.sadd(mutedKey(serverId), targetId);
+    else await this.r.srem(mutedKey(serverId), targetId);
     const access = await this.perms.channel(s.channelId, targetId);
     const sources = sourcesFor(access.perms).filter((src) => !(muted && src === TrackSource.MICROPHONE));
     await this.rooms
@@ -387,14 +508,15 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
         permission: permissionFor(sources),
       })
       .catch((e: unknown) => this.log.warn(`serverMute: ${String(e)}`));
-    this.realtime.emit(rooms.channel(s.channelId), 'voice:state:changed', this.publicState(s));
+    this.realtime.emit(this.roomOf(s), 'voice:state:changed', this.publicState(s));
   }
 
   async disconnectMember(actorId: string, targetId: string) {
     const s = await this.stateOf(targetId);
     if (!s) return;
-    const actor = await this.perms.requireServer(s.serverId, actorId, Permission.MOVE_MEMBERS);
-    this.perms.assertAbove(actor, await this.perms.memberTop(s.serverId, targetId, actor.ownerId));
+    const serverId = requireServerId(s.serverId);
+    const actor = await this.perms.requireServer(serverId, actorId, Permission.MOVE_MEMBERS);
+    this.perms.assertAbove(actor, await this.perms.memberTop(serverId, targetId, actor.ownerId));
     await this.endSession(s, 'kicked', 'kicked');
   }
 
@@ -407,10 +529,11 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const s = await this.stateOf(targetId);
     if (!s) throw new BadRequestException('membro não está em voz');
     if (s.channelId === channelId) return;
-    const actor = await this.perms.requireServer(s.serverId, actorId, Permission.MOVE_MEMBERS);
-    this.perms.assertAbove(actor, await this.perms.memberTop(s.serverId, targetId, actor.ownerId));
+    const serverId = requireServerId(s.serverId);
+    const actor = await this.perms.requireServer(serverId, actorId, Permission.MOVE_MEMBERS);
+    this.perms.assertAbove(actor, await this.perms.memberTop(serverId, targetId, actor.ownerId));
     const dest = await this.perms.requireChannel(channelId, actorId, Permission.CONNECT);
-    if (dest.kind !== 'voice' || dest.serverId !== s.serverId)
+    if (dest.kind !== 'voice' || dest.serverId !== serverId)
       throw new BadRequestException('não é um canal de voz deste servidor');
     const theirs = await this.perms.channel(channelId, targetId).then(
       (a) => a.perms,
@@ -419,7 +542,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     if (!hasPermission(theirs, Permission.CONNECT)) throw forbidden('o membro não tem acesso a esse canal');
     if ((await this.r.scard(`voice:channel:${channelId}`)) >= MAX_PER_CHANNEL)
       throw new BadRequestException('canal de voz cheio');
-    this.realtime.toUser(targetId, 'voice:force-move', { serverId: s.serverId, channelId, byUserId: actorId });
+    this.realtime.toUser(targetId, 'voice:force-move', { serverId, channelId, byUserId: actorId });
     const t = setTimeout(() => {
       this.moveTimers.delete(t);
       void this.stateOf(targetId)
@@ -501,10 +624,14 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
   async reconcile(): Promise<{ removed: number }> {
     let removed = 0;
     for (const channelId of await this.r.smembers('voice:channels')) {
-      const roomName = this.roomNameFor(channelId);
+      const uids = await this.r.smembers(`voice:channel:${channelId}`);
+      const states = new Map<string, StoredState | null>();
+      for (const uid of uids) states.set(uid, await this.stateOf(uid));
+      const any = [...states.values()].find((x) => x?.channelId === channelId);
+      const roomName = any?.roomName ?? this.roomNameFor(channelId);
       const present = new Set((await this.rooms.listParticipants(roomName).catch(() => [])).map((p) => p.identity));
-      for (const uid of await this.r.smembers(`voice:channel:${channelId}`)) {
-        const s = await this.stateOf(uid);
+      for (const uid of uids) {
+        const s = states.get(uid) ?? null;
         if (!s || s.channelId !== channelId) {
           await this.r.srem(`voice:channel:${channelId}`, uid);
           continue;
@@ -571,7 +698,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
           }
         } else break;
         await this.save(s);
-        this.realtime.emit(rooms.channel(s.channelId), 'voice:state:changed', this.publicState(s));
+        this.realtime.emit(this.roomOf(s), 'voice:state:changed', this.publicState(s));
         break;
       }
       default:

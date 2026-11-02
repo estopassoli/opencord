@@ -375,7 +375,7 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('voice:member:joined', (v) => {
       d().setVoiceState(v);
       // participante ainda não está na lista de membros carregada (ex.: acabou de entrar): recarrega para ter o nome
-      if (!d().details[v.serverId]?.members.some((m) => m.user.id === v.userId))
+      if (v.serverId && !d().details[v.serverId]?.members.some((m) => m.user.id === v.userId))
         void loadServer(v.serverId).catch(() => undefined);
     });
     rt.on('voice:state:changed', (v) => d().setVoiceState(v));

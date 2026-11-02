@@ -5,7 +5,7 @@ import { forbidden } from '../common/errors.js';
 import { RedisService } from '../common/redis.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { ActivitiesService } from './activities.service.js';
-import { VoiceService } from './voice.service.js';
+import { requireServerId, VoiceService } from './voice.service.js';
 
 const TTL_S = 6 * 60 * 60;
 const key = (channelId: string) => `music:${channelId}`;
@@ -35,7 +35,7 @@ export class MusicService {
   private async requireInCall(userId: string, channelId: string): Promise<string> {
     const s = await this.voice.stateOf(userId);
     if (!s || s.channelId !== channelId) throw forbidden('entre na chamada para usar a música');
-    return s.serverId;
+    return requireServerId(s.serverId);
   }
 
   private async load(channelId: string): Promise<Stored | null> {

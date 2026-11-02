@@ -159,7 +159,8 @@ export interface ServerEvents {
   'voice:member:left': {
     userId: string;
     channelId: string;
-    serverId: string;
+    serverId: string | null;
+    conversationId?: string | null;
     reason: 'left' | 'kicked' | 'timeout' | 'moved';
   };
   'voice:force-disconnect': { channelId: string; reason: 'kicked' | 'revoked' | 'replaced' };
@@ -187,7 +188,7 @@ export interface ServerEvents {
   'friend:changed': z.infer<typeof Friend> | { userId: string; removed: true };
   'conversation:upserted': z.infer<typeof Conversation>;
   'notification:created': {
-    kind: 'mention' | 'dm' | 'friend_request' | 'moderation';
+    kind: 'mention' | 'dm' | 'friend_request' | 'moderation' | 'call';
     title: string;
     body: string;
     channelId?: string;

@@ -152,6 +152,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-02 | Moderação por IA antes de publicar (ADR-0036) | int `ai-moderation.int.test.ts` 7/7 com stub da Anthropic + suíte 186/186; desktop typecheck/lint/unit 201/201 | verde | migração `20261102030000_ai_moderation` + `ffmpeg` na imagem da API antes do deploy; `ANTHROPIC_API_KEY` em produção (segredo); validar vereditos reais |
 | 2026-11-02 | Bloqueio automático + dispositivo (adendo ADR-0036) | int `ai-moderation.int.test.ts` 10/10; unit API `media.test.ts`; desktop `hardware-id.test.ts`; typecheck/lint | verde | migração `20261102040000_device_bans` antes da API nova; chaves desligadas por padrão no painel |
 | 2026-11-02 | Bots públicos oficiais (ADR-0037) | `apps/bots` unit 11/11; int `official-bots.int.test.ts` 2/2; prova real com 6 bots contra a API local (smoke-bots.out: 20 comandos/botões) | verde | migração `20261102050000_official_bots` antes da API nova; serviço `bots` precisa subir na infra com `OFFICIAL_BOTS_SECRET` |
+| 2026-11-02 | Chamadas privadas (ADR-0038) | int `dm-calls.int.test.ts` 1/1 + `voice.int.test.ts` 16/16 (LiveKit real); desktop typecheck/lint/unit | verde | sem migração; validar com duas pessoas reais (voz, câmera, tela) |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

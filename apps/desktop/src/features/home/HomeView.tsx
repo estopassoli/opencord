@@ -184,7 +184,11 @@ function FriendRow({
   const st = useData((s) => s.presence[f.user.id] ?? f.presence ?? 'offline');
   const voice = useData((s) => s.voiceStates[f.user.id]);
   const channel = useData((s) =>
-    voice ? s.details[voice.serverId]?.channels.find((c) => c.id === voice.channelId)?.name : undefined,
+    voice?.serverId
+      ? s.details[voice.serverId]?.channels.find((c) => c.id === voice.channelId)?.name
+      : voice
+        ? 'chamada privada'
+        : undefined,
   );
   const accepted = f.status === 'accepted';
   const name = useNameFor(f.user.id, f.user.displayName);

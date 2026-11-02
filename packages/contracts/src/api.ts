@@ -1315,6 +1315,8 @@ export const VoiceJoinResponse = z.object({
   roomName: z.string(),
   expiresAt: IsoDate,
   channelId: Id,
+  /** chamada privada (ADR-0038) */
+  conversationId: Id.nullable().optional(),
   canSpeak: z.boolean(),
   canVideo: z.boolean(),
   canStream: z.boolean(),
@@ -1323,8 +1325,12 @@ export type VoiceJoinResponse = z.infer<typeof VoiceJoinResponse>;
 
 export const VoiceMemberState = z.object({
   userId: Id,
+  /** canal de voz, ou o id da conversa numa chamada privada (ADR-0038) */
   channelId: Id,
-  serverId: Id,
+  /** null em chamada privada (conversa direta/grupo) */
+  serverId: Id.nullable(),
+  /** chamada privada (ADR-0038): id da conversa; null em canal de servidor */
+  conversationId: Id.nullable().optional(),
   selfMute: z.boolean(),
   selfDeaf: z.boolean(),
   serverMute: z.boolean(),
