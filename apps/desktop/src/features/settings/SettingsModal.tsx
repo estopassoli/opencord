@@ -14,6 +14,7 @@ import {
 import type { AppInfo, AppPrefsState, GpuMode, ProcessMetric, RendererMemory } from '../../../electron/shared/ipc';
 import { clipsDiag } from '../../store/clips';
 import { Dialog } from '../../components/Dialog';
+import { acceleratorKey, formatAccelerator, formatCode, MODIFIER_CODES, needsModifier } from '../../lib/keys';
 import { InstallAppBlock } from '../../components/InstallApp';
 import { bridge } from '../../lib/bridge';
 import { playSound } from '../../lib/sounds';
@@ -784,44 +785,6 @@ function VoiceTab({ settings }: { settings: UserSettings }) {
 // Atalhos
 // ---------------------------------------------------------------------------
 
-const MODIFIER_CODES = new Set([
-  'ControlLeft',
-  'ControlRight',
-  'ShiftLeft',
-  'ShiftRight',
-  'AltLeft',
-  'AltRight',
-  'MetaLeft',
-  'MetaRight',
-]);
-
-/** Converte KeyboardEvent.code em tecla de accelerator do Electron (A–Z, 0–9, F1–F24) ou null. */
-function acceleratorKey(code: string): string | null {
-  const letter = /^Key([A-Z])$/.exec(code);
-  if (letter?.[1]) return letter[1];
-  const digit = /^Digit([0-9])$/.exec(code);
-  if (digit?.[1]) return digit[1];
-  const fn = /^F([1-9]|1[0-9]|2[0-4])$/.exec(code);
-  if (fn) return code;
-  return null;
-}
-
-/** Texto legível para um KeyboardEvent.code (ex.: "KeyV" → "V"). */
-function formatCode(code: string): string {
-  return code
-    .replace(/^Key/, '')
-    .replace(/^Digit/, '')
-    .replace(/^Numpad/, 'Num ')
-    .replace(/Left$|Right$/, (m) => (m === 'Left' ? ' (esq.)' : ' (dir.)'));
-}
-
-function formatAccelerator(acc: string): string {
-  return acc
-    .split('+')
-    .map((p) => (p === 'CommandOrControl' ? 'Ctrl' : p))
-    .join(' + ');
-}
-
 function KeyCapture({
   label,
   value,
@@ -860,15 +823,17 @@ function KeyCapture({
     if (MODIFIER_CODES.has(e.code)) return; // aguarda a tecla principal
     const key = acceleratorKey(e.code);
     if (!key) {
-      setError('Use letras A–Z, números 0–9 ou F1–F24, com modificadores.');
+      setError('Esta tecla não serve para atalho global. Tente outra.');
       return;
     }
     const mods: string[] = [];
     if (e.ctrlKey || e.metaKey) mods.push('CommandOrControl');
     if (e.altKey) mods.push('Alt');
     if (e.shiftKey) mods.push('Shift');
-    if (mods.length === 0 && !key.startsWith('F')) {
-      setError('Atalhos globais com letras ou números precisam de Ctrl, Alt ou Shift.');
+    if (mods.length === 0 && needsModifier(e.code)) {
+      setError(
+        'Letras, números e pontuação precisam de Ctrl, Alt ou Shift. Teclas como Insert, End ou F8 valem sozinhas.',
+      );
       return;
     }
     onChange([...mods, key].join('+'));

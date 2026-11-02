@@ -32,6 +32,7 @@ import {
   Delete02Icon,
   Download01Icon,
   SmartPhone01Icon,
+  KeyboardIcon,
   Film01Icon,
   GameController03Icon,
   RecordIcon,
@@ -195,6 +196,7 @@ const ICONS = {
   'window-restore': Copy02Icon,
   'pin-off': PinOffIcon,
   smartphone: SmartPhone01Icon,
+  keyboard: KeyboardIcon,
 } satisfies Record<string, IconSvgElement>;
 
 export type IconName = keyof typeof ICONS;

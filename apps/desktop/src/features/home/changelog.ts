@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '20:30',
+    kind: 'melhoria',
+    icon: 'keyboard',
+    title: 'Atalhos com qualquer tecla',
+    body: 'Os atalhos (silenciar, ensurdecer, salvar clipe e pressionar para falar) aceitam qualquer tecla do teclado: Insert, Page Down, End, Scroll Lock, Caps Lock, teclado numérico, setas, teclas de mídia e pontuação. Letras, números e pontuação continuam pedindo Ctrl, Alt ou Shift para não atrapalhar a digitação em outros programas; as demais valem sozinhas. A tecla de pressionar para falar também passou a valer fora da janela, como alternância, quando é uma dessas teclas.',
+  },
+  {
+    date: '2026-11-02',
     time: '20:00',
     kind: 'correção',
     icon: 'speaker',

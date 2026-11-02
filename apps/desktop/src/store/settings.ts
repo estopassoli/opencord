@@ -5,6 +5,7 @@ import { accentTokens, FONT_STACK_FALLBACK } from '../lib/theme';
 import { api } from './session';
 import { useData } from './data';
 import { useUi } from './ui';
+import { pushToTalkAccelerator } from '../lib/keys';
 
 let autoIdleStarted = false;
 
@@ -27,7 +28,7 @@ export function applySettingsSideEffects(s: UserSettings) {
       .setShortcuts({
         toggleMute: s.keybinds.toggleMute,
         toggleDeafen: s.keybinds.toggleDeafen,
-        pushToTalkToggle: s.audio.inputMode === 'ptt' ? s.keybinds.pushToTalk : null,
+        pushToTalkToggle: s.audio.inputMode === 'ptt' ? pushToTalkAccelerator(s.keybinds.pushToTalk) : null,
         saveClip: s.games.clips ? s.keybinds.saveClip : null,
       })
       .then((r) => {
