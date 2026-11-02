@@ -231,6 +231,8 @@ export const Member = z.object({
   roleIds: z.array(Id),
   joinedAt: IsoDate,
   nickname: z.string().nullable(),
+  /** castigo (ADR-0034): até quando não pode escrever, reagir nem entrar em voz; null = sem castigo */
+  timeoutUntil: IsoDate.nullable().default(null),
 });
 export type Member = z.infer<typeof Member>;
 
@@ -349,6 +351,38 @@ export const UpdateRoleRequest = z.object({
 export type UpdateRoleRequest = z.input<typeof UpdateRoleRequest>;
 export const SetMemberRolesRequest = z.object({ roleIds: z.array(Id).max(50) });
 
+// ---------- Moderação: banimento e castigo (ADR-0034) ----------
+/** castigo máximo (28 dias) */
+export const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
+export const ServerBan = z.object({
+  serverId: Id,
+  user: UserPublic,
+  reason: z.string().nullable(),
+  /** quem baniu (null se a conta sumiu) */
+  by: UserPublic.nullable(),
+  createdAt: IsoDate,
+});
+export type ServerBan = z.infer<typeof ServerBan>;
+export const BanRequest = z.object({
+  reason: z.string().trim().max(200).optional(),
+  /** apaga as mensagens da pessoa das últimas N segundos (até 7 dias) */
+  deleteMessageSeconds: z
+    .number()
+    .int()
+    .min(0)
+    .max(7 * 24 * 3600)
+    .default(0),
+});
+export type BanRequest = z.input<typeof BanRequest>;
+/** PATCH /servers/:id/members/:userId (MODERATE_MEMBERS): castigo até a data (null tira) */
+export const UpdateMemberRequest = z
+  .object({
+    timeoutUntil: IsoDate.nullable().optional(),
+    reason: z.string().trim().max(200).optional(),
+  })
+  .refine((m) => m.timeoutUntil !== undefined, 'nada para alterar');
+export type UpdateMemberRequest = z.input<typeof UpdateMemberRequest>;
+
 // ---------- Servidor oficial aberto + convites para os privados (ADR-0007, revisado) ----------
 export const ServerDirectoryEntry = z.object({
   id: Id,
@@ -389,6 +423,163 @@ export const InvitePreview = z.object({
   joined: z.boolean(),
 });
 export type InvitePreview = z.infer<typeof InvitePreview>;
+
+// ---------- Embeds, componentes e modais (ADR-0034) ----------
+/** emoji unicode ou nome curto (reações, botões, menus) */
+export const Emoji = z.string().min(1).max(64);
+/** URL http(s) curta o bastante para caber num cartão */
+export const HttpUrl = z
+  .string()
+  .trim()
+  .max(2048)
+  .regex(/^https?:\/\/\S+$/i, 'URL http(s)');
+export const EMBED_LIMITS = {
+  title: 256,
+  description: 4096,
+  fields: 25,
+  fieldName: 256,
+  fieldValue: 1024,
+  footer: 2048,
+  author: 256,
+  /** soma de título, descrição, campos, rodapé e autor */
+  total: 6000,
+  perMessage: 10,
+} as const;
+export const EmbedField = z.object({
+  name: z.string().trim().min(1).max(EMBED_LIMITS.fieldName),
+  value: z.string().trim().min(1).max(EMBED_LIMITS.fieldValue),
+  inline: z.boolean().default(false),
+});
+export type EmbedField = z.infer<typeof EmbedField>;
+/** Cartão rico numa mensagem (só bots e webhooks enviam; o app renderiza com barra colorida, campos, imagem…). */
+export const Embed = z
+  .object({
+    title: z.string().trim().max(EMBED_LIMITS.title).optional(),
+    description: z.string().trim().max(EMBED_LIMITS.description).optional(),
+    url: HttpUrl.optional(),
+    /** cor da barra lateral, `#rrggbb` */
+    color: z
+      .string()
+      .regex(/^#[0-9a-f]{6}$/i, 'cor #rrggbb')
+      .optional(),
+    fields: z.array(EmbedField).max(EMBED_LIMITS.fields).default([]),
+    footer: z
+      .object({ text: z.string().trim().min(1).max(EMBED_LIMITS.footer), iconUrl: HttpUrl.optional() })
+      .optional(),
+    image: z.object({ url: HttpUrl }).optional(),
+    thumbnail: z.object({ url: HttpUrl }).optional(),
+    author: z
+      .object({
+        name: z.string().trim().min(1).max(EMBED_LIMITS.author),
+        url: HttpUrl.optional(),
+        iconUrl: HttpUrl.optional(),
+      })
+      .optional(),
+    timestamp: IsoDate.optional(),
+  })
+  .refine(
+    (e) => Boolean(e.title || e.description || e.fields.length || e.image || e.thumbnail || e.author),
+    'embed vazio',
+  )
+  .refine(
+    (e) =>
+      (e.title?.length ?? 0) +
+        (e.description?.length ?? 0) +
+        (e.footer?.text.length ?? 0) +
+        (e.author?.name.length ?? 0) +
+        e.fields.reduce((n, f) => n + f.name.length + f.value.length, 0) <=
+      EMBED_LIMITS.total,
+    `embed com mais de ${EMBED_LIMITS.total} caracteres`,
+  );
+export type Embed = z.infer<typeof Embed>;
+export type EmbedInput = z.input<typeof Embed>;
+
+/** id que o bot escolhe para reconhecer o clique */
+export const CustomId = z.string().min(1).max(100);
+export const ButtonStyle = z.enum(['primary', 'secondary', 'success', 'danger', 'link']);
+export type ButtonStyle = z.infer<typeof ButtonStyle>;
+export const Button = z
+  .object({
+    type: z.literal('button'),
+    style: ButtonStyle.default('secondary'),
+    label: z.string().trim().max(80).optional(),
+    emoji: Emoji.optional(),
+    /** botões de link não têm customId; os outros precisam */
+    customId: CustomId.optional(),
+    url: HttpUrl.optional(),
+    disabled: z.boolean().default(false),
+  })
+  .refine((b) => Boolean(b.label || b.emoji), 'botão precisa de label ou emoji')
+  .refine((b) => (b.style === 'link' ? Boolean(b.url) && !b.customId : Boolean(b.customId) && !b.url), {
+    message: 'botão de link usa url; os outros usam customId',
+  });
+export type Button = z.infer<typeof Button>;
+export const SelectOption = z.object({
+  label: z.string().trim().min(1).max(100),
+  value: z.string().min(1).max(100),
+  description: z.string().trim().max(100).optional(),
+  emoji: Emoji.optional(),
+  default: z.boolean().default(false),
+});
+export type SelectOption = z.infer<typeof SelectOption>;
+/** `kind` string: opções fixas; user/role/channel: o app lista os do servidor */
+export const SelectMenu = z
+  .object({
+    type: z.literal('select'),
+    customId: CustomId,
+    kind: z.enum(['string', 'user', 'role', 'channel']).default('string'),
+    placeholder: z.string().trim().max(150).optional(),
+    minValues: z.number().int().min(0).max(25).default(1),
+    maxValues: z.number().int().min(1).max(25).default(1),
+    options: z.array(SelectOption).max(25).default([]),
+    disabled: z.boolean().default(false),
+  })
+  .refine((m) => m.minValues <= m.maxValues, 'minValues > maxValues')
+  .refine((m) => (m.kind === 'string' ? m.options.length > 0 : m.options.length === 0), {
+    message: 'menu de texto precisa de opções; menus de usuário/cargo/canal não têm',
+  })
+  .refine((m) => new Set(m.options.map((o) => o.value)).size === m.options.length, 'opção repetida');
+export type SelectMenu = z.infer<typeof SelectMenu>;
+export const ActionRowComponent = z.discriminatedUnion('type', [Button, SelectMenu]);
+export const ActionRow = z
+  .object({ type: z.literal('row'), components: z.array(ActionRowComponent).min(1).max(5) })
+  .refine((r) => r.components.every((c) => c.type === 'button') || r.components.length === 1, {
+    message: 'linha com até 5 botões ou 1 menu',
+  });
+export type ActionRow = z.infer<typeof ActionRow>;
+export const MAX_COMPONENT_ROWS = 5;
+export const MessageComponents = z
+  .array(ActionRow)
+  .max(MAX_COMPONENT_ROWS)
+  .refine((rows) => {
+    const ids = rows.flatMap((r) => r.components.map((c) => ('customId' in c ? c.customId : null))).filter(Boolean);
+    return new Set(ids).size === ids.length;
+  }, 'customId repetido');
+export type MessageComponents = z.infer<typeof MessageComponents>;
+export type MessageComponentsInput = z.input<typeof MessageComponents>;
+export const TextInput = z
+  .object({
+    type: z.literal('text'),
+    customId: CustomId,
+    label: z.string().trim().min(1).max(45),
+    style: z.enum(['short', 'paragraph']).default('short'),
+    placeholder: z.string().trim().max(100).optional(),
+    value: z.string().max(4000).optional(),
+    required: z.boolean().default(true),
+    minLength: z.number().int().min(0).max(4000).optional(),
+    maxLength: z.number().int().min(1).max(4000).optional(),
+  })
+  .refine((t) => (t.minLength ?? 0) <= (t.maxLength ?? 4000), 'minLength > maxLength');
+export type TextInput = z.infer<typeof TextInput>;
+export const Modal = z
+  .object({
+    customId: CustomId,
+    title: z.string().trim().min(1).max(45),
+    components: z.array(TextInput).min(1).max(5),
+  })
+  .refine((m) => new Set(m.components.map((c) => c.customId)).size === m.components.length, 'customId repetido');
+export type Modal = z.infer<typeof Modal>;
+export type ModalInput = z.input<typeof Modal>;
 
 // ---------- Mensagens ----------
 export const Attachment = z.object({
@@ -444,6 +635,10 @@ export const Message = z.object({
   reactionRoles: z.array(z.object({ emoji: z.string(), roleId: Id })).default([]),
   /** quantas mensagens respondem a esta (thread leve: GET /messages/:id/replies) */
   replyCount: z.number().int().nonnegative().default(0),
+  /** cartões ricos (ADR-0034); só bots e webhooks enviam */
+  embeds: z.array(Embed).max(EMBED_LIMITS.perMessage).default([]),
+  /** botões e menus (ADR-0034); só bots enviam; clique vira interação `component` */
+  components: MessageComponents.default([]),
 });
 export type Message = z.infer<typeof Message>;
 
@@ -460,6 +655,8 @@ export const REACTION_ROLE_FORBIDDEN =
   Permission.MANAGE_CHANNELS |
   Permission.MANAGE_MESSAGES |
   Permission.KICK_MEMBERS |
+  Permission.BAN_MEMBERS |
+  Permission.MODERATE_MEMBERS |
   Permission.MUTE_MEMBERS |
   Permission.MOVE_MEMBERS |
   Permission.VIEW_AUDIT_LOG |
@@ -520,22 +717,40 @@ export type VotePollRequest = z.infer<typeof VotePollRequest>;
 export const MAX_PINS = 50;
 
 export const MessageBody = z.string().max(4000);
-export const Emoji = z.string().min(1).max(64);
 
 export const CreateMessageRequest = z
   .object({
     requestId: z.uuid(),
-    body: MessageBody,
+    body: MessageBody.default(''),
     replyToId: Id.optional(),
     attachmentIds: z.array(Id).max(10).optional(),
+    /** só bots e webhooks (ADR-0034) */
+    embeds: z.array(Embed).max(EMBED_LIMITS.perMessage).optional(),
+    /** só bots (ADR-0034) */
+    components: MessageComponents.optional(),
   })
-  .refine((m) => m.body.trim().length > 0 || (m.attachmentIds?.length ?? 0) > 0, {
+  .refine((m) => m.body.trim().length > 0 || (m.attachmentIds?.length ?? 0) > 0 || (m.embeds?.length ?? 0) > 0, {
     message: 'mensagem vazia',
     path: ['body'],
   });
-export type CreateMessageRequest = z.infer<typeof CreateMessageRequest>;
+export type CreateMessageRequest = z.input<typeof CreateMessageRequest>;
 
-export const EditMessageRequest = z.object({ body: MessageBody.refine((b) => b.trim().length > 0, 'mensagem vazia') });
+/** Só o que veio muda; `components: []` tira os botões. Texto vazio só com embeds. */
+export const EditMessageRequest = z
+  .object({
+    body: MessageBody.optional(),
+    embeds: z.array(Embed).max(EMBED_LIMITS.perMessage).optional(),
+    components: MessageComponents.optional(),
+  })
+  .refine((m) => m.body !== undefined || m.embeds !== undefined || m.components !== undefined, 'nada para editar')
+  .refine((m) => m.body === undefined || m.body.trim().length > 0 || (m.embeds?.length ?? 0) > 0, {
+    message: 'mensagem vazia',
+    path: ['body'],
+  });
+export type EditMessageRequest = z.input<typeof EditMessageRequest>;
+/** apagar várias de uma vez (MANAGE_MESSAGES, ou só as próprias) */
+export const BulkDeleteMessagesRequest = z.object({ messageIds: z.array(Id).min(1).max(100) });
+export type BulkDeleteMessagesRequest = z.infer<typeof BulkDeleteMessagesRequest>;
 export const ListMessagesQuery = z.object({
   before: z.string().max(200).optional(),
   after: z.string().max(200).optional(),
@@ -592,46 +807,129 @@ export const WebhookPostRequest = z
   .passthrough();
 export const MAX_WEBHOOKS_PER_SERVER = 20;
 
-// ---------- Bots e aplicativos (ADR-0032) ----------
+// ---------- Bots e aplicativos (ADR-0032; comandos e interações v2 na ADR-0034) ----------
 /** prefixo do token de bot (`Authorization: Bearer ocb_…`); o token em claro só aparece ao criar/regenerar */
 export const BOT_TOKEN_PREFIX = 'ocb_';
 export const MAX_BOTS_PER_USER = 10;
-export const MAX_BOT_COMMANDS = 50;
-export const MAX_COMMAND_OPTIONS = 10;
+export const MAX_BOT_COMMANDS = 100;
+export const MAX_COMMAND_OPTIONS = 25;
 /** quanto tempo uma interação espera resposta do bot (segundos); adiada (`defer`) vale 15 min */
 export const INTERACTION_TTL_S = 180;
 export const INTERACTION_DEFERRED_TTL_S = 900;
+/** autocompletar: o app espera o bot por até 3 s */
+export const AUTOCOMPLETE_TIMEOUT_MS = 3000;
+/** quanto tempo um modal aberto ou um cartão efêmero com botões aceita cliques (segundos) */
+export const INTERACTION_FOLLOWUP_TTL_S = 900;
 /** nome de comando/opção: minúsculas, dígitos, `_` e `-` (como os comandos de barra que a comunidade já conhece) */
 export const CommandName = z
   .string()
   .regex(/^[a-z0-9_-]{1,32}$/, 'use minúsculas, dígitos, _ ou - (até 32)')
   .describe('nome de comando');
-export const BotCommandOptionType = z.enum(['string', 'integer', 'number', 'boolean', 'user', 'channel']);
+/** comando de menu de contexto (usuário/mensagem): nome livre, como "Reportar mensagem" */
+export const ContextCommandName = z.string().trim().min(1).max(32);
+export const BotCommandType = z.enum(['chat', 'user', 'message']);
+export type BotCommandType = z.infer<typeof BotCommandType>;
+export const BotCommandOptionType = z.enum([
+  'string',
+  'integer',
+  'number',
+  'boolean',
+  'user',
+  'channel',
+  'role',
+  'mentionable',
+]);
 export type BotCommandOptionType = z.infer<typeof BotCommandOptionType>;
 export const BotCommandChoice = z.object({
   name: z.string().trim().min(1).max(100),
   value: z.union([z.string().max(100), z.number()]),
 });
-export const BotCommandOption = z.object({
-  name: CommandName,
-  description: z.string().trim().min(1).max(100),
-  type: BotCommandOptionType,
-  required: z.boolean().default(false),
-  choices: z.array(BotCommandChoice).max(25).default([]),
-});
+export type BotCommandChoice = z.infer<typeof BotCommandChoice>;
+export const BotCommandOption = z
+  .object({
+    name: CommandName,
+    description: z.string().trim().min(1).max(100),
+    type: BotCommandOptionType,
+    required: z.boolean().default(false),
+    choices: z.array(BotCommandChoice).max(25).default([]),
+    /** o bot sugere valores enquanto a pessoa digita (interação `autocomplete`); não combina com `choices` */
+    autocomplete: z.boolean().default(false),
+    minValue: z.number().optional(),
+    maxValue: z.number().optional(),
+    minLength: z.number().int().min(0).max(2000).optional(),
+    maxLength: z.number().int().min(1).max(2000).optional(),
+    /** opção `channel`: só canais destes tipos */
+    channelTypes: z.array(ChannelKind).optional(),
+  })
+  .refine((o) => !(o.autocomplete && o.choices.length), 'autocomplete não combina com choices')
+  .refine((o) => (o.minValue ?? -Infinity) <= (o.maxValue ?? Infinity), 'minValue > maxValue')
+  .refine((o) => (o.minLength ?? 0) <= (o.maxLength ?? 2000), 'minLength > maxLength');
 export type BotCommandOption = z.infer<typeof BotCommandOption>;
-export const BotCommand = z.object({
+const uniqueNames = (o: { name: string }[]) => new Set(o.map((x) => x.name)).size === o.length;
+/** obrigatórias primeiro: a forma posicional `/cmd a b` só funciona assim */
+const requiredFirst = (o: { required: boolean }[]) =>
+  o.every((x, i) => !x.required || o.slice(0, i).every((y) => y.required));
+const LeafOptions = z
+  .array(BotCommandOption)
+  .max(MAX_COMMAND_OPTIONS)
+  .default([])
+  .refine(uniqueNames, 'opção repetida')
+  .refine(requiredFirst, 'obrigatórias antes');
+export const BotSubcommand = z.object({
+  type: z.literal('subcommand'),
   name: CommandName,
   description: z.string().trim().min(1).max(100),
-  options: z
-    .array(BotCommandOption)
-    .max(MAX_COMMAND_OPTIONS)
-    .default([])
-    .refine((o) => new Set(o.map((x) => x.name)).size === o.length, 'opção repetida')
-    // obrigatórias primeiro: a forma posicional `/cmd a b` só funciona assim
-    .refine((o) => o.every((x, i) => !x.required || o.slice(0, i).every((y) => y.required)), 'obrigatórias antes'),
+  options: LeafOptions,
 });
+export type BotSubcommand = z.infer<typeof BotSubcommand>;
+export const BotSubcommandGroup = z.object({
+  type: z.literal('subcommand_group'),
+  name: CommandName,
+  description: z.string().trim().min(1).max(100),
+  options: z.array(BotSubcommand).min(1).max(MAX_COMMAND_OPTIONS).refine(uniqueNames, 'subcomando repetido'),
+});
+export type BotSubcommandGroup = z.infer<typeof BotSubcommandGroup>;
+/** opções de um comando: ou só folhas, ou só subcomandos/grupos */
+export const BotCommandOptions = z
+  .array(z.union([BotSubcommandGroup, BotSubcommand, BotCommandOption]))
+  .max(MAX_COMMAND_OPTIONS)
+  .default([])
+  .refine(uniqueNames, 'opção repetida')
+  .refine((o) => {
+    const subs = o.filter((x) => 'type' in x && (x.type === 'subcommand' || x.type === 'subcommand_group'));
+    return subs.length === 0 || subs.length === o.length;
+  }, 'não misture subcomandos com opções soltas')
+  .refine(
+    (o) =>
+      requiredFirst(o.filter((x): x is BotCommandOption => !('type' in x) || !String(x.type).startsWith('subcommand'))),
+    'obrigatórias antes',
+  );
+export const BotCommand = z
+  .object({
+    /** chat = `/comando`; user/message = menu de contexto "Apps" numa pessoa ou mensagem */
+    type: BotCommandType.default('chat'),
+    name: ContextCommandName,
+    description: z.string().trim().max(100).default(''),
+    options: BotCommandOptions,
+    /** bits de `Permission` que quem usa precisa ter no servidor (null = qualquer membro que fale no canal) */
+    defaultMemberPermissions: z.number().int().nonnegative().nullable().default(null),
+    /** só nestes servidores (vazio = em todos em que o bot é membro) */
+    guildIds: z.array(Id).max(50).default([]),
+  })
+  .refine((c) => c.type !== 'chat' || CommandName.safeParse(c.name).success, {
+    message: 'comando de barra: use minúsculas, dígitos, _ ou - (até 32)',
+    path: ['name'],
+  })
+  .refine((c) => c.type !== 'chat' || c.description.length > 0, {
+    message: 'descrição obrigatória',
+    path: ['description'],
+  })
+  .refine((c) => c.type === 'chat' || c.options.length === 0, {
+    message: 'comandos de contexto não têm opções',
+    path: ['options'],
+  });
 export type BotCommand = z.infer<typeof BotCommand>;
+export type BotCommandInput = z.input<typeof BotCommand>;
 export const Bot = z.object({
   id: Id,
   /** o usuário do bot (`bot: true`): é ele que aparece como autor, membro e presença */
@@ -661,44 +959,137 @@ export const SetBotCommandsRequest = z.object({
   commands: z
     .array(BotCommand)
     .max(MAX_BOT_COMMANDS)
-    .refine((c) => new Set(c.map((x) => x.name)).size === c.length, 'comando repetido'),
+    .refine((c) => new Set(c.map((x) => `${x.type}:${x.name}`)).size === c.length, 'comando repetido'),
 });
-export type SetBotCommandsRequest = z.infer<typeof SetBotCommandsRequest>;
+export type SetBotCommandsRequest = z.input<typeof SetBotCommandsRequest>;
 export const AddBotToServerRequest = z.object({ botId: Id });
-/** comandos disponíveis num servidor (GET /servers/:id/commands): por bot membro */
+/** comandos disponíveis num servidor (GET /servers/:id/commands): por bot membro, já filtrados por `guildIds` */
 export const ServerCommands = z.object({ botId: Id, bot: UserPublic, commands: z.array(BotCommand) });
 export type ServerCommands = z.infer<typeof ServerCommands>;
 export const InteractionOptionValue = z.union([z.string().max(2000), z.number(), z.boolean()]);
 export type InteractionOptionValue = z.infer<typeof InteractionOptionValue>;
-/** pessoa usa um comando de barra num canal de texto */
-export const CreateInteractionRequest = z.object({
-  channelId: Id,
-  botId: Id,
-  command: CommandName,
+export const InteractionType = z.enum([
+  'command',
+  'user_command',
+  'message_command',
+  'component',
+  'modal',
+  'autocomplete',
+]);
+export type InteractionType = z.infer<typeof InteractionType>;
+const CommandPath = {
+  command: ContextCommandName,
+  subcommandGroup: CommandName.optional(),
+  subcommand: CommandName.optional(),
   options: z.record(CommandName, InteractionOptionValue).default({}),
-});
-export type CreateInteractionRequest = z.infer<typeof CreateInteractionRequest>;
+};
+/**
+ * Uma pessoa interage com um bot: comando de barra, comando de contexto, clique em botão/menu, envio de modal ou
+ * autocompletar. `type` ausente = `command` (compatível com a v1).
+ */
+export const CreateInteractionRequest = z.preprocess(
+  (v) => (typeof v === 'object' && v !== null && !('type' in v) ? { type: 'command', ...v } : v),
+  z.discriminatedUnion('type', [
+    z.object({ type: z.literal('command'), channelId: Id, botId: Id, ...CommandPath }),
+    z.object({
+      type: z.literal('user_command'),
+      channelId: Id,
+      botId: Id,
+      command: ContextCommandName,
+      targetUserId: Id,
+    }),
+    z.object({ type: z.literal('message_command'), botId: Id, command: ContextCommandName, messageId: Id }),
+    z
+      .object({
+        type: z.literal('component'),
+        customId: CustomId,
+        values: z.array(z.string().max(100)).max(25).default([]),
+        /** mensagem com os componentes… */
+        messageId: Id.optional(),
+        /** …ou cartão efêmero (id da interação que o gerou) */
+        ephemeralOf: Id.optional(),
+      })
+      .refine((c) => Boolean(c.messageId) !== Boolean(c.ephemeralOf), 'informe messageId ou ephemeralOf'),
+    z.object({ type: z.literal('modal'), modalId: Id, fields: z.record(CustomId, z.string().max(4000)) }),
+    z.object({ type: z.literal('autocomplete'), channelId: Id, botId: Id, ...CommandPath, focused: CommandName }),
+  ]),
+);
+export type CreateInteractionRequest = z.input<typeof CreateInteractionRequest>;
+/** POST /interactions: id da interação; autocompletar devolve as sugestões do bot (vazio se ele não respondeu) */
+export const CreateInteractionResponse = z.object({ id: Id, choices: z.array(BotCommandChoice).max(25).optional() });
+export type CreateInteractionResponse = z.infer<typeof CreateInteractionResponse>;
 /** o que o bot recebe no evento `interaction:created` */
 export const Interaction = z.object({
   id: Id,
+  type: InteractionType,
   serverId: Id,
   channelId: Id,
   botId: Id,
   user: UserPublic,
-  command: CommandName,
-  options: z.record(CommandName, InteractionOptionValue),
   createdAt: IsoDate,
+  /** comandos (chat/contexto) e autocompletar */
+  command: ContextCommandName.optional(),
+  subcommandGroup: CommandName.optional(),
+  subcommand: CommandName.optional(),
+  options: z.record(CommandName, InteractionOptionValue).default({}),
+  /** autocompletar: opção que a pessoa está digitando (o valor parcial está em `options`) */
+  focused: CommandName.optional(),
+  /** user_command */
+  targetUser: UserPublic.optional(),
+  /** message_command e component: a mensagem alvo / com os componentes */
+  targetMessage: z.lazy(() => Message).optional(),
+  /** component e modal */
+  customId: CustomId.optional(),
+  componentType: z.enum(['button', 'select']).optional(),
+  /** valores escolhidos num menu */
+  values: z.array(z.string()).optional(),
+  /** modal: campo → texto */
+  fields: z.record(CustomId, z.string()).optional(),
+  /** component vindo de um cartão efêmero: id da interação original */
+  ephemeralOf: Id.optional(),
 });
 export type Interaction = z.infer<typeof Interaction>;
-export const InteractionReplyRequest = z.object({
-  content: z.string().trim().min(1).max(4000),
-  /** só quem usou o comando vê (não vira mensagem no canal) */
-  ephemeral: z.boolean().default(false),
-});
-export type InteractionReplyRequest = z.infer<typeof InteractionReplyRequest>;
+export const InteractionReplyRequest = z
+  .object({
+    content: z.string().trim().max(4000).default(''),
+    embeds: z.array(Embed).max(EMBED_LIMITS.perMessage).optional(),
+    components: MessageComponents.optional(),
+    attachmentIds: z.array(Id).max(10).optional(),
+    /** só quem usou o comando vê (não vira mensagem no canal) */
+    ephemeral: z.boolean().default(false),
+  })
+  .refine((r) => r.content.length > 0 || (r.embeds?.length ?? 0) > 0 || (r.attachmentIds?.length ?? 0) > 0, {
+    message: 'resposta vazia',
+    path: ['content'],
+  });
+export type InteractionReplyRequest = z.input<typeof InteractionReplyRequest>;
 /** resposta de `POST /interactions/:id/reply`: id da mensagem criada (null quando efêmera) */
 export const InteractionReplyResponse = z.object({ messageId: Id.nullable() });
 export type InteractionReplyResponse = z.infer<typeof InteractionReplyResponse>;
+/** "pensando…"; `update: true` (componentes) só acusa o clique sem mostrar nada */
+export const InteractionDeferRequest = z.object({
+  ephemeral: z.boolean().default(false),
+  update: z.boolean().default(false),
+});
+export type InteractionDeferRequest = z.input<typeof InteractionDeferRequest>;
+/** POST /interactions/:id/update (component/modal vindo de componente): edita a mensagem ou o cartão efêmero de origem */
+export const InteractionUpdateRequest = z
+  .object({
+    content: z.string().trim().max(4000).optional(),
+    embeds: z.array(Embed).max(EMBED_LIMITS.perMessage).optional(),
+    components: MessageComponents.optional(),
+  })
+  .refine(
+    (u) => u.content !== undefined || u.embeds !== undefined || u.components !== undefined,
+    'nada para atualizar',
+  );
+export type InteractionUpdateRequest = z.input<typeof InteractionUpdateRequest>;
+/** POST /interactions/:id/modal: abre um formulário para quem interagiu (consome a interação) */
+export const InteractionModalRequest = z.object({ modal: Modal });
+export type InteractionModalRequest = z.input<typeof InteractionModalRequest>;
+/** POST /interactions/:id/autocomplete: sugestões para a opção em foco */
+export const InteractionAutocompleteRequest = z.object({ choices: z.array(BotCommandChoice).max(25) });
+export type InteractionAutocompleteRequest = z.infer<typeof InteractionAutocompleteRequest>;
 
 // ---------- Ponte com o Slack (ADR-0033) ----------
 /** a instância tem um app do Slack configurado? (`team` = nome do workspace) */

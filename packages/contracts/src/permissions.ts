@@ -30,6 +30,10 @@ export const Permission = {
   MANAGE_SERVER: 1 << 16,
   // 1 << 17 reservado (antigo CREATE_INVITE; servidores abertos, ADR-0007)
   VIEW_AUDIT_LOG: 1 << 18,
+  /** banir e desbanir (ADR-0034) */
+  BAN_MEMBERS: 1 << 19,
+  /** castigo: silenciar por tempo (ADR-0034) */
+  MODERATE_MEMBERS: 1 << 20,
   ADMINISTRATOR: 1 << 30,
 } as const;
 

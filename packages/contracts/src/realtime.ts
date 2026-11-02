@@ -22,6 +22,10 @@ import {
   UserPublic,
   InstanceInfo,
   Interaction,
+  Embed,
+  MessageComponents,
+  Modal,
+  ServerBan,
 } from './api.js';
 import {
   ActivityControl,
@@ -216,7 +220,27 @@ export interface ServerEvents {
     command: string;
     /** null = "pensando…" (defer); texto = resposta efêmera */
     content: string | null;
+    /** cartão efêmero rico (ADR-0034) */
+    embeds?: z.infer<typeof Embed>[];
+    /** botões/menus no cartão efêmero: o clique manda `component` com `ephemeralOf` = interactionId (ADR-0034) */
+    components?: z.infer<typeof MessageComponents>;
+    /** true = substitui o cartão efêmero anterior desta interação (`update`), em vez de criar outro */
+    update?: boolean;
   };
+  /** o bot abriu um formulário para quem interagiu (ADR-0034): o app mostra o modal e envia `modal` com `modalId` */
+  'interaction:modal': {
+    interactionId: string;
+    modalId: string;
+    channelId: string;
+    serverId: string;
+    bot: z.infer<typeof UserPublic>;
+    modal: z.infer<typeof Modal>;
+  };
+  /** moderação (ADR-0034) */
+  'server:ban:added': z.infer<typeof ServerBan>;
+  'server:ban:removed': { serverId: string; userId: string };
+  /** todas as reações de uma mensagem foram limpas */
+  'chat:reactions:cleared': { messageId: string; channelId: string | null; conversationId: string | null };
   /** um bot membro do servidor mudou a lista de comandos (ou entrou/saiu): o app recarrega GET /servers/:id/commands */
   'bot:commands:changed': { serverId: string };
 }
