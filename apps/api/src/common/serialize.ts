@@ -113,16 +113,22 @@ export const channel = (
   })),
 });
 
+/** Castigo (ADR-0034) ainda valendo; um prazo já vencido vira null, como se nunca tivesse havido. */
+export const activeTimeout = (until: Date | null | undefined): Date | null =>
+  until && until.getTime() > Date.now() ? until : null;
+
 export const member = (m: {
   user: UserRow;
   roles: { roleId: string }[];
   joinedAt: Date;
   nickname: string | null;
+  timeoutUntil?: Date | null;
 }): Member => ({
   user: userPublic(m.user),
   roleIds: m.roles.map((r) => r.roleId),
   joinedAt: m.joinedAt.toISOString(),
   nickname: m.nickname,
+  timeoutUntil: activeTimeout(m.timeoutUntil)?.toISOString() ?? null,
 });
 
 export const MEMBER_INCLUDE = { user: { select: USER_PUBLIC_SELECT }, roles: { select: { roleId: true } } } as const;

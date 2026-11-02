@@ -176,7 +176,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       }
       case 'chat:message:edit': {
         const d = p as { messageId: string; body: string };
-        const m = await this.messages.edit(userId, d.messageId, d.body);
+        const m = await this.messages.edit(userId, d.messageId, { body: d.body });
         return { messageId: m.id, editedAt: m.editedAt ?? new Date().toISOString() } as R;
       }
       case 'chat:message:delete': {

@@ -236,8 +236,15 @@ export class ServersService {
     return this.addMember(serverId, userId, { via: 'directory' });
   }
 
+  /** Banido (ADR-0034) não entra por nenhuma porta: convite, diretório, admin-join nem como bot. */
+  async assertNotBanned(serverId: string, userId: string) {
+    const ban = await this.prisma.serverBan.findUnique({ where: { serverId_userId: { serverId, userId } } });
+    if (ban) throw forbidden('banido deste servidor');
+  }
+
   /** Idempotente: só audita e avisa quando a pessoa ainda não era membro. */
   private async addMember(serverId: string, userId: string, meta: Record<string, string>): Promise<ServerDetail> {
+    await this.assertNotBanned(serverId, userId);
     const created = await this.prisma.serverMember.createMany({ data: [{ serverId, userId }], skipDuplicates: true });
     if (created.count) {
       await this.audit.log(userId, serverId, 'member.join', userId, meta);
@@ -249,6 +256,7 @@ export class ServersService {
   // ---------- Bots (ADR-0032) ----------
   /** Quem autoriza (MANAGE_SERVER, bot público ou do solicitante) é o BotsService; aqui só a entrada como membro. */
   async addBotMember(serverId: string, actorId: string, botUserId: string) {
+    await this.assertNotBanned(serverId, botUserId);
     const created = await this.prisma.serverMember.createMany({
       data: [{ serverId, userId: botUserId }],
       skipDuplicates: true,
@@ -402,7 +410,11 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     const already = await this.prisma.serverMember.findUnique({
       where: { serverId_userId: { serverId: inv.serverId, userId } },
     });
-    if (!already) await this.prisma.invite.update({ where: { code: inv.code }, data: { uses: { increment: 1 } } });
+    if (!already) {
+      // o uso só conta se a entrada for acontecer (banido não gasta o convite)
+      await this.assertNotBanned(inv.serverId, userId);
+      await this.prisma.invite.update({ where: { code: inv.code }, data: { uses: { increment: 1 } } });
+    }
     return this.addMember(inv.serverId, userId, { via: 'invite', code: inv.code });
   }
 
@@ -439,8 +451,16 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     if (actorId === targetId) throw new BadRequestException('use "sair do servidor"');
     const actor = await this.perms.requireServer(serverId, actorId, Permission.KICK_MEMBERS);
     this.perms.assertAbove(actor, await this.perms.memberTop(serverId, targetId, actor.ownerId));
-    await this.removeMembership(serverId, targetId);
     await this.audit.log(actorId, serverId, 'member.kick', targetId, { reason: reason ?? null });
+    await this.expel(serverId, targetId);
+  }
+
+  /**
+   * Tira alguém do servidor contra a vontade (expulsão ou banimento, ADR-0034): membro, overrides, voz e rooms.
+   * Quem chama já conferiu permissão e hierarquia e registrou a auditoria.
+   */
+  async expel(serverId: string, targetId: string) {
+    await this.removeMembership(serverId, targetId);
     // Revogação ativa: voz (SFU) é encerrada pelo VoiceService ao receber o evento.
     this.events.emit({ type: 'member.removed', serverId, userId: targetId, reason: 'kicked' });
     await this.realtime.memberRemoved(serverId, targetId, 'kicked');

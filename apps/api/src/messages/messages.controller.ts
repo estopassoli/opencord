@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import {
   AckReadRequest,
+  BulkDeleteMessagesRequest,
   CreateMessageRequest,
   CreatePollRequest,
   EditMessageRequest,
@@ -154,19 +155,44 @@ export class MessagesController {
     await this.messages.markRead(u.userId, { conversationId: cid }, dto.messageId);
   }
 
+  /** uma mensagem pelo id (quem vê o destino) */
+  @Get('messages/:id')
+  get(@CurrentUser() u: AuthUser, @Param('id', id) mid: string) {
+    return this.messages.get(u.userId, mid);
+  }
+
+  /** edição parcial (ADR-0034): body, embeds e/ou components */
   @Patch('messages/:id')
   edit(
     @CurrentUser() u: AuthUser,
     @Param('id', id) mid: string,
     @Body(zodPipe(EditMessageRequest)) dto: z.infer<typeof EditMessageRequest>,
   ) {
-    return this.messages.edit(u.userId, mid, dto.body);
+    return this.messages.edit(u.userId, mid, dto);
   }
 
   @Delete('messages/:id')
   @HttpCode(204)
   async remove(@CurrentUser() u: AuthUser, @Param('id', id) mid: string) {
     await this.messages.remove(u.userId, mid);
+  }
+
+  /** apagar várias (ADR-0034): MANAGE_MESSAGES apaga qualquer uma; sem ela, só as próprias */
+  @Post('channels/:id/messages/bulk-delete')
+  @HttpCode(204)
+  async bulkDelete(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) cid: string,
+    @Body(zodPipe(BulkDeleteMessagesRequest)) dto: z.infer<typeof BulkDeleteMessagesRequest>,
+  ) {
+    await this.messages.bulkDelete(u.userId, cid, dto.messageIds);
+  }
+
+  /** limpa todas as reações (ADR-0034): MANAGE_MESSAGES */
+  @Delete('messages/:id/reactions')
+  @HttpCode(204)
+  async clearReactions(@CurrentUser() u: AuthUser, @Param('id', id) mid: string) {
+    await this.messages.clearReactions(u.userId, mid);
   }
 
   @Put('messages/:id/reactions/:emoji')

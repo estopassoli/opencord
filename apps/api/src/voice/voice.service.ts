@@ -24,7 +24,7 @@ import { DomainEvents } from '../common/domain-events.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { RedisService } from '../common/redis.service.js';
 import { forbidden, notFound } from '../common/errors.js';
-import { PermissionsService } from '../servers/permissions.service.js';
+import { assertNotTimedOut, PermissionsService } from '../servers/permissions.service.js';
 import { ServersService } from '../servers/servers.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
@@ -93,7 +93,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
         if (e.type === 'member.removed') {
           if (e.userId === '*') await this.disconnectServer(e.serverId, 'revoked');
           else await this.forceDisconnectIfInServer(e.userId, e.serverId, e.reason === 'kicked' ? 'kicked' : 'revoked');
-        } else if (e.type === 'permissions.changed') await this.reevaluateServer(e.serverId);
+        } else if (e.type === 'member.timeout') await this.forceDisconnectIfInServer(e.userId, e.serverId, 'revoked');
+        else if (e.type === 'permissions.changed') await this.reevaluateServer(e.serverId);
         else if (e.type === 'channel.deleted') await this.disconnectChannel(e.channelId);
       };
       run().catch((err: unknown) => this.log.error(`evento ${e.type}: ${String(err)}`));
@@ -247,6 +248,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
   async join(userId: string, channelId: string): Promise<VoiceJoinResponse> {
     const access = await this.perms.requireChannel(channelId, userId, Permission.CONNECT);
     if (access.kind !== 'voice') throw new BadRequestException('não é um canal de voz');
+    // em castigo (ADR-0034) não entra em voz
+    assertNotTimedOut(access);
     // criador de salas (ADR-0029): a pessoa entra numa sala temporária nova, não no criador
     const hub = await this.prisma.channel.findUnique({ where: { id: channelId }, select: { roomHub: true } });
     if (hub?.roomHub) return this.join(userId, (await this.servers.createTemporaryRoom(channelId, userId)).id);

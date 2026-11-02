@@ -35,6 +35,8 @@ import { DownloadsController } from './downloads/downloads.controller.js';
 import { HealthController } from './health/health.controller.js';
 import { MessagesController } from './messages/messages.controller.js';
 import { MessagesService } from './messages/messages.service.js';
+import { ModerationController } from './moderation/moderation.controller.js';
+import { ModerationService } from './moderation/moderation.service.js';
 import { PresenceService } from './realtime/presence.service.js';
 import { RealtimeGateway } from './realtime/realtime.gateway.js';
 import { RealtimeService } from './realtime/realtime.service.js';
@@ -73,6 +75,7 @@ export class AppModule {
         ServersController,
         AvatarsController,
         MessagesController,
+        ModerationController,
         AttachmentsController,
         SocialController,
         VoiceController,
@@ -109,6 +112,7 @@ export class AppModule {
         LargeUploadService,
         BoardsService,
         MessagesService,
+        ModerationService,
         SocialService,
         VoiceService,
       ],

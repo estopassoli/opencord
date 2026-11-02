@@ -23,7 +23,10 @@ describe('importação de modelo do Discord', () => {
     expect(mapPermissions('8')).toBe(Permission.ADMINISTRATOR);
     expect(mapPermissions(String(1 << 10))).toBe(Permission.VIEW_CHANNEL);
     expect(mapPermissions(String(1 << 9))).toBe(Permission.VIDEO | Permission.STREAM);
-    expect(mapPermissions(String((1n << 40n) | (1n << 11n)))).toBe(Permission.SEND_MESSAGES);
+    // bit alto sem equivalente (1<<50) é ignorado; castigo (1<<40) e banir (1<<2) viram os bits da ADR-0034
+    expect(mapPermissions(String((1n << 50n) | (1n << 11n)))).toBe(Permission.SEND_MESSAGES);
+    expect(mapPermissions(String(1n << 40n))).toBe(Permission.MODERATE_MEMBERS);
+    expect(mapPermissions(String(1n << 2n))).toBe(Permission.KICK_MEMBERS | Permission.BAN_MEMBERS);
     expect(mapPermissions('lixo')).toBe(0);
   });
 

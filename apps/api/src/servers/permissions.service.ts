@@ -9,6 +9,7 @@ import {
 } from '@opencord/contracts';
 import { PrismaService } from '../common/prisma.service.js';
 import { forbidden, notFound } from '../common/errors.js';
+import { activeTimeout } from '../common/serialize.js';
 
 export interface ServerAccess {
   serverId: string;
@@ -17,6 +18,17 @@ export interface ServerAccess {
   base: number;
   /** Posição do cargo mais alto do membro (owner = Infinity). */
   topPosition: number;
+  /** castigo (ADR-0034) em vigor: até quando não escreve, reage nem entra em voz; null = livre */
+  timeoutUntil: Date | null;
+}
+
+/**
+ * Em castigo (ADR-0034): 403 ao enviar mensagem, reagir, criar enquete, usar comando ou entrar em voz. Recebe
+ * qualquer acesso resolvido (servidor, canal ou destino de mensagem); em DMs `timeoutUntil` é sempre null.
+ */
+export function assertNotTimedOut(a: { timeoutUntil: Date | null }) {
+  const until = activeTimeout(a.timeoutUntil);
+  if (until) throw forbidden(`em castigo até ${until.toISOString()}`);
 }
 
 export interface ChannelAccess extends ServerAccess {
@@ -47,7 +59,11 @@ export class PermissionsService {
         roles: { select: { id: true, permissions: true, position: true, isEveryone: true } },
         members: {
           where: { userId },
-          select: { roles: { select: { roleId: true } }, user: { select: { isInstanceAdmin: true } } },
+          select: {
+            timeoutUntil: true,
+            roles: { select: { roleId: true } },
+            user: { select: { isInstanceAdmin: true } },
+          },
         },
       },
     });
@@ -73,6 +89,7 @@ export class PermissionsService {
       ctx,
       base: computeBasePermissions(ctx),
       topPosition: userId === server.ownerId || admin ? Number.POSITIVE_INFINITY : Math.max(0, ...positions),
+      timeoutUntil: activeTimeout(member.timeoutUntil),
     };
   }
 

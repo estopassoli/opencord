@@ -40,6 +40,7 @@ const D = {
   MUTE_MEMBERS: 1n << 22n,
   MOVE_MEMBERS: 1n << 24n,
   MANAGE_ROLES: 1n << 28n,
+  MODERATE_MEMBERS: 1n << 40n,
 } as const;
 
 const MAP: [bigint, number][] = [
@@ -56,7 +57,11 @@ const MAP: [bigint, number][] = [
   [D.STREAM, Permission.VIDEO | Permission.STREAM],
   [D.MUTE_MEMBERS, Permission.MUTE_MEMBERS],
   [D.MOVE_MEMBERS, Permission.MOVE_MEMBERS],
+  // banir no OpenCord também expulsa: quem só bania no Discord ganha os dois bits
   [D.KICK_MEMBERS | D.BAN_MEMBERS, Permission.KICK_MEMBERS],
+  [D.BAN_MEMBERS, Permission.BAN_MEMBERS],
+  // "Castigar membros" (timeout) do Discord
+  [D.MODERATE_MEMBERS, Permission.MODERATE_MEMBERS],
   [D.MANAGE_CHANNELS, Permission.MANAGE_CHANNELS],
   [D.MANAGE_ROLES, Permission.MANAGE_ROLES],
   [D.MANAGE_GUILD, Permission.MANAGE_SERVER],

@@ -27,6 +27,7 @@ import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { botIdOf } from '../auth/token.service.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
+import { assertNotTimedOut } from '../servers/permissions.service.js';
 import { BotsService, parseCommands } from './bots.service.js';
 
 /** O que fica no Redis enquanto o bot não responde. */
@@ -61,6 +62,8 @@ export class InteractionsService {
     const a = await this.messages.access(auth.userId, { channelId: dto.channelId });
     if (!a.serverId || !a.channelId) throw new BadRequestException('comandos só em canais de servidor');
     if (!hasPermission(a.perms, Permission.SEND_MESSAGES)) throw forbidden('sem permissão para enviar mensagens');
+    // em castigo (ADR-0034) não usa comandos
+    assertNotTimedOut(a);
     const serverId = a.serverId;
     const bot = await this.prisma.bot.findFirst({
       where: { id: dto.botId, user: { memberships: { some: { serverId } }, disabledAt: null } },

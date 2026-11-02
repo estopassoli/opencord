@@ -3,9 +3,12 @@ import { randomUUID } from 'node:crypto';
 import {
   decodeCursor,
   encodeCursor,
+  Embed,
+  EMBED_LIMITS,
   extractMentions,
   hasPermission,
   MAX_PINS,
+  MessageComponents,
   REACTION_ROLE_FORBIDDEN,
   Permission,
   rooms,
@@ -18,18 +21,37 @@ import {
   type UnreadState,
 } from '@opencord/contracts';
 import { Prisma } from '@opencord/db';
+import { z } from 'zod';
 import { DomainEvents } from '../common/domain-events.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
-import { PermissionsService } from '../servers/permissions.service.js';
+import { AuditService } from '../audit/audit.service.js';
+import { assertNotTimedOut, PermissionsService } from '../servers/permissions.service.js';
 import { BoardsService, DELETED_CARD_TITLE } from '../boards/boards.service.js';
 import { ServersService } from '../servers/servers.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
 export type Target =
   { channelId: string; conversationId?: undefined } | { conversationId: string; channelId?: undefined };
+
+type Embeds = Message['embeds'];
+type Components = Message['components'];
+const Embeds = z.array(Embed).max(EMBED_LIMITS.perMessage);
+/** O JSON do banco foi validado ao gravar; se o contrato apertar depois, uma lista inválida vira vazia. */
+const parseEmbeds = (json: Prisma.JsonValue): Embeds => {
+  const r = Embeds.safeParse(json);
+  return r.success ? r.data : [];
+};
+const parseComponents = (json: Prisma.JsonValue): Components => {
+  const r = MessageComponents.safeParse(json);
+  return r.success ? r.data : [];
+};
+/** Para as colunas Json: tira `undefined` (que o JSON não representa) e satisfaz o tipo do Prisma. */
+const toJson = (v: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
+/** até 100 por chamada (contrato) */
+const BULK_DELETE_MAX = 100;
 
 const MESSAGE_INCLUDE = {
   author: { select: USER_PUBLIC_SELECT },
@@ -55,6 +77,8 @@ interface TargetAccess {
   conversationId: string | null;
   serverId: string | null;
   perms: number;
+  /** castigo (ADR-0034) em vigor no servidor do canal; null em DMs */
+  timeoutUntil: Date | null;
   memberIds?: string[];
 }
 
@@ -68,6 +92,7 @@ export class MessagesService {
     private readonly boards: BoardsService,
     private readonly servers: ServersService,
     private readonly events: DomainEvents,
+    private readonly audit: AuditService,
   ) {}
 
   /** Resolve acesso ao destino. DMs: membros têm todas as permissões de mensagem. */
@@ -81,6 +106,7 @@ export class MessagesService {
         conversationId: null,
         serverId: a.serverId,
         perms: a.perms,
+        timeoutUntil: a.timeoutUntil,
       };
     }
     const conv = await this.prisma.conversation.findUnique({
@@ -101,8 +127,25 @@ export class MessagesService {
       conversationId: conv.id,
       serverId: null,
       perms: dmPerms,
+      timeoutUntil: null,
       memberIds,
     };
+  }
+
+  /**
+   * Embeds só para bots e webhooks; componentes só para bots (ADR-0034). Pessoas recebem 403 com o motivo, para o
+   * app e o SDK não confundirem com falta de permissão no canal.
+   */
+  private async assertRichAllowed(
+    userId: string,
+    dto: { embeds?: Embeds | undefined; components?: Components | undefined },
+  ) {
+    if (!dto.embeds?.length && !dto.components?.length) return;
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { isBot: true, isWebhook: true } });
+    const bot = u?.isBot ?? false;
+    const webhook = u?.isWebhook ?? false;
+    if (dto.embeds?.length && !bot && !webhook) throw forbidden('só bots e webhooks enviam embeds');
+    if (dto.components?.length && !bot) throw forbidden('só bots enviam botões e menus');
   }
 
   private reactions(rows: MessageRow['reactions'], me: string | null): ReactionSummary[] {
@@ -142,6 +185,8 @@ export class MessagesService {
       poll: deleted || !m.poll ? null : this.serializePoll(m.poll, me),
       reactionRoles: deleted ? [] : m.reactionRoles,
       replyCount: m._count.replies,
+      embeds: deleted ? [] : parseEmbeds(m.embeds),
+      components: deleted ? [] : parseComponents(m.components),
     };
   }
 
@@ -208,15 +253,24 @@ export class MessagesService {
       attachmentIds?: string[] | undefined;
       /** enquete (ADR-0018): criada na mesma transação da mensagem */
       poll?: { question: string; options: string[]; multiple: boolean; endsAt: Date | null } | undefined;
+      /** cartões ricos (ADR-0034): só bots e webhooks */
+      embeds?: Embeds | undefined;
+      /** botões e menus (ADR-0034): só bots */
+      components?: Components | undefined;
     },
   ): Promise<{ message: Message; duplicate: boolean }> {
     const a = await this.access(userId, target);
     if (!hasPermission(a.perms, Permission.SEND_MESSAGES)) throw forbidden('sem permissão para enviar mensagens');
+    // em castigo (ADR-0034) não escreve (nem cria enquete: passa por aqui)
+    assertNotTimedOut(a);
     const attachmentIds = dto.attachmentIds ?? [];
     if (attachmentIds.length && !hasPermission(a.perms, Permission.ATTACH_FILES))
       throw forbidden('sem permissão para anexar arquivos');
+    await this.assertRichAllowed(userId, dto);
+    const embeds = dto.embeds ?? [];
+    const components = dto.components ?? [];
     const body = dto.body.trim();
-    if (!body && !attachmentIds.length) throw new BadRequestException('mensagem vazia');
+    if (!body && !attachmentIds.length && !embeds.length) throw new BadRequestException('mensagem vazia');
 
     // Idempotência: reenvio com o mesmo requestId devolve a mensagem original.
     const existing = await this.prisma.message.findUnique({
@@ -251,6 +305,8 @@ export class MessagesService {
             replyToId: dto.replyToId ?? null,
             mentions,
             mentionEveryone,
+            embeds: toJson(embeds),
+            components: toJson(components),
           },
         });
         await this.attachments.claimForMessage(tx, userId, attachmentIds, m.id);
@@ -398,7 +454,25 @@ export class MessagesService {
     return m.channelId ? { channelId: m.channelId } : { conversationId: m.conversationId as string };
   }
 
-  async edit(userId: string, messageId: string, body: string): Promise<Message> {
+  /** Uma mensagem pelo id (quem vê o canal/conversa e o histórico; senão 404). Apagada vem com `deleted: true`. */
+  async get(userId: string, messageId: string): Promise<Message> {
+    const m = await this.load(messageId);
+    const a = await this.access(userId, this.targetOf(m)).catch(() => {
+      throw notFound('mensagem');
+    });
+    if (!hasPermission(a.perms, Permission.READ_HISTORY)) throw forbidden('sem acesso ao histórico');
+    return this.serialize(m, userId);
+  }
+
+  /**
+   * Edição parcial (ADR-0034): só o que veio muda; `components: []` tira os botões. Continua só do autor; embeds e
+   * componentes seguem a mesma regra de quem pode enviá-los.
+   */
+  async edit(
+    userId: string,
+    messageId: string,
+    dto: { body?: string | undefined; embeds?: Embeds | undefined; components?: Components | undefined },
+  ): Promise<Message> {
     const m = await this.load(messageId);
     await this.access(userId, this.targetOf(m)).catch(() => {
       throw notFound('mensagem');
@@ -406,15 +480,27 @@ export class MessagesService {
     if (m.authorId !== userId) throw forbidden('só o autor pode editar');
     if (m.poll) throw new BadRequestException('enquetes não podem ser editadas');
     if (m.deletedAt) throw notFound('mensagem');
+    if (dto.body === undefined && dto.embeds === undefined && dto.components === undefined)
+      throw new BadRequestException('nada para editar');
+    await this.assertRichAllowed(userId, dto);
     const a = await this.access(userId, this.targetOf(m));
-    const parsed = extractMentions(body.trim());
+    const body = dto.body === undefined ? m.body : dto.body.trim();
+    const embeds = dto.embeds ?? parseEmbeds(m.embeds);
+    if (!body && !embeds.length && !m.attachments.length) throw new BadRequestException('mensagem vazia');
+    const parsed = dto.body === undefined ? null : extractMentions(body);
     const row = await this.prisma.message.update({
       where: { id: messageId },
       data: {
-        body: body.trim(),
         editedAt: new Date(),
-        mentions: await this.validMentions(a, parsed.userIds),
-        mentionEveryone: parsed.everyone && hasPermission(a.perms, Permission.MENTION_EVERYONE),
+        ...(parsed
+          ? {
+              body,
+              mentions: await this.validMentions(a, parsed.userIds),
+              mentionEveryone: parsed.everyone && hasPermission(a.perms, Permission.MENTION_EVERYONE),
+            }
+          : {}),
+        ...(dto.embeds !== undefined ? { embeds: toJson(dto.embeds) } : {}),
+        ...(dto.components !== undefined ? { components: toJson(dto.components) } : {}),
       },
       include: MESSAGE_INCLUDE,
     });
@@ -429,7 +515,12 @@ export class MessagesService {
     });
     if (m.authorId !== userId && !hasPermission(a.perms, Permission.MANAGE_MESSAGES)) throw forbidden();
     if (m.deletedAt) return;
-    // soft delete: conteúdo apagado, registro mantido para threads/replies
+    await this.softDelete(m, a.room);
+  }
+
+  /** Soft delete: conteúdo apagado, registro mantido para threads/replies; avisa a sala do destino. */
+  private async softDelete(m: { id: string; channelId: string | null; conversationId: string | null }, room: string) {
+    const messageId = m.id;
     await this.prisma.$transaction([
       this.prisma.message.update({
         where: { id: messageId },
@@ -440,6 +531,8 @@ export class MessagesService {
           mentionEveryone: false,
           pinnedAt: null,
           pinnedById: null,
+          embeds: [],
+          components: [],
         },
       }),
       this.prisma.reaction.deleteMany({ where: { messageId } }),
@@ -447,7 +540,71 @@ export class MessagesService {
       this.prisma.boardCard.updateMany({ where: { messageId }, data: { title: DELETED_CARD_TITLE, body: '' } }),
     ]);
     await this.boards.refreshFromMessage(messageId);
-    this.realtime.emit(a.room, 'chat:message:deleted', {
+    this.realtime.emit(room, 'chat:message:deleted', {
+      messageId,
+      channelId: m.channelId,
+      conversationId: m.conversationId,
+    });
+  }
+
+  /**
+   * Apagar várias de um canal (ADR-0034): com MANAGE_MESSAGES qualquer uma; sem, só as próprias (senão 403, sem
+   * apagar nada). Ids de outro destino → 400; já apagadas são ignoradas. Auditoria com a contagem.
+   */
+  async bulkDelete(userId: string, channelId: string, messageIds: string[]): Promise<void> {
+    const a = await this.access(userId, { channelId });
+    const ids = [...new Set(messageIds)].slice(0, BULK_DELETE_MAX);
+    const rows = await this.prisma.message.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, authorId: true, channelId: true, conversationId: true, deletedAt: true },
+    });
+    if (rows.length !== ids.length || rows.some((m) => m.channelId !== channelId))
+      throw new BadRequestException('mensagem de outro destino');
+    const manage = hasPermission(a.perms, Permission.MANAGE_MESSAGES);
+    if (!manage && rows.some((m) => m.authorId !== userId)) throw forbidden('só as próprias mensagens');
+    let deleted = 0;
+    for (const m of rows) {
+      if (m.deletedAt) continue;
+      await this.softDelete(m, a.room);
+      deleted++;
+    }
+    if (a.serverId)
+      await this.audit.log(userId, a.serverId, 'message.bulk_delete', channelId, {
+        count: deleted,
+        requested: ids.length,
+      });
+  }
+
+  /**
+   * Banimento (ADR-0034): apaga as mensagens da pessoa nos canais do servidor dos últimos `seconds` segundos (soft
+   * delete, mesmos eventos de uma exclusão comum). Devolve quantas foram.
+   */
+  async purgeByAuthor(serverId: string, authorId: string, seconds: number): Promise<number> {
+    if (seconds <= 0) return 0;
+    const rows = await this.prisma.message.findMany({
+      where: {
+        authorId,
+        deletedAt: null,
+        channel: { serverId },
+        createdAt: { gte: new Date(Date.now() - seconds * 1000) },
+      },
+      select: { id: true, channelId: true, conversationId: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    for (const m of rows) await this.softDelete(m, rooms.channel(m.channelId as string));
+    return rows.length;
+  }
+
+  /** Limpa todas as reações de uma mensagem (ADR-0034): só MANAGE_MESSAGES (em DMs ninguém tem). */
+  async clearReactions(userId: string, messageId: string): Promise<void> {
+    const m = await this.load(messageId);
+    const a = await this.access(userId, this.targetOf(m)).catch(() => {
+      throw notFound('mensagem');
+    });
+    if (m.deletedAt) throw notFound('mensagem');
+    if (!hasPermission(a.perms, Permission.MANAGE_MESSAGES)) throw forbidden();
+    await this.prisma.reaction.deleteMany({ where: { messageId } });
+    this.realtime.emit(a.room, 'chat:reactions:cleared', {
       messageId,
       channelId: m.channelId,
       conversationId: m.conversationId,
@@ -702,6 +859,8 @@ export class MessagesService {
       const exists = m.reactions.some((r) => r.emoji === emoji);
       // reagir com emoji novo exige ADD_REACTIONS; somar-se a um existente também (mesma regra simples)
       if (!hasPermission(a.perms, Permission.ADD_REACTIONS)) throw forbidden();
+      // em castigo (ADR-0034) não reage (tirar a própria reação continua livre)
+      assertNotTimedOut(a);
       if (!exists && new Set(m.reactions.map((r) => r.emoji)).size >= MAX_REACTION_EMOJIS)
         throw new BadRequestException('limite de reações distintas');
       await this.prisma.reaction.upsert({
