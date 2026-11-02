@@ -1,26 +1,6 @@
-// OpenCord — landing page: entrada suave ao rolar e links de download do app desktop.
+// OpenCord — landing page: links de download do app desktop e prévia dos temas.
 
-const reveal = document.querySelectorAll('.reveal');
-if ('IntersectionObserver' in window) {
-  const io = new IntersectionObserver(
-    (entries) => {
-      for (const e of entries) {
-        if (!e.isIntersecting) continue;
-        e.target.classList.add('in');
-        io.unobserve(e.target);
-      }
-    },
-    { rootMargin: '0px 0px -8% 0px' },
-  );
-  reveal.forEach((el, i) => {
-    // cascata leve dentro de grades e listas
-    el.style.transitionDelay = `${Math.min(i % 4, 3) * 60}ms`;
-    io.observe(el);
-  });
-} else {
-  reveal.forEach((el) => el.classList.add('in'));
-}
-
+// ---------- downloads ----------
 // Instaladores publicados pelo servidor (GET /downloads/desktop): o botão aponta para o do sistema de quem visita
 // e as demais plataformas aparecem logo abaixo. Sem instaladores (ou com o servidor fora do ar), os botões continuam
 // levando ao app no navegador; no celular, onde não há app desktop, eles somem.
@@ -59,23 +39,28 @@ function pickFile(files, platform) {
 
 const platform = detectPlatform();
 const buttons = document.querySelectorAll('.js-download');
+const setLabel = (text) => {
+  for (const b of buttons) b.querySelector('.download-label').textContent = text;
+};
 if (!platform) for (const b of buttons) b.hidden = true;
+// o sistema já é conhecido antes da resposta do servidor; o link vira o instalador assim que ele chegar
+else setLabel(`Baixar para ${NAMES[platform]}`);
 
 if (API) {
   fetch(`${API}/downloads/desktop`)
     .then((r) => (r.ok ? r.json() : null))
     .then((dl) => {
       const files = dl?.files ?? [];
-      if (!files.length) return;
       const primary = platform && pickFile(files, platform);
+      if (platform && !primary) setLabel('Baixar o app');
+      if (!files.length) return;
       if (primary) {
         const mb = primary.sizeBytes ? ` · ${Math.round(primary.sizeBytes / 1024 / 1024)} MB` : '';
         for (const b of buttons) {
           b.href = primary.url;
           if (primary.fileName) b.setAttribute('download', primary.fileName);
-          b.querySelector('.download-label').textContent =
-            `Baixar para ${NAMES[primary.platform]} ${primary.version ?? ''}`.trim();
         }
+        setLabel(`Baixar para ${NAMES[primary.platform]} ${primary.version ?? ''}`.trim());
         document.getElementById('download-meta').textContent =
           `${fileLabel(primary)}${mb} · ou use direto no navegador`;
       }
@@ -93,5 +78,66 @@ if (API) {
       });
       box.hidden = false;
     })
-    .catch(() => undefined);
+    .catch(() => {
+      if (platform) setLabel('Baixar o app');
+    });
+}
+
+// ---------- prévia dos temas ----------
+// Abas trocam a captura; sem JS a primeira fica visível. Avança sozinha devagar, para ao passar o mouse,
+// ao focar e quando a pessoa escolhe um tema (ou prefere menos movimento).
+const demo = document.querySelector('[data-theme-demo]');
+if (demo) {
+  const tabs = [...demo.querySelectorAll('[role="tab"]')];
+  const panels = [...demo.querySelectorAll('.theme-img')];
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let current = Math.max(0, tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true'));
+  let timer = 0;
+  let manual = false;
+
+  const show = (i) => {
+    current = (i + tabs.length) % tabs.length;
+    tabs.forEach((t, k) => {
+      const on = k === current;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+    });
+    panels.forEach((p, k) => {
+      p.classList.toggle('is-active', k === current);
+      p.setAttribute('aria-hidden', k === current ? 'false' : 'true');
+    });
+  };
+  const stop = () => {
+    if (timer) clearInterval(timer);
+    timer = 0;
+  };
+  const start = () => {
+    stop();
+    if (manual || reduce.matches) return;
+    timer = setInterval(() => show(current + 1), 5000);
+  };
+
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => {
+      manual = true;
+      stop();
+      show(i);
+    });
+    t.addEventListener('keydown', (e) => {
+      const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      manual = true;
+      stop();
+      show(current + d);
+      tabs[current].focus();
+    });
+  });
+  demo.addEventListener('pointerenter', stop);
+  demo.addEventListener('pointerleave', start);
+  demo.addEventListener('focusin', stop);
+  demo.addEventListener('focusout', start);
+  reduce.addEventListener?.('change', start);
+  show(current);
+  start();
 }
