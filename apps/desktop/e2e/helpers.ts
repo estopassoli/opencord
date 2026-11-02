@@ -79,9 +79,9 @@ export async function login(page: Page, email: string, password: string) {
   await expect(page.getByRole('navigation', { name: 'Servidores' })).toBeVisible({ timeout: 15_000 });
 }
 
-/** Entrada só com apelido, pelo link "Utilizar apenas apelido" (ADR-0007). */
+/** Entrada só com apelido, pelo botão "Entrar só com apelido" (ADR-0007). */
 export async function joinWithNickname(page: Page, nickname: string) {
-  await page.getByRole('button', { name: /^Utilizar apenas apelido/ }).click();
+  await page.getByRole('button', { name: 'Entrar só com apelido' }).click();
   await page.getByLabel('Apelido').fill(nickname);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByRole('navigation', { name: 'Servidores' })).toBeVisible({ timeout: 15_000 });

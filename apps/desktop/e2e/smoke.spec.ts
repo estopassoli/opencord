@@ -105,7 +105,7 @@ test('entrar só com apelido → servidor padrão → canal → enviar mensagem'
   await expect(page.getByRole('button', { name: 'Criar conta' })).toBeVisible();
   await expect(page.getByText(/convite/i)).toHaveCount(0);
   await page.screenshot({ path: shots('01-entrar-login') });
-  await page.getByRole('button', { name: 'Utilizar apenas apelido (dados ficam neste computador)' }).click();
+  await page.getByRole('button', { name: 'Entrar só com apelido' }).click();
   // só o apelido, sem senha
   await expect(page.getByRole('heading', { name: 'Entrar só com apelido' })).toBeVisible();
   await expect(page.getByRole('textbox')).toHaveCount(1);

@@ -352,6 +352,19 @@ textarea:focus-visible {
   font-size: 0.875rem;
   color: var(--text-muted);
 }
+/* acesso por apelido com o mesmo peso do botão Entrar (revisão da landing, 2026-11-02) */
+.auth-alt {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  text-align: center;
+}
+.auth-alt-or {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
 
 /* ---------- shell ---------- */
 .shell {

@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '14:00',
+    kind: 'melhoria',
+    icon: 'user',
+    title: 'Entrar só com apelido em destaque',
+    body: 'Na tela de entrada, "Entrar só com apelido" virou um botão com o mesmo peso do Entrar, em vez de um link pequeno. Quem for só dar uma olhada não precisa procurar.',
+  },
+  {
+    date: '2026-11-02',
     time: '13:30',
     kind: 'novo',
     icon: 'block',

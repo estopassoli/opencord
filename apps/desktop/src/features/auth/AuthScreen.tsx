@@ -19,7 +19,8 @@ const TITLES: Record<Mode, [string, string]> = {
 
 /**
  * Entrada (ADR-0007): pede apelido/e-mail e senha; sem endereço do servidor (vem do build ou do último usado).
- * Conta continua opcional: o link "Utilizar apenas apelido" entra sem senha, com os dados só neste dispositivo.
+ * Conta continua opcional: o botão "Entrar só com apelido" (mesmo destaque do Entrar) entra sem senha, com os dados
+ * só neste dispositivo.
  */
 export function AuthScreen() {
   // quem chega por um link de convite provavelmente não tem conta: começa pelo "só apelido"
@@ -184,11 +185,15 @@ export function AuthScreen() {
         </p>
         {closed && <p className="muted small auth-switch">Novos cadastros estão fechados no momento.</p>}
         {effective !== 'nickname' && !guestDisabled && (
-          <p className="auth-switch auth-links">
-            <button type="button" className="link-btn" onClick={() => go('nickname')}>
-              Utilizar apenas apelido (dados ficam {WHERE})
-            </button>
-          </p>
+          <div className="auth-alt">
+            <span className="auth-alt-or" aria-hidden="true">
+              ou
+            </span>
+            <Button type="button" variant="secondary" size="lg" block onClick={() => go('nickname')}>
+              Entrar só com apelido
+            </Button>
+            <p className="auth-switch">Sem senha: os dados ficam {WHERE}.</p>
+          </div>
         )}
       </form>
     </main>
