@@ -3,7 +3,11 @@ import {
   AddBotToServerRequest,
   CreateBotRequest,
   CreateInteractionRequest,
+  InteractionAutocompleteRequest,
+  InteractionDeferRequest,
+  InteractionModalRequest,
   InteractionReplyRequest,
+  InteractionUpdateRequest,
   SetBotCommandsRequest,
   UpdateBotRequest,
 } from '@opencord/contracts';
@@ -15,7 +19,7 @@ import { InteractionsService } from './interactions.service.js';
 
 const id = new ParseUUIDPipe();
 
-/** Bots e aplicativos (ADR-0032). Todas as rotas passam pelo AuthGuard global; tokens `ocb_…` também valem. */
+/** Bots e aplicativos (ADR-0032; interações v2 na ADR-0034). Todas as rotas passam pelo AuthGuard global; tokens `ocb_…` também valem. */
 @Controller()
 export class BotsController {
   constructor(
@@ -117,10 +121,15 @@ export class BotsController {
     return this.interactions.create(u, dto);
   }
 
+  // v1 manda `defer` sem corpo
   @Post('interactions/:id/defer')
   @HttpCode(204)
-  async defer(@CurrentUser() u: AuthUser, @Param('id', id) interactionId: string) {
-    await this.interactions.defer(u, interactionId);
+  async defer(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) interactionId: string,
+    @Body(zodPipe(InteractionDeferRequest.optional())) dto: z.infer<typeof InteractionDeferRequest> | undefined,
+  ) {
+    await this.interactions.defer(u, interactionId, dto ?? { ephemeral: false, update: false });
   }
 
   @Post('interactions/:id/reply')
@@ -131,5 +140,35 @@ export class BotsController {
     @Body(zodPipe(InteractionReplyRequest)) dto: z.infer<typeof InteractionReplyRequest>,
   ) {
     return this.interactions.reply(u, interactionId, dto);
+  }
+
+  @Post('interactions/:id/update')
+  @HttpCode(200)
+  updateInteraction(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) interactionId: string,
+    @Body(zodPipe(InteractionUpdateRequest)) dto: z.infer<typeof InteractionUpdateRequest>,
+  ) {
+    return this.interactions.update(u, interactionId, dto);
+  }
+
+  @Post('interactions/:id/modal')
+  @HttpCode(204)
+  async modal(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) interactionId: string,
+    @Body(zodPipe(InteractionModalRequest)) dto: z.infer<typeof InteractionModalRequest>,
+  ) {
+    await this.interactions.modal(u, interactionId, dto);
+  }
+
+  @Post('interactions/:id/autocomplete')
+  @HttpCode(204)
+  async autocomplete(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) interactionId: string,
+    @Body(zodPipe(InteractionAutocompleteRequest)) dto: z.infer<typeof InteractionAutocompleteRequest>,
+  ) {
+    await this.interactions.autocomplete(u, interactionId, dto);
   }
 }

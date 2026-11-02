@@ -1,3 +1,4 @@
+import { AUTOCOMPLETE_TIMEOUT_MS } from '@opencord/contracts';
 import { z } from 'zod';
 
 const bool = z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1');
@@ -73,6 +74,8 @@ export const ConfigSchema = z.object({
   /** Limite de novos apelidos por IP por hora. */
   GUEST_JOIN_PER_IP_HOUR: z.coerce.number().int().min(1).default(10),
   VOICE_RECONCILE_INTERVAL_MS: z.coerce.number().int().min(0).default(30000),
+  /** Autocompletar de comandos de bot (ADR-0034): quanto a API espera o bot antes de devolver sem sugestões. */
+  AUTOCOMPLETE_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(AUTOCOMPLETE_TIMEOUT_MS),
 });
 export type AppConfig = z.infer<typeof ConfigSchema>;
 

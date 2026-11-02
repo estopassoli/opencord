@@ -32,12 +32,22 @@ import { AvatarService } from '../users/avatar.service.js';
 const INCLUDE = { user: { select: USER_PUBLIC_SELECT } } satisfies Prisma.BotInclude;
 type Row = Prisma.BotGetPayload<{ include: typeof INCLUDE }>;
 
-const Commands = z.array(BotCommand);
-/** O JSON do banco foi validado ao gravar; se algum dia o contrato apertar, uma lista inválida vira vazia. */
+/**
+ * O JSON do banco foi validado ao gravar. Comandos de antes da ADR-0034 (sem `type`, `guildIds`…) ganham os padrões
+ * do contrato; um comando que o contrato atual não aceite mais é descartado sozinho, sem derrubar a lista inteira.
+ */
 export const parseCommands = (json: Prisma.JsonValue): BotCommand[] => {
-  const r = Commands.safeParse(json);
-  return r.success ? r.data : [];
+  const list = z.array(z.unknown()).safeParse(json);
+  if (!list.success) return [];
+  return list.data.flatMap((c) => {
+    const r = BotCommand.safeParse(c);
+    return r.success ? [r.data] : [];
+  });
 };
+
+/** Comandos que valem num servidor: `guildIds` vazio = em todos; senão só onde o bot os registrou (ADR-0034). */
+export const commandsForServer = (commands: BotCommand[], serverId: string): BotCommand[] =>
+  commands.filter((c) => c.guildIds.length === 0 || c.guildIds.includes(serverId));
 
 export const serializeBot = (b: Row): Bot => ({
   id: b.id,
@@ -229,13 +239,13 @@ export class BotsService {
     this.realtime.emit(rooms.server(serverId), 'bot:commands:changed', { serverId });
   }
 
-  /** Comandos disponíveis no servidor: os dos bots membros (para o autocompletar de `/`). */
+  /** Comandos disponíveis no servidor: os dos bots membros, já filtrados por `guildIds` (para o `/` e o menu Apps). */
   async serverCommands(userId: string, serverId: string): Promise<ServerCommands[]> {
     await this.perms.server(serverId, userId);
     return (await this.memberBots(serverId)).map((b) => ({
       botId: b.id,
       bot: userPublic(b.user),
-      commands: parseCommands(b.commands),
+      commands: commandsForServer(parseCommands(b.commands), serverId),
     }));
   }
 }

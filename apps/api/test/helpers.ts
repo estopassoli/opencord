@@ -8,8 +8,9 @@ import { TEST_API_PORT, TEST_ENV, testConfig } from './env.js';
 
 export const prisma = new PrismaClient({ datasourceUrl: TEST_ENV.DATABASE_URL });
 
-export async function startApp(): Promise<NestFastifyApplication> {
-  const app = await createApp(testConfig(), { logger: false });
+/** `over`: variáveis de ambiente por cima das de teste (ex.: AUTOCOMPLETE_TIMEOUT_MS curto). */
+export async function startApp(over: Record<string, string> = {}): Promise<NestFastifyApplication> {
+  const app = await createApp(testConfig(over), { logger: false });
   await app.listen({ host: '127.0.0.1', port: TEST_API_PORT });
   return app;
 }
