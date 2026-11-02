@@ -19,6 +19,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-02',
+    time: '10:00',
+    kind: 'melhoria',
+    icon: 'shield',
+    title: 'Super admin não sai na marra',
+    body: 'Quem administra a instância agora fica acima de todo mundo nos servidores: ninguém expulsa, silencia, desconecta da voz nem muda os cargos dessa pessoa, nem o dono. A lista de membros marca quem é super admin. De quebra, silenciar e desconectar na voz passaram a respeitar a hierarquia de cargos, como expulsar já fazia.',
+  },
+  {
     date: '2026-11-01',
     time: '19:00',
     kind: 'novo',

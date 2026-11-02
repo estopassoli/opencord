@@ -425,16 +425,6 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
   }
 
   // ---------- Membros ----------
-  private async targetTop(serverId: string, targetUserId: string, ownerId: string): Promise<number> {
-    if (targetUserId === ownerId) return Number.POSITIVE_INFINITY;
-    const m = await this.prisma.serverMember.findUnique({
-      where: { serverId_userId: { serverId, userId: targetUserId } },
-      select: { roles: { select: { role: { select: { position: true } } } } },
-    });
-    if (!m) throw notFound('membro');
-    return Math.max(0, ...m.roles.map((r) => r.role.position));
-  }
-
   /** Tira do servidor junto com os overrides de canal da pessoa (senão voltariam a valer se ela entrasse de novo). */
   private async removeMembership(serverId: string, userId: string) {
     await this.prisma.$transaction([
@@ -448,7 +438,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
   async kick(serverId: string, actorId: string, targetId: string, reason?: string) {
     if (actorId === targetId) throw new BadRequestException('use "sair do servidor"');
     const actor = await this.perms.requireServer(serverId, actorId, Permission.KICK_MEMBERS);
-    this.perms.assertAbove(actor, await this.targetTop(serverId, targetId, actor.ownerId));
+    this.perms.assertAbove(actor, await this.perms.memberTop(serverId, targetId, actor.ownerId));
     await this.removeMembership(serverId, targetId);
     await this.audit.log(actorId, serverId, 'member.kick', targetId, { reason: reason ?? null });
     // Revogação ativa: voz (SFU) é encerrada pelo VoiceService ao receber o evento.
@@ -477,7 +467,8 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     for (const id of changed) this.perms.assertAbove(actor, byId.get(id)?.position ?? Number.POSITIVE_INFINITY);
     // dar um cargo é dar os bits dele: não pode entregar permissão que o próprio ator não tem
     for (const id of unique) if (!currentIds.has(id)) this.perms.assertGrantable(actor, byId.get(id)?.permissions ?? 0);
-    if (targetId !== actorId) this.perms.assertAbove(actor, await this.targetTop(serverId, targetId, actor.ownerId));
+    if (targetId !== actorId)
+      this.perms.assertAbove(actor, await this.perms.memberTop(serverId, targetId, actor.ownerId));
     await this.prisma.$transaction([
       this.prisma.memberRole.deleteMany({ where: { serverId, userId: targetId } }),
       this.prisma.memberRole.createMany({ data: unique.map((roleId) => ({ serverId, userId: targetId, roleId })) }),

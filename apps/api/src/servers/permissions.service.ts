@@ -124,6 +124,24 @@ export class PermissionsService {
     if (!(actor.topPosition > targetPosition)) throw forbidden('hierarquia de cargos insuficiente');
   }
 
+  /**
+   * Posição do alvo para `assertAbove`: dono e super admin da instância (ADR-0013) ficam no topo, acima de todo
+   * mundo, inclusive um do outro — ninguém expulsa, silencia, desconecta ou muda os cargos deles.
+   */
+  async memberTop(serverId: string, targetUserId: string, ownerId: string): Promise<number> {
+    if (targetUserId === ownerId) return Number.POSITIVE_INFINITY;
+    const m = await this.prisma.serverMember.findUnique({
+      where: { serverId_userId: { serverId, userId: targetUserId } },
+      select: {
+        user: { select: { isInstanceAdmin: true } },
+        roles: { select: { role: { select: { position: true } } } },
+      },
+    });
+    if (!m) throw notFound('membro');
+    if (m.user.isInstanceAdmin) return Number.POSITIVE_INFINITY;
+    return Math.max(0, ...m.roles.map((r) => r.role.position));
+  }
+
   /** Bits que o ator pode conceder: não pode dar permissões que não possui. */
   assertGrantable(actor: ServerAccess, bits: number) {
     if (actor.base === ALL_PERMISSIONS) return;

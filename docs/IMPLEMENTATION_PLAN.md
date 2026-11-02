@@ -141,6 +141,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-01 | Galeria de temas | `apps/desktop/test/themes.test.ts` 13/13 (contraste ≥ 4,5:1 por tema); unit 129/129; capturas headless (Ártico, Neon, Meia-noite, Papel, Claro) no Vidro | verde | `appearance.palette` só persiste após o deploy da API |
 | 2026-11-01 | Bots e aplicativos (ADR-0032) | int `bots.int.test.ts` 4/4 + suíte 159/159 (`voice` flaky 1× sob carga, verde ao repetir); desktop unit 138/138 (`slash.test.ts` 9); SDK `@opencord/bot` 16/16; ponta a ponta real `e2e-bot.mjs` (SDK contra a API local: /ola efêmero e !ping → pong) | verde | migração `20261101040000_bots` + deploy pendentes de aprovação |
 | 2026-11-01 | Ponte com o Slack (ADR-0033) | int `slack.int.test.ts` 5/5 com stub do Slack (assinatura, desafio, anti-eco, reenvio) | verde | migração `20261101050000_slack_links` + deploy + app do Slack real pendentes |
+| 2026-11-02 | Super admin intocável (adendo ADR-0013) | int `servers.int.test.ts` 16/16 (dono 403 ao expulsar/mudar cargos do admin) + `voice.int.test.ts` 16/16; typecheck api/desktop | verde | depende do deploy da API pendente |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

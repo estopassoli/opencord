@@ -370,7 +370,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const s = await this.stateOf(targetId);
     if (!s) throw new BadRequestException('membro não está em voz');
     const actor = await this.perms.requireServer(s.serverId, actorId, Permission.MUTE_MEMBERS);
-    void actor;
+    this.perms.assertAbove(actor, await this.perms.memberTop(s.serverId, targetId, actor.ownerId));
     s.serverMute = muted;
     await this.save(s);
     if (muted) await this.r.sadd(mutedKey(s.serverId), targetId);
@@ -389,7 +389,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const s = await this.stateOf(targetId);
     if (!s) return;
     const actor = await this.perms.requireServer(s.serverId, actorId, Permission.MOVE_MEMBERS);
-    void actor;
+    this.perms.assertAbove(actor, await this.perms.memberTop(s.serverId, targetId, actor.ownerId));
     await this.endSession(s, 'kicked', 'kicked');
   }
 
@@ -402,7 +402,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const s = await this.stateOf(targetId);
     if (!s) throw new BadRequestException('membro não está em voz');
     if (s.channelId === channelId) return;
-    await this.perms.requireServer(s.serverId, actorId, Permission.MOVE_MEMBERS);
+    const actor = await this.perms.requireServer(s.serverId, actorId, Permission.MOVE_MEMBERS);
+    this.perms.assertAbove(actor, await this.perms.memberTop(s.serverId, targetId, actor.ownerId));
     const dest = await this.perms.requireChannel(channelId, actorId, Permission.CONNECT);
     if (dest.kind !== 'voice' || dest.serverId !== s.serverId)
       throw new BadRequestException('não é um canal de voz deste servidor');

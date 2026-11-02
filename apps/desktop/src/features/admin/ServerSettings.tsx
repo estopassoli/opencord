@@ -581,6 +581,7 @@ function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
         {members.map((m) => {
           const name = m.nickname ?? m.user.displayName;
           const isOwner = m.user.id === detail.ownerId;
+          const isAdmin = Boolean(m.user.isInstanceAdmin);
           const open = expanded === m.user.id;
           const panelId = `member-roles-${m.user.id}`;
           return (
@@ -590,6 +591,7 @@ function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
                   <span className="truncate">
                     {name}
                     {isOwner && <span className="muted small"> · dono</span>}
+                    {isAdmin && <span className="muted small"> · super admin</span>}
                   </span>
                   <span className="muted small truncate">@{m.user.username}</span>
                 </div>
@@ -610,7 +612,7 @@ function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
                   })}
                 </div>
                 <div className="admin-row-actions">
-                  {canRoles && (
+                  {canRoles && (m.user.id === myId || (!isOwner && !isAdmin)) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -621,7 +623,7 @@ function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
                       Cargos
                     </Button>
                   )}
-                  {canKick && !isOwner && m.user.id !== myId && (
+                  {canKick && !isOwner && !isAdmin && m.user.id !== myId && (
                     <button
                       type="button"
                       className="icon-btn danger"
@@ -634,7 +636,7 @@ function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
                   )}
                 </div>
               </div>
-              {canRoles && open && (
+              {canRoles && open && (m.user.id === myId || (!isOwner && !isAdmin)) && (
                 <fieldset id={panelId} className="role-checks">
                   <legend className="sr-only">Cargos de {name}</legend>
                   {roles.length === 0 && <p className="muted small">Nenhum cargo criado.</p>}

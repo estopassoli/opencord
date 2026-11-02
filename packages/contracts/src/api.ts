@@ -116,6 +116,8 @@ export const UserPublic = z.object({
   avatarKey: z.string().nullable(),
   /** identidade de um webhook de entrada (ADR-0030): mostra o selo "APP" */
   bot: z.boolean().default(false),
+  /** super admin da instância (ADR-0013): fica acima de todo mundo nos servidores; ninguém expulsa, silencia ou muda os cargos */
+  isInstanceAdmin: z.boolean().optional(),
 });
 export type UserPublic = z.infer<typeof UserPublic>;
 
@@ -125,8 +127,6 @@ export const Me = UserPublic.extend({
   email: z.email().nullable(),
   hasAccount: z.boolean(),
   createdAt: IsoDate,
-  /** super admin da instância (ADR-0013) */
-  isInstanceAdmin: z.boolean().optional(),
 });
 export type Me = z.infer<typeof Me>;
 

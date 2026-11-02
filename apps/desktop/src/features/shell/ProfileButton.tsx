@@ -36,9 +36,9 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
   if (!user) return [];
   const isMe = userId === me;
   const perms = detail?.myPermissions;
-  const canKick = Boolean(
-    detail && perms && hasPermission(perms, Permission.KICK_MEMBERS) && !isMe && detail.ownerId !== userId,
-  );
+  // dono e super admin (ADR-0013) ficam fora de expulsar/desconectar/mover: a API recusa, então nem oferecemos
+  const shielded = detail?.ownerId === userId || Boolean(user.isInstanceAdmin);
+  const canKick = Boolean(detail && perms && hasPermission(perms, Permission.KICK_MEMBERS) && !isMe && !shielded);
   const voice = d.voiceStates[userId];
   const v = useVoice.getState();
   // volume/silenciar local só fazem sentido com os dois na mesma chamada
@@ -164,7 +164,7 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
         void api().request('PUT', `/voice/members/${userId}/server-mute`, { muted: !voice.serverMute }).catch(apiError),
     });
   // Mover para ›: o mesmo que arrastar na lista de canais, pelo teclado
-  const targets = voice && !isMe && serverId ? moveTargets(serverId, voice.channelId) : [];
+  const targets = voice && !isMe && !shielded && serverId ? moveTargets(serverId, voice.channelId) : [];
   if (targets.length)
     mod.push({
       kind: 'submenu',
@@ -175,7 +175,7 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
         onSelect: () => moveToVoice(userId, serverId!, c.id),
       })),
     });
-  if (voice && !isMe && perms && hasPermission(perms, Permission.MOVE_MEMBERS))
+  if (voice && !isMe && !shielded && perms && hasPermission(perms, Permission.MOVE_MEMBERS))
     mod.push({
       label: 'Desconectar',
       danger: true,
@@ -322,9 +322,10 @@ function ProfileCard({
   const user = member?.user ?? friendUser;
   const isMe = me?.id === userId;
   const friendship = friends.find((f) => f.user.id === userId);
-  const canKick =
-    detail && hasPermission(detail.myPermissions, Permission.KICK_MEMBERS) && !isMe && detail.ownerId !== userId;
-  const canMute = detail && hasPermission(detail.myPermissions, Permission.MUTE_MEMBERS) && voiceState && !isMe;
+  const shielded = detail?.ownerId === userId || Boolean(user?.isInstanceAdmin);
+  const canKick = detail && hasPermission(detail.myPermissions, Permission.KICK_MEMBERS) && !isMe && !shielded;
+  const canMute =
+    detail && hasPermission(detail.myPermissions, Permission.MUTE_MEMBERS) && voiceState && !isMe && !shielded;
   const voiceChannel = voiceState ? detail?.channels.find((c) => c.id === voiceState.channelId) : undefined;
   const myCall = useVoice((s) => (s.machine.status === 'disconnected' ? null : s.machine.channelId));
   if (!user) return null;

@@ -374,6 +374,24 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     });
     expect(ch.status).toBe(201);
     expect((await http.req('DELETE', `/servers/${priv.body.id}`, { token: boss.token })).status).toBe(403);
+    // ninguém expulsa nem mexe nos cargos do super admin, nem o dono real; a lista de membros mostra quem é
+    expect(
+      (await http.req('DELETE', `/servers/${priv.body.id}/members/${boss.id}`, { token: alice.token })).status,
+    ).toBe(403);
+    expect(
+      (
+        await http.req('PUT', `/servers/${priv.body.id}/members/${boss.id}/roles`, {
+          token: alice.token,
+          body: { roleIds: [] },
+        })
+      ).status,
+    ).toBe(403);
+    const detail = await http.req<ServerDetail>('GET', `/servers/${priv.body.id}`, { token: alice.token });
+    expect(detail.body.members.find((m) => m.user.id === boss.id)?.user.isInstanceAdmin).toBe(true);
+    expect(detail.body.members.find((m) => m.user.id === alice.id)?.user.isInstanceAdmin).toBeUndefined();
+    expect(
+      await prisma.serverMember.findUnique({ where: { serverId_userId: { serverId: priv.body.id, userId: boss.id } } }),
+    ).not.toBeNull();
     // selo de verificado: só o selo; o servidor continua privado e fora do diretório
     expect(
       (

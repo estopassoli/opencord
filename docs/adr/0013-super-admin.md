@@ -26,3 +26,11 @@ Status: Accepted (pedidos do mantenedor, 2026-10-30)
   - o admin não acessa antes de entrar, e a entrada fica auditada;
   - o admin cria canal, mas não exclui o servidor (403);
   - o selo marcado mantém o servidor privado e fora do diretório.
+
+## Adendo (2026-11-02): ninguém expulsa o super admin
+Pedido do mantenedor: "ninguém consiga me expulsar de um servidor, eu sendo super admin".
+- `PermissionsService.memberTop` (antes `targetTop`, privado em `ServersService`) devolve posição infinita para o dono **e** para quem tem `isInstanceAdmin`. Expulsar, mudar cargos, silenciar no servidor, desconectar e mover na voz passam por `assertAbove` contra essa posição, então ninguém (nem o dono real, nem outro super admin) consegue agir sobre o super admin. Ele ainda sai sozinho por `POST /servers/:id/leave`.
+- Efeito colateral deliberado: a moderação de voz (`serverMute`, `disconnectMember`, `moveMember`) passou a conferir hierarquia contra o alvo, como expulsar já fazia. Antes, qualquer pessoa com MUTE_MEMBERS/MOVE_MEMBERS silenciava ou derrubava o dono.
+- `UserPublic.isInstanceAdmin` (só presente quando verdadeiro) deixa o app esconder os botões e marcar "super admin" na lista de membros. Não é segredo: a entrada do admin já é visível e auditada.
+- Fora do alcance: excluir o servidor (dono real) continua removendo todo mundo, inclusive o admin; suspender o super admin no painel já era bloqueado (ADR-0020).
+- **Evidência:** `servers.int.test.ts` (dono recebe 403 ao expulsar e ao mudar cargos do admin; `isInstanceAdmin` na lista); `voice.int.test.ts` 16/16 continua verde.
