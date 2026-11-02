@@ -20,19 +20,21 @@ import { useData } from '../../store/data';
 import { api, describeError, loadServer } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { Section, TabbedLayout, type TabDef } from '../settings/SettingsModal';
+import { AdminModerationTab } from './AdminModerationTab';
 import '../settings/settings.css';
 
 /**
  * Painel do super admin (ADR-0020): números da instância, servidores, usuários, configuração e auditoria global.
  * Só aparece para quem é super admin; a API responde 404 para os demais.
  */
-type AdminTab = 'overview' | 'servers' | 'users' | 'instance' | 'audit';
+type AdminTab = 'overview' | 'servers' | 'users' | 'instance' | 'moderation' | 'audit';
 
 const TABS: readonly TabDef<AdminTab>[] = [
   { id: 'overview', label: 'Visão geral' },
   { id: 'servers', label: 'Servidores' },
   { id: 'users', label: 'Usuários' },
   { id: 'instance', label: 'Instância' },
+  { id: 'moderation', label: 'Moderação IA' },
   { id: 'audit', label: 'Auditoria' },
 ];
 
@@ -63,6 +65,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
         {tab === 'servers' && <ServersTab onClose={onClose} />}
         {tab === 'users' && <UsersTab />}
         {tab === 'instance' && <InstanceTab />}
+        {tab === 'moderation' && <AdminModerationTab />}
         {tab === 'audit' && <AuditTab />}
       </TabbedLayout>
     </Dialog>
@@ -689,6 +692,10 @@ const ACTION_LABELS: Record<string, string> = {
   'role.update': 'Atualizou cargo',
   'role.delete': 'Excluiu cargo',
   'member.roles': 'Alterou cargos',
+  'ai.held': 'IA reteve envio',
+  'ai.blocked': 'IA bloqueou envio',
+  'ai.approved': 'Aprovou envio retido',
+  'ai.rejected': 'Reprovou envio retido',
 };
 
 /** Detalhe curto da ação (motivo da suspensão, o que mudou na instância, selo, entrada como admin). */

@@ -25,13 +25,24 @@ import { wallpaperUrl } from '../../lib/server-theme';
 import '../settings/settings.css';
 import { SoundsTab } from '../voice/Soundboard';
 import { BansTab } from './BansTab';
+import { ModerationTab } from './ModerationTab';
 import { ServerBotsTab } from './ServerBotsTab';
 import { SlackTab } from './SlackTab';
 import { WebhooksTab } from './WebhooksTab';
 import { ServerIconPicker } from './ServerIconPicker';
 
 type ServerTab =
-  'overview' | 'roles' | 'members' | 'channels' | 'webhooks' | 'bots' | 'slack' | 'sounds' | 'bans' | 'audit';
+  | 'overview'
+  | 'roles'
+  | 'members'
+  | 'channels'
+  | 'webhooks'
+  | 'bots'
+  | 'slack'
+  | 'sounds'
+  | 'moderation'
+  | 'bans'
+  | 'audit';
 
 const PERMISSION_LABELS: Record<PermissionName, string> = {
   VIEW_CHANNEL: 'Ver canais',
@@ -97,6 +108,7 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
     if (hasPermission(p, Permission.MANAGE_SERVER)) list.push({ id: 'slack', label: 'Slack' });
     // qualquer membro envia efeitos sonoros (ADR-0016)
     list.push({ id: 'sounds', label: 'Efeitos sonoros' });
+    if (hasPermission(p, Permission.MODERATE_MEMBERS)) list.push({ id: 'moderation', label: 'Moderação' });
     if (hasPermission(p, Permission.BAN_MEMBERS)) list.push({ id: 'bans', label: 'Banidos' });
     if (hasPermission(p, Permission.VIEW_AUDIT_LOG)) list.push({ id: 'audit', label: 'Registro de auditoria' });
     return list;
@@ -130,6 +142,7 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
             canManage={hasPermission(detail.myPermissions, Permission.MANAGE_SERVER)}
           />
         )}
+        {active === 'moderation' && <ModerationTab detail={detail} />}
         {active === 'bans' && <BansTab detail={detail} />}
         {active === 'audit' && <AuditTab detail={detail} />}
       </TabbedLayout>
@@ -877,6 +890,10 @@ const ACTION_LABELS: Record<string, string> = {
   'member.ban': 'Baniu membro',
   'member.unban': 'Desbaniu membro',
   'member.timeout': 'Castigou membro',
+  'ai.held': 'IA reteve envio para revisão',
+  'ai.blocked': 'IA bloqueou envio',
+  'ai.approved': 'Aprovou envio retido',
+  'ai.rejected': 'Reprovou envio retido',
   'member.leave': 'Saiu do servidor',
   'member.roles': 'Alterou cargos de membro',
   'role.create': 'Criou cargo',

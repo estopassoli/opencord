@@ -204,7 +204,14 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Vincula anexos à mensagem: só do próprio autor, ainda não vinculados e recentes. */
-  async claimForMessage(tx: Pick<PrismaService, 'attachment'>, userId: string, ids: string[], messageId: string) {
+  async claimForMessage(
+    tx: Pick<PrismaService, 'attachment'>,
+    userId: string,
+    ids: string[],
+    messageId: string,
+    /** anexos presos a um caso da moderação (ADR-0036): não valem a janela de 24 h, valem o caso */
+    caseId: string | null = null,
+  ) {
     if (!ids.length) return;
     const unique = [...new Set(ids)];
     const r = await tx.attachment.updateMany({
@@ -212,16 +219,25 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
         id: { in: unique },
         uploaderId: userId,
         messageId: null,
-        createdAt: { gt: new Date(Date.now() - ORPHAN_TTL_MS) },
+        ...(caseId ? { caseId } : { caseId: null, createdAt: { gt: new Date(Date.now() - ORPHAN_TTL_MS) } }),
       },
-      data: { messageId },
+      data: { messageId, caseId: null },
     });
     if (r.count !== unique.length) throw new BadRequestException('anexo inválido ou já utilizado');
   }
 
+  /** Apaga um anexo nunca publicado (reprovado pela moderação, ADR-0036). */
+  async discard(id: string): Promise<void> {
+    const a = await this.prisma.attachment.findUnique({ where: { id }, select: { storageKey: true, messageId: true } });
+    if (!a || a.messageId) return;
+    await this.storage.remove(a.storageKey).catch((e: unknown) => this.log.warn(String(e)));
+    await this.prisma.attachment.delete({ where: { id } }).catch(() => undefined);
+  }
+
   async cleanupOrphans(): Promise<number> {
     const old = await this.prisma.attachment.findMany({
-      where: { messageId: null, createdAt: { lt: new Date(Date.now() - ORPHAN_TTL_MS) } },
+      // retidos pela moderação (caseId) esperam a decisão dos moderadores
+      where: { messageId: null, caseId: null, createdAt: { lt: new Date(Date.now() - ORPHAN_TTL_MS) } },
       take: 500,
     });
     for (const a of old) {

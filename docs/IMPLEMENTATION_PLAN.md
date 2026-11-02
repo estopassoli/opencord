@@ -149,6 +149,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-02 | Super admin invisível (adendo ADR-0013) | int `servers.int.test.ts` (entrada invisível, contagens, presença, alternância); typecheck api/desktop | verde | migração `20261102020000_member_hidden` em produção antes do deploy |
 | 2026-11-02 | Selo de verificado em perfis (adendo ADR-0013) + card de servidores em comum no Vidro | int `admin.int.test.ts` (marca/desmarca, 404, perfil, auditoria); typecheck api/desktop | verde | migração `20261102000000_user_verified` pendente em produção |
 | 2026-11-02 | Celular: layout revisado + app instalável (ADR-0035) | `apps/desktop/test/pwa.test.ts` 6/6; unit desktop completo verde; typecheck/lint; capturas headless 390×844 e 844×390 (gavetas opacas, membros, chamada, live em destaque); SW `activated` com 12 entradas em cache; manifesto 3 ícones | verde | instalação em Android/iPhone reais ainda não validada |
+| 2026-11-02 | Moderação por IA antes de publicar (ADR-0036) | int `ai-moderation.int.test.ts` 7/7 com stub da Anthropic + suíte 186/186; desktop typecheck/lint/unit 201/201 | verde | migração `20261102030000_ai_moderation` + `ffmpeg` na imagem da API antes do deploy; `ANTHROPIC_API_KEY` em produção (segredo); validar vereditos reais |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

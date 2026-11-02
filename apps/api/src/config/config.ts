@@ -74,6 +74,15 @@ export const ConfigSchema = z.object({
   /** Limite de novos apelidos por IP por hora. */
   GUEST_JOIN_PER_IP_HOUR: z.coerce.number().int().min(1).default(10),
   VOICE_RECONCILE_INTERVAL_MS: z.coerce.number().int().min(0).default(30000),
+  /** Moderação por IA (ADR-0036): chave da Anthropic liga o recurso; modelo barato por padrão (Claude Haiku 5.5). */
+  ANTHROPIC_API_KEY: z.string().min(10).optional(),
+  MODERATION_AI_MODEL: z.string().min(3).default('claude-haiku-5-5'),
+  /** Só muda em testes (stub local da API da Anthropic). */
+  MODERATION_AI_BASE_URL: z.url().optional(),
+  /** Tempo máximo esperando a IA; passou, a mensagem é liberada (ou retida com FAIL_CLOSED). */
+  MODERATION_AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(12_000),
+  /** true: IA indisponível retém a mensagem em vez de liberar. */
+  MODERATION_AI_FAIL_CLOSED: bool.default(false),
   /** Autocompletar de comandos de bot (ADR-0034): quanto a API espera o bot antes de devolver sem sugestões. */
   AUTOCOMPLETE_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(AUTOCOMPLETE_TIMEOUT_MS),
 });

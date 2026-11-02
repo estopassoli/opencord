@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   decodeCursor,
@@ -26,6 +26,8 @@ import { DomainEvents } from '../common/domain-events.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
+import { AiModerationService, type Verdict } from '../ai-moderation/ai-moderation.service.js';
+import { ModerationHoldService } from '../ai-moderation/moderation-hold.service.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { assertNotTimedOut, PermissionsService } from '../servers/permissions.service.js';
@@ -95,7 +97,10 @@ export class MessagesService {
     private readonly servers: ServersService,
     private readonly events: DomainEvents,
     private readonly audit: AuditService,
+    private readonly ai: AiModerationService,
+    private readonly hold: ModerationHoldService,
   ) {}
+  private readonly log = new Logger('Messages');
 
   /** Resolve acesso ao destino. DMs: membros têm todas as permissões de mensagem. */
   async access(userId: string, target: Target): Promise<TargetAccess> {
@@ -262,6 +267,8 @@ export class MessagesService {
       /** botões e menus (ADR-0034): só bots */
       components?: Components | undefined;
     },
+    /** publicação de um caso aprovado (ADR-0036): sem nova análise; anexos presos ao caso */
+    opts: { skipModeration?: boolean; caseId?: string } = {},
   ): Promise<{ message: Message; duplicate: boolean }> {
     const a = await this.access(userId, target);
     if (!hasPermission(a.perms, Permission.SEND_MESSAGES)) throw forbidden('sem permissão para enviar mensagens');
@@ -292,6 +299,15 @@ export class MessagesService {
       if (!parent || parent.channelId !== a.channelId || parent.conversationId !== a.conversationId)
         throw new BadRequestException('resposta a mensagem de outro destino');
     }
+    // moderação por IA (ADR-0036): bloqueia ou retém ANTES de existir mensagem; 422 explica ao autor
+    if (!opts.skipModeration && !dto.poll)
+      await this.moderate(userId, a, {
+        requestId: dto.requestId,
+        body,
+        replyToId: dto.replyToId ?? null,
+        attachmentIds,
+        editing: false,
+      });
     const parsed = extractMentions(body);
     const mentionEveryone = parsed.everyone && hasPermission(a.perms, Permission.MENTION_EVERYONE);
     const mentions = await this.validMentions(a, parsed.userIds);
@@ -313,7 +329,7 @@ export class MessagesService {
             components: toJson(components),
           },
         });
-        await this.attachments.claimForMessage(tx, userId, attachmentIds, m.id);
+        await this.attachments.claimForMessage(tx, userId, attachmentIds, m.id, opts.caseId ?? null);
         if (dto.poll)
           await tx.poll.create({
             data: {
@@ -382,6 +398,111 @@ export class MessagesService {
     });
     await this.boards.fromMessage(row);
     return message;
+  }
+
+  /**
+   * Moderação por IA (ADR-0036). Pula super admins e webhooks. Resultado: allow segue; block/review retêm o envio
+   * como caso e lançam 422 com o motivo; IA indisponível libera (ou retém, com MODERATION_AI_FAIL_CLOSED).
+   */
+  private async moderate(
+    userId: string,
+    a: TargetAccess,
+    s: { requestId: string; body: string; replyToId: string | null; attachmentIds: string[]; editing: boolean },
+  ) {
+    const direct = !a.channelId;
+    if (!(await this.ai.appliesTo(direct))) return;
+    const author = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, isInstanceAdmin: true, isWebhook: true },
+    });
+    if (!author || author.isInstanceAdmin || author.isWebhook) return;
+    const [channel, atts, recent] = await Promise.all([
+      a.channelId
+        ? this.prisma.channel.findUnique({
+            where: { id: a.channelId },
+            select: { name: true, topic: true, server: { select: { name: true, aiRules: true } } },
+          })
+        : null,
+      s.attachmentIds.length
+        ? this.prisma.attachment.findMany({
+            where: { id: { in: s.attachmentIds }, uploaderId: userId },
+            select: { id: true, originalName: true, mime: true, sizeBytes: true, storageKey: true },
+          })
+        : [],
+      this.prisma.message.findMany({
+        where: {
+          ...(a.channelId ? { channelId: a.channelId } : { conversationId: a.conversationId }),
+          deletedAt: null,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+        select: { body: true, author: { select: { displayName: true } }, _count: { select: { attachments: true } } },
+      }),
+    ]);
+    const result = await this.ai.classify({
+      serverName: channel?.server.name ?? null,
+      channelName: channel?.name ?? null,
+      channelTopic: channel?.topic ?? null,
+      serverRules: channel?.server.aiRules ?? null,
+      direct,
+      authorName: author.displayName,
+      body: s.body,
+      recent: recent
+        .reverse()
+        .map((m) => ({ author: m.author.displayName, body: m.body, attachments: m._count.attachments })),
+      attachments: atts.map((x) => ({
+        id: x.id,
+        name: x.originalName,
+        mime: x.mime,
+        sizeBytes: x.sizeBytes,
+        storageKey: x.storageKey,
+      })),
+      editing: s.editing,
+    });
+    if (result.kind === 'allow') return;
+    let kind: 'block' | 'review';
+    let verdict: Verdict;
+    if (result.kind === 'unavailable') {
+      if (!this.ai.failClosed) {
+        this.log.warn(`IA indisponível, envio liberado sem análise (${result.error})`);
+        return;
+      }
+      kind = 'review';
+      verdict = {
+        decision: 'review',
+        category: 'outro',
+        confidence: 0,
+        reason: `IA indisponível (${result.error.slice(0, 120)}); envio retido por precaução.`,
+      };
+    } else {
+      kind = result.kind;
+      verdict = result.verdict;
+    }
+    // edição retida vira bloqueio: não há como publicar "depois" uma edição
+    if (s.editing) kind = 'block';
+    const held = await this.hold.hold({
+      serverId: a.serverId,
+      channelId: a.channelId,
+      conversationId: a.conversationId,
+      authorId: userId,
+      requestId: s.requestId,
+      body: s.body,
+      replyToId: s.replyToId,
+      attachmentIds: s.attachmentIds,
+      verdict,
+      kind,
+      model: this.ai.model,
+    });
+    throw new UnprocessableEntityException({
+      statusCode: 422,
+      error: 'Unprocessable Entity',
+      code: kind === 'block' ? 'moderation_blocked' : 'moderation_review',
+      caseId: held.id,
+      message:
+        kind === 'block'
+          ? `Mensagem bloqueada pela moderação: ${verdict.reason}`
+          : `Mensagem retida para revisão dos moderadores: ${verdict.reason}`,
+    });
   }
 
   private notify(authorId: string, a: TargetAccess, row: MessageRow, mentions: string[], everyone: boolean) {
@@ -491,6 +612,15 @@ export class MessagesService {
     const body = dto.body === undefined ? m.body : dto.body.trim();
     const embeds = dto.embeds ?? parseEmbeds(m.embeds);
     if (!body && !embeds.length && !m.attachments.length) throw new BadRequestException('mensagem vazia');
+    // edição também passa pela IA (ADR-0036); em dúvida não dá para "reter" uma edição: fica como bloqueio
+    if (dto.body !== undefined && body !== m.body)
+      await this.moderate(userId, a, {
+        requestId: m.requestId,
+        body,
+        replyToId: null,
+        attachmentIds: [],
+        editing: true,
+      });
     const parsed = dto.body === undefined ? null : extractMentions(body);
     const row = await this.prisma.message.update({
       where: { id: messageId },

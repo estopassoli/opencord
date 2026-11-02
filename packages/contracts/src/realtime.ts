@@ -26,6 +26,7 @@ import {
   MessageComponents,
   Modal,
   ServerBan,
+  ModerationCase,
 } from './api.js';
 import {
   ActivityControl,
@@ -186,7 +187,7 @@ export interface ServerEvents {
   'friend:changed': z.infer<typeof Friend> | { userId: string; removed: true };
   'conversation:upserted': z.infer<typeof Conversation>;
   'notification:created': {
-    kind: 'mention' | 'dm' | 'friend_request';
+    kind: 'mention' | 'dm' | 'friend_request' | 'moderation';
     title: string;
     body: string;
     channelId?: string;
@@ -194,6 +195,9 @@ export interface ServerEvents {
     serverId?: string;
   };
   'session:revoked': { reason: string };
+  /** moderação por IA (ADR-0036): caso novo na fila (só moderadores do servidor) e caso decidido */
+  'moderation:case:created': z.infer<typeof ModerationCase>;
+  'moderation:case:resolved': z.infer<typeof ModerationCase>;
   /** configuração da instância mudou (aviso, cadastro, limite de upload), para todos (ADR-0020) */
   'instance:updated': z.infer<typeof InstanceInfo>;
   /** atividade da chamada começou ou mudou (vídeo, play/pausa/posição) */

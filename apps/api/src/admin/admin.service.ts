@@ -269,6 +269,10 @@ export class AdminService {
       uploadEnvMaxBytes: this.cfg.UPLOAD_MAX_BYTES,
       uploadOverrideBytes: row?.uploadMaxBytes ?? null,
       updatedAt: row?.updatedAt.toISOString() ?? null,
+      aiModerationAvailable: Boolean(this.cfg.ANTHROPIC_API_KEY),
+      aiModerationEnabled: row?.aiModeration ?? true,
+      aiModerationDms: row?.aiModerationDms ?? false,
+      aiModerationModel: this.cfg.ANTHROPIC_API_KEY ? this.cfg.MODERATION_AI_MODEL : null,
     };
   }
 
@@ -285,6 +289,8 @@ export class AdminService {
       if (dto.announcement) data.announcementTone = dto.announcement.tone;
     }
     if (dto.uploadMaxBytes !== undefined) data.uploadMaxBytes = dto.uploadMaxBytes;
+    if (dto.aiModeration !== undefined) data.aiModeration = dto.aiModeration;
+    if (dto.aiModerationDms !== undefined) data.aiModerationDms = dto.aiModerationDms;
     await this.prisma.instanceConfig.upsert({
       where: { id: 1 },
       create: { id: 1, ...(data as Prisma.InstanceConfigUncheckedCreateInput) },

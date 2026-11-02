@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '21:00',
+    kind: 'novo',
+    icon: 'shield',
+    title: 'Moderação automática',
+    body: 'Mensagens e arquivos passam por uma IA antes de aparecer no canal. Conversa normal entre amigos passa na hora; conteúdo claramente proibido é barrado com o motivo; em dúvida, o envio fica retido e os moderadores do servidor decidem (você é avisado do resultado). Quem gerencia o servidor pode escrever regras próprias em Configurações do servidor → Moderação, onde também fica a fila de revisão.',
+  },
+  {
+    date: '2026-11-02',
     time: '20:30',
     kind: 'melhoria',
     icon: 'keyboard',

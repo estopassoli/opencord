@@ -498,6 +498,17 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('friend:changed', () => void loadFriends().catch(() => undefined));
     rt.on('conversation:upserted', (c) => d().upsertConversation(c));
     rt.on('notification:created', (n) => void import('./notify').then(({ notify }) => notify(n)));
+    // moderação por IA (ADR-0036): quem modera vê o envio retido na hora e pode abrir a fila
+    rt.on('moderation:case:created', (c) => {
+      if (c.status !== 'pending' || !c.serverId) return;
+      const serverId = c.serverId;
+      useUi
+        .getState()
+        .toast('info', `Envio de ${c.author.displayName} retido para revisão em #${c.channelName ?? 'canal'}.`, {
+          label: 'Revisar',
+          run: () => useUi.getState().openModal({ kind: 'server-settings', serverId, tab: 'moderation' }),
+        });
+    });
     // aviso/cadastro da instância; também chega quando o super admin me promove ou rebaixa
     rt.on('instance:updated', (instance) => {
       useData.setState({ instance });

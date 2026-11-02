@@ -175,7 +175,7 @@ export class ServersService {
   async update(
     serverId: string,
     userId: string,
-    dto: { name?: string | undefined; accent?: string | null | undefined },
+    dto: { name?: string | undefined; accent?: string | null | undefined; aiRules?: string | null | undefined },
   ): Promise<ServerSummary> {
     await this.perms.requireServer(serverId, userId, Permission.MANAGE_SERVER);
     const s = await this.prisma.server.update({
@@ -183,6 +183,8 @@ export class ServersService {
       data: {
         ...(dto.name ? { name: dto.name } : {}),
         ...(dto.accent !== undefined ? { accent: dto.accent?.toLowerCase() ?? null } : {}),
+        // regras para a moderação por IA (ADR-0036)
+        ...(dto.aiRules !== undefined ? { aiRules: dto.aiRules?.trim() || null } : {}),
       },
     });
     await this.audit.log(userId, serverId, 'server.update', serverId, dto);

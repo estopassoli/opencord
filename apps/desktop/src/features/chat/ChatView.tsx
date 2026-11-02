@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useBots } from '../../store/bots';
 import { keyOf, useData, useMessages, type TargetKey } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
+import { ApiError } from '../../lib/api';
 import { useUi } from '../../store/ui';
 import { Composer } from './Composer';
 import { EphemeralReplies } from './EphemeralReplies';
@@ -395,7 +396,9 @@ export async function sendMessage(
     store.resolvePending(key, requestId);
   } catch (e) {
     store.resolvePending(key, requestId, true);
-    useUi.getState().toast('error', `Mensagem não enviada: ${describeError(e)}`);
+    // retida/bloqueada pela moderação por IA (ADR-0036): o motivo já vem na mensagem
+    if (e instanceof ApiError && e.status === 422) useUi.getState().toast('info', describeError(e));
+    else useUi.getState().toast('error', `Mensagem não enviada: ${describeError(e)}`);
   }
 }
 

@@ -22,7 +22,8 @@ RUN cp -r node_modules/.pnpm/@prisma+client@*/node_modules/.prisma /out/node_mod
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+# ffmpeg: quadros de vídeo e redução de imagens para a moderação por IA (ADR-0036)
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates ffmpeg && rm -rf /var/lib/apt/lists/*
 # CLI do Prisma (só para `migrate deploy`) na MESMA versão do @prisma/client; `npx prisma` puxaria a última.
 RUN npm install -g prisma@6.19.3
 COPY --from=build /out /app

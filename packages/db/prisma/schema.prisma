@@ -47,6 +47,7 @@ model User {
   pollVotes         PollVote[]
   memberships       ServerMember[]
   bans              ServerBan[]          @relation("BannedUser")
+  moderationCases   ModerationCase[]     @relation("ModerationCaseAuthor")
   messages          Message[]
   reactions         Reaction[]
   readStates        ReadState[]
@@ -125,6 +126,8 @@ model Server {
   wallpaperKey String?
   /// Só o selo de verificado (marcado pelo super admin); não muda privacidade, diretório nem entrada (ADR-0013).
   verified   Boolean        @default(false)
+  /// regras do servidor que a moderação por IA leva em conta (ADR-0036); null = só as regras gerais
+  aiRules    String?
   createdAt  DateTime       @default(now()) @db.Timestamptz(3)
   owner      User           @relation("ServerOwner", fields: [ownerId], references: [id])
   invites    Invite[]
@@ -134,6 +137,7 @@ model Server {
   webhooks   Webhook[]
   slackLinks SlackLink[]
   bans       ServerBan[]
+  moderationCases ModerationCase[]
   members    ServerMember[]
   roles      Role[]
   categories Category[]
@@ -159,6 +163,35 @@ model ServerMember {
 }
 
 /// Banimento (ADR-0034): quem está aqui não entra no servidor (convite, diretório, bot) até ser desbanido.
+/// Moderação por IA (ADR-0036): envio retido antes de publicar. `verdict` block (IA segura) ou review (em dúvida);
+/// `status` pending (fila dos moderadores) | approved (publicado, `publishedMessageId`) | rejected | blocked (IA).
+model ModerationCase {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  serverId           String?   @db.Uuid
+  channelId          String?   @db.Uuid
+  conversationId     String?   @db.Uuid
+  authorId           String    @db.Uuid
+  requestId          String    @db.Uuid
+  body               String
+  replyToId          String?   @db.Uuid
+  verdict            String
+  category           String?
+  reason             String
+  status             String    @default("pending")
+  reviewedById       String?   @db.Uuid
+  reviewedAt         DateTime? @db.Timestamptz(3)
+  reviewNote         String?
+  publishedMessageId String?   @db.Uuid
+  model              String?
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  server             Server?   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  author             User      @relation("ModerationCaseAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  attachments        Attachment[]
+
+  @@index([serverId, status, createdAt])
+  @@index([authorId, createdAt])
+}
+
 model ServerBan {
   serverId    String   @db.Uuid
   userId      String   @db.Uuid
@@ -424,11 +457,15 @@ model Attachment {
   sha256       String
   width        Int?
   height       Int?
+  /** retido pela moderação por IA (ADR-0036): não expira como órfão enquanto o caso existe */
+  caseId       String?  @db.Uuid
   createdAt    DateTime @default(now()) @db.Timestamptz(3)
   uploader     User     @relation(fields: [uploaderId], references: [id])
   message      Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  case         ModerationCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
 
   @@index([messageId])
+  @@index([caseId])
   @@index([uploaderId, createdAt])
 }
 
@@ -493,6 +530,9 @@ model InstanceConfig {
   announcementTone String   @default("info")
   /// Limite de upload menor que o do ambiente (UPLOAD_MAX_BYTES); null = o do ambiente.
   uploadMaxBytes   Int?
+  /// Moderação por IA (ADR-0036): ligada na instância (precisa de ANTHROPIC_API_KEY) e se vale em mensagens diretas.
+  aiModeration     Boolean  @default(true)
+  aiModerationDms  Boolean  @default(false)
   updatedAt        DateTime @default(now()) @updatedAt @db.Timestamptz(3)
   updatedById      String?  @db.Uuid
 }

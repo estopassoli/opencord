@@ -53,6 +53,10 @@ import { SocialService } from './social/social.service.js';
 import { UsersController } from './users/users.controller.js';
 import { VoiceController } from './voice/voice.controller.js';
 import { VoiceService } from './voice/voice.service.js';
+import { AiModerationService } from './ai-moderation/ai-moderation.service.js';
+import { ModerationHoldService } from './ai-moderation/moderation-hold.service.js';
+import { ModerationCasesService } from './ai-moderation/moderation-cases.service.js';
+import { ModerationCasesController } from './ai-moderation/moderation-cases.controller.js';
 
 @Module({})
 export class AppModule {
@@ -76,6 +80,7 @@ export class AppModule {
         AvatarsController,
         MessagesController,
         ModerationController,
+        ModerationCasesController,
         AttachmentsController,
         SocialController,
         VoiceController,
@@ -113,6 +118,9 @@ export class AppModule {
         BoardsService,
         MessagesService,
         ModerationService,
+        AiModerationService,
+        ModerationHoldService,
+        ModerationCasesService,
         SocialService,
         VoiceService,
       ],

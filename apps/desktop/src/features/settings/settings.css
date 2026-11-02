@@ -896,3 +896,95 @@ button.admin-stat:focus-visible {
   flex: 1;
   min-width: 0;
 }
+
+/* moderação por IA (ADR-0036): cards dos envios retidos */
+.mod-cases {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.mod-case {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: calc(10px * var(--radius-scale, 1));
+  background: var(--elevated);
+}
+.mod-case-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.mod-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--interactive);
+  color: var(--text-2);
+}
+.mod-badge[data-kind='pending'] {
+  background: color-mix(in srgb, #e3b341 22%, transparent);
+  color: #e3b341;
+}
+.mod-badge[data-kind='blocked'],
+.mod-badge[data-kind='rejected'] {
+  background: color-mix(in srgb, var(--danger, #e5484d) 18%, transparent);
+  color: var(--danger, #e5484d);
+}
+.mod-badge[data-kind='approved'] {
+  background: color-mix(in srgb, #3fb27f 18%, transparent);
+  color: #3fb27f;
+}
+.mod-case-reason {
+  margin: 0;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  color: var(--text-2);
+  font-size: 0.875rem;
+}
+.mod-case-body {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--border);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 160px;
+  overflow: auto;
+}
+.mod-thumbs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mod-thumbs img,
+.mod-thumbs video {
+  display: block;
+  max-width: 220px;
+  max-height: 160px;
+  border-radius: calc(6px * var(--radius-scale, 1));
+  object-fit: cover;
+}
+.mod-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mod-case-actions {
+  justify-content: flex-start;
+}
+.mod-reject {
+  gap: 8px;
+}

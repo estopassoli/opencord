@@ -59,6 +59,8 @@ export const InstanceInfo = z.object({
   announcement: InstanceAnnouncement.nullable().default(null),
   /** limite de upload em vigor (bytes) */
   uploadMaxBytes: z.number().int().positive().optional(),
+  /** moderação por IA em vigor (chave configurada e ligada pelo super admin; ADR-0036) */
+  aiModeration: z.boolean().default(false),
   /** quem criou o OpenCord (dono do servidor oficial): selo de verificado em qualquer servidor */
   creatorId: z.string().uuid().nullable().default(null),
 });
@@ -251,6 +253,8 @@ export const ServerSummary = z.object({
   accent: z.string().nullable().default(null),
   /** papel de parede da conversa (GET /wallpapers/:nome); null = sem */
   wallpaperKey: z.string().nullable().default(null),
+  /** regras do servidor que a moderação por IA leva em conta (ADR-0036); só quem gerencia o servidor edita */
+  aiRules: z.string().nullable().optional(),
 });
 export type ServerSummary = z.infer<typeof ServerSummary>;
 
@@ -291,6 +295,8 @@ export const UpdateServerRequest = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/)
     .nullable()
     .optional(),
+  /** regras para a moderação por IA (ADR-0036); '' ou null apaga */
+  aiRules: z.string().trim().max(2000).nullable().optional(),
 });
 export type UpdateServerRequest = z.infer<typeof UpdateServerRequest>;
 
@@ -376,6 +382,7 @@ export const BanRequest = z.object({
     .default(0),
 });
 export type BanRequest = z.input<typeof BanRequest>;
+
 /** PATCH /servers/:id/members/:userId (MODERATE_MEMBERS): castigo até a data (null tira) */
 export const UpdateMemberRequest = z
   .object({
@@ -727,6 +734,57 @@ export type VotePollRequest = z.infer<typeof VotePollRequest>;
 export const MAX_PINS = 50;
 
 export const MessageBody = z.string().max(4000);
+
+/** Moderação por IA (ADR-0036): veredito da IA e o que os moderadores decidiram. */
+export const MODERATION_VERDICTS = ['block', 'review'] as const;
+export const MODERATION_CASE_STATUSES = ['pending', 'approved', 'rejected', 'blocked'] as const;
+export const ModerationCase = z.object({
+  id: Id,
+  serverId: Id.nullable(),
+  server: z.object({ id: Id, name: z.string() }).nullable(),
+  channelId: Id.nullable(),
+  channelName: z.string().nullable(),
+  conversationId: Id.nullable(),
+  author: UserPublic,
+  body: z.string(),
+  attachments: z.array(Attachment),
+  verdict: z.enum(MODERATION_VERDICTS),
+  /** categoria curta da IA (ex.: assédio, nudez, spam, violência, ilegal, outro) */
+  category: z.string().nullable(),
+  /** explicação da IA, para quem modera */
+  reason: z.string(),
+  status: z.enum(MODERATION_CASE_STATUSES),
+  reviewedBy: UserPublic.nullable(),
+  reviewedAt: IsoDate.nullable(),
+  reviewNote: z.string().nullable(),
+  publishedMessageId: Id.nullable(),
+  createdAt: IsoDate,
+});
+export type ModerationCase = z.infer<typeof ModerationCase>;
+export const ModerationCasesQuery = z.object({
+  status: z.enum(MODERATION_CASE_STATUSES).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export const ModerationCasePunishment = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('timeout'), durationMs: z.number().int().min(60_000).max(MAX_TIMEOUT_MS) }),
+  z.object({
+    kind: z.literal('ban'),
+    deleteMessageSeconds: z
+      .number()
+      .int()
+      .min(0)
+      .max(7 * 24 * 3600)
+      .default(0),
+  }),
+  z.object({ kind: z.literal('kick') }),
+]);
+export const ReviewModerationCaseRequest = z.object({
+  decision: z.enum(['approve', 'reject']),
+  note: z.string().trim().max(300).optional(),
+  /** só em reprovação, em canal de servidor */
+  punishment: ModerationCasePunishment.nullable().optional(),
+});
+export type ReviewModerationCaseRequest = z.input<typeof ReviewModerationCaseRequest>;
 
 export const CreateMessageRequest = z
   .object({
@@ -1479,12 +1537,19 @@ export const UpdateInstanceConfigRequest = z
       .int()
       .min(1024 * 1024)
       .nullable(),
+    aiModeration: z.boolean(),
+    aiModerationDms: z.boolean(),
   })
   .partial();
 export type UpdateInstanceConfigRequest = z.infer<typeof UpdateInstanceConfigRequest>;
 
 export const AdminInstanceConfig = InstanceInfo.extend({
   uploadMaxBytes: z.number().int(),
+  /** moderação por IA (ADR-0036): chave presente no ambiente, chave ligada pelo painel, e se vale em DMs */
+  aiModerationAvailable: z.boolean(),
+  aiModerationEnabled: z.boolean(),
+  aiModerationDms: z.boolean(),
+  aiModerationModel: z.string().nullable(),
   /** teto do ambiente (UPLOAD_MAX_BYTES); o painel só reduz */
   uploadEnvMaxBytes: z.number().int(),
   /** override salvo (null = o do ambiente) */

@@ -42,6 +42,7 @@ export const serverSummary = (s: {
   verified?: boolean;
   accent?: string | null;
   wallpaperKey?: string | null;
+  aiRules?: string | null;
 }): ServerSummary => ({
   id: s.id,
   name: s.name,
@@ -51,6 +52,7 @@ export const serverSummary = (s: {
   accent: s.accent ?? null,
   wallpaperKey: s.wallpaperKey ?? null,
   verified: s.verified ?? false,
+  aiRules: s.aiRules ?? null,
 });
 
 export const role = (r: {
