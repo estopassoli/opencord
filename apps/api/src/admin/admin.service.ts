@@ -8,12 +8,14 @@ import type {
   AdminUserPage,
   UpdateInstanceConfigRequest,
 } from '@opencord/contracts';
+import { rooms } from '@opencord/contracts';
 import type { Prisma } from '@opencord/db';
 import { AuditService } from '../audit/audit.service.js';
 import { TokenService } from '../auth/token.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { notFound } from '../common/errors.js';
 import { PrismaService } from '../common/prisma.service.js';
+import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { VoiceService } from '../voice/voice.service.js';
 import { InstanceService } from './instance.service.js';
@@ -38,6 +40,7 @@ const USER_SELECT = {
   email: true,
   passwordHash: true,
   isInstanceAdmin: true,
+  verified: true,
   createdAt: true,
   disabledAt: true,
   _count: { select: { memberships: true } },
@@ -113,6 +116,7 @@ export class AdminService {
       email: r.email,
       hasAccount: r.passwordHash !== null,
       isInstanceAdmin: r.isInstanceAdmin,
+      verified: r.verified,
       isCreator: r.id === ctx.creatorId,
       createdAt: r.createdAt.toISOString(),
       disabledAt: r.disabledAt?.toISOString() ?? null,
@@ -166,7 +170,7 @@ export class AdminService {
     await this.requireAdmin(actorId);
     const t = await this.prisma.user.findUnique({
       where: { id: targetId },
-      select: { id: true, isInstanceAdmin: true, disabledAt: true },
+      select: { id: true, isInstanceAdmin: true, disabledAt: true, verified: true },
     });
     if (!t) throw notFound('usuário');
     if (t.id === actorId) throw new BadRequestException('você não pode fazer isso com a sua própria conta');
@@ -213,6 +217,27 @@ export class AdminService {
     await this.target(actorId, targetId);
     const sessions = await this.revokeAll(targetId, 'sessões encerradas pelo administrador');
     await this.audit.log(actorId, null, 'admin.user.logout', targetId, { sessions });
+    return this.one(targetId);
+  }
+
+  /** Selo de verificado no perfil: só exibe o selo; quem compartilha servidor com a pessoa recebe `user:updated`. */
+  async setVerified(actorId: string, targetId: string, verified: boolean): Promise<AdminUser> {
+    const t = await this.target(actorId, targetId);
+    if (t.verified !== verified) {
+      await this.prisma.user.update({ where: { id: targetId }, data: { verified } });
+      await this.audit.log(actorId, null, 'admin.user.verified', targetId, { verified });
+      // perfil público mudou: a própria pessoa (outras sessões) e quem compartilha servidor com ela
+      const user = await this.prisma.user.findUniqueOrThrow({ where: { id: targetId }, select: USER_PUBLIC_SELECT });
+      const servers = await this.prisma.serverMember.findMany({
+        where: { userId: targetId },
+        select: { serverId: true },
+      });
+      this.realtime.emit(
+        [rooms.user(targetId), ...servers.map((m) => rooms.server(m.serverId))],
+        'user:updated',
+        userPublic(user),
+      );
+    }
     return this.one(targetId);
   }
 

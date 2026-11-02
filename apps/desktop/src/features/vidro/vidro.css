@@ -570,6 +570,8 @@ html[data-layout='vidro'] .upload-chip,
 html[data-layout='vidro'] .clip-card,
 html[data-layout='vidro'] .invite-card,
 html[data-layout='vidro'] .dm-profile-section {
+  padding: 10px 12px;
+  border-radius: var(--radius);
   background: var(--vidro-card);
   border: 1px solid var(--vidro-line);
   box-shadow: var(--vidro-card-edge);

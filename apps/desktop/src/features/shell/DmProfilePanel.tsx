@@ -57,7 +57,10 @@ export function DmProfilePanel({ conversationId }: { conversationId: string }) {
         <Avatar id={peer.id} name={peer.displayName} size={80} status={status} />
       </div>
       <div className="dm-profile-body">
-        <h2 className="truncate">{alias ?? peer.displayName}</h2>
+        <h2 className="truncate">
+          {alias ?? peer.displayName}
+          {peer.verified && <Icon name="verified" size={16} active label="Perfil verificado" />}
+        </h2>
         <p className="muted small truncate">
           {alias && `${peer.displayName} · `}@{peer.username}
         </p>

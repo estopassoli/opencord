@@ -118,6 +118,8 @@ export const UserPublic = z.object({
   bot: z.boolean().default(false),
   /** super admin da instância (ADR-0013): fica acima de todo mundo nos servidores; ninguém expulsa, silencia ou muda os cargos */
   isInstanceAdmin: z.boolean().optional(),
+  /** selo de verificado no perfil, dado pelo super admin (só vem quando é verdade) */
+  verified: z.boolean().optional(),
 });
 export type UserPublic = z.infer<typeof UserPublic>;
 
@@ -1040,6 +1042,8 @@ export const AdminUser = UserPublic.extend({
   email: z.string().nullable(),
   hasAccount: z.boolean(),
   isInstanceAdmin: z.boolean(),
+  /** selo de verificado no perfil */
+  verified: z.boolean(),
   /** dono do servidor oficial: não pode ser suspenso nem perder o admin */
   isCreator: z.boolean(),
   createdAt: IsoDate,
@@ -1062,6 +1066,7 @@ export type AdminUserPage = z.infer<typeof AdminUserPage>;
 
 export const SuspendUserRequest = z.object({ reason: z.string().trim().max(200).optional() });
 export const SetInstanceAdminRequest = z.object({ admin: z.boolean() });
+export const SetUserVerifiedRequest = z.object({ verified: z.boolean() });
 
 /** Só o que veio; `announcement: null` tira o aviso, `uploadMaxBytes: null` volta ao limite do ambiente. */
 export const UpdateInstanceConfigRequest = z

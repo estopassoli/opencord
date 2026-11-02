@@ -68,6 +68,7 @@ export class AuthService {
     isInstanceAdmin?: boolean;
     isBot?: boolean;
     isWebhook?: boolean;
+    verified?: boolean;
   }): Me {
     return {
       id: u.id,
@@ -80,6 +81,7 @@ export class AuthService {
       hasAccount: u.passwordHash !== null,
       createdAt: u.createdAt.toISOString(),
       isInstanceAdmin: u.isInstanceAdmin ?? false,
+      ...(u.verified ? { verified: true } : {}),
     };
   }
 

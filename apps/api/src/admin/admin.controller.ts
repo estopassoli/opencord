@@ -3,6 +3,7 @@ import {
   AdminAuditQuery,
   AdminUsersQuery,
   SetInstanceAdminRequest,
+  SetUserVerifiedRequest,
   SuspendUserRequest,
   UpdateInstanceConfigRequest,
 } from '@opencord/contracts';
@@ -45,6 +46,15 @@ export class AdminController {
   @Post('users/:id/logout')
   logout(@CurrentUser() u: AuthUser, @Param('id', uuid) id: string) {
     return this.admin.logoutEverywhere(u.userId, id);
+  }
+
+  @Put('users/:id/verified')
+  setVerified(
+    @CurrentUser() u: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body(zodPipe(SetUserVerifiedRequest)) body: z.infer<typeof SetUserVerifiedRequest>,
+  ) {
+    return this.admin.setVerified(u.userId, id, body.verified);
   }
 
   @Put('users/:id/admin')

@@ -8,6 +8,7 @@ type UserRow = {
   isWebhook?: boolean;
   isBot?: boolean;
   isInstanceAdmin?: boolean;
+  verified?: boolean;
 };
 export const USER_PUBLIC_SELECT = {
   id: true,
@@ -17,6 +18,7 @@ export const USER_PUBLIC_SELECT = {
   isWebhook: true,
   isBot: true,
   isInstanceAdmin: true,
+  verified: true,
 } as const;
 
 export const userPublic = (u: UserRow): UserPublic => ({
@@ -28,6 +30,7 @@ export const userPublic = (u: UserRow): UserPublic => ({
   bot: (u.isWebhook ?? false) || (u.isBot ?? false),
   // só vai quando é verdade: a UI esconde expulsar/silenciar e mostra "super admin" (ADR-0013)
   ...(u.isInstanceAdmin ? { isInstanceAdmin: true } : {}),
+  ...(u.verified ? { verified: true } : {}),
 });
 
 export const serverSummary = (s: {

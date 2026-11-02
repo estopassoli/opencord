@@ -344,6 +344,18 @@ function UsersTab() {
         },
       },
       {
+        label: u.verified ? 'Tirar selo de verificado' : 'Dar selo de verificado',
+        icon: 'verified',
+        onSelect: () =>
+          void act(
+            u,
+            'verified',
+            'PUT',
+            { verified: !u.verified },
+            u.verified ? 'Selo retirado.' : 'Perfil verificado.',
+          ),
+      },
+      {
         label: u.isInstanceAdmin ? 'Tirar super admin' : 'Tornar super admin',
         icon: 'shield',
         disabled: !u.isInstanceAdmin && Boolean(u.disabledAt),
@@ -438,7 +450,14 @@ function UsersTab() {
                 <span className="admin-user-names">
                   <strong className="truncate">
                     {u.displayName}
-                    {u.isCreator && <Icon name="verified" size={14} active label="Criador do OpenCord" />}
+                    {(u.isCreator || u.verified) && (
+                      <Icon
+                        name="verified"
+                        size={14}
+                        active
+                        label={u.isCreator ? 'Criador do OpenCord' : 'Verificado'}
+                      />
+                    )}
                   </strong>
                   <span className="muted small truncate">
                     @{u.username}

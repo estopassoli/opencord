@@ -38,6 +38,16 @@ export function CreatorTag({ iconOnly }: { iconOnly?: boolean }) {
   );
 }
 
+/** Selo de verificado dado pelo super admin a um perfil (adendo da ADR-0013). */
+export function VerifiedTag({ iconOnly }: { iconOnly?: boolean }) {
+  return (
+    <span className={iconOnly ? 'creator-badge' : 'creator-tag'} data-tip="Perfil verificado">
+      <Icon name="verified" size={iconOnly ? 16 : 14} active label="Verificado" />
+      {!iconOnly && 'verificado'}
+    </span>
+  );
+}
+
 export function MemberList({ serverId }: { serverId: string }) {
   const detail = useData((s) => s.details[serverId]);
   const presence = useData((s) => s.presence);
@@ -94,6 +104,8 @@ export function MemberList({ serverId }: { serverId: string }) {
                   </span>
                   {m === creator ? (
                     <CreatorTag />
+                  ) : m.user.verified ? (
+                    <VerifiedTag />
                   ) : (
                     detail.ownerId === m.user.id && (
                       <span className="owner-tag" data-tip="Proprietário">

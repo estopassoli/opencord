@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '11:40',
+    kind: 'correção',
+    icon: 'users',
+    title: 'Card de servidores em comum no Vidro',
+    body: 'No painel de perfil da conversa direta, o bloco "servidores em comum" estava com a borda colada no texto e sem cantos arredondados no layout Vidro. Agora tem o mesmo acabamento do bloco "Membro desde".',
+  },
+  {
+    date: '2026-11-02',
+    time: '11:30',
+    kind: 'novo',
+    icon: 'verified',
+    title: 'Selo de verificado em perfis',
+    body: 'Quem administra a instância pode dar o selo de verificado a qualquer pessoa pelo painel do super admin (menu da pessoa → Dar selo de verificado). O selo aparece na lista de membros, na voz, nas mensagens e no perfil. É só um selo: não muda permissões.',
+  },
+  {
+    date: '2026-11-02',
     time: '11:05',
     kind: 'novo',
     icon: 'upload',

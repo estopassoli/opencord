@@ -93,6 +93,35 @@ describe('painel do super admin', () => {
     expect(audit.body.entries[1]).toMatchObject({ targetName: alice.nickname, metadata: { reason: 'spam' } });
   });
 
+  it('selo de verificado: o super admin marca e desmarca; aparece no perfil público e fica auditado', async () => {
+    const { owner, alice } = await setup();
+    expect(
+      (await http.req('PUT', `/admin/users/${owner.id}/verified`, { token: alice.token, body: { verified: true } }))
+        .status,
+    ).toBe(404);
+    const on = await http.req<AdminUser>('PUT', `/admin/users/${alice.id}/verified`, {
+      token: owner.token,
+      body: { verified: true },
+    });
+    expect(on.status).toBe(200);
+    expect(on.body.verified).toBe(true);
+    const profile = await http.req<{ user: { verified?: boolean } }>('GET', `/users/${alice.id}/profile`, {
+      token: owner.token,
+    });
+    expect(profile.body.user.verified).toBe(true);
+    const off = await http.req<AdminUser>('PUT', `/admin/users/${alice.id}/verified`, {
+      token: owner.token,
+      body: { verified: false },
+    });
+    expect(off.body.verified).toBe(false);
+    const again = await http.req<{ user: { verified?: boolean } }>('GET', `/users/${alice.id}/profile`, {
+      token: owner.token,
+    });
+    expect(again.body.user.verified).toBeUndefined();
+    const audit = await http.req<AdminAuditPage>('GET', '/admin/audit', { token: owner.token });
+    expect(audit.body.entries.slice(0, 2).map((e) => e.action)).toEqual(['admin.user.verified', 'admin.user.verified']);
+  });
+
   it('não dá para mexer na própria conta, no criador, nem suspender outro admin', async () => {
     const { owner, alice } = await setup();
     expect((await http.req('POST', `/admin/users/${owner.id}/suspend`, { token: owner.token, body: {} })).status).toBe(

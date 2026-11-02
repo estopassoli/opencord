@@ -34,3 +34,15 @@ Pedido do mantenedor: "ninguém consiga me expulsar de um servidor, eu sendo sup
 - `UserPublic.isInstanceAdmin` (só presente quando verdadeiro) deixa o app esconder os botões e marcar "super admin" na lista de membros. Não é segredo: a entrada do admin já é visível e auditada.
 - Fora do alcance: excluir o servidor (dono real) continua removendo todo mundo, inclusive o admin; suspender o super admin no painel já era bloqueado (ADR-0020).
 - **Evidência:** `servers.int.test.ts` (dono recebe 403 ao expulsar e ao mudar cargos do admin; `isInstanceAdmin` na lista); `voice.int.test.ts` 16/16 continua verde.
+
+## Adendo (2026-11-02): selo de verificado em perfis
+Pedido do mantenedor: "quero poder atribuir o selo verificado para outros perfis".
+- Coluna `User.verified` (migração `20261102000000_user_verified`, aditiva). `PUT /admin/users/:id/verified`
+  `{ verified }` no painel do super admin (menu da pessoa: "Dar selo de verificado"); auditado como
+  `admin.user.verified`. As mesmas regras de `target()` valem: não na própria conta nem no criador (que já tem o selo).
+- `UserPublic.verified` só vem quando é verdade. Quem compartilha servidor com a pessoa recebe `user:updated` na hora.
+- No app o selo aparece na lista de membros ("verificado", mesmo estilo de "criador"), na lista de voz, ao lado do
+  nome nas mensagens e no painel de perfil. É só exibição: não dá permissão nenhuma.
+- **Reversão:** `ALTER TABLE "User" DROP COLUMN "verified";` e voltar a imagem anterior.
+- **Evidência:** `admin.int.test.ts` (marca/desmarca, 404 para quem não é admin, perfil público e auditoria).
+

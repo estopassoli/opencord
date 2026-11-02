@@ -27,6 +27,8 @@ model User {
   isWebhook    Boolean   @default(false)
   /// usuário de um bot (ADR-0032): autentica por token `ocb_…`, é membro como qualquer pessoa, selo APP
   isBot        Boolean   @default(false)
+  /// selo de verificado no perfil, dado pelo super admin (adendo da ADR-0013)
+  verified     Boolean   @default(false)
   createdAt    DateTime  @default(now()) @db.Timestamptz(3)
   disabledAt   DateTime? @db.Timestamptz(3)
 

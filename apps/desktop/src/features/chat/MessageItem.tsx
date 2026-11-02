@@ -239,6 +239,11 @@ export const MessageItem = memo(function MessageItem({
         <header className="msg-head">
           <strong className="msg-author">
             {nameOf(m.author.id) === 'alguém' ? nameFor(m.author.id, m.author.displayName) : nameOf(m.author.id)}
+            {m.author.verified && (
+              <span className="creator-badge" data-tip="Perfil verificado">
+                <Icon name="verified" size={14} active label="Verificado" />
+              </span>
+            )}
             {m.author.bot && (
               <span className="bot-badge" data-tip="Aplicativo">
                 APP
