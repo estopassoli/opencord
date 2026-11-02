@@ -250,6 +250,8 @@ export interface OpenCordBridge {
   setBadge(count: number): Promise<void>;
   setTrayVoiceState(state: TrayVoiceState): Promise<void>;
   appInfo(): Promise<AppInfo>;
+  /** impressão digital do aparelho (hash dos MACs) para o bloqueio de dispositivo (ADR-0036); null sem interface */
+  hardwareId(): Promise<string | null>;
   appMetrics(): Promise<ProcessMetric[]>;
   rendererMemory(): Promise<RendererMemory>;
   openExternal(url: string): Promise<void>;

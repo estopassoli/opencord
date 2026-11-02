@@ -134,7 +134,10 @@ export class ModerationCasesService {
         reason,
       });
     else if (p.kind === 'ban')
-      await this.moderation.ban(serverId, actorId, targetId, { reason, deleteMessageSeconds: p.deleteMessageSeconds ?? 0 });
+      await this.moderation.ban(serverId, actorId, targetId, {
+        reason,
+        deleteMessageSeconds: p.deleteMessageSeconds ?? 0,
+      });
     else await this.servers.kick(serverId, actorId, targetId, reason);
   }
 }

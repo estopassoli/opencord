@@ -55,6 +55,30 @@ decisões com exemplos do que é bloqueio seguro e do que é dúvida, o peso das
 tolerância maior em DMs. O envio vai na mensagem de usuário com o contexto. Saída: `{ decision, category,
 confidence, reason }`.
 
+### Bloqueio automático e de dispositivo (adendo, mesmo dia)
+Pedido do mantenedor: em agravantes (pornografia etc.) bloquear a pessoa sozinho, "por MAC address". Não existe MAC
+visível pela internet (fica na rede local; o navegador não expõe), então o bloqueio é por **dispositivo**:
+- Chaves no painel do super admin → Moderação IA: "Bloquear automaticamente quem envia conteúdo grave" e "Também
+  bloquear o dispositivo" (ambas desligadas por padrão). Agravantes = `block` nas categorias `sexual`, `menores` ou
+  `violencia` com confiança ≥ 0,85 (`isSevere`). Super admins nunca.
+- Ação (`ModerationHoldService.autoBlock`): conta suspensa na instância (`User.disabledAt`), `ServerBan` e saída do
+  servidor onde aconteceu, todas as sessões revogadas (cache de token invalidado, sockets derrubados), caso marcado
+  com `autoAction`, auditoria `ai.autoblock`; a resposta 422 (`moderation_autoblock`) avisa o autor. O caso continua
+  na fila para um moderador rever; reativar a conta (painel → Usuários → reativar) também remove os bloqueios de
+  dispositivo que vieram dela.
+- Dispositivo (`DeviceBan`, `kind`/`value` únicos): `hardware` = SHA-256 dos MACs físicos ordenados, calculado no
+  processo principal do Electron (`electron/shared/hardware-id.ts`) e enviado em todo pedido no cabeçalho
+  `x-hardware-id` (só o hash sai da máquina); `device` = identificador do app no aparelho (`deviceId`, já existia);
+  `ip` = IP de origem (IPs privados nunca entram). As sessões passam a guardar `hardwareId` e `ip`. Ao bloquear, os
+  três valores das sessões dos últimos 30 dias da pessoa viram bloqueios; `assertAllowed` recusa (403 "este
+  dispositivo está bloqueado nesta instância") em apelido, cadastro, login e refresh. No navegador o aparelho só é
+  reconhecido pelo `deviceId` (localStorage) e pelo IP: quem limpar o navegador e trocar de IP volta; no app desktop
+  trocar de placa de rede também burla. Painel lista os bloqueios (valor mascarado) com "Desbloquear".
+- Vídeos: quadros passam a escalar com a duração (1 a cada 10 s, mínimo 4, máximo 10; `framesFor`), teto de 12
+  imagens por envio.
+- Migração `20261102040000_device_bans` (Session.hardwareId/ip, DeviceBan, InstanceConfig.aiAutoBlock/
+  aiAutoBlockDevice, ModerationCase.autoAction), aditiva.
+
 ## Alternativas descartadas
 - Moderar depois de publicar e apagar: o mantenedor pediu decisão antes de publicar.
 - Modelo maior (Sonnet/Opus) por padrão: 20–40× mais caro por mensagem; a classificação curta com contexto é o caso de
@@ -77,4 +101,8 @@ confidence, reason }`.
   castigo (anexo apagado, castigo aplicado, autor avisado, fila da instância), fail-open com IA em erro, super admin e
   DM fora, painel desliga, edição retida mantém o texto. Suíte de integração completa 186/186.
 - Desktop: typecheck, lint e unit 201/201 (abas novas compilam; comportamento de UI sem captura ainda).
+- Adendo (bloqueio automático): `ai-moderation.int.test.ts` +3 (desligado só bloqueia a mensagem; ligado com
+  dispositivo suspende, bane, derruba a sessão, bloqueia hardware+device (IP local fora), recusa apelido novo do mesmo
+  aparelho/identificador e aceita outro, painel lista, reativar libera; super admin nunca); `media.test.ts`
+  (`framesFor`); desktop `hardware-id.test.ts` (hash estável, ignora loopback/zerado, MAC não aparece).
 - Pendente: validação com a chave real da Anthropic em produção (qualidade dos vereditos e latência).

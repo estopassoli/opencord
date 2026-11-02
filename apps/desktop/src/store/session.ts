@@ -63,10 +63,13 @@ async function persistTokens(t: SessionTokens) {
 }
 
 let restoring: Promise<void> | null = null;
+// calculada uma vez por processo; no navegador não existe (fica o identificador do app + IP)
+const hardwareId: Promise<string | null> = bridge ? bridge.hardwareId().catch(() => null) : Promise.resolve(null);
 
 export const useSession = create<SessionState>()((set, get) => {
   function makeApi(serverUrl: string) {
     const api = new ApiClient(serverUrl);
+    api.hardwareId = () => hardwareId;
     api.onTokens = (t) => persistTokens(t).catch(() => undefined);
     api.readStored = async () => {
       const raw = await secrets.get('session');

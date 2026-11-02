@@ -758,6 +758,8 @@ export const ModerationCase = z.object({
   reviewedAt: IsoDate.nullable(),
   reviewNote: z.string().nullable(),
   publishedMessageId: Id.nullable(),
+  /** ação automática aplicada ao autor (bloqueio por conteúdo grave) */
+  autoAction: z.enum(['suspended', 'suspended+device']).nullable(),
   createdAt: IsoDate,
 });
 export type ModerationCase = z.infer<typeof ModerationCase>;
@@ -1539,8 +1541,23 @@ export const UpdateInstanceConfigRequest = z
       .nullable(),
     aiModeration: z.boolean(),
     aiModerationDms: z.boolean(),
+    aiAutoBlock: z.boolean(),
+    aiAutoBlockDevice: z.boolean(),
   })
   .partial();
+
+/** Bloqueio de dispositivo (ADR-0036): aparelho/IP recusado em qualquer entrada. */
+export const DEVICE_BAN_KINDS = ['hardware', 'device', 'ip'] as const;
+export const DeviceBan = z.object({
+  id: Id,
+  kind: z.enum(DEVICE_BAN_KINDS),
+  /** valor mascarado (hash abreviado ou IP) */
+  value: z.string(),
+  user: UserPublic.nullable(),
+  reason: z.string().nullable(),
+  createdAt: IsoDate,
+});
+export type DeviceBan = z.infer<typeof DeviceBan>;
 export type UpdateInstanceConfigRequest = z.infer<typeof UpdateInstanceConfigRequest>;
 
 export const AdminInstanceConfig = InstanceInfo.extend({
@@ -1550,6 +1567,9 @@ export const AdminInstanceConfig = InstanceInfo.extend({
   aiModerationEnabled: z.boolean(),
   aiModerationDms: z.boolean(),
   aiModerationModel: z.string().nullable(),
+  /** bloqueio automático em conteúdo grave (suspende a conta) e também do dispositivo */
+  aiAutoBlock: z.boolean(),
+  aiAutoBlockDevice: z.boolean(),
   /** teto do ambiente (UPLOAD_MAX_BYTES); o painel só reduz */
   uploadEnvMaxBytes: z.number().int(),
   /** override salvo (null = o do ambiente) */

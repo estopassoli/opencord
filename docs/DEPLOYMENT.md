@@ -33,7 +33,8 @@ A instância mantida pelo autor roda as mesmas imagens deste repositório, num c
   se quiser, `MODERATION_AI_MODEL` (padrão `claude-haiku-5-5`), `MODERATION_AI_TIMEOUT_MS` (12000) e
   `MODERATION_AI_FAIL_CLOSED` (false). A migração `20261102030000_ai_moderation` roda antes da API nova; a imagem da
   API passou a trazer `ffmpeg` (quadros de vídeo). Ligar/desligar e incluir DMs fica no painel do super admin →
-  Moderação IA.
+  Moderação IA. Bloqueio automático e de dispositivo (migração `20261102040000_device_bans`) também ficam lá,
+  desligados por padrão; o app desktop manda `x-hardware-id` (hash dos MACs) em todo pedido.
 - **App instalável no celular (PWA, ADR-0035)**: o build do renderer gera `sw.js` e traz `manifest.webmanifest` +
   `icons/`; o nginx do app já os serve com `no-cache` (só arquivos com hash são imutáveis). Precisa de HTTPS no host do
   app (já é o caso) e de uma imagem `web` nova a cada mudança do renderer, como hoje; não há passo extra. O Electron

@@ -53,11 +53,18 @@ function stubAnthropic(): http.Server {
         return;
       }
       const text = lastUserText(body);
-      const verdict = text.includes('xingamento-pesado')
-        ? { decision: 'block', category: 'odio', confidence: 0.97, reason: 'Ataque direto a um grupo.' }
-        : text.includes('suspeito')
-          ? { decision: 'review', category: 'assedio', confidence: 0.55, reason: 'Pode ser assédio; contexto ambíguo.' }
-          : { decision: 'allow', category: 'nenhuma', confidence: 0.99, reason: 'Conversa normal.' };
+      const verdict = text.includes('pornografia')
+        ? { decision: 'block', category: 'sexual', confidence: 0.96, reason: 'Nudez explícita nos quadros.' }
+        : text.includes('xingamento-pesado')
+          ? { decision: 'block', category: 'odio', confidence: 0.97, reason: 'Ataque direto a um grupo.' }
+          : text.includes('suspeito')
+            ? {
+                decision: 'review',
+                category: 'assedio',
+                confidence: 0.55,
+                reason: 'Pode ser assédio; contexto ambíguo.',
+              }
+            : { decision: 'allow', category: 'nenhuma', confidence: 0.99, reason: 'Conversa normal.' };
       res.setHeader('content-type', 'application/json');
       res.end(
         JSON.stringify({
@@ -313,3 +320,79 @@ describe('moderação por IA', () => {
 
 // tipos usados só para leitura
 void (null as unknown as Member);
+
+describe('bloqueio automático e de dispositivo', () => {
+  it('desligado: conteúdo grave só bloqueia a mensagem', async () => {
+    const { bruno, channelId } = await setup();
+    const r = await send(bruno.token, channelId, 'pornografia aqui');
+    expect(r.status).toBe(422);
+    expect(r.body.code).toBe('moderation_blocked');
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: bruno.id } });
+    expect(u.disabledAt).toBeNull();
+  });
+
+  it('ligado com dispositivo: suspende a conta, bane do servidor, derruba a sessão e bloqueia aparelho/IP', async () => {
+    const { owner, bruno, channelId, serverId } = await setup();
+    await httpc.req('PATCH', '/admin/instance', {
+      token: owner.token,
+      body: { aiAutoBlock: true, aiAutoBlockDevice: true },
+    });
+    app.get(InstanceService).invalidate();
+    // sessão do Bruno com impressão digital do aparelho
+    const hw = 'a'.repeat(64);
+    const login = await httpc.req<{ tokens: { accessToken: string } }>('POST', '/auth/login', {
+      body: { login: 'Bruno', password: 'password-123456', deviceId: 'dev-bruno' },
+      headers: { 'x-hardware-id': hw },
+    });
+    expect(login.status).toBe(200);
+    const token = login.body.tokens.accessToken;
+    const r = await send(token, channelId, 'pornografia aqui');
+    expect(r.status).toBe(422);
+    expect(r.body.code).toBe('moderation_autoblock');
+    expect(r.body.message).toContain('suspensa');
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: bruno.id } });
+    expect(u.disabledAt).not.toBeNull();
+    expect(await prisma.serverBan.count({ where: { serverId, userId: bruno.id } })).toBe(1);
+    expect(await prisma.serverMember.count({ where: { serverId, userId: bruno.id } })).toBe(0);
+    expect(await prisma.session.count({ where: { userId: bruno.id, revokedAt: null } })).toBe(0);
+    const bans = await prisma.deviceBan.findMany({ where: { userId: bruno.id } });
+    expect(bans.map((b) => b.kind).sort()).toEqual(['device', 'hardware']); // IP local não entra
+    const c = await prisma.moderationCase.findFirstOrThrow({ where: { authorId: bruno.id } });
+    expect(c.autoAction).toBe('suspended+device');
+    // o token antigo morreu
+    const dead = await send(token, channelId, 'oi');
+    expect(dead.status).toBe(401);
+    // mesmo aparelho, apelido novo: recusado; outro aparelho: entra
+    const again = await httpc.req<{ message?: string }>('POST', '/auth/guest', {
+      body: { nickname: 'Bruno2', deviceId: 'dev-outro' },
+      headers: { 'x-hardware-id': hw },
+    });
+    expect(again.status).toBe(403);
+    expect(again.body.message).toContain('dispositivo');
+    const sameDevice = await httpc.req('POST', '/auth/guest', { body: { nickname: 'Bruno3', deviceId: 'dev-bruno' } });
+    expect(sameDevice.status).toBe(403);
+    const other = await httpc.req('POST', '/auth/guest', { body: { nickname: 'Carla', deviceId: 'dev-carla' } });
+    expect(other.status).toBe(201);
+    // painel lista e reativar a conta libera o aparelho
+    const list = await httpc.req<{ id: string; kind: string }[]>('GET', '/admin/device-bans', { token: owner.token });
+    expect(list.status).toBe(200);
+    expect(list.body).toHaveLength(2);
+    const un = await httpc.req('POST', `/admin/users/${bruno.id}/unsuspend`, { token: owner.token });
+    expect([200, 201]).toContain(un.status);
+    expect(await prisma.deviceBan.count({ where: { userId: bruno.id } })).toBe(0);
+    const back = await httpc.req('POST', '/auth/guest', {
+      body: { nickname: 'Bruno4', deviceId: 'dev-bruno' },
+      headers: { 'x-hardware-id': hw },
+    });
+    expect(back.status).toBe(201);
+  });
+
+  it('super admin nunca é bloqueado automaticamente', async () => {
+    const { owner, channelId } = await setup();
+    await httpc.req('PATCH', '/admin/instance', { token: owner.token, body: { aiAutoBlock: true } });
+    app.get(InstanceService).invalidate();
+    // super admin nem passa pela IA
+    const r = await send(owner.token, channelId, 'pornografia');
+    expect(r.status).toBe(201);
+  });
+});

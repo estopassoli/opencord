@@ -19,8 +19,14 @@ export interface ImageInput {
 /** Acima disto a imagem é reduzida (a API aceita até 5 MB por imagem; menor = mais barato e mais rápido). */
 const MAX_INLINE_BYTES = 1_200_000;
 const MAX_EDGE = 1280;
-/** quantos quadros por vídeo (espalhados pela duração) */
-const VIDEO_FRAMES = 4;
+/** quadros por vídeo: 1 a cada 10 s, no mínimo 4 e no máximo 10 (cenas curtas num vídeo longo não escapam) */
+const VIDEO_FRAMES_MIN = 4;
+const VIDEO_FRAMES_MAX = 10;
+const VIDEO_SECONDS_PER_FRAME = 10;
+export function framesFor(durationSeconds: number | null): number {
+  if (!durationSeconds) return VIDEO_FRAMES_MIN;
+  return Math.max(VIDEO_FRAMES_MIN, Math.min(VIDEO_FRAMES_MAX, Math.ceil(durationSeconds / VIDEO_SECONDS_PER_FRAME)));
+}
 const FFMPEG_TIMEOUT_MS = 20_000;
 
 const isImageMime = (m: string): m is ImageMime =>
@@ -91,14 +97,13 @@ export async function imageForModel(data: Buffer, mime: string): Promise<ImageIn
   }
 }
 
-/** Quadros espalhados pelo vídeo (até VIDEO_FRAMES). Sem ffmpeg/ffprobe devolve []. */
+/** Quadros espalhados pelo vídeo (ver framesFor). Sem ffmpeg/ffprobe devolve []. */
 export async function videoFrames(data: Buffer, ext = 'mp4'): Promise<ImageInput[]> {
   try {
     return await withTemp(data, ext, async (p) => {
       const d = await durationOf(p);
-      const times = d
-        ? Array.from({ length: VIDEO_FRAMES }, (_, i) => d * ((i + 0.5) / VIDEO_FRAMES))
-        : [0.5, 2, 5, 10];
+      const n = framesFor(d);
+      const times = d ? Array.from({ length: n }, (_, i) => d * ((i + 0.5) / n)) : [0.5, 2, 5, 10];
       const out: ImageInput[] = [];
       for (const t of times) {
         try {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import {
   AdminAuditQuery,
   AdminUsersQuery,
@@ -64,6 +64,17 @@ export class AdminController {
     @Body(zodPipe(SetInstanceAdminRequest)) body: z.infer<typeof SetInstanceAdminRequest>,
   ) {
     return this.admin.setAdmin(u.userId, id, body.admin);
+  }
+
+  @Get('device-bans')
+  deviceBans(@CurrentUser() u: AuthUser) {
+    return this.admin.listDeviceBans(u.userId);
+  }
+
+  @Delete('device-bans/:id')
+  @HttpCode(204)
+  async removeDeviceBan(@CurrentUser() u: AuthUser, @Param('id', uuid) id: string) {
+    await this.admin.removeDeviceBan(u.userId, id);
   }
 
   @Get('instance')

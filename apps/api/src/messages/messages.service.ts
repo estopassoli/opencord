@@ -26,7 +26,7 @@ import { DomainEvents } from '../common/domain-events.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
-import { AiModerationService, type Verdict } from '../ai-moderation/ai-moderation.service.js';
+import { AiModerationService, isSevere, type Verdict } from '../ai-moderation/ai-moderation.service.js';
 import { ModerationHoldService } from '../ai-moderation/moderation-hold.service.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -493,13 +493,24 @@ export class MessagesService {
       kind,
       model: this.ai.model,
     });
+    // conteúdo grave com certeza alta: bloqueio automático da pessoa, se o painel permitir
+    let auto: string | null = null;
+    if (kind === 'block' && a.serverId && isSevere(verdict)) {
+      const inst = await this.ai.autoBlockPolicy();
+      if (inst.enabled)
+        auto = await this.hold.autoBlock(
+          { id: held.id, authorId: userId, serverId: a.serverId, reason: verdict.reason },
+          inst.device,
+        );
+    }
     throw new UnprocessableEntityException({
       statusCode: 422,
       error: 'Unprocessable Entity',
-      code: kind === 'block' ? 'moderation_blocked' : 'moderation_review',
+      code: auto ? 'moderation_autoblock' : kind === 'block' ? 'moderation_blocked' : 'moderation_review',
       caseId: held.id,
-      message:
-        kind === 'block'
+      message: auto
+        ? `Conteúdo grave bloqueado pela moderação; sua conta foi suspensa. ${verdict.reason}`
+        : kind === 'block'
           ? `Mensagem bloqueada pela moderação: ${verdict.reason}`
           : `Mensagem retida para revisão dos moderadores: ${verdict.reason}`,
     });

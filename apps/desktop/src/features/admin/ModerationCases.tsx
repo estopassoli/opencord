@@ -120,6 +120,16 @@ export function ModerationCaseCard({
           {c.reason}
         </span>
       </p>
+      {c.autoAction && (
+        <p className="mod-case-reason">
+          <Icon name="block" size={14} />
+          <span>
+            Bloqueio automático: conta suspensa
+            {c.autoAction === 'suspended+device' ? ' e dispositivo bloqueado' : ''}. Reativar fica no painel admin →
+            Usuários.
+          </span>
+        </p>
+      )}
       {c.body && <blockquote className="mod-case-body">{c.body}</blockquote>}
       {c.attachments.length > 0 && (
         <ul className="mod-thumbs" aria-label="Anexos retidos">

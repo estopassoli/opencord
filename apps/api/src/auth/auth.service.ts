@@ -23,6 +23,7 @@ import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { RedisService } from '../common/redis.service.js';
 import { InstanceService } from '../admin/instance.service.js';
+import { DeviceBansService } from '../ai-moderation/device-bans.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { VoiceService } from '../voice/voice.service.js';
 import { isBotSession, randomToken, sha256, TokenService } from './token.service.js';
@@ -40,6 +41,8 @@ export interface ClientInfo {
   deviceId?: string | undefined;
   userAgent?: string | undefined;
   ip?: string | undefined;
+  /** impressão digital do aparelho (app desktop: hash dos MACs), cabeçalho x-hardware-id (ADR-0036) */
+  hardwareId?: string | undefined;
 }
 
 @Injectable()
@@ -55,6 +58,7 @@ export class AuthService {
     private readonly realtime: RealtimeService,
     private readonly instance: InstanceService,
     private readonly voice: VoiceService,
+    private readonly deviceBans: DeviceBansService,
   ) {}
 
   toMe(u: {
@@ -174,6 +178,7 @@ export class AuthService {
     if (!this.cfg.GUEST_JOIN_ENABLED)
       throw new ForbiddenException('entrada só com apelido está desativada nesta instância');
     this.checkAccessCode(dto.accessCode);
+    await this.deviceBans.assertAllowed({ ...client, deviceId: dto.deviceId ?? client.deviceId });
     await this.requireRegistrationOpen();
     await this.limitNewIdentity(client.ip);
     return this.createIdentity(
@@ -186,6 +191,7 @@ export class AuthService {
   /** Criar conta (opcional): apelido + senha, e-mail opcional. Sem convite. */
   async register(dto: RegisterRequest, client: ClientInfo): Promise<AuthResponse> {
     this.checkAccessCode(dto.accessCode);
+    await this.deviceBans.assertAllowed({ ...client, deviceId: dto.deviceId ?? client.deviceId });
     await this.requireRegistrationOpen();
     await this.limitNewIdentity(client.ip);
     const passwordHash = await hash(dto.password, ARGON);
@@ -230,6 +236,7 @@ export class AuthService {
 
   /** Login de conta: `login` é o apelido ou o e-mail. */
   async login(dto: LoginRequest, client: ClientInfo): Promise<AuthResponse> {
+    await this.deviceBans.assertAllowed({ ...client, deviceId: dto.deviceId ?? client.deviceId });
     const login = dto.login.trim();
     const user = login.includes('@')
       ? await this.prisma.user.findUnique({ where: { email: login.toLowerCase() } })
@@ -271,6 +278,8 @@ export class AuthService {
         refreshTokenHash: sha256(refreshToken),
         deviceId: client.deviceId ?? null,
         userAgent: client.userAgent?.slice(0, 256) ?? null,
+        hardwareId: client.hardwareId?.slice(0, 128) ?? null,
+        ip: client.ip?.slice(0, 64) ?? null,
         expiresAt: refreshExpiresAt,
       },
     });
@@ -290,6 +299,7 @@ export class AuthService {
   async refresh(refreshToken: string, client: ClientInfo): Promise<TokenPair> {
     const session = await this.prisma.session.findUnique({ where: { refreshTokenHash: sha256(refreshToken) } });
     if (!session) throw new UnauthorizedException('refresh inválido');
+    await this.deviceBans.assertAllowed({ ...client, deviceId: session.deviceId ?? client.deviceId });
     if (session.revokedAt || session.expiresAt < new Date()) throw new UnauthorizedException('sessão encerrada');
     const claimed = await this.prisma.session.updateMany({
       where: { id: session.id, rotatedAt: null, revokedAt: null },

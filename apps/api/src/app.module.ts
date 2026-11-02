@@ -55,6 +55,7 @@ import { VoiceController } from './voice/voice.controller.js';
 import { VoiceService } from './voice/voice.service.js';
 import { AiModerationService } from './ai-moderation/ai-moderation.service.js';
 import { ModerationHoldService } from './ai-moderation/moderation-hold.service.js';
+import { DeviceBansService } from './ai-moderation/device-bans.service.js';
 import { ModerationCasesService } from './ai-moderation/moderation-cases.service.js';
 import { ModerationCasesController } from './ai-moderation/moderation-cases.controller.js';
 
@@ -120,6 +121,7 @@ export class AppModule {
         ModerationService,
         AiModerationService,
         ModerationHoldService,
+        DeviceBansService,
         ModerationCasesService,
         SocialService,
         VoiceService,

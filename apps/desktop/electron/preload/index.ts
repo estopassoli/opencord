@@ -38,6 +38,7 @@ const bridge: OpenCordBridge = {
   setBadge: (count) => ipcRenderer.invoke(IPC.badgeSet, count),
   setTrayVoiceState: (state) => ipcRenderer.invoke(IPC.trayVoiceState, state),
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
+  hardwareId: () => ipcRenderer.invoke(IPC.hardwareId),
   appMetrics: () => ipcRenderer.invoke(IPC.appMetrics),
   // do próprio processo da janela: o preload em sandbox tem estas estatísticas do Electron
   rendererMemory: async () => {

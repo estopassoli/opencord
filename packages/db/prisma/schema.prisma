@@ -70,6 +70,9 @@ model Session {
   familyId         String    @db.Uuid
   deviceId         String?
   userAgent        String?
+  /// impressão digital do aparelho (app desktop: hash dos MACs) e IP de origem: base do bloqueio de dispositivo (ADR-0036)
+  hardwareId       String?
+  ip               String?
   createdAt        DateTime  @default(now()) @db.Timestamptz(3)
   expiresAt        DateTime  @db.Timestamptz(3)
   rotatedAt        DateTime? @db.Timestamptz(3)
@@ -182,6 +185,8 @@ model ModerationCase {
   reviewedAt         DateTime? @db.Timestamptz(3)
   reviewNote         String?
   publishedMessageId String?   @db.Uuid
+  /// ação automática aplicada ao autor: 'suspended' | 'suspended+device'
+  autoAction         String?
   model              String?
   createdAt          DateTime  @default(now()) @db.Timestamptz(3)
   server             Server?   @relation(fields: [serverId], references: [id], onDelete: Cascade)
@@ -190,6 +195,22 @@ model ModerationCase {
 
   @@index([serverId, status, createdAt])
   @@index([authorId, createdAt])
+}
+
+/// Bloqueio de dispositivo (ADR-0036): quem tentar entrar (apelido, conta, login, refresh) com este aparelho/IP é recusado.
+model DeviceBan {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  /// 'hardware' (hash dos MACs do app desktop) | 'device' (identificador do app no aparelho) | 'ip'
+  kind        String
+  value       String
+  /// pessoa que originou o bloqueio (null se a conta sumiu)
+  userId      String?  @db.Uuid
+  reason      String?
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([kind, value])
+  @@index([userId])
 }
 
 model ServerBan {
@@ -533,6 +554,10 @@ model InstanceConfig {
   /// Moderação por IA (ADR-0036): ligada na instância (precisa de ANTHROPIC_API_KEY) e se vale em mensagens diretas.
   aiModeration     Boolean  @default(true)
   aiModerationDms  Boolean  @default(false)
+  /// bloqueio automático em conteúdo grave (pornografia, menores, violência gráfica) com confiança alta: suspende a conta
+  aiAutoBlock      Boolean  @default(false)
+  /// ... e bloqueia também o dispositivo (hardwareId, deviceId e IP das sessões da pessoa)
+  aiAutoBlockDevice Boolean @default(false)
   updatedAt        DateTime @default(now()) @updatedAt @db.Timestamptz(3)
   updatedById      String?  @db.Uuid
 }

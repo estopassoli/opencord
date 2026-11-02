@@ -6,7 +6,7 @@ import { ModerationCasesList } from '../src/features/admin/ModerationCases';
 import { useSession } from '../src/store/session';
 import { useUi } from '../src/store/ui';
 
-const user = { id: 'u1', username: 'bruno', displayName: 'Bruno', avatarKey: null };
+const user = { id: 'u1', username: 'bruno', displayName: 'Bruno', avatarKey: null, bot: false };
 const base: ModerationCase = {
   id: 'c1',
   serverId: 's1',
@@ -27,6 +27,7 @@ const base: ModerationCase = {
   reviewedAt: null,
   reviewNote: null,
   publishedMessageId: null,
+  autoAction: null,
   createdAt: '2026-11-02T20:00:00.000Z',
 };
 

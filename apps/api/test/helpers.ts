@@ -38,7 +38,7 @@ export class Http {
   async req<T = unknown>(
     method: string,
     url: string,
-    opts: { token?: string; body?: Json } = {},
+    opts: { token?: string; body?: Json; headers?: Record<string, string> } = {},
   ): Promise<{ status: number; body: T }> {
     const res = await this.app
       .getHttpAdapter()
@@ -49,6 +49,7 @@ export class Http {
         headers: {
           ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}),
           ...(opts.body ? { 'content-type': 'application/json' } : {}),
+          ...(opts.headers ?? {}),
         },
         ...(opts.body ? { payload: JSON.stringify(opts.body) } : {}),
       });

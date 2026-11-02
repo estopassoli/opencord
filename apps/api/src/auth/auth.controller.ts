@@ -23,6 +23,10 @@ const client = (req: FastifyRequest): ClientInfo => ({
   userAgent: req.headers['user-agent'],
   ip: req.clientIp || req.ip,
   deviceId: typeof req.headers['x-device-id'] === 'string' ? req.headers['x-device-id'].slice(0, 128) : undefined,
+  hardwareId:
+    typeof req.headers['x-hardware-id'] === 'string' && /^[a-f0-9]{16,128}$/.test(req.headers['x-hardware-id'])
+      ? req.headers['x-hardware-id']
+      : undefined,
 });
 
 @Controller('auth')

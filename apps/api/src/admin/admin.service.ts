@@ -19,6 +19,7 @@ import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { VoiceService } from '../voice/voice.service.js';
 import { InstanceService } from './instance.service.js';
+import { DeviceBansService } from '../ai-moderation/device-bans.service.js';
 
 const PAGE = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -66,7 +67,19 @@ export class AdminService {
     private readonly voice: VoiceService,
     private readonly instance: InstanceService,
     private readonly tokens: TokenService,
+    private readonly deviceBans: DeviceBansService,
   ) {}
+
+  /** Bloqueios de dispositivo (ADR-0036), só super admin. */
+  async listDeviceBans(actorId: string) {
+    await this.requireAdmin(actorId);
+    return this.deviceBans.list();
+  }
+
+  async removeDeviceBan(actorId: string, id: string) {
+    await this.requireAdmin(actorId);
+    await this.deviceBans.remove(actorId, id);
+  }
 
   private async requireAdmin(userId: string) {
     const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { isInstanceAdmin: true } });
@@ -209,6 +222,8 @@ export class AdminService {
     if (t.disabledAt) {
       await this.prisma.user.update({ where: { id: targetId }, data: { disabledAt: null } });
       await this.audit.log(actorId, null, 'admin.user.unsuspend', targetId, {});
+      // reativar a conta também libera o aparelho/IP bloqueados por causa dela
+      await this.deviceBans.removeForUser(actorId, targetId);
     }
     return this.one(targetId);
   }
@@ -273,6 +288,8 @@ export class AdminService {
       aiModerationEnabled: row?.aiModeration ?? true,
       aiModerationDms: row?.aiModerationDms ?? false,
       aiModerationModel: this.cfg.ANTHROPIC_API_KEY ? this.cfg.MODERATION_AI_MODEL : null,
+      aiAutoBlock: row?.aiAutoBlock ?? false,
+      aiAutoBlockDevice: row?.aiAutoBlockDevice ?? false,
     };
   }
 
@@ -291,6 +308,8 @@ export class AdminService {
     if (dto.uploadMaxBytes !== undefined) data.uploadMaxBytes = dto.uploadMaxBytes;
     if (dto.aiModeration !== undefined) data.aiModeration = dto.aiModeration;
     if (dto.aiModerationDms !== undefined) data.aiModerationDms = dto.aiModerationDms;
+    if (dto.aiAutoBlock !== undefined) data.aiAutoBlock = dto.aiAutoBlock;
+    if (dto.aiAutoBlockDevice !== undefined) data.aiAutoBlockDevice = dto.aiAutoBlockDevice;
     await this.prisma.instanceConfig.upsert({
       where: { id: 1 },
       create: { id: 1, ...(data as Prisma.InstanceConfigUncheckedCreateInput) },

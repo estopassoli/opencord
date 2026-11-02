@@ -27,6 +27,8 @@ export class ApiClient {
   private refreshing: Promise<boolean> | null = null;
   onTokens: (t: SessionTokens) => void | Promise<void> = () => undefined;
   onAuthLost: () => void = () => undefined;
+  /** impressão digital do aparelho (app desktop), enviada em x-hardware-id para o bloqueio de dispositivo (ADR-0036) */
+  hardwareId: () => Promise<string | null> = () => Promise.resolve(null);
 
   constructor(
     public baseUrl: string,
@@ -107,11 +109,13 @@ export class ApiClient {
     const auth = opts.auth !== false;
     const doFetch = async () => {
       const token = auth ? await this.freshToken() : null;
+      const hw = await this.hardwareId().catch(() => null);
       return this.fetchImpl(this.url(path), {
         method,
         headers: {
           ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
           ...(token ? { authorization: `Bearer ${token}` } : {}),
+          ...(hw ? { 'x-hardware-id': hw } : {}),
         },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         ...(opts.signal ? { signal: opts.signal } : {}),

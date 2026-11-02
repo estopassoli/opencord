@@ -11,6 +11,8 @@ import { AuditService } from '../audit/audit.service.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
+import { TokenService } from '../auth/token.service.js';
+import { DeviceBansService } from './device-bans.service.js';
 import type { Verdict } from './ai-moderation.service.js';
 
 export const CASE_INCLUDE = {
@@ -42,7 +44,55 @@ export class ModerationHoldService {
     private readonly attachments: AttachmentsService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
+    private readonly tokens: TokenService,
+    private readonly deviceBans: DeviceBansService,
   ) {}
+
+  /**
+   * Bloqueio automático (conteúdo grave com confiança alta, ligado no painel): suspende a conta na instância,
+   * bane do servidor onde aconteceu, derruba as sessões e, se pedido, bloqueia o aparelho/IP. Super admins nunca.
+   */
+  async autoBlock(c: { id: string; authorId: string; serverId: string; reason: string }, withDevice: boolean) {
+    const u = await this.prisma.user.findUnique({
+      where: { id: c.authorId },
+      select: { isInstanceAdmin: true, disabledAt: true },
+    });
+    if (!u || u.isInstanceAdmin) return null;
+    const reason = `moderação automática: ${c.reason}`.slice(0, 200);
+    await this.prisma.user.update({ where: { id: c.authorId }, data: { disabledAt: u.disabledAt ?? new Date() } });
+    await this.prisma.serverBan.upsert({
+      where: { serverId_userId: { serverId: c.serverId, userId: c.authorId } },
+      create: { serverId: c.serverId, userId: c.authorId, reason, createdById: null },
+      update: {},
+    });
+    await this.prisma.serverMember.deleteMany({ where: { serverId: c.serverId, userId: c.authorId } });
+    const sessions = await this.prisma.session.findMany({
+      where: { userId: c.authorId, revokedAt: null },
+      select: { id: true },
+    });
+    await this.prisma.session.updateMany({
+      where: { userId: c.authorId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    this.tokens.invalidateCache(sessions.map((x) => x.id));
+    let devices = 0;
+    if (withDevice) devices = await this.deviceBans.banDevicesOf(c.authorId, reason, null);
+    const action = withDevice ? 'suspended+device' : 'suspended';
+    await this.prisma.moderationCase.update({ where: { id: c.id }, data: { autoAction: action } });
+    await this.audit.log(c.authorId, c.serverId, 'ai.autoblock', c.authorId, { action, devices, reason: c.reason });
+    this.realtime.emit(this.roomOf(c.serverId), 'server:member:left', {
+      serverId: c.serverId,
+      userId: c.authorId,
+      reason: 'kicked',
+    });
+    await this.realtime.disconnectUser(c.authorId, 'conta suspensa pela moderação');
+    await this.realtime.syncUserRooms(c.authorId).catch(() => undefined);
+    return action;
+  }
+
+  private roomOf(serverId: string) {
+    return `server:${serverId}`;
+  }
 
   /** Grava o envio retido, prende os anexos ao caso e avisa os moderadores (só na fila de revisão). */
   async hold(s: HeldSubmission): Promise<ModerationCase> {
@@ -152,6 +202,7 @@ export class ModerationHoldService {
       reviewedAt: r.reviewedAt?.toISOString() ?? null,
       reviewNote: r.reviewNote,
       publishedMessageId: r.publishedMessageId,
+      autoAction: r.autoAction === 'suspended' || r.autoAction === 'suspended+device' ? r.autoAction : null,
       createdAt: r.createdAt.toISOString(),
     };
   }

@@ -18,6 +18,7 @@ import {
   type IpcMainInvokeEvent,
 } from 'electron';
 import os from 'node:os';
+import { hardwareIdOf } from '../shared/hardware-id';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -410,6 +411,8 @@ function registerIpc() {
     secureStorage: secureAvailable(),
   }));
   handle(IPC.openExternal, [ExternalUrl], (url) => shell.openExternal(url));
+  // só o hash sai da máquina (ADR-0036)
+  handle(IPC.hardwareId, [], () => hardwareIdOf(os.networkInterfaces()));
   const prefsState = (): AppPrefsState => ({
     saved: readAppPrefs(),
     activeGpuMode: gpuMode,

@@ -41,6 +41,12 @@ const VerdictSchema = z.object({
 });
 export type Verdict = z.infer<typeof VerdictSchema>;
 
+/** categorias que, com certeza alta, disparam o bloqueio automático da pessoa (ligado no painel) */
+export const SEVERE_CATEGORIES = new Set<Verdict['category']>(['menores', 'sexual', 'violencia']);
+export const SEVERE_MIN_CONFIDENCE = 0.85;
+export const isSevere = (v: Verdict) =>
+  v.decision === 'block' && SEVERE_CATEGORIES.has(v.category) && v.confidence >= SEVERE_MIN_CONFIDENCE;
+
 export interface ModerationInput {
   serverName: string | null;
   channelName: string | null;
@@ -80,7 +86,7 @@ Imagens e quadros de vídeo: avalie o que aparece neles como parte do envio. Arq
 
 const MAX_RECENT = 12;
 const MAX_BODY = 4000;
-const MAX_IMAGES = 8;
+const MAX_IMAGES = 12;
 const MAX_FILE_BYTES = 60 * 1024 * 1024;
 
 @Injectable()
@@ -120,6 +126,12 @@ export class AiModerationService {
     if (row && !row.aiModeration) return false;
     if (direct) return row?.aiModerationDms ?? false;
     return true;
+  }
+
+  /** Bloqueio automático (painel): suspender a conta e, opcionalmente, bloquear o aparelho/IP. */
+  async autoBlockPolicy(): Promise<{ enabled: boolean; device: boolean }> {
+    const row = await this.instance.row();
+    return { enabled: row?.aiAutoBlock ?? false, device: row?.aiAutoBlockDevice ?? false };
   }
 
   /** Classifica um envio. Nunca lança: falhas viram `unavailable` (quem chama decide fail-open/closed). */
