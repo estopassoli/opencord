@@ -1349,6 +1349,11 @@ textarea:focus-visible {
   flex: none;
   color: var(--brand-text);
 }
+/* selo ao lado do nome numa linha de texto (cabeçalho da mensagem): centrado na altura do nome e com respiro */
+.msg-author .creator-badge {
+  vertical-align: middle;
+  margin: 0 0 2px 5px;
+}
 .members li[data-creator='true'] .member-row > .truncate,
 .voice-members li[data-creator='true'] .voice-member > .truncate {
   font-weight: 700;

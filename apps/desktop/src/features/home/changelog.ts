@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '12:00',
+    kind: 'correção',
+    icon: 'verified',
+    title: 'Selo alinhado ao nome no chat',
+    body: 'O selo de verificado no cabeçalho da mensagem estava colado no nome e fora do centro. Agora tem um respiro e fica alinhado na altura do texto.',
+  },
+  {
+    date: '2026-11-02',
     time: '11:40',
     kind: 'correção',
     icon: 'users',
