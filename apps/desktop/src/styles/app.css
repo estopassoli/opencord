@@ -7127,7 +7127,7 @@ html[data-wallpaper='true'] .chat-scroll {
 }
 /* valor fora dos limites da opção (minValue/maxLength…): a dica vira aviso */
 .slash-hint[data-error='true'] {
-  color: var(--danger, #e5484d);
+  color: var(--danger-text);
 }
 .slash-item .role-dot {
   display: inline-block;

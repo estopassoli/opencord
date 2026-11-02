@@ -307,6 +307,10 @@
   gap: 4px;
   margin-left: auto;
 }
+/* aba Banidos: motivo + por quem/quando ocupam o meio da linha */
+.admin-row-text.ban-meta {
+  flex: 1 1 240px;
+}
 .chips {
   display: flex;
   flex-wrap: wrap;

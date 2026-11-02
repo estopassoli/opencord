@@ -12,6 +12,8 @@ import { useVoice } from '../../store/voice';
 import { StreamPreviewCard, watchStream } from '../../components/StreamPreview';
 import { moveTargets, moveToVoice } from './voiceMove';
 import { PlayingNow } from './Playing';
+import { userAppsMenu } from '../chat/messageApps';
+import { moderationTargets, openBanDialog, timeoutMenuItems } from '../admin/moderationActions';
 
 const KICK = { title: 'Expulsar do servidor', confirmLabel: 'Expulsar', danger: true };
 
@@ -31,8 +33,8 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
   const d = useData.getState();
   const me = d.me?.id;
   const detail = serverId ? d.details[serverId] : undefined;
-  const user =
-    detail?.members.find((m) => m.user.id === userId)?.user ?? d.friends.find((f) => f.user.id === userId)?.user;
+  const member = detail?.members.find((m) => m.user.id === userId);
+  const user = member?.user ?? d.friends.find((f) => f.user.id === userId)?.user;
   if (!user) return [];
   const isMe = userId === me;
   const perms = detail?.myPermissions;
@@ -91,6 +93,8 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
       });
     }
   }
+  // Apps ›: comandos de contexto dos bots do servidor (ADR-0034)
+  items.push(...userAppsMenu(serverId, userId));
   if (sameCall) {
     items.push(
       'separator',
@@ -181,6 +185,10 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
       danger: true,
       onSelect: () => void api().request('DELETE', `/voice/members/${userId}`).catch(apiError),
     });
+  // castigo e banimento (ADR-0034): mesma proteção de dono/super admin/eu mesmo; a API confere a hierarquia
+  const moderation = moderationTargets(detail, me, member);
+  if (moderation.canTimeout && serverId && member)
+    mod.push({ kind: 'submenu', label: 'Castigo', icon: 'clock', items: timeoutMenuItems(serverId, member) });
   if (canKick && serverId)
     mod.push({
       label: `Expulsar ${user.displayName}`,
@@ -191,6 +199,8 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
           void api().request('DELETE', `/servers/${serverId}/members/${userId}`).catch(apiError);
       },
     });
+  if (moderation.canBan && serverId)
+    mod.push({ label: 'Banir…', icon: 'block', danger: true, onSelect: () => openBanDialog(serverId, userId) });
   if (mod.length) items.push('separator', ...mod);
   items.push('separator', {
     label: 'Copiar ID do usuário',
@@ -326,6 +336,7 @@ function ProfileCard({
   const canKick = detail && hasPermission(detail.myPermissions, Permission.KICK_MEMBERS) && !isMe && !shielded;
   const canMute =
     detail && hasPermission(detail.myPermissions, Permission.MUTE_MEMBERS) && voiceState && !isMe && !shielded;
+  const moderation = moderationTargets(detail, me?.id, member);
   const voiceChannel = voiceState ? detail?.channels.find((c) => c.id === voiceState.channelId) : undefined;
   const myCall = useVoice((s) => (s.machine.status === 'disconnected' ? null : s.machine.channelId));
   if (!user) return null;
@@ -459,6 +470,15 @@ function ProfileCard({
               {voiceState.serverMute ? 'Remover silêncio' : 'Silenciar no servidor'}
             </Button>
           )}
+          {moderation.canTimeout && serverId && member && (
+            <Button
+              variant="secondary"
+              aria-haspopup="menu"
+              onClick={(e) => openContextMenu(e, timeoutMenuItems(serverId, member), 'Castigo')}
+            >
+              <Icon name="clock" size={16} /> Castigo
+            </Button>
+          )}
           {canKick && serverId && (
             <Button
               variant="danger"
@@ -468,6 +488,17 @@ function ProfileCard({
               }}
             >
               <Icon name="user-minus" size={16} /> Expulsar
+            </Button>
+          )}
+          {moderation.canBan && serverId && (
+            <Button
+              variant="danger"
+              onClick={() => {
+                onClose();
+                openBanDialog(serverId, userId);
+              }}
+            >
+              <Icon name="block" size={16} /> Banir…
             </Button>
           )}
         </div>

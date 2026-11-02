@@ -24,12 +24,14 @@ import { ACCENTS, DEFAULT_ACCENT, Section, TabbedLayout, type TabDef } from '../
 import { wallpaperUrl } from '../../lib/server-theme';
 import '../settings/settings.css';
 import { SoundsTab } from '../voice/Soundboard';
+import { BansTab } from './BansTab';
 import { ServerBotsTab } from './ServerBotsTab';
 import { SlackTab } from './SlackTab';
 import { WebhooksTab } from './WebhooksTab';
 import { ServerIconPicker } from './ServerIconPicker';
 
-type ServerTab = 'overview' | 'roles' | 'members' | 'channels' | 'webhooks' | 'bots' | 'slack' | 'sounds' | 'audit';
+type ServerTab =
+  'overview' | 'roles' | 'members' | 'channels' | 'webhooks' | 'bots' | 'slack' | 'sounds' | 'bans' | 'audit';
 
 const PERMISSION_LABELS: Record<PermissionName, string> = {
   VIEW_CHANNEL: 'Ver canais',
@@ -50,6 +52,8 @@ const PERMISSION_LABELS: Record<PermissionName, string> = {
   MANAGE_ROLES: 'Gerenciar cargos',
   MANAGE_SERVER: 'Gerenciar servidor',
   VIEW_AUDIT_LOG: 'Ver registro de auditoria',
+  BAN_MEMBERS: 'Banir membros',
+  MODERATE_MEMBERS: 'Castigar membros',
   ADMINISTRATOR: 'Administrador (todas as permissões)',
 };
 
@@ -93,6 +97,7 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
     if (hasPermission(p, Permission.MANAGE_SERVER)) list.push({ id: 'slack', label: 'Slack' });
     // qualquer membro envia efeitos sonoros (ADR-0016)
     list.push({ id: 'sounds', label: 'Efeitos sonoros' });
+    if (hasPermission(p, Permission.BAN_MEMBERS)) list.push({ id: 'bans', label: 'Banidos' });
     if (hasPermission(p, Permission.VIEW_AUDIT_LOG)) list.push({ id: 'audit', label: 'Registro de auditoria' });
     return list;
   }, [detail]);
@@ -125,6 +130,7 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
             canManage={hasPermission(detail.myPermissions, Permission.MANAGE_SERVER)}
           />
         )}
+        {active === 'bans' && <BansTab detail={detail} />}
         {active === 'audit' && <AuditTab detail={detail} />}
       </TabbedLayout>
     </Dialog>
@@ -868,6 +874,9 @@ const ACTION_LABELS: Record<string, string> = {
   'channel.update': 'Atualizou canal',
   'channel.delete': 'Excluiu canal',
   'member.kick': 'Expulsou membro',
+  'member.ban': 'Baniu membro',
+  'member.unban': 'Desbaniu membro',
+  'member.timeout': 'Castigou membro',
   'member.leave': 'Saiu do servidor',
   'member.roles': 'Alterou cargos de membro',
   'role.create': 'Criou cargo',

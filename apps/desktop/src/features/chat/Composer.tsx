@@ -1,4 +1,4 @@
-import type { Attachment } from '@opencord/contracts';
+import type { Attachment, BotCommandChoice, CreateInteractionResponse } from '@opencord/contracts';
 import { Icon, portalTarget, TextArea } from '@opencord/ui';
 import {
   useEffect,
@@ -13,13 +13,21 @@ import {
 import { createPortal } from 'react-dom';
 import { useAnchoredAbove } from '../../components/anchored';
 import { ApiError } from '../../lib/api';
+import { fmtTimeoutUntil, useTimedOut } from '../../lib/moderation';
 import {
+  autocompleteBody,
+  choiceSuggestions,
   commandHint,
   filterCommands,
   flattenCommands,
+  interactionBody,
+  liveLimitError,
   matchCommand,
   parseSlash,
+  suggestSlash,
   type SlashCommandRef,
+  type SlashContext,
+  type SlashSuggestion,
 } from '../../lib/slash';
 import { useBots } from '../../store/bots';
 import { useData, useMessages, type TargetKey } from '../../store/data';
@@ -41,6 +49,25 @@ interface Upload {
   error?: string;
 }
 
+/** item do popover de barra: um comando (primeira palavra) ou uma sugestão (subcomando, opção, valor) */
+type PopItem = { kind: 'command'; ref: SlashCommandRef } | { kind: 'suggest'; s: SlashSuggestion };
+
+/** autocompletar do bot: espera a pessoa parar de digitar por isso antes de perguntar */
+const AUTOCOMPLETE_DEBOUNCE_MS = 250;
+
+/** só o valor (sem `opção:` nem aspas), para saber se o que foi digitado já é a sugestão inteira */
+const valuePart = (s: string) =>
+  s
+    .trim()
+    .replace(/^[a-z0-9_-]{1,32}:/i, '')
+    .replace(/^["']|["']$/g, '')
+    .toLowerCase();
+
+function mergeChoices(cur: readonly BotCommandChoice[] | undefined, add: readonly BotCommandChoice[]) {
+  const seen = new Set(add.map((c) => c.name.toLowerCase()));
+  return [...add, ...(cur ?? []).filter((c) => !seen.has(c.name.toLowerCase()))].slice(0, 100);
+}
+
 export function Composer({
   target,
   targetKey,
@@ -58,7 +85,18 @@ export function Composer({
   const draft = useUi((s) => s.drafts[targetKey] ?? '');
   // comandos de barra: lista do servidor (carregada ao digitar "/"), popover e dica das opções
   const serverCommands = useBots((s) => (serverId ? s.commands[serverId] : undefined));
-  const allCommands = useMemo(() => flattenCommands(serverCommands), [serverCommands]);
+  const detail = useData((s) => (serverId ? s.details[serverId] : undefined));
+  const meId = useData((s) => s.me?.id);
+  // só comandos de barra que eu posso usar (`defaultMemberPermissions`; dono/ADMINISTRATOR veem tudo)
+  const allCommands = useMemo(
+    () =>
+      flattenCommands(serverCommands, {
+        type: 'chat',
+        myPermissions: detail?.myPermissions,
+        owner: Boolean(detail && meId && detail.ownerId === meId),
+      }),
+    [serverCommands, detail, meId],
+  );
   const [caret, setCaret] = useState(0);
   const [slashClosed, setSlashClosed] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
@@ -69,12 +107,82 @@ export function Composer({
     () => (slashTyping ? filterCommands(draft, allCommands) : []),
     [slashTyping, draft, allCommands],
   );
-  const slashOpen = slashMatches.length > 0;
-  const slashSelected = slashMatches[Math.min(slashIndex, slashMatches.length - 1)];
-  const slashHit = serverId && !slashOpen && draft.startsWith('/') ? matchCommand(draft, allCommands) : null;
-  const slashHint = slashHit && slashHit.command.options.length ? commandHint(slashHit.command) : null;
+  const slashHit = serverId && draft.startsWith('/') ? matchCommand(draft, allCommands) : null;
+  // sugestões do bot (autocompletar) já vistas por opção: escolher pelo nome manda o valor
+  const [seenChoices, setSeenChoices] = useState<Record<string, BotCommandChoice[]>>({});
+  const slashCtx = useMemo<SlashContext>(
+    () => ({
+      members: detail?.members,
+      channels: detail?.channels,
+      roles: detail?.roles,
+      autocompleteChoices: seenChoices,
+    }),
+    [detail, seenChoices],
+  );
+  // depois do nome: subcomando/grupo, nomes de opção e valores (escolhas, pessoas, cargos, canais)
+  const suggest = useMemo(
+    () => (slashHit && !slashTyping && !slashClosed ? suggestSlash(draft, caret, slashHit, slashCtx) : null),
+    [slashHit, slashTyping, slashClosed, draft, caret, slashCtx],
+  );
+  // autocompletar do bot: debounce, uma requisição por vez, resposta fora de ordem ignorada
+  const [botChoices, setBotChoices] = useState<{ key: string; choices: BotCommandChoice[] } | null>(null);
+  const acSeq = useRef(0);
+  const acBody =
+    suggest?.autocomplete && slashHit && target.channelId
+      ? autocompleteBody(slashHit, target.channelId, suggest.autocomplete)
+      : null;
+  const acKey = acBody
+    ? `${acBody.command}:${acBody.subcommandGroup ?? ''}:${acBody.subcommand ?? ''}:${acBody.focused}`
+    : null;
+  const acSig = acBody ? JSON.stringify(acBody) : null;
+  useEffect(() => {
+    if (!acBody || !acKey) return;
+    const seq = ++acSeq.current;
+    const ctrl = new AbortController();
+    const optionName = acBody.focused;
+    const t = setTimeout(() => {
+      api()
+        .request<CreateInteractionResponse>('POST', '/interactions', acBody, { signal: ctrl.signal })
+        .then((r) => {
+          if (seq !== acSeq.current) return;
+          const choices = r.choices ?? [];
+          setBotChoices({ key: acKey, choices });
+          if (choices.length)
+            setSeenChoices((cur) => ({ ...cur, [optionName]: mergeChoices(cur[optionName], choices) }));
+        })
+        .catch(() => undefined);
+    }, AUTOCOMPLETE_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+    // acSig resume o corpo inteiro (comando, caminho, opções parciais e texto em foco)
+  }, [acSig]);
+  const popItems = useMemo<PopItem[]>(() => {
+    if (slashTyping) return slashMatches.map((ref) => ({ kind: 'command', ref }));
+    if (!suggest) return [];
+    const fromBot =
+      suggest.autocomplete && botChoices && botChoices.key === acKey
+        ? choiceSuggestions(suggest.autocomplete.option, botChoices.choices)
+        : [];
+    return [...suggest.items, ...fromBot].map((s) => ({ kind: 'suggest', s }));
+  }, [slashTyping, slashMatches, suggest, botChoices, acKey]);
+  const slashOpen = popItems.length > 0;
+  const slashSelected = popItems[Math.min(slashIndex, popItems.length - 1)];
+  // dica: limites estourados enquanto digita, senão a forma do comando no nível atual
+  const slashHint =
+    slashHit && !slashTyping
+      ? (liveLimitError(draft, slashHit.command) ??
+        (slashHit.command.options.length ? commandHint(slashHit.command, draft) : null))
+      : null;
+  const slashLimitHit = Boolean(slashHit && !slashTyping && liveLimitError(draft, slashHit.command));
   const root = useRef<HTMLDivElement>(null);
   const slashStyle = useAnchoredAbove(slashOpen, root);
+  // castigo (ADR-0034): sem enviar até expirar
+  const myTimeoutUntil = useData((s) =>
+    serverId ? (s.details[serverId]?.members.find((m) => m.user.id === s.me?.id)?.timeoutUntil ?? null) : null,
+  );
+  const timedOut = useTimedOut(myTimeoutUntil);
 
   useEffect(() => {
     if (serverId && draft.startsWith('/') && !serverCommands)
@@ -144,27 +252,41 @@ export function Composer({
     }
   };
 
+  const placeCaret = (pos: number) => {
+    setCaret(pos);
+    requestAnimationFrame(() => {
+      const el = input.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
   const pickSlash = (c: SlashCommandRef) => {
     const next = `/${c.command.name} `;
     setDraft(next);
     setSlashClosed(false);
     setSlashIndex(0);
-    setCaret(next.length);
-    requestAnimationFrame(() => {
-      const el = input.current;
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(next.length, next.length);
-    });
+    placeCaret(next.length);
+  };
+
+  /** escolher no popover: comando (primeira palavra) ou sugestão (substitui o trecho em edição) */
+  const pickItem = (it: PopItem) => {
+    if (it.kind === 'command') return pickSlash(it.ref);
+    if (!suggest) return;
+    const next = draft.slice(0, suggest.start) + it.s.insert + draft.slice(suggest.end);
+    setDraft(next);
+    setSlashClosed(false);
+    setSlashIndex(0);
+    placeCaret(suggest.start + it.s.insert.length);
   };
 
   /** `/comando …` de um bot do servidor: vira uma interação, não uma mensagem no canal */
   const runSlash = async (hit: SlashCommandRef, body: string) => {
     const channelId = target.channelId;
     if (!channelId) return;
-    const detail = serverId ? useData.getState().details[serverId] : undefined;
-    const parsed = parseSlash(body, hit.command, { members: detail?.members, channels: detail?.channels });
-    if (parsed.error) return useUi.getState().toast('error', parsed.error);
+    const parsed = parseSlash(body, hit.command, slashCtx);
+    if (parsed.error !== undefined) return useUi.getState().toast('error', parsed.error);
     setDraft('');
     typingSent.current = 0;
     void useSession
@@ -172,12 +294,7 @@ export function Composer({
       .realtime?.command('chat:typing:stop', rtTarget)
       .catch(() => undefined);
     try {
-      await api().request('POST', '/interactions', {
-        channelId,
-        botId: hit.botId,
-        command: hit.command.name,
-        options: parsed.options,
-      });
+      await api().request('POST', '/interactions', interactionBody(hit, channelId, parsed));
     } catch (e) {
       useUi.getState().toast('error', e instanceof ApiError && e.status === 409 ? 'Bot offline.' : describeError(e));
       // devolve o texto para tentar de novo, se nada foi digitado enquanto isso
@@ -187,6 +304,7 @@ export function Composer({
 
   const send = () => {
     const body = draft.trim();
+    if (timedOut) return;
     if (uploads.some((u) => u.status === 'uploading'))
       return useUi.getState().toast('info', 'Aguarde o envio dos anexos.');
     const attachmentIds = uploads
@@ -294,17 +412,21 @@ export function Composer({
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOpen && slashSelected) {
-      const typed = draft.slice(1, firstWordEnd).toLowerCase();
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
-        const n = slashMatches.length;
+        const n = popItems.length;
         setSlashIndex((i) => (e.key === 'ArrowDown' ? (i + 1) % n : (i - 1 + n) % n));
         return;
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && typed !== slashSelected.command.name)) {
-        // Enter com o nome já completo envia (comando sem opções); nos outros casos completa
+      // Enter com o nome do comando já completo envia (comando sem opções); nas sugestões, Enter completa só se
+      // há algo digitado e ainda não é a sugestão inteira (logo depois de um espaço, Enter envia; Tab completa)
+      const completes =
+        slashSelected.kind === 'command'
+          ? draft.slice(1, firstWordEnd).toLowerCase() !== slashSelected.ref.command.name
+          : Boolean(suggest?.typed) && valuePart(suggest?.typed ?? '') !== valuePart(slashSelected.s.insert);
+      if (e.key === 'Tab' || (e.key === 'Enter' && completes)) {
         e.preventDefault();
-        pickSlash(slashSelected);
+        pickItem(slashSelected);
         return;
       }
       if (e.key === 'Escape') {
@@ -351,25 +473,53 @@ export function Composer({
       {slashOpen &&
         createPortal(
           <div className="slash-popover" style={slashStyle} role="listbox" id={slashId} aria-label="Comandos de barra">
-            {slashMatches.map((c, i) => (
+            {popItems.map((it, i) => (
               <button
-                key={`${c.botId}:${c.command.name}`}
+                key={it.kind === 'command' ? `${it.ref.botId}:${it.ref.command.name}` : `${it.s.kind}:${it.s.insert}`}
                 type="button"
                 role="option"
                 id={`${slashId}-${i}`}
                 aria-selected={i === slashIndex}
                 className="slash-item"
+                data-kind={it.kind === 'command' ? 'command' : it.s.kind}
                 tabIndex={-1}
                 onPointerDown={(e) => e.preventDefault()}
                 onPointerMove={() => setSlashIndex(i)}
-                onClick={() => pickSlash(c)}
+                onClick={() => pickItem(it)}
               >
-                <span className="slash-item-name">/{c.command.name}</span>
-                <span className="slash-item-desc truncate">{c.command.description}</span>
-                <span className="slash-item-bot">
-                  {c.bot.displayName}
-                  <span className="bot-badge">APP</span>
-                </span>
+                {it.kind === 'command' ? (
+                  <>
+                    <span className="slash-item-name">/{it.ref.command.name}</span>
+                    <span className="slash-item-desc truncate">{it.ref.command.description}</span>
+                    <span className="slash-item-bot">
+                      {it.ref.bot.displayName}
+                      <span className="bot-badge">APP</span>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="slash-item-name">
+                      {it.s.color !== undefined && (
+                        <span
+                          className="role-dot"
+                          style={{ background: it.s.color ?? 'var(--text-muted)' }}
+                          aria-hidden="true"
+                        />
+                      )}
+                      {it.s.label}
+                    </span>
+                    <span className="slash-item-desc truncate">{it.s.detail}</span>
+                    <span className="slash-item-bot">
+                      {it.s.kind === 'group'
+                        ? 'grupo'
+                        : it.s.kind === 'subcommand'
+                          ? 'subcomando'
+                          : it.s.kind === 'option'
+                            ? 'opção'
+                            : ''}
+                    </span>
+                  </>
+                )}
               </button>
             ))}
           </div>,
@@ -477,8 +627,11 @@ export function Composer({
             ref={input}
             rows={1}
             value={draft}
-            placeholder={placeholder}
+            placeholder={
+              timedOut && myTimeoutUntil ? `Você está em castigo até ${fmtTimeoutUntil(myTimeoutUntil)}` : placeholder
+            }
             aria-label={placeholder}
+            disabled={timedOut}
             maxLength={4000}
             aria-controls={slashOpen ? slashId : undefined}
             aria-activedescendant={slashOpen ? `${slashId}-${slashIndex}` : undefined}
@@ -494,7 +647,7 @@ export function Composer({
             onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
             onPaste={onPaste}
           />
-          {canAttach && !draft.trim() && !uploads.length && typeof MediaRecorder !== 'undefined' ? (
+          {canAttach && !timedOut && !draft.trim() && !uploads.length && typeof MediaRecorder !== 'undefined' ? (
             <button
               className="icon-btn"
               aria-label="Gravar mensagem de voz"
@@ -509,7 +662,7 @@ export function Composer({
               aria-label="Enviar"
               data-tip="Enviar (Enter)"
               onClick={send}
-              disabled={!draft.trim() && !uploads.some((u) => u.status === 'done')}
+              disabled={timedOut || (!draft.trim() && !uploads.some((u) => u.status === 'done'))}
             >
               <Icon name="send" />
             </button>
@@ -517,7 +670,7 @@ export function Composer({
         </div>
       )}
       {slashHint && (
-        <p className="slash-hint muted small" aria-live="polite">
+        <p className="slash-hint muted small" aria-live="polite" data-error={slashLimitHit ? 'true' : undefined}>
           <code>{slashHint}</code>
         </p>
       )}

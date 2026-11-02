@@ -3,6 +3,7 @@ import { useIsMobile } from '../../lib/media';
 import { hasPermission, Permission, type Message, type MessagePage } from '@opencord/contracts';
 import { Icon } from '@opencord/ui';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useBots } from '../../store/bots';
 import { keyOf, useData, useMessages, type TargetKey } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
@@ -49,6 +50,16 @@ export function ChatView({ target }: { target: ChatTarget }) {
   const atBottom = useRef(true);
   const [firstUnreadId] = useState(() => (unread && unread.unreadCount > 0 ? unread.lastReadMessageId : null));
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // comandos dos bots do servidor (barra e "Apps" nos menus): prontos antes do primeiro "/" ou botão direito
+  const serverIdForBots = channel?.serverId;
+  useEffect(() => {
+    if (serverIdForBots)
+      void useBots
+        .getState()
+        .ensureCommands(serverIdForBots)
+        .catch(() => undefined);
+  }, [serverIdForBots]);
 
   const perms = channel?.myPermissions ?? Permission.SEND_MESSAGES | Permission.ATTACH_FILES | Permission.ADD_REACTIONS;
   const canSend = hasPermission(perms, Permission.SEND_MESSAGES);

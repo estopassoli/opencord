@@ -3,6 +3,7 @@ import { Avatar, Icon } from '@opencord/ui';
 import { useData } from '../../store/data';
 import { ProfileButton } from './ProfileButton';
 import { useAliases } from '../../lib/names';
+import { fmtTimeoutUntil, isTimedOut } from '../../lib/moderation';
 import { SubLine } from './Playing';
 
 /** Cor do nick: a do cargo mais alto que tem cor. */
@@ -102,6 +103,14 @@ export function MemberList({ serverId }: { serverId: string }) {
                     </span>
                     <SubLine userId={m.user.id} className="small" />
                   </span>
+                  {isTimedOut(m.timeoutUntil) && (
+                    <span
+                      className="member-timeout"
+                      data-tip={`Em castigo até ${fmtTimeoutUntil(m.timeoutUntil as string)}`}
+                    >
+                      <Icon name="clock" size={14} label="Em castigo" />
+                    </span>
+                  )}
                   {m === creator ? (
                     <CreatorTag />
                   ) : m.user.verified ? (
