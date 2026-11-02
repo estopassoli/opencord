@@ -19,6 +19,8 @@ const msg = (id: string, createdAt: string, extra: Partial<Message> = {}): Messa
   pinnedAt: null,
   poll: null,
   reactionRoles: [],
+  embeds: [],
+  components: [],
   ...extra,
 });
 
@@ -43,6 +45,15 @@ describe('normalizeMessage', () => {
     } = msg('00000000-0000-7000-8000-000000000009', '2026-01-01T00:00:00.000Z');
     const [m] = mergeMessages([], [old as Message]);
     expect(m).toMatchObject({ pinnedAt: null, poll: null, reactionRoles: [] });
+  });
+  it('API sem embeds/componentes (antes da ADR-0034) completa com listas vazias', () => {
+    const {
+      embeds: _e,
+      components: _c,
+      ...old
+    } = msg('00000000-0000-7000-8000-000000000008', '2026-01-01T00:00:00.000Z');
+    const [m] = mergeMessages([], [old as Message]);
+    expect(m).toMatchObject({ embeds: [], components: [] });
   });
 });
 

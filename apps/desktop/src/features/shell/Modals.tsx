@@ -13,12 +13,14 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { ServerIcon } from '../../components/ServerIcon';
 import { AddToDmDialog, FullProfileDialog } from '../chat/DmExtras';
+import { BotModalDialog } from '../chat/BotModal';
 import { parseInviteCode } from '../../lib/invite';
 import { loadServer, api, describeError } from '../../store/session';
 import { useData } from '../../store/data';
 import { useUi, type Modal } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { AdminPanel } from '../admin/AdminPanel';
+import { BanDialog } from '../admin/BanDialog';
 import { ServerSettings } from '../admin/ServerSettings';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ScreenSourcePicker } from '../voice/ScreenSourcePicker';
@@ -45,6 +47,8 @@ export function Modals() {
       return <AddToDmDialog peerId={modal.peerId} onClose={close} />;
     case 'friend-nickname':
       return <FriendNicknameDialog userId={modal.userId} onClose={close} />;
+    case 'ban':
+      return <BanDialog serverId={modal.serverId} userId={modal.userId} onClose={close} />;
     case 'join-invite':
       return (
         <Dialog title="Convite para servidor" onClose={close}>
@@ -77,6 +81,8 @@ export function Modals() {
       return <QuickSwitcher onClose={close} />;
     case 'screen-picker':
       return <ScreenSourcePicker onClose={() => useVoice.getState().cancelStreamPicker()} />;
+    case 'bot-modal':
+      return <BotModalDialog key={modal.request.modalId} request={modal.request} onClose={close} />;
     default:
       return null;
   }

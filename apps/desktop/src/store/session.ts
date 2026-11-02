@@ -411,6 +411,8 @@ function wireRealtime(rt: RealtimeClient) {
     });
     // bots (ADR-0032): resposta efêmera/"pensando…" só para mim; comandos de um servidor mudaram → recarregar
     rt.on('interaction:replied', (e) => void import('./bots').then(({ useBots }) => useBots.getState().replied(e)));
+    // o bot abriu um formulário para mim (ADR-0034): diálogo com os campos; enviar vira interação `modal`
+    rt.on('interaction:modal', (e) => useUi.getState().openModal({ kind: 'bot-modal', request: e }));
     rt.on('bot:commands:changed', (e) => {
       void import('./bots').then(({ useBots }) => {
         if (useBots.getState().commands[e.serverId])

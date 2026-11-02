@@ -1168,3 +1168,11 @@ html[data-layout='vidro'] .dialog[open]:not(:modal) {
   margin: auto;
   z-index: 1000;
 }
+
+/* bots v2 (ADR-0034): embeds viram vidro, mantendo a barra colorida do bot */
+html[data-layout='vidro'] .embed {
+  background: var(--vidro-card);
+  border: 1px solid var(--vidro-line);
+  border-left: 4px solid var(--embed-color);
+  box-shadow: var(--vidro-card-edge);
+}

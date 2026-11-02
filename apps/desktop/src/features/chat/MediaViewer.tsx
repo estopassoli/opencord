@@ -109,7 +109,8 @@ function Viewer({ items, start }: { items: MediaItem[]; start: number }) {
       'separator',
       { label: `Arquivo: ${item.name}`, icon: 'folder', disabled: true, onSelect: () => undefined },
       {
-        label: `${item.width && item.height ? `${item.width}×${item.height} · ` : ''}${sizeLabel(item.sizeBytes)}`,
+        // imagem de embed (fora do servidor) não tem tamanho conhecido
+        label: `${item.width && item.height ? `${item.width}×${item.height} · ` : ''}${item.sizeBytes > 0 ? sizeLabel(item.sizeBytes) : 'tamanho desconhecido'}`,
         icon: 'eye',
         disabled: true,
         onSelect: () => undefined,

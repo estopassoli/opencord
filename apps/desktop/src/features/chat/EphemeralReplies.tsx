@@ -1,13 +1,18 @@
 /**
  * Respostas efêmeras de bots (ADR-0032): cartões "só você vê" logo acima do composer. "Pensando…" enquanto o bot
- * adiou a resposta; fecham no X ou sozinhos depois de 10 minutos. Não são mensagens do canal.
+ * adiou a resposta; fecham no X ou sozinhos depois de 10 minutos. Não são mensagens do canal. Podem trazer embeds
+ * e botões/menus (ADR-0034): o clique manda `component` com `ephemeralOf`, e `update` troca o cartão no lugar.
  */
 import { Avatar, Icon } from '@opencord/ui';
 import { useBots } from '../../store/bots';
+import { useUi } from '../../store/ui';
+import { ComponentRows } from './Components';
+import { EmbedCards } from './Embeds';
 import { renderRich } from './rich';
 
 export function EphemeralReplies({ channelId, nameOf }: { channelId: string; nameOf: (id: string) => string }) {
   const list = useBots((s) => s.ephemeral[channelId]);
+  const serverId = useUi((s) => (s.view.kind === 'server' ? s.view.serverId : undefined));
   if (!list?.length) return null;
   return (
     <div className="ephemeral-list" aria-live="polite" aria-label="Respostas só para você">
@@ -34,7 +39,17 @@ export function EphemeralReplies({ channelId, nameOf }: { channelId: string; nam
                   Pensando…
                 </span>
               ) : (
-                renderRich(r.content, nameOf)
+                r.content && renderRich(r.content, nameOf)
+              )}
+              {r.embeds.length > 0 && (
+                <EmbedCards
+                  embeds={r.embeds}
+                  nameOf={nameOf}
+                  author={{ id: r.bot.id, name: r.bot.displayName, createdAt: new Date(r.at).toISOString() }}
+                />
+              )}
+              {r.components.length > 0 && (
+                <ComponentRows rows={r.components} source={{ ephemeralOf: r.id }} serverId={serverId} nameOf={nameOf} />
               )}
             </div>
           </div>

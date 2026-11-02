@@ -1,4 +1,4 @@
-import type { ServerCommands, ServerEvents } from '@opencord/contracts';
+import type { Embed, MessageComponents, ServerCommands, ServerEvents } from '@opencord/contracts';
 import { create } from 'zustand';
 import { api } from './session';
 
@@ -13,6 +13,9 @@ export interface EphemeralReply {
   command: string;
   /** null = "pensando…" */
   content: string | null;
+  /** cartão rico e botões/menus (ADR-0034); o clique manda `component` com `ephemeralOf` = id */
+  embeds: Embed[];
+  components: MessageComponents;
   at: number;
 }
 
@@ -23,6 +26,8 @@ interface BotsStore {
   /** comandos por servidor (undefined = ainda não carregado) */
   commands: Record<string, ServerCommands[]>;
   loadCommands(serverId: string): Promise<void>;
+  /** carrega só se ainda não tem (menus "Apps" e popover de barra precisam da lista pronta) */
+  ensureCommands(serverId: string): Promise<void>;
   /** respostas efêmeras por canal (mais antiga primeiro) */
   ephemeral: Record<string, EphemeralReply[]>;
   replied(e: ServerEvents['interaction:replied']): void;
@@ -45,20 +50,33 @@ export const useBots = create<BotsStore>()((set, get) => ({
     inflight.set(serverId, p);
     return p;
   },
+  ensureCommands: (serverId) => (get().commands[serverId] ? Promise.resolve() : get().loadCommands(serverId)),
   ephemeral: {},
   replied: (e) => {
-    const entry: EphemeralReply = {
-      id: e.interactionId,
-      bot: e.bot,
-      command: e.command,
-      content: e.content,
-      at: Date.now(),
-    };
     set((s) => {
       const list = s.ephemeral[e.channelId] ?? [];
-      const next = list.some((x) => x.id === entry.id)
-        ? list.map((x) => (x.id === entry.id ? entry : x))
-        : [...list, entry];
+      const prev = list.find((x) => x.id === e.interactionId);
+      // `update`: o bot editou o cartão (clique num botão dele) — mantém o que ele não mandou de novo;
+      // sem `update`, "pensando…" → resposta substitui o cartão inteiro
+      const entry: EphemeralReply =
+        e.update && prev
+          ? {
+              ...prev,
+              content: e.content ?? prev.content,
+              embeds: e.embeds ?? prev.embeds,
+              components: e.components ?? prev.components,
+              at: Date.now(),
+            }
+          : {
+              id: e.interactionId,
+              bot: e.bot,
+              command: e.command,
+              content: e.content,
+              embeds: e.embeds ?? [],
+              components: e.components ?? [],
+              at: Date.now(),
+            };
+      const next = prev ? list.map((x) => (x.id === entry.id ? entry : x)) : [...list, entry];
       return { ephemeral: { ...s.ephemeral, [e.channelId]: next } };
     });
     const key = `${e.channelId}:${e.interactionId}`;

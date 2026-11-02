@@ -221,12 +221,22 @@ function Spoiler({ children }: { children: ReactNode }) {
   );
 }
 
-function ExternalLink({ href, children }: { href: string; children?: ReactNode }) {
+/** Link para fora do app: no desktop abre no navegador padrão (validado no main); também usado pelos embeds. */
+export function ExternalLink({
+  href,
+  children,
+  className,
+}: {
+  href: string;
+  children?: ReactNode;
+  className?: string;
+}) {
   return (
     <a
       href={href}
       rel="noreferrer noopener"
       target="_blank"
+      className={className}
       // link com texto: mostra para onde vai antes de clicar
       {...(children ? { 'data-tip': href } : {})}
       onClick={(e) => {

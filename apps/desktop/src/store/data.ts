@@ -336,8 +336,11 @@ interface MessagesState {
  * Campos que chegaram depois (fixar, enquete, cargos por reação) podem faltar quando a API é mais antiga que o app
  * (instância sem atualizar): completa com o vazio em vez de quebrar a conversa inteira.
  */
-type LooseMessage = Omit<Message, 'pinnedAt' | 'poll' | 'reactionRoles' | 'author' | 'replyCount'> &
-  Partial<Pick<Message, 'pinnedAt' | 'poll' | 'reactionRoles' | 'replyCount'>> & {
+type LooseMessage = Omit<
+  Message,
+  'pinnedAt' | 'poll' | 'reactionRoles' | 'author' | 'replyCount' | 'embeds' | 'components'
+> &
+  Partial<Pick<Message, 'pinnedAt' | 'poll' | 'reactionRoles' | 'replyCount' | 'embeds' | 'components'>> & {
     author: Omit<Message['author'], 'bot'> & { bot?: boolean };
   };
 export function normalizeMessage(m: LooseMessage): Message {
@@ -348,6 +351,8 @@ export function normalizeMessage(m: LooseMessage): Message {
     poll: m.poll ?? null,
     reactionRoles: m.reactionRoles ?? [],
     replyCount: m.replyCount ?? 0,
+    embeds: m.embeds ?? [],
+    components: m.components ?? [],
   };
 }
 

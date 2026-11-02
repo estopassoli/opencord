@@ -7125,6 +7125,31 @@ html[data-wallpaper='true'] .chat-scroll {
 .slash-hint code {
   font-family: var(--font-mono, ui-monospace, monospace);
 }
+/* valor fora dos limites da opção (minValue/maxLength…): a dica vira aviso */
+.slash-hint[data-error='true'] {
+  color: var(--danger, #e5484d);
+}
+.slash-item .role-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+.slash-item[data-kind='option'] .slash-item-name,
+.slash-item[data-kind='value'] .slash-item-name {
+  font-family: inherit;
+  font-weight: 500;
+}
+
+/* ---- castigo (ADR-0034): relógio ao lado do nome na lista de membros ---- */
+.member-timeout {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--text-2);
+}
 
 /* ---- respostas efêmeras dos bots ("só você vê") acima do composer ---- */
 .ephemeral-list {
@@ -7210,5 +7235,247 @@ html[data-wallpaper='true'] .chat-scroll {
   .ephemeral-dots i {
     animation: none;
     opacity: 0.6;
+  }
+}
+
+/* ---- bots v2 (ADR-0034): embeds (cartões ricos) nas mensagens e nos cartões efêmeros ---- */
+.embeds {
+  grid-column: 2;
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  min-width: 0;
+}
+.embed {
+  /* sem cor o bot deixa a barra neutra */
+  --embed-color: var(--text-muted);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'body thumb'
+    'image image'
+    'footer footer';
+  gap: 8px 12px;
+  width: min(520px, 100%);
+  padding: 10px 14px 10px 12px;
+  border-left: 4px solid var(--embed-color);
+  border-radius: var(--radius-sm);
+  background: var(--elevated);
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-size: 0.875rem;
+}
+.embed:not(:has(.embed-thumb)) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'body'
+    'image'
+    'footer';
+}
+.embed-body {
+  grid-area: body;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.embed-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  min-width: 0;
+}
+.embed-author img,
+.embed-footer img {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.embed-author a {
+  color: inherit;
+}
+.embed-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.embed-title a {
+  color: var(--link);
+}
+.embed-desc,
+.embed-field-value {
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+.embed-desc .md-h {
+  margin-top: 2px;
+}
+.embed-fields {
+  display: grid;
+  gap: 8px;
+}
+.embed-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.embed-field {
+  min-width: 0;
+}
+.embed-field-name {
+  font-weight: 600;
+  margin-bottom: 2px;
+  color: var(--text);
+}
+.embed-thumb {
+  grid-area: thumb;
+  align-self: start;
+  display: block;
+  cursor: zoom-in;
+}
+.embed-thumb img {
+  width: 80px;
+  height: 80px;
+  display: block;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.embed-image {
+  grid-area: image;
+  display: block;
+  justify-self: start;
+  max-width: 100%;
+  cursor: zoom-in;
+}
+.embed-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  width: auto;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+.embed-footer {
+  grid-area: footer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.embed-footer img {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---- bots v2: botões e menus de uma mensagem ---- */
+.components {
+  grid-column: 2;
+  display: grid;
+  gap: 6px;
+  width: min(520px, 100%);
+  margin-top: 6px;
+  min-width: 0;
+}
+.component-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.component-btn {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.component-btn[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.75;
+}
+.component-link {
+  text-decoration: none;
+}
+.component-link[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.component-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+.component-spin {
+  animation: component-spin 0.9s linear infinite;
+}
+@keyframes component-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.component-select {
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: 100%;
+}
+.component-select .oc-select {
+  min-height: 34px;
+  font-size: 0.875rem;
+}
+.component-listbox {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.component-listbox ul {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+.component-listbox-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  margin-top: 4px;
+  padding: 6px 4px 2px;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.component-option-dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+}
+.ephemeral-body .embeds,
+.ephemeral-body .components {
+  margin-top: 6px;
+}
+
+/* ---- bots v2: formulário aberto por um bot ---- */
+.bot-modal-from {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 0;
+}
+.bot-modal-from .bot-badge {
+  margin-left: 0;
+}
+.bot-modal .oc-textarea {
+  min-height: 110px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .component-spin {
+    animation: none;
   }
 }

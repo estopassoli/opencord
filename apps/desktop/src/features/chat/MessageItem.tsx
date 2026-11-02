@@ -11,9 +11,12 @@ import { renderRich } from './rich';
 import { InviteEmbed, inviteCodesIn } from './InviteEmbed';
 import { VoiceNote } from './VoiceNote';
 import { PollCard } from './Poll';
+import { EmbedCards } from './Embeds';
+import { ComponentRows } from './Components';
 import { ReactionRoleChips, ReactionRolesDialog } from './ReactionRoles';
 import type { ChatTarget } from './ChatView';
 import { nameFor } from '../../lib/names';
+import { messageAppsMenu } from './messageApps';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 
@@ -178,6 +181,7 @@ export const MessageItem = memo(function MessageItem({
               },
             ]
           : []),
+        ...(!m.deleted ? messageAppsMenu(serverId, m.id) : []),
         {
           label: 'Copiar texto',
           icon: 'copy' as const,
@@ -272,7 +276,8 @@ export const MessageItem = memo(function MessageItem({
           />
           <span className="small muted">Enter para salvar · Esc para cancelar</span>
         </div>
-      ) : (
+      ) : m.body || m.poll || m.pinnedAt || m.editedAt ? (
+        // mensagem só com embeds/componentes (corpo vazio) não mostra o texto vazio
         <div className="msg-body">
           {m.pinnedAt && (
             <span className="msg-pin" data-tip="Mensagem fixada">
@@ -296,7 +301,7 @@ export const MessageItem = memo(function MessageItem({
             </span>
           )}
         </div>
-      )}
+      ) : null}
       {inviteCodesIn(m.body).map((code) => (
         <InviteEmbed key={code} code={code} />
       ))}
@@ -339,6 +344,17 @@ export const MessageItem = memo(function MessageItem({
             ),
           )}
         </div>
+      )}
+      {/* bots v2 (ADR-0034): cartões ricos e botões/menus abaixo do texto e dos anexos */}
+      {m.embeds.length > 0 && (
+        <EmbedCards
+          embeds={m.embeds}
+          nameOf={nameOf}
+          author={{ id: m.author.id, name: nameOf(m.author.id), createdAt: m.createdAt }}
+        />
+      )}
+      {m.components.length > 0 && (
+        <ComponentRows rows={m.components} source={{ messageId: m.id }} serverId={serverId} nameOf={nameOf} />
       )}
       {m.reactionRoles.length > 0 && (
         <ReactionRoleChips message={m} serverId={serverId} canReact={canReact} react={react} />

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChannelKind } from '@opencord/contracts';
+import type { ChannelKind, ServerEvents } from '@opencord/contracts';
 import type { TargetKey } from './data';
 
 export type View =
@@ -26,6 +26,8 @@ export type Modal =
   | { kind: 'profile'; userId: string }
   | { kind: 'add-to-dm'; peerId: string }
   | { kind: 'friend-nickname'; userId: string }
+  /** banir alguém do servidor (ADR-0034): motivo + apagar mensagens recentes */
+  | { kind: 'ban'; serverId: string; userId: string }
   | { kind: 'create-channel'; serverId: string; channelKind: ChannelKind; categoryId: string | null }
   | { kind: 'create-category'; serverId: string }
   | { kind: 'events'; serverId: string }
@@ -33,6 +35,8 @@ export type Modal =
   | { kind: 'watch-together' }
   | { kind: 'screen-picker' }
   | { kind: 'quick-switcher' }
+  /** formulário aberto por um bot (ADR-0034) */
+  | { kind: 'bot-modal'; request: ServerEvents['interaction:modal'] }
   | null;
 
 export type FriendsPanelMode = 'open' | 'compact' | 'hidden';
