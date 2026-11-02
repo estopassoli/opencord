@@ -36,6 +36,14 @@ export function isIos(nav: Navigator = navigator): boolean {
   return /iPhone|iPad|iPod/.test(nav.userAgent) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
 }
 
+/** Navegador de celular (Android ou iOS), nunca o app desktop. */
+export function isMobileWeb(
+  nav: Navigator | undefined = typeof navigator === 'undefined' ? undefined : navigator,
+): boolean {
+  if (isDesktop || !nav) return false;
+  return isIos(nav) || /Android/i.test(nav.userAgent);
+}
+
 export function initialInstallKind(nav: Navigator = navigator, win: Window = window): InstallKind {
   if (isDesktop || isStandalone(nav, win)) return 'none';
   return isIos(nav) ? 'ios' : 'none';

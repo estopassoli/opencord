@@ -181,6 +181,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
           dispatch({ type: 'RECONNECTED' });
         },
         onDisconnected: (reason) => void handleDisconnect(reason),
+        onHangupRequested: () => void get().leave(),
         onStreamEnded: () => {
           sdispatch({ type: 'SOURCE_ENDED' });
           void get().stopStream();

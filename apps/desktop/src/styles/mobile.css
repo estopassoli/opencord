@@ -271,6 +271,17 @@
   }
 
   /* ---------- voz ---------- */
+  /* canal de voz sem estar na chamada: cabeçalho com o menu por cima do palco centralizado */
+  .stage-idle-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    background: transparent;
+    border-bottom: 0;
+    box-shadow: none;
+  }
   /* cabeçalho: só o nome do canal e o selo AO VIVO cabem; quem transmite e a qualidade ficam no card */
   .stage-header .stage-live-who,
   .stage-header .live-badge-q {

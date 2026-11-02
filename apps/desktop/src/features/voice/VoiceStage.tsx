@@ -38,6 +38,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   const others = useData(useShallow((s) => Object.values(s.voiceStates).filter((v) => v.channelId === channelId)));
   const members = useData((s) => s.details[serverId]?.members) ?? NO_MEMBERS;
   const here = machine.channelId === channelId && isInCall(machine);
+  const mobileShell = useIsMobile();
   const stageRef = useRef<HTMLElement>(null);
   useRecordingLoad(channelId);
   // ref por estado: a grade monta e desmonta ao alternar com a live em destaque, e a medição precisa acompanhar
@@ -50,6 +51,13 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   if (!here) {
     return (
       <section className="stage stage-idle" aria-label={`Canal de voz ${channel?.name ?? ''}`}>
+        {/* celular: sem a barra lateral à vista, o menu é o caminho de volta para canais e servidores */}
+        {mobileShell && (
+          <header className="chat-header stage-header stage-idle-header">
+            <MobileNavButton />
+            <h2 className="truncate">{channel?.name}</h2>
+          </header>
+        )}
         <Icon name="speaker" size={48} />
         <h2>{channel?.name}</h2>
         <p className="muted">{others.length ? `${others.length} pessoa(s) na chamada` : 'Ninguém aqui ainda.'}</p>

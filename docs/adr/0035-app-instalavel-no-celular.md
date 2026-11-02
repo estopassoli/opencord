@@ -35,6 +35,17 @@ abrir a aba.
   bloco em Configurações → Sobre); iOS não tem o evento, então o app orienta (Compartilhar → Adicionar à Tela de
   Início). Já instalado (`display-mode: standalone`), nada aparece.
 
+### Chamada em segundo plano no navegador do celular (adendo, mesmo dia)
+Relato real (iPhone): ao minimizar, a voz dos outros parava e o microfone ficava mudo. Causa: três `AudioContext`
+no caminho da voz (mixer Web Audio do livekit-client, RNNoise em worklet e o analisador do gate de voz) que o iOS
+suspende fora da frente; o gate fechado desligava a trilha. Em `isMobileWeb()` (Android/iOS no navegador): sem
+`webAudioMix` (áudio remoto direto em `<audio>`), sem RNNoise (fica a supressão do navegador), sem gate (microfone
+sempre aberto; "falando" vem da SFU), silenciar/ensurdecer via `muted` do elemento (o iOS ignora `volume`), Media
+Session (`playing` + play/pause inertes + `hangup` sai da chamada) e, ao voltar à frente, `startAudio()` e
+`restartTrack` se o sistema encerrou o microfone. A tela ociosa do canal de voz ganhou cabeçalho com o menu.
+Limite honesto: o iOS ainda pode cortar o microfone em segundo plano conforme a versão; a reprodução deve seguir.
+Validação em iPhone/Android reais pendente.
+
 ## Alternativas
 - `vite-plugin-pwa`/Workbox: mais poder (precache completo, estratégias), mas dependência extra e precache de
   vários MB (three.js, fontes, wasm) que não precisamos; o worker de 60 linhas cobre o caso.

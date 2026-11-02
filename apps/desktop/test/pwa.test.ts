@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildServiceWorker, precacheFromBundle, versionFromBundle } from '../scripts/pwa.mjs';
-import { initialInstallKind, isIos, isStandalone } from '../src/lib/pwa';
+import { initialInstallKind, isIos, isMobileWeb, isStandalone } from '../src/lib/pwa';
 
 const bundle = {
   'index.html': { type: 'asset' },
@@ -65,5 +65,11 @@ describe('convite de instalação', () => {
   });
   it('Android/desktop começam sem convite: só o beforeinstallprompt do navegador libera o botão', () => {
     expect(initialInstallKind(nav('Mozilla/5.0 (Linux; Android 14) Chrome/130'), win(false))).toBe('none');
+  });
+  it('navegador de celular = Android ou iOS (o motor de voz evita AudioContext nesse caso)', () => {
+    expect(isMobileWeb(nav('Mozilla/5.0 (Linux; Android 14) Chrome/130'))).toBe(true);
+    expect(isMobileWeb(nav('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'))).toBe(true);
+    expect(isMobileWeb(nav('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130'))).toBe(false);
+    expect(isMobileWeb(undefined)).toBe(false);
   });
 });

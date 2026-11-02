@@ -39,6 +39,7 @@ import { SceneCompositor } from './compositor';
 import { SystemAudio } from './system-audio';
 import { screenLayer, type Scene } from '../lib/scenes';
 import { bridge } from '../lib/bridge';
+import { isMobileWeb } from '../lib/pwa';
 
 export interface ParticipantView {
   identity: string;
@@ -113,6 +114,8 @@ export interface EngineCallbacks {
   onStats(s: MediaStats): void;
   /** nova prévia da própria live (JPEG), para publicar na API */
   onStreamPreview?(image: Blob): void;
+  /** tela de bloqueio/fones pediram para desligar (Media Session) */
+  onHangupRequested?(): void;
 }
 
 export interface AudioPrefs {
@@ -126,6 +129,14 @@ export interface AudioPrefs {
   inputVolume: number;
   outputVolume: number;
 }
+
+/**
+ * Navegador de celular (ADR-0035): nada de AudioContext no caminho da voz. O iOS suspende contextos de áudio quando
+ * o app sai da frente; com o mixer Web Audio o áudio dos outros sumia, com o RNNoise (worklet) e o gate de voz
+ * (analisador) o microfone ficava mudo. Aqui o áudio remoto vai direto a <audio>, o microfone usa só a supressão
+ * do navegador e fica sempre aberto (sem gate); quem está falando vem da SFU.
+ */
+const mobileWeb = isMobileWeb();
 
 const QUALITY: Record<ConnectionQuality, ParticipantView['quality']> = {
   [ConnectionQuality.Excellent]: 'excellent',
@@ -199,7 +210,7 @@ export class VoiceEngine {
       // a qualidade segue o tamanho do vídeo na tela; minimizado não pausa (a gravação da chamada segue recebendo)
       adaptiveStream: { pauseVideoInBackground: false },
       dynacast: true,
-      webAudioMix: true,
+      webAudioMix: !mobileWeb,
       disconnectOnPageLeave: true,
       stopLocalTrackOnUnpublish: true,
       audioCaptureDefaults: this.captureOpts(),
@@ -228,12 +239,75 @@ export class VoiceEngine {
     }
     this.applyDeafen();
     this.startStats();
+    this.keepAliveInBackground(room);
     this.emit();
+  }
+
+  /**
+   * Celular: sessão de mídia para o sistema tratar a chamada como reprodução (segue em segundo plano, com controles
+   * na tela de bloqueio) e, ao voltar para a frente, destrava o áudio e reabre o microfone se o sistema o encerrou.
+   */
+  private keepAliveInBackground(room: Room) {
+    this.stopKeepAlive();
+    if (!mobileWeb) return;
+    const ms = navigator.mediaSession;
+    // 'hangup' ainda não está na tipagem do DOM; ações desconhecidas lançam e são ignoradas
+    const setAction = (a: string, h: (() => void) | null) => {
+      try {
+        (ms?.setActionHandler as ((a: string, h: (() => void) | null) => void) | undefined)?.(a, h);
+      } catch {
+        /* ação não existe neste navegador */
+      }
+    };
+    if (ms) {
+      try {
+        ms.metadata = new MediaMetadata({ title: 'Chamada de voz', artist: 'OpenCord' });
+        ms.playbackState = 'playing';
+      } catch {
+        /* sem Media Session */
+      }
+      // play/pause da tela de bloqueio não param a chamada; "desligar" sai dela
+      setAction('play', () => undefined);
+      setAction('pause', () => undefined);
+      setAction('hangup', () => this.cb.onHangupRequested?.());
+    }
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || this.room !== room) return;
+      if (!room.canPlaybackAudio) void room.startAudio().catch(() => undefined);
+      const t = this.micTrack;
+      if (t && t.mediaStreamTrack.readyState === 'ended') {
+        this.note('mic-ended-in-background');
+        void t
+          .restartTrack(this.captureOpts())
+          .then(() => this.applyMic())
+          .catch(() => undefined);
+      } else void this.applyMic();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    this.keepAlive = () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      if (ms) {
+        try {
+          ms.playbackState = 'none';
+          ms.metadata = null;
+        } catch {
+          /* idem */
+        }
+        for (const a of ['play', 'pause', 'hangup']) setAction(a, null);
+      }
+    };
+  }
+
+  private keepAlive: (() => void) | null = null;
+  private stopKeepAlive() {
+    this.keepAlive?.();
+    this.keepAlive = null;
   }
 
   /** Nova conexão com token novo (usado na reconexão completa após falha da SFU). */
   async disconnect() {
     this.intentional = true;
+    this.stopKeepAlive();
     await this.stopStream().catch(() => undefined);
     this.stopVad();
     if (this.statsTimer) clearInterval(this.statsTimer);
@@ -381,7 +455,7 @@ export class VoiceEngine {
     if (!t) return;
     const active = t.getProcessor()?.name === RNNOISE;
     try {
-      if (this.prefs.noiseSuppression && !active) await t.setProcessor(new RnnoiseProcessor());
+      if (this.prefs.noiseSuppression && !active && !mobileWeb) await t.setProcessor(new RnnoiseProcessor());
       else if (!this.prefs.noiseSuppression && active) await t.stopProcessor();
     } catch (e) {
       console.warn('supressão de ruído (RNNoise) indisponível', e);
@@ -392,7 +466,7 @@ export class VoiceEngine {
   private startVad() {
     this.stopVad();
     const t = this.micTrack;
-    if (!t) return;
+    if (!t || mobileWeb) return;
     const ctx = new AudioContext();
     this.vadCtx = ctx;
     // analisa uma cópia: o gate desabilita a trilha publicada, não a análise
@@ -461,10 +535,13 @@ export class VoiceEngine {
         : (this.volumes.get(p.identity) ?? 1) * this.prefs.outputVolume;
     p.setVolume(v, Track.Source.Microphone);
     // áudio da transmissão: volume próprio por pessoa (menu da live), independente do volume da voz
-    p.setVolume(
-      this.deafened ? 0 : (this.screenVolumes.get(p.identity) ?? 1) * this.prefs.outputVolume,
-      Track.Source.ScreenShareAudio,
-    );
+    const sv = this.deafened ? 0 : (this.screenVolumes.get(p.identity) ?? 1) * this.prefs.outputVolume;
+    p.setVolume(sv, Track.Source.ScreenShareAudio);
+    // iOS ignora o volume do <audio>: silenciar/ensurdecer vira muted no elemento
+    if (mobileWeb)
+      for (const pub of p.audioTrackPublications.values())
+        for (const el of pub.track?.attachedElements ?? [])
+          el.muted = (pub.source === Track.Source.ScreenShareAudio ? sv : v) === 0;
   }
 
   setScreenVolume(identity: string, v: number) {
@@ -778,9 +855,8 @@ export class VoiceEngine {
   /** Falando e de fato transmitindo (gate/PTT abertos, sem mute). */
   private localSpeaking() {
     const t = this.micTrack;
-    return Boolean(
-      this.localLoud && t && !t.isMuted && t.mediaStreamTrack.enabled && !this.selfMuted && !this.deafened,
-    );
+    const loud = mobileWeb ? this.speakingSet.has(this.room?.localParticipant.identity ?? '') : this.localLoud;
+    return Boolean(loud && t && !t.isMuted && t.mediaStreamTrack.enabled && !this.selfMuted && !this.deafened);
   }
 
   private emit() {

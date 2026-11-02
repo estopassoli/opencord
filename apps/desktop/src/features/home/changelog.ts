@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '20:00',
+    kind: 'correção',
+    icon: 'speaker',
+    title: 'Celular: chamada em segundo plano e caminho de volta',
+    body: 'No navegador do celular, ao minimizar o app a voz dos outros parava e o seu microfone ficava mudo: o sistema suspende os processadores de áudio da página. Agora o áudio vai direto ao alto-falante, o microfone fica sempre aberto (sem gate de voz) e a chamada aparece como mídia na tela de bloqueio, com botão de desligar. Ao voltar para o app o microfone reabre sozinho. E a tela "Entrar na chamada" ganhou o menu para voltar aos canais e servidores.',
+  },
+  {
+    date: '2026-11-02',
     time: '19:30',
     kind: 'novo',
     icon: 'smartphone',
