@@ -2,7 +2,7 @@
 
 Guia para quem desenvolve bots para o OpenCord (ADR-0032). Um bot é um usuário com token: entra em servidores como
 membro, recebe cargos, manda mensagens, reage e responde a comandos de barra. O SDK `@opencord-chat/bot` (MIT) usa os
-nomes que a comunidade de bots já conhece; quem preferir fala direto com a API REST e o gateway (seção 6).
+nomes que a comunidade de bots já conhece; quem preferir fala direto com a API REST e o gateway (seção 7).
 
 Todos os blocos "Resultado" deste guia foram obtidos rodando o código contra uma API real (roteiro em
 `packages/bot-sdk/examples/`, mesma versão do SDK). Os ids são UUIDs v7; os nomes de usuário de bots são gerados
@@ -405,7 +405,8 @@ Resultado:
 }
 ```
 
-Embeds não existem no OpenCord: `EmbedBuilder` vira **markdown** que o app renderiza.
+Na 0.1 `EmbedBuilder` virava markdown; desde a 0.2.0 é um cartão de verdade (seção 5.2). O markdown abaixo continua
+disponível por `toMarkdown()`.
 
 ```js
 const embed = new EmbedBuilder()
@@ -555,7 +556,8 @@ Resultado (mais recente primeiro; mensagem apagada vem como lápide com `deleted
 
 Campos de `Message`: `id`, `content`, `author` (`User`), `member`, `channel`, `channelId`, `conversationId` (DM),
 `guild`, `guildId`, `createdAt`, `createdTimestamp`, `editedAt`, `deleted`, `mentions` (`users`, `everyone`,
-`has()`), `reference`, `reactions`, `attachments`, `pinnedAt`, `url`, `partial: false`. Métodos: `reply`, `react`,
+`has()`), `reference`, `reactions` (na 0.2.0 um `ReactionManager`: `.cache`, `.removeAll()`), `attachments`
+(na 0.2.0 uma `Collection` de `Attachment`), `embeds`, `components`, `pinnedAt`, `url`, `partial: false`. Métodos: `reply`, `react`,
 `unreact`, `edit`, `delete`, `pin`, `unpin`, `inGuild()`, `toString()` (o conteúdo).
 
 ### 4.5 Usuários e conversas diretas
@@ -610,8 +612,9 @@ Resultado:
 }
 ```
 
-`GuildMember.permissions` soma os bits dos **cargos** do membro (não inclui `@everyone` nem o fato de ser dono: Ana é
-dona e aparece com `0`). Para "o que o bot pode fazer" use `guild.myPermissions` e `channel.myPermissions`.
+Na 0.2.0 `GuildMember.permissions` virou um `PermissionsBitField` (inclui `@everyone`; dona/ADMINISTRATOR = tudo):
+`member.permissions.has('BanMembers')`, `.toArray()`, `.bitfield`. Para "o que o bot pode fazer" use
+`guild.myPermissions` e `channel.myPermissions`.
 `guild.members.fetch()` sem id recarrega e devolve o `Map` inteiro.
 
 Eventos de membros e canais (Bruno entra por convite, Ana cria `#resenhas`, expulsa Bruno e remove o bot):
@@ -663,7 +666,309 @@ servidor é excluído. `channelUpdate(old, new)` e `channelDelete(channel)` segu
 - Erros dentro de um handler de evento vão para `Events.Error` se houver ouvinte; senão para `Events.Debug` (o
   processo não cai).
 
-## 5. Regras das interações
+## 5. Novidades da 0.2.0, com resultados
+
+Tudo abaixo foi obtido rodando `packages/bot-sdk/examples/tour-v2.mjs` contra uma API real. Cenário: Ana criou o
+**Clube do Livro** e o bot **Bibliotecário**; Bruno entrou por convite. Os "cliques" e envios das pessoas são as
+mesmas requisições que o app faz.
+
+### 5.1 Comandos: subcomandos, grupos, autocompletar, permissões e menus de contexto
+
+```js
+await client.application.commands.set([
+  new SlashCommandBuilder()
+    .setName('livro').setDescription('Gerencia a leitura do mês')
+    .addSubcommand((s) => s.setName('sugerir').setDescription('Sugere um livro')
+      .addStringOption((o) => o.setName('titulo').setDescription('Título').setRequired(true).setAutocomplete(true))
+      .addIntegerOption((o) => o.setName('paginas').setDescription('Páginas').setMinValue(1).setMaxValue(2000)))
+    .addSubcommandGroup((g) => g.setName('votacao').setDescription('Votação do mês')
+      .addSubcommand((s) => s.setName('abrir').setDescription('Abre a votação'))
+      .addSubcommand((s) => s.setName('fechar').setDescription('Fecha a votação')
+        .addRoleOption((o) => o.setName('cargo').setDescription('Cargo que decide')))),
+  new SlashCommandBuilder().setName('limpar').setDescription('Apaga mensagens recentes')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption((o) => o.setName('quantas').setDescription('Até 100').setRequired(true).setMinValue(1).setMaxValue(100)),
+  new ContextMenuCommandBuilder().setName('Reportar mensagem').setType(ApplicationCommandType.Message),
+  new ContextMenuCommandBuilder().setName('Ver leituras').setType(ApplicationCommandType.User),
+]);
+```
+
+Resultado (resumido; `type` chat/message/user, `defaultMemberPermissions: 4` = MANAGE_MESSAGES):
+
+```
+[
+  { type: 'chat', name: 'livro', options: [
+      { type: 'subcommand', name: 'sugerir', options: [
+          { name: 'titulo', type: 'string', required: true, autocomplete: true },
+          { name: 'paginas', type: 'integer', minValue: 1, maxValue: 2000 } ] },
+      { type: 'subcommand_group', name: 'votacao', options: [
+          { type: 'subcommand', name: 'abrir' }, { type: 'subcommand', name: 'fechar', options: [ … cargo: role ] } ] } ],
+    defaultMemberPermissions: null, guildIds: [] },
+  { type: 'chat', name: 'limpar', options: [ { name: 'quantas', type: 'integer', required: true, minValue: 1, maxValue: 100 } ],
+    defaultMemberPermissions: 4, guildIds: [] },
+  { type: 'message', name: 'Reportar mensagem', description: '', options: [] },
+  { type: 'user', name: 'Ver leituras', description: '', options: [] }
+]
+```
+
+No app: `/livro` abre o popover com `sugerir` e `votacao`; `votacao` abre `abrir`/`fechar`; comandos de contexto
+aparecem em **Apps** no botão direito de uma pessoa ou mensagem. `setGuildIds([...])` deixa o comando só em alguns
+servidores. Bruno usa `/livro votacao fechar cargo:@Moderação`:
+
+```js
+client.on(Events.InteractionCreate, (i) => {
+  if (!i.isChatInputCommand()) return;
+  console.log(i.commandName, i.options.getSubcommandGroup(), i.options.getSubcommand(), i.options.getRole('cargo')?.name);
+});
+```
+
+Resultado: `livro votacao fechar Moderação`. `/limpar` sem MANAGE_MESSAGES:
+
+```
+POST /interactions → 403 {"message":"sem permissão para este comando"}
+```
+
+**Autocompletar:** enquanto a pessoa digita `titulo:se`, o app pergunta ao bot (espera até 3 s):
+
+```js
+client.on(Events.InteractionCreate, async (i) => {
+  if (!i.isAutocomplete()) return;
+  const typed = i.options.getFocused(true); // { name: 'titulo', value: 'se' }
+  await i.respond(livros.filter((l) => l.toLowerCase().includes(typed.value.toLowerCase())).map((l) => ({ name: l, value: l })));
+});
+```
+
+Resultado (o que o app recebe de `POST /interactions { type: 'autocomplete' }`):
+
+```
+{ id: '82369d12-…', choices: [ { name: 'Grande Sertão: Veredas', value: 'Grande Sertão: Veredas' }, { name: 'Vidas Secas', value: 'Vidas Secas' } ] }
+```
+
+### 5.2 Embeds de verdade
+
+`EmbedBuilder` agora vira um cartão no app (barra colorida, autor, título com link, descrição em markdown, campos
+em grade, miniatura, imagem, rodapé com data), não mais markdown.
+
+```js
+const embed = new EmbedBuilder()
+  .setColor('#7c5cff').setAuthor({ name: 'Clube do Livro' })
+  .setTitle('Leitura do mês: Dom Casmurro').setURL('https://exemplo.dev/dom-casmurro')
+  .setDescription('Machado de Assis, 1899. Capítulos 1–20 até sexta.')
+  .addFields({ name: 'Páginas', value: '256', inline: true }, { name: 'Meta', value: '20 cap.', inline: true })
+  .setFooter({ text: 'Votação aberta até domingo' }).setTimestamp(new Date('2026-11-02T10:00:00-03:00'));
+console.log(embed.toJSON());
+```
+
+Resultado:
+
+```
+{
+  fields: [ { name: 'Páginas', value: '256', inline: true }, { name: 'Meta', value: '20 cap.', inline: true } ],
+  title: 'Leitura do mês: Dom Casmurro',
+  description: 'Machado de Assis, 1899. Capítulos 1–20 até sexta.',
+  url: 'https://exemplo.dev/dom-casmurro',
+  color: '#7c5cff',
+  footer: { text: 'Votação aberta até domingo' },
+  author: { name: 'Clube do Livro' },
+  timestamp: '2026-11-02T13:00:00.000Z'
+}
+```
+
+`setColor` aceita `0x7c5cff`, `'#7c5cff'`, `'Red'`, `[r, g, b]`. Limites: 10 embeds por mensagem, 6000 caracteres
+por embed, 25 campos. Só bots e webhooks enviam embeds.
+
+### 5.3 Botões e menus (componentes)
+
+```js
+const row1 = new ActionRowBuilder().addComponents(
+  new ButtonBuilder().setCustomId('vou-ler').setLabel('Vou ler').setStyle(ButtonStyle.Primary).setEmoji('📚'),
+  new ButtonBuilder().setCustomId('passo').setLabel('Passo').setStyle(ButtonStyle.Secondary),
+  new ButtonBuilder().setLabel('Comprar').setStyle(ButtonStyle.Link).setURL('https://exemplo.dev/comprar'),
+);
+const row2 = new ActionRowBuilder().addComponents(
+  new StringSelectMenuBuilder().setCustomId('ritmo').setPlaceholder('Seu ritmo de leitura').addOptions(
+    new StringSelectMenuOptionBuilder().setLabel('Devagar').setValue('lento').setDescription('1 capítulo por dia'),
+    new StringSelectMenuOptionBuilder().setLabel('Normal').setValue('normal').setDefault(true),
+    new StringSelectMenuOptionBuilder().setLabel('Maratona').setValue('rapido').setEmoji('🔥'),
+  ),
+);
+const m = await channel.send({ content: 'Chegou a leitura do mês!', embeds: [embed], components: [row1, row2] });
+console.log({ id: m.id, embeds: m.embeds.map((e) => e.title), components: m.components.map((r) => r.components.map((c) => c.customId ?? c.url)) });
+```
+
+Resultado:
+
+```
+{ id: '01a19cdc-9fda-7172-b337-d42dd1d85e4f', embeds: [ 'Leitura do mês: Dom Casmurro' ],
+  components: [ [ 'vou-ler', 'passo', 'https://exemplo.dev/comprar' ], [ 'ritmo' ] ] }
+```
+
+Até 5 linhas, cada uma com até 5 botões ou 1 menu. Menus `UserSelectMenuBuilder`, `RoleSelectMenuBuilder` e
+`ChannelSelectMenuBuilder` listam pessoas, cargos e canais do servidor no app e entregam ids. Bruno clica em
+"Vou ler" e depois escolhe "Maratona":
+
+```js
+client.on(Events.InteractionCreate, async (i) => {
+  if (i.isButton()) {
+    console.log({ customId: i.customId, user: i.user.tag, message: i.message?.id, componentType: i.componentType });
+    await i.update({ content: 'Chegou a leitura do mês! **1 pessoa** vai ler.', embeds: [embed], components: [row1, row2] });
+  }
+  if (i.isStringSelectMenu()) {
+    console.log({ customId: i.customId, values: i.values });
+    const r = await i.reply({ content: `Anotado: ritmo **${i.values[0]}**.`, ephemeral: true });
+    console.log({ messageId: r.messageId, ephemeral: i.ephemeral });
+  }
+});
+```
+
+Resultado:
+
+```
+{ customId: 'vou-ler', user: 'bruno_tfs5', message: '01a19cdc-9fda-…', componentType: 'button' }
+→ update: chat:message:updated { content: 'Chegou a leitura do mês! **1 pessoa** vai ler.', editedAt: '2026-11-02T15:24:27.000Z' }
+{ customId: 'ritmo', values: [ 'rapido' ] }
+{ messageId: null, ephemeral: true }
+```
+
+`update()` edita a mensagem de origem; `deferUpdate()` só acusa o clique; `reply()` responde como um comando
+(efêmero vira cartão "Só você vê", que também pode ter botões: o clique chega com `i.ephemeralOf`).
+
+### 5.4 Modais (formulários)
+
+Comando de contexto "Reportar mensagem" numa mensagem abre um formulário:
+
+```js
+client.on(Events.InteractionCreate, async (i) => {
+  if (i.isMessageContextMenuCommand()) {
+    console.log({ commandName: i.commandName, target: i.targetMessage.content.slice(0, 40), user: i.user.tag });
+    await i.showModal(new ModalBuilder().setCustomId('reporte').setTitle('Reportar mensagem').addComponents(
+      new TextInputBuilder().setCustomId('motivo').setLabel('Motivo').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500),
+      new TextInputBuilder().setCustomId('contato').setLabel('Contato (opcional)').setStyle(TextInputStyle.Short).setRequired(false),
+    ));
+  }
+  if (i.isModalSubmit()) {
+    console.log({ customId: i.customId, motivo: i.fields.getTextInputValue('motivo'), contato: i.fields.getTextInputValue('contato') });
+    await i.reply({ content: 'Reporte recebido. Obrigado!', ephemeral: true });
+  }
+});
+```
+
+Resultado:
+
+```
+{ commandName: 'Reportar mensagem', target: 'Chegou a leitura do mês! **1 pessoa** va', user: 'bruno_tfs5' }
+→ a pessoa recebe interaction:modal { modalId: 'da952ec1-…', title: 'Reportar mensagem', fields: [ 'motivo (paragraph, obrigatório)', 'contato (short)' ] }
+{ customId: 'reporte', motivo: 'Spoiler no título!', contato: '' }
+```
+
+Campo opcional em branco não vem no envio: `getTextInputValue` devolve `''` (`getField(id)` lança). Até 5 campos;
+o modal vale 15 min. `interaction.awaitModalSubmit({ time })` espera o envio no mesmo lugar do código.
+
+### 5.5 Moderação
+
+```js
+const member = await guild.members.fetch(brunoId);
+console.log({ bitfield: member.permissions.bitfield, has: member.permissions.has('SendMessages'), some: member.permissions.toArray().slice(0, 4) });
+await member.timeout(60_000, 'spoiler');
+const after = await guild.members.fetch(brunoId);
+console.log({ until: after.communicationDisabledUntil, disabled: after.isCommunicationDisabled() });
+```
+
+Resultado:
+
+```
+{ bitfield: 1979, has: true, some: [ 'ViewChannel', 'SendMessages', 'AttachFiles', 'AddReactions' ] }
+{ until: 2026-11-02T15:25:27.104Z, disabled: true }
+```
+
+Em castigo, Bruno tenta escrever: `403 {"message":"em castigo até 2026-11-02T15:25:27.104Z"}` (vale para
+mensagens, reações, comandos e entrar em voz; o app desabilita o composer). `member.timeout(null)` tira.
+
+```js
+const deleted = await channel.bulkDelete(mensagens);          // até 100; MANAGE_MESSAGES ou só as próprias
+client.on(Events.GuildBanAdd, (ban) => console.log({ user: ban.user.tag, reason: ban.reason, executor: ban.executor?.tag }));
+await guild.members.ban(brunoId, { reason: 'spoilers repetidos', deleteMessageSeconds: 3600 });
+await guild.bans.remove(brunoId);
+console.log((await guild.bans.fetch()).size);
+```
+
+Resultado:
+
+```
+{ apagadas: 3 }
+{ user: 'bruno_tfs5', reason: 'spoilers repetidos', executor: 'bot-6bb276' }
+banido tenta voltar pelo convite → 403 {"message":"banido deste servidor"}
+0
+```
+
+O bot precisa de um cargo com `BanMembers`/`ModerateMembers`/`ManageMessages`; a hierarquia de cargos vale como
+para pessoas (dono e super admin são intocáveis). Também: `member.kick(reason)`, `message.reactions.removeAll()`,
+`guild.bans.fetch()`, eventos `guildBanAdd/guildBanRemove`, `guildMemberUpdate`.
+
+### 5.6 Enquetes, digitando, presença, eventos, gestão, busca, webhooks
+
+```js
+const pollMsg = await channel.send({ poll: { question: 'Próximo gênero?', answers: [{ text: 'Ficção' }, { text: 'Técnico' }], allowMultiselect: false, duration: 24 } });
+console.log({ question: pollMsg.poll.question, answers: pollMsg.poll.answers.map((a) => a.text) });
+await channel.sendTyping();                                   // quem está no canal recebe chat:typing
+await client.user.setPresence({ status: 'dnd', activities: [{ name: 'organizando a estante' }] });
+```
+
+Resultado:
+
+```
+{ question: { text: 'Próximo gênero?' }, answers: [ 'Ficção', 'Técnico' ] }
+chat:typing { channelId: '01a19cdc-…', userId: '<bot>', active: true }
+```
+
+Também disponíveis: `poll.vote(ids)`, `poll.end()`, evento `pollUpdate`; `typingStart`, `presenceUpdate`,
+`guild.presences.cache`; `client.user.setStatus('idle')`, `setActivity('nome')`, `setStatusText('texto')`;
+`guild.scheduledEvents.create({ name, scheduledStartTime, channel })` + `event.rsvp('going')`;
+`guild.channels.create({ name, type: ChannelType.GuildText, parent })`, `guild.roles.create({ name, permissions, color })`,
+`member.roles.add(role)`, `guild.invites.create()`, `guild.fetchAuditLogs()`, `guild.edit({ name })`;
+`channel.messages.search({ q, authorId, has })`, `guild.messages.search(...)`, `channel.messages.fetchPinned()`,
+`message.fetchReplies()`, `message.fetch()` (GET /messages/:id); `channel.createWebhook({ name })` e `webhook.send()`;
+anexos: `channel.send({ files: [new AttachmentBuilder('./capa.png')] })` ou `files: ['./capa.png']`.
+
+### 5.7 Coletores
+
+```js
+const collector = m.createMessageComponentCollector({ time: 3000, filter: (i) => i.customId === 'passo' });
+collector.on('collect', (i) => void i.deferUpdate());
+collector.on('end', (collected, reason) => console.log({ coletados: collected.size, motivo: reason }));
+```
+
+Resultado: `{ coletados: 1, motivo: 'time' }`. Também `channel.createMessageCollector`, `awaitMessages`,
+`awaitMessageComponent`, `awaitModalSubmit`; razões `time`, `idle`, `limit`, `user`.
+
+### 5.8 Escala
+
+- **REST com fila:** 4 requisições em paralelo por padrão, 429 espera o `Retry-After` e emite
+  `client.on(Events.RateLimited, ({ route, retryAfterMs }) => …)`; 5xx e falhas de rede tentam de novo (500 → 1000 →
+  2000 ms). `client.rest.queued` mostra a fila. Resultado no tour: `{ queued: 0, ping: 2, status: 'ready' }`.
+- **Retomada do gateway:** ao reconectar o bot pede `sync:resume` com a última mensagem vista por canal e emite
+  `messageCreate` do que perdeu (sem repetir), depois `resume`.
+- **Shards:** `new ShardingManager('./bot.mjs', { totalShards: 2 }).spawn()` roda o bot em N processos; cada um
+  trata só os servidores cujo `hash(guildId) % total === shardId` (`client.shard.id`, `client.inShard(guildId)`).
+  Honestidade: a API e o gateway continuam uma instância só; o shard serve para dividir CPU/memória do bot, não a
+  conexão. Sem sharding, `client.shard` é `null`.
+
+### 5.9 Utilidades e mudanças em relação à 0.1
+
+- `Collection` (todos os caches): `first()`, `find()`, `filter()`, `map()`, `some()`, `sort()`, `random()`, `at()`.
+- `PermissionsBitField` + `PermissionFlagsBits` (`ViewChannel`, `SendMessages`, …, `BanMembers`, `ModerateMembers`).
+- Constantes: `ApplicationCommandType`, `ButtonStyle`, `ComponentType`, `TextInputStyle`, `ChannelType`,
+  `MessageFlags.Ephemeral`, `InteractionType`, `Colors`, `Limits`.
+- Eventos novos: `typingStart`, `presenceUpdate`, `pollUpdate`, `channelPinsUpdate`, `guildMemberUpdate`,
+  `guildBanAdd/Remove`, `guildUpdate`, `roleCreate/Update/Delete`, `guildScheduledEventCreate/Update/Delete`,
+  `categoryCreate/Update/Delete`, `userUpdate`, `messageDeleteBulk`, `messageReactionRemoveAll`, `warn`, `rateLimited`.
+- Mudanças: `message.reactions` é um `ReactionManager` (antes array); `member.permissions` é `PermissionsBitField`
+  (antes número; `Number(member.permissions)` dá o valor); `message.attachments` é `Collection`;
+  `options.getSubcommand()` lança se não houver subcomando (use `getSubcommand(false)`); limite de 25 opções por
+  comando (antes 10); `interactionCreate` recebe a união de interações (em TypeScript, estreite com
+  `isChatInputCommand()` etc.).
+
+## 6. Regras das interações
 
 - **Registro:** `PUT /bots/@me/commands` substitui a lista inteira (até 50 comandos, 10 opções cada, 25 escolhas por
   opção). Nomes: `[a-z0-9_-]{1,32}`; descrições de 1 a 100 caracteres; **opções obrigatórias antes das opcionais**.
@@ -674,9 +979,12 @@ servidor é excluído. `channelUpdate(old, new)` e `channelDelete(channel)` segu
   `reply` devolve 404/410.
 - **Efêmera** (`ephemeral: true`): só quem usou o comando vê; não vira mensagem (`messageId: null`). **Normal:**
   mensagem comum do bot no canal, e `messageId` permite `editReply`/`fetchReply`/`deleteReply`.
-- Não há botões, menus, modais, autocompletar nem subcomandos nesta fase.
+- **Componentes:** clique vira interação `component` (`messageId` ou `ephemeralOf`, `customId`, `values`); só são
+  aceitos se a mensagem é de um bot, a pessoa vê o canal e o `customId` existe; o bot responde com `update`, `defer`
+  (`update: true`), `reply` ou `modal`. **Modais:** `POST /interactions/:id/modal` abre; o envio vira interação
+  `modal` com `modalId` (15 min). **Autocompletar:** síncrono para o app (`{ choices }`, até 3 s).
 
-## 6. Referência para quem não usa o SDK
+## 7. Referência para quem não usa o SDK
 
 **Autenticação.** `Authorization: Bearer ocb_…` em toda rota; o mesmo token no handshake do Socket.IO
 (`auth: { token }`). O token é de bot (`sessionId = bot:<id>`): qualquer rota de usuário vale (mensagens, reações,
@@ -718,7 +1026,7 @@ que interessam a um bot: `chat:message:created|updated|deleted`, `chat:reaction:
 **Limites.** 300 requisições/min por IP (vale para bots); 10 bots por pessoa; 50 comandos, 10 opções, 25 escolhas;
 mensagens até 4000 caracteres; payload do socket até 64 KB.
 
-## 7. Portando do discord.js
+## 8. Portando do discord.js
 
 A compatibilidade é de **forma de uso**, não de protocolo: o SDK foi escrito do zero sobre a API do OpenCord. Para
 um bot de mensagens e comandos, trocar o import e o token costuma bastar.
@@ -732,17 +1040,17 @@ um bot de mensagens e comandos, trocar o import e o token costuma bastar.
 | `guild`                                                 | servidor (`Guild` continua sendo o nome no SDK; `guildId` = id do servidor)                          |
 | `message.guild`/`guildId`                               | iguais; `null` em conversa direta; precisam do cache de canais (carregado no `ready`)                |
 | `user.tag`, `user#1234`                                 | `tag` = `username` (não há discriminador); `user.toString()` → `<@uuid>`                             |
-| `EmbedBuilder` + `embeds: [...]`                        | vira markdown concatenado ao texto (seção 4.4); `setColor` ignorado; imagens viram links             |
-| Botões, menus, modais, autocompletar, subcomandos       | não existem nesta fase (`isButton()` etc. devolvem `false`)                                          |
+| `EmbedBuilder` + `embeds: [...]`                        | iguais: cartão rico no app (cor, campos, imagem, rodapé) — seção 5.2                                |
+| Botões, menus, modais, autocompletar, subcomandos       | iguais (`ButtonBuilder`, `StringSelectMenuBuilder`, `ModalBuilder`, `setAutocomplete`, `addSubcommand`) — seção 5 |
 | Voz (`@discordjs/voice`)                                | não há; o bot não entra em chamadas                                                                  |
-| `PermissionFlagsBits`, `setDefaultMemberPermissions`    | permissões são os cargos do OpenCord (`member.permissions` com os bits de `@opencord/contracts`); o setter é aceito e ignorado |
-| `REST` + `Routes.applicationCommands(appId)`            | iguais; o corpo vai para `PUT /bots/@me/commands`. `Routes.applicationGuildCommands` leva ao mesmo lugar: **comandos são globais** |
-| `interaction.reply({ ephemeral: true })`                | igual; `flags: MessageFlags.Ephemeral` não existe — use `ephemeral`                                  |
+| `PermissionFlagsBits`, `setDefaultMemberPermissions`    | iguais; `member.permissions` é `PermissionsBitField`; a API confere `defaultMemberPermissions`       |
+| `REST` + `Routes.applicationCommands(appId)`            | iguais; o corpo vai para `PUT /bots/@me/commands`; comandos por servidor via `guildIds` no comando     |
+| `interaction.reply({ ephemeral: true })`                | igual; `flags: MessageFlags.Ephemeral` também funciona                                               |
 | `messageUpdate(old, new)`                               | `old` vem `null` (a API não guarda a versão anterior)                                                |
 | `client.on('ready')` a cada reconexão                   | `ready` uma vez; reconexão emite `resume`                                                            |
 | OAuth2 / link de convite do bot                         | adicionar pela tela Configurações do servidor → Bots                                                 |
 
-## 8. Limites e segurança
+## 9. Limites e segurança
 
 - O servidor guarda só o **SHA-256** do token; vazou → **Gerar novo token** (o antigo morre na hora) e troque no
   ambiente do bot. Nunca commite o token; use `OPENCORD_TOKEN`.

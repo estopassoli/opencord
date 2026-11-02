@@ -98,3 +98,13 @@ avançados, anexos enviados por bots, infraestrutura de escala) e o que já exis
   opcionais; `BotCommand` ganhou defaults. SDK 0.1.x continua funcionando contra a API nova.
 - Evidências: testes de integração (`messages`, `bots`, `moderation`), unit do desktop e do SDK, tour real
   (`packages/bot-sdk/examples/tour.mjs`) regenerando os resultados de `docs/BOTS.md`.
+
+## Evidências (2026-11-02)
+- API: `pnpm exec vitest run --project integration --no-file-parallelism` → 25 arquivos, 178/178 (`messages.int.test.ts` +4,
+  `moderation.int.test.ts` 5, `bots.int.test.ts`, `interactions.int.test.ts` 9).
+- Desktop: 31 arquivos, 189/189 (inclui `bot-ui`, `bot-components`, `slash` v2, `apps`, `moderation`, convenções).
+- SDK: 64/64; `tsc`/`eslint` limpos; `examples/tour-v2.mjs` contra a API local: 27 blocos de resultado em docs/BOTS.md §5.
+- Capturas headless do app (Vidro): cartão com botões e menu, modal, cartão efêmero, popover de subcomandos com
+  autocompletar, menu da pessoa (Apps, Castigo, Expulsar, Banir), diálogo de banir.
+- Pendente: validação com pessoas reais em produção depois da migração + deploy.
+

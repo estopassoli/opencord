@@ -179,13 +179,19 @@ export class ModalSubmitFields {
       Object.entries(values).map(([customId, value]) => [customId, { customId, type: 'text' as const, value }]),
     );
   }
-  getField(customId: string) {
+  getField(customId: string, required?: true): { customId: string; type: 'text'; value: string };
+  getField(customId: string, required: false): { customId: string; type: 'text'; value: string } | null;
+  getField(customId: string, required = true) {
     const f = this.fields.get(customId);
-    if (!f) throw new Error(`campo "${customId}" não veio no modal`);
+    if (!f) {
+      if (required) throw new Error(`campo "${customId}" não veio no modal`);
+      return null;
+    }
     return f;
   }
+  /** campo opcional que a pessoa deixou em branco não vem no envio: devolve '' (como se tivesse vindo vazio) */
   getTextInputValue(customId: string): string {
-    return this.getField(customId).value;
+    return this.getField(customId, false)?.value ?? '';
   }
 }
 

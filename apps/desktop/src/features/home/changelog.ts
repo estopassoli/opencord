@@ -20,6 +20,38 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '13:30',
+    kind: 'novo',
+    icon: 'block',
+    title: 'Banir e castigo',
+    body: 'Quem tem as permissões novas "Banir membros" e "Castigar membros" encontra no botão direito da pessoa: Banir… (com motivo e opção de apagar as mensagens recentes) e Castigo (1 min a 1 semana). Banido não volta por convite até ser desbanido; a lista fica em Configurações do servidor → Banidos. Em castigo, a pessoa não escreve, não reage nem entra em voz, e o composer avisa até quando.',
+  },
+  {
+    date: '2026-11-02',
+    time: '13:20',
+    kind: 'novo',
+    icon: 'chat',
+    title: 'Comandos de barra com subcomandos e autocompletar; menu Apps',
+    body: 'Bots podem registrar /comando grupo subcomando, opções de cargo e menção, limites de valor e sugestões enquanto você digita (o popover pergunta ao bot). Comandos de contexto aparecem em "Apps" no botão direito de uma pessoa ou de uma mensagem. Comandos com permissão mínima só aparecem para quem pode usar.',
+  },
+  {
+    date: '2026-11-02',
+    time: '13:10',
+    kind: 'novo',
+    icon: 'grid',
+    title: 'Bots com cartões, botões, menus e formulários',
+    body: 'Mensagens de bots podem trazer cartões ricos (barra colorida, campos, imagem, rodapé), botões, menus de escolha (inclusive de pessoas, cargos e canais) e abrir formulários. Os cartões "Só você vê" também aceitam botões. Tudo com teclado e leitor de tela.',
+  },
+  {
+    date: '2026-11-02',
+    time: '13:00',
+    kind: 'novo',
+    icon: 'upload',
+    title: 'SDK de bots 0.2.0',
+    body: '@opencord-chat/bot ganhou o que faltava em relação ao Discord: embeds de verdade, componentes, modais, autocompletar, comandos de contexto, moderação (banir, castigo, apagar em massa), enquetes, digitando, presença, eventos, gestão de canais e cargos, busca, webhooks, coletores, fila com retentativa, retomada do gateway e shards. Guia com resultados reais em docs/BOTS.md §5.',
+  },
+  {
+    date: '2026-11-02',
     time: '12:30',
     kind: 'melhoria',
     icon: 'tag',

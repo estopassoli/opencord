@@ -386,7 +386,8 @@ describe('interações v2', () => {
     expect(submit.type).toBe(InteractionType.ModalSubmit);
     expect(submit.customId).toBe('form');
     expect(submit.fields.getTextInputValue('texto')).toBe('Mais livros');
-    expect(() => submit.fields.getTextInputValue('nada')).toThrow(/não veio/);
+    expect(submit.fields.getTextInputValue('nada')).toBe('');
+    expect(() => submit.fields.getField('nada')).toThrow(/não veio/);
     expect(submit.isFromMessage()).toBe(false);
     await expect(submit.update('x')).rejects.toThrow(/só quando o modal veio/);
     await submit.reply({ content: 'Anotado', ephemeral: true });
