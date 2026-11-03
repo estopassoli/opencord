@@ -31,4 +31,4 @@ O mantenedor pediu cenas na transmissão: a tela com a câmera por cima, imagens
   - fps da captura ≥ 80% do conteúdo;
   - troca ao vivo para "Sem cena" e espectador recebendo 1080p;
   - pausa sem espectador e janela separada.
-- **Pendente:** validação manual em duas máquinas Windows e redes diferentes (gate F4).
+- **Validado (2026-11-03):** o mantenedor confirmou em produção, com duas máquinas em redes diferentes e jogo pesado em foco (gate F4 aprovado).

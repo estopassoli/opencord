@@ -67,6 +67,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 - [x] F3.5 Kick/revogação ativa da SFU, sincronização de presença.
   - int test (removido da SFU em < 5 s; perda de CONNECT) + E2E no app.
 **Gate F3:** dois Windows em redes diferentes conversam e reconectam; evidência manual.
+  - Aprovado: validação do mantenedor em produção (dois computadores em redes diferentes), 2026-11-03.
   - **BLOQUEADO PARA VALIDAÇÃO** (uma máquina disponível).
 
 ## F4 — Vídeo e Go Live
@@ -84,10 +85,10 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
   - Implementado (assistir, destacar, tela cheia, volume via saída). **Sem teste** com 2 streams simultâneas no app (a carga da SFU com 3 streams está em LOAD_TEST.md).
 - [x] F4.8 Cenas do Go Live (tela, câmera, imagem, texto; troca ao vivo) — ADR-0015.
   - E2E `golive-real.spec.ts` (uma máquina Windows): cena com o app coberto acompanha o conteúdo (≥ 80% do fps), troca ao vivo para "Sem cena", espectador segue em 1080p. Validação em duas máquinas faz parte do F4.7.
-- [ ] F4.7 Testes reais em dois Windows, áudio de jogo, borderless/fullscreen e redes distintas.
-  - **BLOQUEADO PARA VALIDAÇÃO.**
+- [x] F4.7 Testes reais em dois Windows, áudio de jogo, borderless/fullscreen e redes distintas.
+  - Validado pelo mantenedor em produção (opencord.pro) com pessoas reais: voz e Go Live entre dois computadores em redes diferentes, com jogo pesado em foco (relato de 2026-11-03). Tela cheia exclusiva segue como limitação documentada.
 **Gate F4:** Go Live vídeo + áudio do sistema comprovados em dois computadores; sem isso status bloqueado.
-  - **BLOQUEADO PARA VALIDAÇÃO.**
+  - Aprovado: validação do mantenedor em produção, 2026-11-03.
 
 ## F5 — Desktop polish
 - [x] F5.1 Tray e minimizar sem interromper chamada.
@@ -125,6 +126,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-10-29 | F1 | turbo build/typecheck/lint/test; seed 2×; E2E smoke 5/5 | verde | Docker (Compose) |
 | 2026-10-29 | F2 | `pnpm --filter @opencord/api test:integration` → 64/64 | verde | — |
 | 2026-10-29 | F3/F4 | E2E voice 6/6 + golive-real 1/1 (Windows, 2 instâncias) | verde em 1 máquina | 2º PC / redes distintas |
+| 2026-11-03 | F3/F4 | validação do mantenedor em produção: voz e Go Live entre dois computadores em redes diferentes, jogo pesado em foco | aprovado | — |
 | 2026-10-29 | F5 | instalador NSIS + smoke no app empacotado; REA fuses | gerado, não assinado | certificado |
 | 2026-10-29 | F5 | instaladores macOS (dmg arm64/x64) e Linux (AppImage/deb) no workflow `desktop.yml` (ADR-0008); Linux empacotado iniciou em WSLg | gerados, não assinados | validar em Mac e Linux reais |
 | 2026-10-29 | F6 | load 10×3; backup/restore; revisão de segurança | ver docs | auditoria externa |
