@@ -85,12 +85,50 @@ export type YouTubeSearchResult = z.infer<typeof YouTubeSearchResult>;
 
 // ---------- Música na chamada (ADR-0014) ----------
 /** Faixa da fila: um vídeo do YouTube / YouTube Music tocado no player oficial de cada pessoa. */
+/** Spotify (catálogo): id de faixa, álbum ou playlist (22 caracteres base62). */
+export const SpotifyId = z.string().regex(/^[A-Za-z0-9]{22}$/);
+export const SPOTIFY_KINDS = ['track', 'album', 'playlist'] as const;
+export type SpotifyKind = (typeof SPOTIFY_KINDS)[number];
+
+/** Link do Spotify: open.spotify.com/(intl-xx/)track|album|playlist/<id> ou spotify:track:<id>. */
+export function parseSpotifyLink(input: string): { kind: SpotifyKind; id: string } | null {
+  const s = input.trim();
+  const uri = /^spotify:(track|album|playlist):([A-Za-z0-9]{22})$/.exec(s);
+  if (uri) return { kind: uri[1] as SpotifyKind, id: uri[2]! };
+  try {
+    const u = new URL(s);
+    if (u.hostname !== 'open.spotify.com' && u.hostname !== 'play.spotify.com') return null;
+    const m = /^\/(?:intl-[a-z]{2}(?:-[a-z]{2})?\/)?(?:embed\/)?(track|album|playlist)\/([A-Za-z0-9]{22})/i.exec(
+      u.pathname,
+    );
+    return m ? { kind: m[1]!.toLowerCase() as SpotifyKind, id: m[2]! } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Faixa vinda do catálogo do Spotify (capa, artistas, link para abrir no Spotify). */
+export const SpotifyTrackInfo = z.object({
+  id: SpotifyId,
+  url: z.string(),
+  artists: z.string(),
+  album: z.string().nullable(),
+  image: z.string().nullable(),
+  durationMs: z.number().int().nonnegative(),
+});
+export type SpotifyTrackInfo = z.infer<typeof SpotifyTrackInfo>;
+
 export const MusicTrack = z.object({
   id: Id,
-  videoId: YouTubeVideoId,
+  /** null: faixa do Spotify ainda sem correspondente pronto para tocar */
+  videoId: YouTubeVideoId.nullable(),
   title: z.string().nullable(),
   author: z.string().nullable(),
   addedBy: Id,
+  /** faixa do catálogo do Spotify */
+  spotify: SpotifyTrackInfo.optional(),
+  /** não foi possível tocar (sem correspondente): fica na fila marcada e é pulada */
+  unavailable: z.boolean().default(false),
 });
 export type MusicTrack = z.infer<typeof MusicTrack>;
 
@@ -126,3 +164,39 @@ export const MusicControl = z.object({
   trackId: Id.optional(),
 });
 export type MusicControl = z.infer<typeof MusicControl>;
+
+/** Resultado da pesquisa no catálogo do Spotify (atividade Música). */
+export const SpotifySearchResult = z.object({
+  tracks: z.array(
+    z.object({
+      id: SpotifyId,
+      title: z.string(),
+      artists: z.string(),
+      album: z.string().nullable(),
+      image: z.string().nullable(),
+      durationMs: z.number().int(),
+      url: z.string(),
+    }),
+  ),
+  albums: z.array(
+    z.object({
+      id: SpotifyId,
+      name: z.string(),
+      artists: z.string(),
+      image: z.string().nullable(),
+      url: z.string(),
+      total: z.number().int(),
+    }),
+  ),
+  playlists: z.array(
+    z.object({
+      id: SpotifyId,
+      name: z.string(),
+      owner: z.string(),
+      image: z.string().nullable(),
+      url: z.string(),
+      total: z.number().int(),
+    }),
+  ),
+});
+export type SpotifySearchResult = z.infer<typeof SpotifySearchResult>;

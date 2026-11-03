@@ -29,6 +29,9 @@ A instância mantida pelo autor roda as mesmas imagens deste repositório, num c
 | PostgreSQL / Redis | instâncias gerenciadas à parte, com réplica e backup periódico |
 
 - TLS no proxy de borda; a mídia WebRTC não passa pelo proxy.
+- **Spotify na música (ADR-0041)**: crie um app em developer.spotify.com (sem redirect URI; usa client credentials) e
+  defina `SPOTIFY_CLIENT_ID` e `SPOTIFY_CLIENT_SECRET` na API (segredos). Precisa também de `YOUTUBE_API_KEY`; sem
+  as três, a pesquisa do Spotify não aparece. Sem migração.
 - **Privacidade (ADR-0039)**: a migração `20261103000000_privacy` roda antes da API nova. Prazos de expurgo em
   `RETENTION_SESSIONS_DAYS` (180), `RETENTION_AUDIT_DAYS`, `RETENTION_MODERATION_DAYS` e `RETENTION_DEVICE_BANS_DAYS`
   (365); mudou um prazo, mude a Política (app e landing). O contato para dados pessoais vai no painel do super admin →

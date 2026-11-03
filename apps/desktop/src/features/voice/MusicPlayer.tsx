@@ -4,14 +4,23 @@
  * barra de progresso, anterior/tocar/próxima, fila e volume. Quem começa a música é o DJ: só ele controla o que toca
  * para todos e tira da fila. Quem ouve adiciona à fila e controla o próprio player: volume, pausar para si e voltar ao vivo.
  */
-import { parseYouTubeId, parseYouTubePlaylistId, type MusicTrack } from '@opencord/contracts';
+import {
+  parseSpotifyLink,
+  parseYouTubeId,
+  parseYouTubePlaylistId,
+  type MusicTrack,
+  type SpotifyKind,
+  type SpotifySearchResult,
+} from '@opencord/contracts';
 import { Avatar, Button, Icon, Slider, TextField } from '@opencord/ui';
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { useData } from '../../store/data';
+import { api, describeError } from '../../store/session';
+import { coverOf, openSpotify, SpotifyCredit, SpotifyResults } from './SpotifySearch';
 import { useMusic } from '../../store/music';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
-import { fmt, thumb, useYouTubeFrame } from './WatchTogether';
+import { fmt, useYouTubeFrame } from './WatchTogether';
 
 /** diferença tolerada entre o meu player e o grupo antes de pular para o ponto certo */
 const DRIFT_S = 2;
@@ -36,6 +45,7 @@ export function MusicPlayer({ onStage }: { onStage: boolean }) {
   const joined = useMusic((m) => m.joined);
   const open = useMusic((m) => m.open);
   const myCall = useVoice((v) => v.machine.channelId);
+  const spotifyOn = useData((d) => d.instance?.spotify ?? false);
   // sem fila ainda: o card "Música" em Atividades abre o player vazio, com o campo para o primeiro link
   if (!s && open && myCall && onStage)
     return (
@@ -46,7 +56,9 @@ export function MusicPlayer({ onStage }: { onStage: boolean }) {
             <strong>Música na chamada</strong>
             <br />
             <span className="muted">
-              Cole o link de uma música ou de uma playlist do YouTube ou do YouTube Music. Quem começa vira o DJ.
+              {spotifyOn
+                ? 'Pesquise músicas, álbuns e playlists no Spotify ou cole um link. Quem começa vira o DJ.'
+                : 'Cole o link de uma música ou de uma playlist do YouTube ou do YouTube Music. Quem começa vira o DJ.'}
             </span>
           </p>
         </div>
@@ -66,9 +78,7 @@ export function MusicPlayer({ onStage }: { onStage: boolean }) {
     return (
       <div className="music-pill" role="region" aria-label="Música da chamada">
         <Icon name="speaker" size={16} />
-        <span className="truncate">
-          {track ? `Tocando: ${track.title ?? 'música do YouTube'}` : 'Fila de músicas da chamada'}
-        </span>
+        <span className="truncate">{track ? `Tocando: ${track.title ?? 'música'}` : 'Fila de músicas da chamada'}</span>
         <Button size="sm" icon="play" onClick={() => useMusic.getState().join(true)}>
           Ouvir
         </Button>
@@ -93,8 +103,13 @@ function MusicCard({ onStage }: { onStage: boolean }) {
       data-away={onStage ? undefined : 'true'}
       aria-label="Música da chamada"
     >
-      {track ? (
-        <SyncedTrack key={track.id} track={track} minimized={minimized} onStage={onStage} />
+      {track?.videoId ? (
+        <SyncedTrack key={track.id} track={track} videoId={track.videoId} minimized={minimized} onStage={onStage} />
+      ) : track ? (
+        <div className="music-empty">
+          <Icon name="music" size={22} />
+          <p className="muted small">Preparando a próxima faixa…</p>
+        </div>
       ) : (
         <div className="music-empty">
           <Icon name="speaker" size={22} />
@@ -159,12 +174,22 @@ function MusicCard({ onStage }: { onStage: boolean }) {
   );
 }
 
-function SyncedTrack({ track, minimized, onStage }: { track: MusicTrack; minimized: boolean; onStage: boolean }) {
+function SyncedTrack({
+  track,
+  videoId,
+  minimized,
+  onStage,
+}: {
+  track: MusicTrack;
+  videoId: string;
+  minimized: boolean;
+  onStage: boolean;
+}) {
   const s = useMusic((m) => m.state)!;
   const volume = useMusic((m) => m.volume);
   const localPaused = useMusic((m) => m.localPaused);
   const isDj = useIsDj();
-  const { frame, src, info, ready, send } = useYouTubeFrame(track.videoId);
+  const { frame, src, info, ready, send } = useYouTubeFrame(videoId);
   const [scrub, setScrub] = useState<number | null>(null);
   const lastSeek = useRef(0);
   const reportedEnd = useRef(false);
@@ -226,7 +251,7 @@ function SyncedTrack({ track, minimized, onStage }: { track: MusicTrack; minimiz
           <iframe
             ref={frame}
             src={src}
-            title={track.title ?? 'Música do YouTube'}
+            title={track.title ?? 'Música'}
             allow="autoplay; encrypted-media"
             // player de terceiro: sem navegar a janela do app, sem formulários nem diálogos
             sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
@@ -240,9 +265,9 @@ function SyncedTrack({ track, minimized, onStage }: { track: MusicTrack; minimiz
           data-tip={onStage ? undefined : 'Voltar para a chamada'}
           onClick={() => (onStage ? useMusic.getState().setMinimized(false) : goToCall())}
         >
-          <img src={thumb(track.videoId)} alt="" draggable={false} />
+          <img src={coverOf(track) ?? undefined} alt="" draggable={false} />
           <span className="music-mini-names">
-            <strong className="truncate">{track.title ?? 'Música do YouTube'}</strong>
+            <strong className="truncate">{track.title ?? 'Música'}</strong>
             <span className="muted small">
               {fmt(position)} / {duration ? fmt(duration) : '–:––'}
               {!playing ? ' · pausada' : localPaused ? ' · pausada só para você' : ''}
@@ -258,7 +283,7 @@ function SyncedTrack({ track, minimized, onStage }: { track: MusicTrack; minimiz
         <iframe
           ref={frame}
           src={src}
-          title={track.title ?? 'Música do YouTube'}
+          title={track.title ?? 'Música'}
           allow="autoplay; encrypted-media"
           // player de terceiro: sem navegar a janela do app, sem formulários nem diálogos
           sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
@@ -266,8 +291,27 @@ function SyncedTrack({ track, minimized, onStage }: { track: MusicTrack; minimiz
         />
       </div>
       <div className="music-meta">
-        <strong className="truncate">{track.title ?? 'Música do YouTube'}</strong>
-        {track.author && <span className="muted small truncate">{track.author}</span>}
+        {track.spotify?.image && <img className="music-cover" src={track.spotify.image} alt="" draggable={false} />}
+        <span className="music-meta-names">
+          <strong className="truncate">{track.title ?? 'Música'}</strong>
+          {track.author && (
+            <span className="muted small truncate">
+              {track.author}
+              {track.spotify?.album ? ` · ${track.spotify.album}` : ''}
+            </span>
+          )}
+        </span>
+        {track.spotify && (
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Abrir no Spotify"
+            data-tip="Abrir no Spotify"
+            onClick={() => openSpotify(track.spotify!.url)}
+          >
+            <Icon name="link" size={16} />
+          </button>
+        )}
       </div>
       <div className="music-progress">
         <span className="small muted">{fmt(position)}</span>
@@ -349,39 +393,82 @@ function goToCall() {
 }
 
 function AddTrack({ channelId }: { channelId: string }) {
+  const spotifyOn = useData((d) => d.instance?.spotify ?? false);
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState<SpotifySearchResult | null>(null);
+  const add = async (src: Parameters<ReturnType<typeof useMusic.getState>['add']>[1]) => {
+    setBusy(true);
+    const ok = await useMusic.getState().add(channelId, src);
+    setBusy(false);
+    if (ok) {
+      setText('');
+      setResults(null);
+    }
+    return ok;
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    setError(null);
+    const sp = parseSpotifyLink(text);
+    if (sp) {
+      if (!spotifyOn) return setError('Este servidor ainda não tem o Spotify configurado.');
+      return void add({ spotify: sp });
+    }
     const videoId = parseYouTubeId(text);
     const playlistId = parseYouTubePlaylistId(text);
-    if (!videoId && !playlistId) return setError('Cole um link do YouTube ou do YouTube Music.');
-    setError(null);
+    if (videoId || playlistId)
+      return void add({ ...(videoId ? { videoId } : {}), ...(playlistId ? { playlistId } : {}) });
+    if (!spotifyOn) return setError('Cole um link do YouTube ou do YouTube Music.');
     setBusy(true);
-    const src = { ...(videoId ? { videoId } : {}), ...(playlistId ? { playlistId } : {}) };
-    if (await useMusic.getState().add(channelId, src)) setText('');
-    setBusy(false);
+    try {
+      setResults(
+        await api().request<SpotifySearchResult>(
+          'GET',
+          `/activities/spotify/search?q=${encodeURIComponent(text.trim().slice(0, 100))}`,
+        ),
+      );
+    } catch (err) {
+      setError(describeError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const pick = (kind: SpotifyKind, id: string, label: string) => {
+    void add({ spotify: { kind, id } }).then(
+      (ok) => ok && useUi.getState().toast('success', `${label} entrou na fila.`),
+    );
   };
   return (
-    <form className="music-add" onSubmit={(e) => void submit(e)}>
-      <TextField
-        fieldClassName="music-add-field"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Link de música ou playlist do YouTube"
-        aria-label="Adicionar música ou playlist à fila (link do YouTube ou YouTube Music)"
-        aria-invalid={error ? true : undefined}
-      />
-      <Button type="submit" size="sm" icon="plus" disabled={busy || !text.trim()}>
-        Adicionar
-      </Button>
-      {error && (
-        <p className="form-error small" role="alert">
-          {error}
-        </p>
-      )}
-    </form>
+    <>
+      <form className="music-add" onSubmit={(e) => void submit(e)}>
+        <TextField
+          fieldClassName="music-add-field"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (!e.target.value.trim()) setResults(null);
+          }}
+          placeholder={spotifyOn ? 'Pesquise no Spotify ou cole um link' : 'Link de música ou playlist do YouTube'}
+          aria-label={
+            spotifyOn
+              ? 'Pesquisar músicas, álbuns e playlists no Spotify, ou colar um link'
+              : 'Adicionar música ou playlist à fila (link do YouTube ou YouTube Music)'
+          }
+          aria-invalid={error ? true : undefined}
+        />
+        <Button type="submit" size="sm" icon={spotifyOn ? 'search' : 'plus'} disabled={busy || !text.trim()}>
+          {spotifyOn ? 'Buscar' : 'Adicionar'}
+        </Button>
+        {error && (
+          <p className="form-error small" role="alert">
+            {error}
+          </p>
+        )}
+      </form>
+      {results && <SpotifyResults result={results} busy={busy} onAdd={pick} />}
+    </>
   );
 }
 
@@ -390,38 +477,58 @@ function Queue() {
   const isDj = useIsDj();
   const names = useVoice((v) => v.participants);
   const nameOf = (id: string) => names.find((p) => p.identity === id)?.name ?? 'alguém';
+  const fromSpotify = s.queue.some((t) => t.spotify);
   return (
-    <ol className="music-queue" aria-label="Fila de músicas">
-      {s.queue.map((t, i) => (
-        <li key={t.id} data-current={i === s.index ? 'true' : undefined} data-done={i < s.index ? 'true' : undefined}>
-          <button
-            className="music-queue-item"
-            aria-current={i === s.index ? 'true' : undefined}
-            aria-label={isDj ? `Tocar ${t.title ?? 'música'}` : (t.title ?? 'música')}
-            disabled={!isDj}
-            onClick={() => void useMusic.getState().control('jump', { trackId: t.id })}
-          >
-            <img src={thumb(t.videoId)} alt="" draggable={false} />
-            <span className="music-queue-names">
-              <span className="truncate">{t.title ?? 'Música do YouTube'}</span>
-              <span className="muted small truncate">
-                <Avatar id={t.addedBy} name={nameOf(t.addedBy)} size={14} /> {nameOf(t.addedBy)}
-              </span>
-            </span>
-          </button>
-          {isDj && (
+    <>
+      <ol className="music-queue" aria-label="Fila de músicas">
+        {s.queue.map((t, i) => (
+          <li key={t.id} data-current={i === s.index ? 'true' : undefined} data-done={i < s.index ? 'true' : undefined}>
             <button
-              className="icon-btn"
-              aria-label={`Tirar ${t.title ?? 'música'} da fila`}
-              data-tip="Tirar da fila"
-              onClick={() => void useMusic.getState().control('remove', { trackId: t.id })}
+              className="music-queue-item"
+              aria-current={i === s.index ? 'true' : undefined}
+              aria-label={
+                t.unavailable
+                  ? `${t.title ?? 'Música'}: não foi possível tocar esta faixa`
+                  : isDj
+                    ? `Tocar ${t.title ?? 'música'}`
+                    : (t.title ?? 'música')
+              }
+              disabled={!isDj || t.unavailable}
+              data-unavailable={t.unavailable ? 'true' : undefined}
+              onClick={() => void useMusic.getState().control('jump', { trackId: t.id })}
             >
-              <Icon name="trash" size={16} />
+              {coverOf(t) ? (
+                <img src={coverOf(t)!} alt="" draggable={false} />
+              ) : (
+                <span className="spotify-cover-empty" aria-hidden />
+              )}
+              <span className="music-queue-names">
+                <span className="truncate">{t.title ?? 'Música'}</span>
+                {t.unavailable ? (
+                  <span className="music-unavailable small truncate">Não foi possível tocar esta faixa</span>
+                ) : (
+                  <span className="muted small truncate">
+                    {t.spotify ? `${t.spotify.artists} · ` : ''}
+                    <Avatar id={t.addedBy} name={nameOf(t.addedBy)} size={14} /> {nameOf(t.addedBy)}
+                  </span>
+                )}
+              </span>
             </button>
-          )}
-        </li>
-      ))}
-    </ol>
+            {isDj && (
+              <button
+                className="icon-btn"
+                aria-label={`Tirar ${t.title ?? 'música'} da fila`}
+                data-tip="Tirar da fila"
+                onClick={() => void useMusic.getState().control('remove', { trackId: t.id })}
+              >
+                <Icon name="trash" size={16} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+      {fromSpotify && <SpotifyCredit />}
+    </>
   );
 }
 

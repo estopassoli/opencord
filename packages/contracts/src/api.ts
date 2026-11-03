@@ -54,6 +54,8 @@ export const InstanceInfo = z.object({
   requiresAccessCode: z.boolean(),
   /** pesquisa do YouTube no "Assistir juntos" (servidor com YOUTUBE_API_KEY) */
   youtubeSearch: z.boolean().default(false),
+  /** catálogo do Spotify na atividade Música (servidor com as chaves do Spotify) */
+  spotify: z.boolean().default(false),
   /** false: novos cadastros fechados pelo super admin (quem já tem conta continua entrando) */
   registrationOpen: z.boolean().default(true),
   announcement: InstanceAnnouncement.nullable().default(null),

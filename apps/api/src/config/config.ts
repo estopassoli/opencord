@@ -69,6 +69,13 @@ export const ConfigSchema = z.object({
   SLACK_API_URL: z.url().default('https://slack.com/api'),
   /** Chave da YouTube Data API v3: liga a pesquisa no "Assistir juntos" (sem ela, só por link). */
   YOUTUBE_API_KEY: z.string().min(10).optional(),
+  /** Catálogo do Spotify na atividade Música (client credentials; só metadados, o áudio não vem do Spotify). */
+  SPOTIFY_CLIENT_ID: z.string().min(10).optional(),
+  SPOTIFY_CLIENT_SECRET: z.string().min(10).optional(),
+  /** Só mudam em testes (stubs locais). */
+  SPOTIFY_API_URL: z.url().default('https://api.spotify.com/v1'),
+  SPOTIFY_ACCOUNTS_URL: z.url().default('https://accounts.spotify.com'),
+  YOUTUBE_API_URL: z.url().default('https://www.googleapis.com/youtube/v3'),
   /** Busca título/canal do vídeo no oEmbed público do YouTube (desligado nos testes: sem rede externa). */
   YOUTUBE_OEMBED: bool.default(true),
   /** Limite de novos apelidos por IP por hora. */

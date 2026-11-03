@@ -7641,3 +7641,82 @@ html[data-wallpaper='true'] .chat-scroll {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
+
+/* catálogo do Spotify na música da chamada */
+.spotify-results {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 4px 0;
+}
+.spotify-results h4 {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+.spotify-results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.spotify-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm, 6px);
+}
+.spotify-row:hover {
+  background: var(--hover, rgb(255 255 255 / 0.05));
+}
+.spotify-row > img,
+.spotify-cover-empty {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex: none;
+  background: var(--sidebar, rgb(255 255 255 / 0.06));
+}
+.spotify-row-names,
+.music-meta-names {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+.spotify-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.spotify-credit:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+.music-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.music-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex: none;
+}
+.music-queue-item[data-unavailable='true'] {
+  opacity: 0.6;
+}
+.music-unavailable {
+  color: var(--danger, #f87171);
+}
+

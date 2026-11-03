@@ -33,6 +33,8 @@ import {
   type ActivityState,
   MusicControl,
   type MusicState,
+  SPOTIFY_KINDS,
+  SpotifyId,
   YouTubePlaylistId,
   YouTubeVideoId,
 } from './activities.js';
@@ -76,8 +78,14 @@ export const ClientCommands = {
   'music:get': z.object({ channelId: Id }),
   /** um vídeo, uma playlist inteira ou os dois (link de vídeo dentro de playlist: começa por ele) */
   'music:add': z
-    .object({ channelId: Id, videoId: YouTubeVideoId.optional(), playlistId: YouTubePlaylistId.optional() })
-    .refine((d) => d.videoId || d.playlistId, 'informe um vídeo ou uma playlist'),
+    .object({
+      channelId: Id,
+      videoId: YouTubeVideoId.optional(),
+      playlistId: YouTubePlaylistId.optional(),
+      /** catálogo do Spotify: faixa, álbum ou playlist */
+      spotify: z.object({ kind: z.enum(SPOTIFY_KINDS), id: SpotifyId }).optional(),
+    })
+    .refine((d) => d.videoId || d.playlistId || d.spotify, 'informe uma música, álbum ou playlist'),
   'music:control': MusicControl,
   'music:stop': z.object({ channelId: Id }),
   'sound:play': z.object({ channelId: Id, soundId: Id }),

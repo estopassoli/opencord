@@ -246,10 +246,16 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         return (await this.music.get(userId, d.channelId)) as R;
       }
       case 'music:add': {
-        const d = p as { channelId: string; videoId?: string; playlistId?: string };
+        const d = p as {
+          channelId: string;
+          videoId?: string;
+          playlistId?: string;
+          spotify?: { kind: 'track' | 'album' | 'playlist'; id: string };
+        };
         return (await this.music.add(userId, d.channelId, {
           ...(d.videoId ? { videoId: d.videoId } : {}),
           ...(d.playlistId ? { playlistId: d.playlistId } : {}),
+          ...(d.spotify ? { spotify: d.spotify } : {}),
         })) as R;
       }
       case 'music:control': {

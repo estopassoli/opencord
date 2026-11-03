@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-03',
+    time: '14:00',
+    kind: 'novo',
+    icon: 'music',
+    title: 'Spotify na música da chamada',
+    body: 'Na atividade Música, agora dá para pesquisar músicas, álbuns e playlists do Spotify, ou colar um link do Spotify, e tocar na call para todo mundo, sem precisar de conta Premium. A fila mostra capa, artista e álbum, com o atalho "Abrir no Spotify". Se alguma faixa não puder ser tocada, ela aparece marcada na fila e a música segue para a próxima.',
+  },
+  {
+    date: '2026-11-03',
     time: '12:30',
     kind: 'novo',
     icon: 'lock',

@@ -68,6 +68,7 @@ export class InstanceService {
       guestJoin: this.cfg.GUEST_JOIN_ENABLED,
       requiresAccessCode: Boolean(this.cfg.INSTANCE_ACCESS_CODE),
       youtubeSearch: Boolean(this.cfg.YOUTUBE_API_KEY),
+      spotify: Boolean(this.cfg.SPOTIFY_CLIENT_ID && this.cfg.SPOTIFY_CLIENT_SECRET && this.cfg.YOUTUBE_API_KEY),
       registrationOpen: row?.registrationOpen ?? true,
       announcement: this.announcementOf(row),
       uploadMaxBytes: await this.uploadMaxBytes(),

@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { MUSIC_QUEUE_MAX, rooms, type MusicState, type MusicTrack } from '@opencord/contracts';
+import { MUSIC_QUEUE_MAX, rooms, type MusicState, type MusicTrack, type SpotifyKind } from '@opencord/contracts';
 import { randomUUID } from 'node:crypto';
 import { forbidden } from '../common/errors.js';
 import { RedisService } from '../common/redis.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { ActivitiesService } from './activities.service.js';
+import { SpotifyService } from './spotify.service.js';
 import { requireServerId, VoiceService } from './voice.service.js';
 
 const TTL_S = 6 * 60 * 60;
@@ -26,6 +27,7 @@ export class MusicService {
     private readonly voice: VoiceService,
     private readonly realtime: RealtimeService,
     private readonly activities: ActivitiesService,
+    private readonly spotify: SpotifyService,
   ) {}
 
   private get r() {
@@ -46,7 +48,38 @@ export class MusicService {
     return s.djId ? s : { ...s, djId: s.updatedBy };
   }
 
-  private async publish(s: Stored): Promise<MusicState> {
+  /**
+   * Faixas do Spotify ganham o correspondente tocável só quando chegam perto de tocar (a atual e a próxima), para
+   * gastar pouca cota. Sem correspondente: a faixa fica marcada como indisponível e a fila segue para a seguinte.
+   */
+  private async resolveAhead(s: Stored): Promise<Stored> {
+    const queue = [...s.queue];
+    let index = s.index;
+    let positionSec = s.positionSec;
+    const resolve = async (i: number) => {
+      const t = queue[i];
+      if (!t || t.videoId || t.unavailable || !t.spotify) return;
+      const videoId = await this.spotify.match({
+        id: t.spotify.id,
+        title: t.title ?? '',
+        artists: t.spotify.artists,
+        durationMs: t.spotify.durationMs,
+      });
+      queue[i] = videoId ? { ...t, videoId } : { ...t, unavailable: true };
+    };
+    while (index >= 0 && index < queue.length) {
+      await resolve(index);
+      if (!queue[index]!.unavailable) break;
+      index++;
+      positionSec = 0;
+    }
+    if (index >= queue.length) index = -1;
+    if (index >= 0) await resolve(index + 1);
+    return { ...s, queue, index, positionSec, playing: index >= 0 ? s.playing : false };
+  }
+
+  private async publish(raw: Stored): Promise<MusicState> {
+    const s = await this.resolveAhead(raw);
     await this.r.set(key(s.channelId), JSON.stringify(s), 'EX', TTL_S);
     const out = { ...s, serverNow: Date.now() };
     this.realtime.emit(rooms.channel(s.channelId), 'music:state', out);
@@ -73,12 +106,43 @@ export class MusicService {
    * parada (sem música ou terminada), quem adiciona vira o DJ e a primeira faixa nova começa a tocar; tocando,
    * qualquer pessoa na chamada adiciona ao fim da fila e o DJ continua o mesmo.
    */
-  async add(userId: string, channelId: string, src: { videoId?: string; playlistId?: string }): Promise<MusicState> {
+  async add(
+    userId: string,
+    channelId: string,
+    src: { videoId?: string; playlistId?: string; spotify?: { kind: SpotifyKind; id: string } },
+  ): Promise<MusicState> {
     const serverId = await this.requireInCall(userId, channelId);
     const prev = await this.load(channelId);
     const idle = !prev || prev.index < 0 || prev.index >= prev.queue.length;
     const room = MUSIC_QUEUE_MAX - (idle ? 0 : (prev?.queue.length ?? 0));
     if (room <= 0) throw new BadRequestException('a fila está cheia');
+    if (src.spotify) {
+      const found = await this.spotify.tracksOf(src.spotify.kind, src.spotify.id, room);
+      if (!found.length) throw new BadRequestException('nada para tocar aqui');
+      return this.enqueue(
+        userId,
+        channelId,
+        serverId,
+        prev,
+        idle,
+        found.slice(0, room).map((t) => ({
+          id: randomUUID(),
+          videoId: null,
+          title: t.title,
+          author: t.artists || null,
+          addedBy: userId,
+          unavailable: false,
+          spotify: {
+            id: t.id,
+            url: t.url,
+            artists: t.artists,
+            album: t.album,
+            image: t.image,
+            durationMs: t.durationMs,
+          },
+        })),
+      );
+    }
     let found: { videoId: string; title: string | null; author: string | null }[] = [];
     if (src.playlistId) {
       try {
@@ -107,22 +171,34 @@ export class MusicService {
       title: t.title || null,
       author: t.author || null,
       addedBy: userId,
+      unavailable: false,
     }));
+    return this.enqueue(userId, channelId, serverId, prev, idle, tracks);
+  }
+
+  private enqueue(
+    userId: string,
+    channelId: string,
+    serverId: string,
+    prev: Stored | null,
+    idle: boolean,
+    tracks: MusicTrack[],
+  ): Promise<MusicState> {
     const now = Date.now();
     // fila terminada: recomeça do zero (a fila velha já tocou)
-    const base = idle ? [] : (prev?.queue ?? []);
+    const base = idle || !prev ? [] : prev.queue;
     const queue = [...base, ...tracks];
     return this.publish({
       channelId,
       serverId,
       queue,
-      index: idle ? 0 : prev.index,
-      playing: idle ? true : prev.playing,
-      positionSec: idle ? 0 : this.positionNow(prev, now),
+      index: idle || !prev ? 0 : prev.index,
+      playing: idle || !prev ? true : prev.playing,
+      positionSec: idle || !prev ? 0 : this.positionNow(prev, now),
       updatedAt: now,
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
-      djId: idle ? userId : prev.djId,
+      djId: idle || !prev ? userId : prev.djId,
     });
   }
 
@@ -168,6 +244,7 @@ export class MusicService {
       case 'jump': {
         const i = s.queue.findIndex((t) => t.id === trackId);
         if (i < 0) throw new BadRequestException('faixa não está na fila');
+        if (s.queue[i]!.unavailable) throw new BadRequestException('não foi possível tocar esta faixa');
         next = at(i);
         break;
       }

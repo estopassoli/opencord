@@ -1,4 +1,4 @@
-import type { MusicControl, MusicState } from '@opencord/contracts';
+import type { MusicControl, MusicState, SpotifyKind } from '@opencord/contracts';
 import { create } from 'zustand';
 import { describeError, useSession } from './session';
 import { useUi } from './ui';
@@ -32,7 +32,10 @@ interface MusicStore {
   join(on: boolean): void;
   setVolume(v: number): void;
   load(channelId: string): Promise<void>;
-  add(channelId: string, src: { videoId?: string; playlistId?: string }): Promise<boolean>;
+  add(
+    channelId: string,
+    src: { videoId?: string; playlistId?: string; spotify?: { kind: SpotifyKind; id: string } },
+  ): Promise<boolean>;
   control(action: MusicControl['action'], extra?: { positionSec?: number; trackId?: string }): Promise<void>;
   stop(): Promise<void>;
   expectedPosition(): number;

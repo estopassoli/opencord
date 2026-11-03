@@ -47,6 +47,7 @@ import { RoomsService } from './servers/rooms.service.js';
 import { DiscordImportService } from './servers/discord-import.service.js';
 import { ActivitiesService } from './voice/activities.service.js';
 import { MusicService } from './voice/music.service.js';
+import { SpotifyService } from './voice/spotify.service.js';
 import { AccountService } from './users/account.service.js';
 import { AvatarService } from './users/avatar.service.js';
 import { RetentionService } from './users/retention.service.js';
@@ -106,6 +107,7 @@ export class AppModule {
         DiscordImportService,
         ActivitiesService,
         MusicService,
+        SpotifyService,
         AvatarService,
         AccountService,
         RetentionService,

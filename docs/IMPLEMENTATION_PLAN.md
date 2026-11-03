@@ -157,6 +157,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-02 | Chamadas privadas (ADR-0038) | int `dm-calls.int.test.ts` 1/1 + `voice.int.test.ts` 16/16 (LiveKit real); desktop typecheck/lint/unit | verde | sem migração; validar com duas pessoas reais (voz, câmera, tela) |
 | 2026-11-03 | Privacidade e dados pessoais (ADR-0039): termos/política, aceite 13+, exportar/excluir conta, expurgo | int `account.int.test.ts` 6/6 + suíte 198/198; desktop typecheck/lint/unit 209/209; capturas headless das páginas e da entrada | verde | migração `20261103000000_privacy` antes da API nova; criar `privacidade@opencord.pro` e preencher o contato no painel; rebuild da imagem `web` (landing + app) |
 | 2026-11-03 | Salas privadas (ADR-0040): canal privado e sala trancada | int `rooms.int.test.ts` 4/4 + suíte 204/204; desktop typecheck/lint/unit; SDK 64/64; capturas headless | verde | migração `20261103010000_private_rooms` antes da API nova; validar com pessoas reais (convite, pedido, vagas) |
+| 2026-11-03 | Spotify na música da chamada (ADR-0041) | int `spotify-music.int.test.ts` 4/4 (stubs) + suíte 208/208; contratos 23/23; desktop 209/209 | verde | `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` e `YOUTUBE_API_KEY` na API em produção; validar com chaves reais e pessoas na call |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

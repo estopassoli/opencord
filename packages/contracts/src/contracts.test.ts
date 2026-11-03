@@ -27,13 +27,14 @@ describe('cursor', () => {
 });
 
 describe('schemas', () => {
-  it('RegisterRequest: apelido + senha; e-mail opcional; sem convite', () => {
-    expect(RegisterRequest.safeParse({ nickname: 'Ana', password: 'x'.repeat(10) }).success).toBe(true);
-    expect(RegisterRequest.safeParse({ nickname: 'Ana', password: 'x'.repeat(10), email: 'a@b.co' }).success).toBe(
-      true,
-    );
-    expect(RegisterRequest.safeParse({ nickname: 'Ana', password: 'short' }).success).toBe(false);
-    expect(RegisterRequest.safeParse({ nickname: '<x>', password: 'x'.repeat(10) }).success).toBe(false);
+  it('RegisterRequest: apelido + senha; e-mail opcional; sem convite; aceite dos termos obrigatório (ADR-0039)', () => {
+    const ok = { nickname: 'Ana', password: 'x'.repeat(10), acceptTerms: true };
+    expect(RegisterRequest.safeParse(ok).success).toBe(true);
+    expect(RegisterRequest.safeParse({ ...ok, email: 'a@b.co' }).success).toBe(true);
+    expect(RegisterRequest.safeParse({ ...ok, password: 'short' }).success).toBe(false);
+    expect(RegisterRequest.safeParse({ ...ok, nickname: '<x>' }).success).toBe(false);
+    expect(RegisterRequest.safeParse({ nickname: 'Ana', password: 'x'.repeat(10) }).success).toBe(false);
+    expect(RegisterRequest.safeParse({ ...ok, acceptTerms: false }).success).toBe(false);
   });
   it('mensagem vazia sem anexos é rejeitada', () => {
     const requestId = crypto.randomUUID();
@@ -94,5 +95,23 @@ describe('links do YouTube (música)', () => {
     );
     expect(parseYouTubePlaylistId('https://youtu.be/dQw4w9WgXcQ')).toBeNull();
     expect(parseYouTubeId('youtube.com/watch?v=dQw4w9WgXcQ&list=PLabcdefghijklmnop')).toBe('dQw4w9WgXcQ');
+  });
+});
+
+describe('parseSpotifyLink', () => {
+  const id = '4uLU6hMCjMI75M1A2tKUQC';
+  it('aceita faixa, álbum e playlist, com intl, embed, query e URI', async () => {
+    const { parseSpotifyLink } = await import('./activities.js');
+    expect(parseSpotifyLink(`https://open.spotify.com/track/${id}?si=abc`)).toEqual({ kind: 'track', id });
+    expect(parseSpotifyLink(`https://open.spotify.com/intl-pt/album/${id}`)).toEqual({ kind: 'album', id });
+    expect(parseSpotifyLink(`https://open.spotify.com/embed/playlist/${id}`)).toEqual({ kind: 'playlist', id });
+    expect(parseSpotifyLink(`spotify:track:${id}`)).toEqual({ kind: 'track', id });
+  });
+  it('recusa outros links e ids inválidos', async () => {
+    const { parseSpotifyLink } = await import('./activities.js');
+    expect(parseSpotifyLink(`https://open.spotify.com/artist/${id}`)).toBeNull();
+    expect(parseSpotifyLink(`https://evil.com/track/${id}`)).toBeNull();
+    expect(parseSpotifyLink('https://open.spotify.com/track/curto')).toBeNull();
+    expect(parseSpotifyLink('só texto')).toBeNull();
   });
 });
