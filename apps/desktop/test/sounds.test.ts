@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultUserSettings } from '@opencord/contracts';
-import { playSound, soundLog, SOUNDS, soundVolume } from '../src/lib/sounds';
+import { playSound, soundLog, SOUND_PACKS, SOUND_SETS, SOUNDS, soundVolume } from '../src/lib/sounds';
 import { useData } from '../src/store/data';
 
 let oscillators = 0;
@@ -63,7 +63,19 @@ describe('efeitos sonoros', () => {
     expect(soundVolume()).toBe(0.5);
     playSound('peerJoin');
     expect(soundLog).toEqual(['peerJoin']);
-    expect(oscillators).toBe(SOUNDS.peerJoin.length);
+    // conjunto padrão ("padrao"): um oscilador por nota (parciais incluídos)
+    expect(oscillators).toBe(SOUND_SETS.padrao.peerJoin.length);
+  });
+
+  it('cada conjunto define todos os sons; o clássico é o SOUNDS; o pedido explícito vale sobre o das configurações', () => {
+    const names = Object.keys(SOUNDS) as (keyof typeof SOUNDS)[];
+    for (const pack of SOUND_PACKS)
+      for (const n of names) expect(SOUND_SETS[pack][n].length, `${pack}.${n}`).toBeGreaterThan(0);
+    expect(SOUND_SETS.classico).toBe(SOUNDS);
+    withSettings({ sounds: true, soundVolume: 1 });
+    oscillators = 0;
+    playSound('join', { force: true, pack: 'classico' });
+    expect(oscillators).toBe(SOUNDS.join.length);
   });
 
   it('não toca com Sons desligado, em Não perturbe ou volume 0', () => {
