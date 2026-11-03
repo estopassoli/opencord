@@ -166,7 +166,7 @@ export class ServersService {
       channels: s.channels
         .filter((c) => (chPerms.get(c.id) ?? 0) !== 0)
         // overrides só são expostos a quem pode gerenciá-los
-        .map((c) => channel(canManage ? c : { ...c, overrides: [] }, chPerms.get(c.id) ?? 0)),
+        .map((c) => channel(c, chPerms.get(c.id) ?? 0, s.roles.find((r) => r.isEveryone)?.id ?? null, !canManage)),
       members: s.members.map(member),
       myPermissions: access.base,
     };
@@ -620,6 +620,21 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     return member(m);
   }
 
+  async everyoneId(serverId: string): Promise<string | null> {
+    return (
+      (await this.prisma.role.findFirst({ where: { serverId, isEveryone: true }, select: { id: true } }))?.id ?? null
+    );
+  }
+
+  /** Para o serviço de salas (ADR-0040): mesmos avisos de quando um canal muda. */
+  async emitChannelUpdated(serverId: string, channelId: string) {
+    await this.emitChannel(serverId, channelId, 'channel:updated');
+  }
+
+  async permissionsChangedPublic(serverId: string) {
+    await this.permissionsChanged(serverId);
+  }
+
   private async permissionsChanged(serverId: string) {
     this.events.emit({ type: 'permissions.changed', serverId });
     await this.realtime.syncServer(serverId);
@@ -753,6 +768,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     // Payload inclui myPermissions, que varia por usuário: enviar individualmente a cada membro conectado que vê o canal.
     const members = await this.prisma.serverMember.findMany({ where: { serverId }, select: { userId: true } });
     const c = await this.prisma.channel.findUniqueOrThrow({ where: { id: channelId }, include: { overrides: true } });
+    const everyoneId = await this.everyoneId(serverId);
     for (const m of members) {
       const access = await this.perms.server(serverId, m.userId).catch(() => null);
       if (!access) continue;
@@ -763,7 +779,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       }
       const canManage =
         hasPermission(access.base, Permission.MANAGE_CHANNELS) || hasPermission(access.base, Permission.MANAGE_ROLES);
-      this.realtime.toUser(m.userId, ev, channel(canManage ? c : { ...c, overrides: [] }, p));
+      this.realtime.toUser(m.userId, ev, channel(c, p, everyoneId, !canManage));
     }
   }
 
@@ -813,10 +829,30 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       categoryId?: string | null | undefined;
       topic?: string | null | undefined;
       roomHub?: boolean | undefined;
+      private?: boolean | undefined;
+      allowedRoleIds?: string[] | undefined;
+      allowedUserIds?: string[] | undefined;
     },
   ): Promise<Channel> {
-    await this.perms.requireServer(serverId, actorId, Permission.MANAGE_CHANNELS);
+    const actor = await this.perms.requireServer(serverId, actorId, Permission.MANAGE_CHANNELS);
     if (dto.roomHub && dto.kind !== 'voice') throw new BadRequestException('só canal de voz cria salas');
+    // canal privado (ADR-0040): @everyone não vê; quem criou e os cargos/membros escolhidos veem
+    const privateOverrides: { subjectType: 'role' | 'member'; subjectId: string; allow: number; deny: number }[] = [];
+    if (dto.private) {
+      const everyone = await this.prisma.role.findFirstOrThrow({ where: { serverId, isEveryone: true } });
+      const roles = dto.allowedRoleIds?.length
+        ? await this.prisma.role.findMany({ where: { serverId, id: { in: dto.allowedRoleIds }, isEveryone: false } })
+        : [];
+      const members = dto.allowedUserIds?.length
+        ? await this.prisma.serverMember.findMany({ where: { serverId, userId: { in: dto.allowedUserIds } } })
+        : [];
+      this.perms.assertGrantable(actor, Permission.VIEW_CHANNEL);
+      privateOverrides.push({ subjectType: 'role', subjectId: everyone.id, allow: 0, deny: Permission.VIEW_CHANNEL });
+      for (const r of roles)
+        privateOverrides.push({ subjectType: 'role', subjectId: r.id, allow: Permission.VIEW_CHANNEL, deny: 0 });
+      for (const uid of new Set([actorId, ...members.map((m) => m.userId)]))
+        privateOverrides.push({ subjectType: 'member', subjectId: uid, allow: Permission.VIEW_CHANNEL, deny: 0 });
+    }
     if ((await this.prisma.channel.count({ where: { serverId } })) >= MAX_CHANNELS)
       throw new BadRequestException('limite de canais');
     if (dto.categoryId) {
@@ -836,14 +872,19 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
         topic: dto.topic ?? null,
         position: (max._max.position ?? -1) + 1,
         roomHub: Boolean(dto.roomHub),
+        ...(privateOverrides.length ? { overrides: { create: privateOverrides } } : {}),
       },
       include: { overrides: true },
     });
-    await this.audit.log(actorId, serverId, 'channel.create', c.id, { name: c.name, kind: c.kind });
+    await this.audit.log(actorId, serverId, 'channel.create', c.id, {
+      name: c.name,
+      kind: c.kind,
+      private: Boolean(dto.private),
+    });
     await this.realtime.syncServer(serverId);
     await this.emitChannel(serverId, c.id, 'channel:created');
     const access = await this.perms.server(serverId, actorId);
-    return channel(c, (await this.perms.channelsFor(access, [c])).get(c.id) ?? 0);
+    return channel(c, (await this.perms.channelsFor(access, [c])).get(c.id) ?? 0, await this.everyoneId(c.serverId));
   }
 
   async updateChannel(
@@ -857,6 +898,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       overrides?: PermissionOverrideDto[] | undefined;
       boardId?: string | null | undefined;
       roomHub?: boolean | undefined;
+      private?: boolean | undefined;
     },
   ): Promise<Channel> {
     const existing = await this.prisma.channel.findUnique({ where: { id: channelId } });
@@ -902,6 +944,29 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
         if (dto.overrides.length)
           await tx.channelPermissionOverride.createMany({ data: dto.overrides.map((o) => ({ ...o, channelId })) });
       }
+      // privado (ADR-0040): liga/desliga o "ninguém vê" do @everyone; quem edita continua vendo (override próprio)
+      if (dto.private !== undefined) {
+        const everyone = await tx.role.findFirstOrThrow({ where: { serverId: existing.serverId, isEveryone: true } });
+        const key = { channelId, subjectType: 'role' as const, subjectId: everyone.id };
+        const cur = await tx.channelPermissionOverride.findUnique({ where: { channelId_subjectType_subjectId: key } });
+        const deny = dto.private
+          ? (cur?.deny ?? 0) | Permission.VIEW_CHANNEL
+          : (cur?.deny ?? 0) & ~Permission.VIEW_CHANNEL;
+        await tx.channelPermissionOverride.upsert({
+          where: { channelId_subjectType_subjectId: key },
+          create: { ...key, allow: cur?.allow ?? 0, deny },
+          update: { deny },
+        });
+        if (dto.private && actorId !== access.ownerId) {
+          const mine = { channelId, subjectType: 'member' as const, subjectId: actorId };
+          const m = await tx.channelPermissionOverride.findUnique({ where: { channelId_subjectType_subjectId: mine } });
+          await tx.channelPermissionOverride.upsert({
+            where: { channelId_subjectType_subjectId: mine },
+            create: { ...mine, allow: Permission.VIEW_CHANNEL, deny: 0 },
+            update: { allow: (m?.allow ?? 0) | Permission.VIEW_CHANNEL },
+          });
+        }
+      }
     });
     await this.audit.log(
       actorId,
@@ -910,10 +975,10 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       channelId,
       { ...dto },
     );
-    if (dto.overrides) await this.permissionsChanged(existing.serverId);
+    if (dto.overrides || dto.private !== undefined) await this.permissionsChanged(existing.serverId);
     await this.emitChannel(existing.serverId, channelId, 'channel:updated');
     const c = await this.prisma.channel.findUniqueOrThrow({ where: { id: channelId }, include: { overrides: true } });
-    return channel(c, (await this.perms.channelsFor(access, [c])).get(c.id) ?? 0);
+    return channel(c, (await this.perms.channelsFor(access, [c])).get(c.id) ?? 0, await this.everyoneId(c.serverId));
   }
 
   /**
@@ -921,27 +986,49 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
    * abaixo dele, com o nome de quem entrou. Sem checagem de MANAGE_CHANNELS: quem pode entrar no criador pode abrir
    * uma sala.
    */
-  async createTemporaryRoom(hubId: string, userId: string): Promise<{ id: string }> {
+  async createTemporaryRoom(
+    hubId: string,
+    userId: string,
+    opts: { name?: string | undefined; locked?: boolean | undefined; userLimit?: number | null | undefined } = {},
+  ): Promise<{ id: string }> {
     const hub = await this.prisma.channel.findUniqueOrThrow({ where: { id: hubId }, include: { overrides: true } });
     if ((await this.prisma.channel.count({ where: { serverId: hub.serverId } })) >= MAX_CHANNELS)
       throw new BadRequestException('limite de canais');
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { displayName: true } });
+    // trancada desde o início (ADR-0040): @everyone e os cargos liberados no criador perdem CONNECT; a dona ganha
+    const overrides = hub.overrides.map((o) => ({
+      subjectType: o.subjectType,
+      subjectId: o.subjectId,
+      allow: opts.locked && o.subjectType === 'role' ? o.allow & ~Permission.CONNECT : o.allow,
+      deny: opts.locked && o.subjectType === 'role' ? o.deny | Permission.CONNECT : o.deny,
+    }));
+    if (opts.locked) {
+      const everyone = await this.prisma.role.findFirstOrThrow({ where: { serverId: hub.serverId, isEveryone: true } });
+      if (!overrides.some((o) => o.subjectType === 'role' && o.subjectId === everyone.id))
+        overrides.push({ subjectType: 'role', subjectId: everyone.id, allow: 0, deny: Permission.CONNECT });
+      const mine = overrides.find((o) => o.subjectType === 'member' && o.subjectId === userId);
+      if (mine) {
+        mine.allow |= Permission.CONNECT | Permission.VIEW_CHANNEL;
+        mine.deny &= ~(Permission.CONNECT | Permission.VIEW_CHANNEL);
+      } else
+        overrides.push({
+          subjectType: 'member',
+          subjectId: userId,
+          allow: Permission.CONNECT | Permission.VIEW_CHANNEL,
+          deny: 0,
+        });
+    }
     const c = await this.prisma.channel.create({
       data: {
         serverId: hub.serverId,
-        name: `Sala de ${user.displayName}`.slice(0, 64),
+        name: (opts.name ?? `Sala de ${user.displayName}`).slice(0, 64),
         kind: 'voice',
         categoryId: hub.categoryId,
         position: hub.position + 1,
         temporary: true,
-        overrides: {
-          create: hub.overrides.map((o) => ({
-            subjectType: o.subjectType,
-            subjectId: o.subjectId,
-            allow: o.allow,
-            deny: o.deny,
-          })),
-        },
+        ownerId: userId,
+        userLimit: opts.userLimit ?? null,
+        overrides: { create: overrides },
       },
     });
     // as salas seguintes ficam abaixo (empurra o que vinha depois do criador)
@@ -952,6 +1039,19 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     await this.realtime.syncServer(hub.serverId);
     await this.emitChannel(hub.serverId, c.id, 'channel:created');
     return { id: c.id };
+  }
+
+  /** A dona saiu e ficou gente (ADR-0040): a sala passa a quem ficou. */
+  async handOffRoom(channelId: string, leaverId: string, remaining: string[]) {
+    const c = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { temporary: true, ownerId: true, serverId: true },
+    });
+    if (!c?.temporary || c.ownerId !== leaverId) return;
+    const next = remaining.find((u) => u !== leaverId);
+    if (!next) return;
+    await this.prisma.channel.update({ where: { id: channelId }, data: { ownerId: next } });
+    await this.emitChannel(c.serverId, channelId, 'channel:updated');
   }
 
   /** Sala temporária vazia some (ADR-0029). */

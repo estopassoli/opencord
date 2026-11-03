@@ -29,6 +29,8 @@ export type Modal =
   /** banir alguém do servidor (ADR-0034): motivo + apagar mensagens recentes */
   | { kind: 'ban'; serverId: string; userId: string }
   | { kind: 'create-channel'; serverId: string; channelKind: ChannelKind; categoryId: string | null }
+  /** convidar pessoas para uma sala trancada (ADR-0040) */
+  | { kind: 'room-invite'; serverId: string; channelId: string }
   | { kind: 'create-category'; serverId: string }
   | { kind: 'events'; serverId: string }
   | { kind: 'highlights'; serverId: string }

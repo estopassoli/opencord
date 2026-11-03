@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-03',
+    time: '12:30',
+    kind: 'novo',
+    icon: 'lock',
+    title: 'Salas privadas',
+    body: 'Agora dá para trancar a sua sala: no canal que cria salas, "Criar sala trancada…" abre uma sala onde só entra quem você convidar. Clique com o botão direito na sua sala para trancar ou destrancar, convidar pessoas, limitar as vagas, renomear ou remover alguém. Quem não foi convidado vê o cadeado e pode pedir para entrar, e você libera com um toque. E quem administra o servidor pode criar canais privados, visíveis só para os cargos e as pessoas escolhidos.',
+  },
+  {
+    date: '2026-11-03',
+    time: '11:00',
+    kind: 'melhoria',
+    icon: 'shield',
+    title: 'Moderação automática mais justa',
+    body: 'A moderação automática deixou de segurar mensagens por engano: links (inclusive convites do OpenCord) publicam na hora, cada mensagem é julgada pelo que ela diz e não pelo que outras pessoas falaram antes, e zoeira, palavrão e discussão passam. Em mensagens diretas nada fica retido para revisão; só o que é realmente grave é bloqueado.',
+  },
+  {
+    date: '2026-11-03',
     time: '10:00',
     kind: 'novo',
     icon: 'shield',

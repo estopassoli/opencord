@@ -22,7 +22,10 @@ import {
   CreateCategoryRequest,
   CreateChannelRequest,
   CreateRoleRequest,
+  CreateRoomRequest,
   CreateServerRequest,
+  RoomInviteRequest,
+  UpdateRoomRequest,
   DiscordImportRequest,
   SetMemberRolesRequest,
   UpdateCategoryRequest,
@@ -38,6 +41,7 @@ import { zodPipe } from '../common/zod.pipe.js';
 import { AuditService } from '../audit/audit.service.js';
 import { PresenceService } from '../realtime/presence.service.js';
 import { PermissionsService } from './permissions.service.js';
+import { RoomsService } from './rooms.service.js';
 import { ServersService } from './servers.service.js';
 import { DiscordImportService } from './discord-import.service.js';
 
@@ -57,6 +61,7 @@ export class ServersController {
     private readonly perms: PermissionsService,
     private readonly discord: DiscordImportService,
     private readonly avatars: AvatarService,
+    private readonly rooms: RoomsService,
   ) {}
 
   @Get('servers')
@@ -347,5 +352,49 @@ export class ServersController {
   @HttpCode(204)
   async deleteChannel(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
     await this.servers.deleteChannel(id, u.userId);
+  }
+
+  // ----- salas privadas (ADR-0040) -----
+  @Post('channels/:id/rooms')
+  createRoom(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(CreateRoomRequest)) dto: z.infer<typeof CreateRoomRequest>,
+  ) {
+    return this.rooms.create(id, u.userId, dto);
+  }
+
+  @Patch('rooms/:id')
+  updateRoom(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(UpdateRoomRequest)) dto: z.infer<typeof UpdateRoomRequest>,
+  ) {
+    return this.rooms.update(id, u.userId, dto);
+  }
+
+  @Post('rooms/:id/invite')
+  inviteToRoom(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(RoomInviteRequest)) dto: z.infer<typeof RoomInviteRequest>,
+  ) {
+    return this.rooms.invite(id, u.userId, dto.userIds);
+  }
+
+  @Delete('rooms/:id/members/:userId')
+  @HttpCode(204)
+  async kickFromRoom(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Param('userId', anyUuid) userId: string,
+  ) {
+    await this.rooms.kick(id, u.userId, userId);
+  }
+
+  @Post('rooms/:id/knock')
+  @HttpCode(204)
+  async knock(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    await this.rooms.knock(id, u.userId);
   }
 }

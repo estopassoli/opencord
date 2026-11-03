@@ -262,12 +262,24 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     // invisível (ADR-0013) não entra em voz: a chamada mostraria a pessoa
     if (access.hidden) throw forbidden('fique visível no servidor para entrar em voz');
     // criador de salas (ADR-0029): a pessoa entra numa sala temporária nova, não no criador
-    const hub = await this.prisma.channel.findUnique({ where: { id: channelId }, select: { roomHub: true } });
+    const hub = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { roomHub: true, userLimit: true, ownerId: true },
+    });
     if (hub?.roomHub) return this.join(userId, (await this.servers.createTemporaryRoom(channelId, userId)).id);
     const current = await this.stateOf(userId);
     const occupants = await this.r.scard(`voice:channel:${channelId}`);
     if (occupants >= MAX_PER_CHANNEL && current?.channelId !== channelId)
       throw new BadRequestException('canal de voz cheio');
+    // limite de vagas da sala (ADR-0040): a dona e quem move gente passam mesmo cheia
+    if (
+      hub?.userLimit &&
+      occupants >= hub.userLimit &&
+      current?.channelId !== channelId &&
+      hub.ownerId !== userId &&
+      !hasPermission(access.perms, Permission.MOVE_MEMBERS)
+    )
+      throw new BadRequestException('sala cheia');
     // Uma sessão de voz por usuário: trocar de canal encerra a anterior na SFU.
     if (current && current.channelId !== channelId) await this.endSession(current, 'moved');
 
@@ -469,9 +481,24 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     });
     if (notifyUser)
       this.realtime.toUser(s.userId, 'voice:force-disconnect', { channelId: s.channelId, reason: notifyUser });
-    // sala temporária vazia some (ADR-0029)
-    if (s.serverId && (await this.r.scard(`voice:channel:${s.channelId}`)) === 0)
-      await this.servers.deleteTemporaryRoom(s.channelId).catch(() => undefined);
+    // sala temporária vazia some (ADR-0029); com gente, a dona que saiu passa a sala adiante (ADR-0040)
+    if (s.serverId) {
+      const remaining = await this.r.smembers(`voice:channel:${s.channelId}`);
+      if (remaining.length === 0) await this.servers.deleteTemporaryRoom(s.channelId).catch(() => undefined);
+      else await this.servers.handOffRoom(s.channelId, s.userId, remaining).catch(() => undefined);
+    }
+  }
+
+  /** Dona da sala (ADR-0040) tira alguém da própria sala; quem não está nela não é afetado. */
+  async kickFromChannel(channelId: string, targetId: string) {
+    const s = await this.stateOf(targetId);
+    if (!s || s.channelId !== channelId) return;
+    await this.endSession(s, 'kicked', 'kicked');
+  }
+
+  /** Quem está na sala agora (ADR-0040: trancar libera quem já está dentro). */
+  occupants(channelId: string): Promise<string[]> {
+    return this.r.smembers(`voice:channel:${channelId}`);
   }
 
   async updateSelf(

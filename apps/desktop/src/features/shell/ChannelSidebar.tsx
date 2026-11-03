@@ -16,6 +16,7 @@ import { moveToVoice } from './voiceMove';
 import { CHANNEL_ICON, CHANNEL_ORDER } from '../../lib/channels';
 import { useAliases } from '../../lib/names';
 import { GameBadge } from './Playing';
+import { createLockedRoom, isLockedRoom, isPrivateChannel, knockRoom, roomMenuItems } from './rooms';
 
 /** Categorias recolhidas (por id de categoria), lembradas neste dispositivo. */
 const COLLAPSED_KEY = 'oc:collapsed-categories';
@@ -247,7 +248,18 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                                       icon: 'speaker' as const,
                                       onSelect: () => void useVoice.getState().join(c.id, serverId),
                                     },
+                                    ...(c.roomHub && hasPermission(c.myPermissions, Permission.CONNECT)
+                                      ? [
+                                          {
+                                            label: 'Criar sala trancada…',
+                                            icon: 'lock' as const,
+                                            hint: 'Só quem você convidar entra',
+                                            onSelect: () => void createLockedRoom(c),
+                                          },
+                                        ]
+                                      : []),
                                   ]),
+                            ...roomMenuItems(detail, c, me),
                             ...(canManage
                               ? ([
                                   'separator',
@@ -301,13 +313,35 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                       onClick={() => {
                         go({ kind: 'server', serverId, channelId: c.id });
                         // clique em canal de voz conecta; em texto apenas navega (sem sair da voz)
-                        if (c.kind === 'voice' && voiceChannel !== c.id) void useVoice.getState().join(c.id, serverId);
+                        // sala trancada em que não entro: pede para a dona (ADR-0040)
+                        if (c.kind === 'voice' && voiceChannel !== c.id) {
+                          if (c.temporary && !hasPermission(c.myPermissions, Permission.CONNECT)) void knockRoom(c);
+                          else void useVoice.getState().join(c.id, serverId);
+                        }
                       }}
                     >
                       <Icon name={c.roomHub ? 'plus-circle' : CHANNEL_ICON[c.kind]} size={18} />
                       <span className="truncate">{c.name}</span>
                       {c.roomHub && <span className="small muted">cria uma sala</span>}
                       {c.temporary && <Icon name="clock" size={14} label="Sala temporária: some quando esvazia" />}
+                      {(isLockedRoom(detail, c) || isPrivateChannel(detail, c)) && (
+                        <Icon
+                          name="lock"
+                          size={14}
+                          label={
+                            c.temporary
+                              ? hasPermission(c.myPermissions, Permission.CONNECT)
+                                ? 'Sala trancada: você pode entrar'
+                                : 'Sala trancada: clique para pedir para entrar'
+                              : 'Canal privado'
+                          }
+                        />
+                      )}
+                      {c.temporary && c.userLimit !== null && (
+                        <span className="small muted room-count">
+                          {inVoice.length}/{c.userLimit}
+                        </span>
+                      )}
                       {!hasPermission(c.myPermissions, Permission.SEND_MESSAGES) && c.kind === 'text' && (
                         <Icon name="lock" size={14} label="Somente leitura" />
                       )}

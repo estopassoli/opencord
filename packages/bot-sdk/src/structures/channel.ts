@@ -385,6 +385,10 @@ export class TextChannel {
       boardId: this.boardId,
       roomHub: this.roomHub,
       temporary: this.temporary,
+      ownerId: null,
+      userLimit: null,
+      locked: false,
+      private: false,
     };
   }
 }
@@ -533,6 +537,10 @@ export function stubChannel(client: Client, id: string, guildId: string): TextCh
     boardId: null,
     roomHub: false,
     temporary: false,
+    ownerId: null,
+    userLimit: null,
+    locked: false,
+    private: false,
   });
 }
 

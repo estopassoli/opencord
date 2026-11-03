@@ -8,7 +8,7 @@ import type {
   ServerDetail,
   ServerDirectoryEntry,
 } from '@opencord/contracts';
-import { Button, Icon, RadioGroup, Switch, TextField } from '@opencord/ui';
+import { Button, Checkbox, Icon, RadioGroup, Switch, TextField } from '@opencord/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { ServerIcon } from '../../components/ServerIcon';
@@ -29,6 +29,7 @@ import { setFriendNickname } from '../../lib/names';
 import { QuickSwitcher } from './QuickSwitcher';
 import { EventsDialog } from './Events';
 import { HighlightsDialog } from './Highlights';
+import { MemberChecklist, RoomInviteDialog } from './rooms';
 
 export function Modals() {
   const modal = useUi((s) => s.modal);
@@ -63,6 +64,8 @@ export function Modals() {
       );
     case 'create-channel':
       return <CreateChannel modal={modal} onClose={close} />;
+    case 'room-invite':
+      return <RoomInviteDialog serverId={modal.serverId} channelId={modal.channelId} onClose={close} />;
     case 'watch-together':
       return <WatchTogetherDialog onClose={close} />;
     case 'create-category':
@@ -553,12 +556,26 @@ function CreateChannel({ modal, onClose }: { modal: Extract<Modal, { kind: 'crea
   const [name, setName] = useState('');
   const [kind, setKind] = useState<ChannelKind>(modal.channelKind);
   const [roomHub, setRoomHub] = useState(false);
+  // canal privado (ADR-0040): só os cargos e pessoas marcados (e você) veem
+  const [isPrivate, setPrivate] = useState(false);
+  const [roleIds, setRoleIds] = useState<Set<string>>(new Set());
+  const [userIds, setUserIds] = useState<Set<string>>(new Set());
+  const detail = useData((s) => s.details[modal.serverId]);
+  const me = useData((s) => s.me?.id);
+  const toggleIn = (set: (f: (p: Set<string>) => Set<string>) => void) => (id: string, on: boolean) =>
+    set((p) => {
+      const n = new Set(p);
+      if (on) n.add(id);
+      else n.delete(id);
+      return n;
+    });
   const { busy, error, submit } = useSubmit(async () => {
     const c = await api().request<Channel>('POST', `/servers/${modal.serverId}/channels`, {
       name,
       kind,
       categoryId: modal.categoryId,
       ...(kind === 'voice' && roomHub ? { roomHub: true } : {}),
+      ...(isPrivate ? { private: true, allowedRoleIds: [...roleIds], allowedUserIds: [...userIds] } : {}),
     });
     useData.getState().upsertChannel(c);
     if (c.kind !== 'voice') useUi.getState().go({ kind: 'server', serverId: modal.serverId, channelId: c.id });
@@ -593,6 +610,38 @@ function CreateChannel({ modal, onClose }: { modal: Extract<Modal, { kind: 'crea
             checked={roomHub}
             onChange={setRoomHub}
           />
+        )}
+        <Switch
+          label="Canal privado"
+          description="Só os cargos e as pessoas que você escolher (e você) veem e entram."
+          checked={isPrivate}
+          onChange={setPrivate}
+        />
+        {isPrivate && detail && (
+          <div className="private-pick">
+            {detail.roles.some((r) => !r.isEveryone) && (
+              <fieldset className="role-checklist">
+                <legend className="small muted">Cargos</legend>
+                {detail.roles
+                  .filter((r) => !r.isEveryone)
+                  .sort((a, b) => b.position - a.position)
+                  .map((r) => (
+                    <Checkbox
+                      key={r.id}
+                      checked={roleIds.has(r.id)}
+                      onChange={(on) => toggleIn(setRoleIds)(r.id, on)}
+                      label={r.name}
+                    />
+                  ))}
+              </fieldset>
+            )}
+            <MemberChecklist
+              detail={detail}
+              picked={userIds}
+              onToggle={toggleIn(setUserIds)}
+              exclude={me ? [me] : []}
+            />
+          </div>
         )}
         {error && (
           <p className="form-error" role="alert">

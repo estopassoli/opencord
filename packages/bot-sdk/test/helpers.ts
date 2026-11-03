@@ -132,6 +132,10 @@ export function channelDto(over: Partial<ChannelDto> = {}): ChannelDto {
     boardId: null,
     roomHub: false,
     temporary: false,
+    ownerId: null,
+    userLimit: null,
+    locked: false,
+    private: false,
     ...over,
   };
 }

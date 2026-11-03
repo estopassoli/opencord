@@ -1,3 +1,4 @@
+import { Permission } from '@opencord/contracts';
 import type { Category, Channel, Member, Role, ServerSummary, UserPublic } from '@opencord/contracts';
 
 type UserRow = {
@@ -89,31 +90,46 @@ export const channel = (
     boardId?: string | null;
     roomHub?: boolean;
     temporary?: boolean;
+    ownerId?: string | null;
+    userLimit?: number | null;
     name: string;
     topic: string | null;
     position: number;
     overrides: { subjectType: 'role' | 'member'; subjectId: string; allow: number; deny: number }[];
   },
   myPermissions: number,
-): Channel => ({
-  id: c.id,
-  serverId: c.serverId,
-  categoryId: c.categoryId,
-  kind: c.kind,
-  name: c.name,
-  topic: c.topic,
-  position: c.position,
-  myPermissions,
-  boardId: c.boardId ?? null,
-  roomHub: c.roomHub ?? false,
-  temporary: c.temporary ?? false,
-  overrides: c.overrides.map((o) => ({
-    subjectType: o.subjectType,
-    subjectId: o.subjectId,
-    allow: o.allow,
-    deny: o.deny,
-  })),
-});
+  /** id do @everyone: calcula `locked`/`private` (ADR-0040) a partir dos overrides antes de escondê-los */
+  everyoneId: string | null = null,
+  /** overrides só vão a quem pode gerenciá-los */
+  hideOverrides = false,
+): Channel => {
+  const ev = everyoneId ? c.overrides.find((o) => o.subjectType === 'role' && o.subjectId === everyoneId) : undefined;
+  return {
+    id: c.id,
+    serverId: c.serverId,
+    categoryId: c.categoryId,
+    kind: c.kind,
+    name: c.name,
+    topic: c.topic,
+    position: c.position,
+    myPermissions,
+    boardId: c.boardId ?? null,
+    roomHub: c.roomHub ?? false,
+    temporary: c.temporary ?? false,
+    ownerId: c.ownerId ?? null,
+    userLimit: c.userLimit ?? null,
+    locked: Boolean(c.temporary && ev && ev.deny & Permission.CONNECT),
+    private: Boolean(ev && ev.deny & Permission.VIEW_CHANNEL),
+    overrides: hideOverrides
+      ? []
+      : c.overrides.map((o) => ({
+          subjectType: o.subjectType,
+          subjectId: o.subjectId,
+          allow: o.allow,
+          deny: o.deny,
+        })),
+  };
+};
 
 /** Castigo (ADR-0034) ainda valendo; um prazo já vencido vira null, como se nunca tivesse havido. */
 export const activeTimeout = (until: Date | null | undefined): Date | null =>

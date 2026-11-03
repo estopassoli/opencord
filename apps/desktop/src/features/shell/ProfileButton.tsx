@@ -11,6 +11,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { StreamPreviewCard, watchStream } from '../../components/StreamPreview';
 import { moveTargets, moveToVoice } from './voiceMove';
+import { removeFromRoomItem } from './rooms';
 import { PlayingNow } from './Playing';
 import { userAppsMenu } from '../chat/messageApps';
 import { moderationTargets, openBanDialog, timeoutMenuItems } from '../admin/moderationActions';
@@ -179,6 +180,9 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
         onSelect: () => moveToVoice(userId, serverId!, c.id),
       })),
     });
+  // dona da sala (ADR-0040) tira gente da própria sala, mesmo sem cargo de moderação
+  const roomKick = removeFromRoomItem(userId, serverId);
+  if (roomKick) mod.push(roomKick);
   if (voice && !isMe && !shielded && perms && hasPermission(perms, Permission.MOVE_MEMBERS))
     mod.push({
       label: 'Desconectar',

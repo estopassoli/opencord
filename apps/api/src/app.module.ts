@@ -43,6 +43,7 @@ import { RealtimeService } from './realtime/realtime.service.js';
 import { PermissionsService } from './servers/permissions.service.js';
 import { ServersController } from './servers/servers.controller.js';
 import { ServersService } from './servers/servers.service.js';
+import { RoomsService } from './servers/rooms.service.js';
 import { DiscordImportService } from './servers/discord-import.service.js';
 import { ActivitiesService } from './voice/activities.service.js';
 import { MusicService } from './voice/music.service.js';
@@ -101,6 +102,7 @@ export class AppModule {
         PermissionsService,
         AuditService,
         ServersService,
+        RoomsService,
         DiscordImportService,
         ActivitiesService,
         MusicService,

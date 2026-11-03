@@ -1,6 +1,6 @@
 import { MobileNavButton } from '../../components/MobileNavButton';
 import { Avatar, avatarColor, Button, Icon } from '@opencord/ui';
-import type { Member } from '@opencord/contracts';
+import { hasPermission, Permission, type Member } from '@opencord/contracts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { openContextMenu, useContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Tooltip } from '../../components/Tooltip';
@@ -20,6 +20,7 @@ import { isDesktop } from '../../lib/bridge';
 import { bestTileWidth } from './tileLayout';
 import { copyLiveDiagnostics } from './liveDiag';
 import { memberMenu } from '../shell/ProfileButton';
+import { knockRoom } from '../shell/rooms';
 import { RecordButton, RecordingBadge, RecordingsButton, useRecordingLoad } from './Recording';
 import { RemoteOverlay } from './RemoteOverlay';
 import { remoteControl, useRemote } from '../../voice/remote-control';
@@ -70,6 +71,9 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   useTileGrid(gridEl, tileCount);
 
   if (!here) {
+    // sala trancada em que não entro (ADR-0040): o botão vira "Pedir para entrar"
+    const ch = serverId ? useData.getState().details[serverId]?.channels.find((c) => c.id === channelId) : undefined;
+    const knock = Boolean(ch?.temporary && !hasPermission(ch.myPermissions, Permission.CONNECT));
     return (
       <section
         className="stage stage-idle"
@@ -94,18 +98,27 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
             );
           })}
         </ul>
-        <Button
-          size="lg"
-          icon="speaker"
-          onClick={() =>
-            void (serverId
-              ? useVoice.getState().join(channelId, serverId)
-              : useVoice.getState().joinConversation(channelId))
-          }
-          disabled={machine.status === 'authorizing' || machine.status === 'connecting'}
-        >
-          {machine.status === 'authorizing' || machine.status === 'connecting' ? 'Conectando…' : 'Entrar na chamada'}
-        </Button>
+        {knock && ch ? (
+          <>
+            <p className="muted small">Sala trancada: só entra quem a dona convidar.</p>
+            <Button size="lg" icon="lock" onClick={() => void knockRoom(ch)}>
+              Pedir para entrar
+            </Button>
+          </>
+        ) : (
+          <Button
+            size="lg"
+            icon="speaker"
+            onClick={() =>
+              void (serverId
+                ? useVoice.getState().join(channelId, serverId)
+                : useVoice.getState().joinConversation(channelId))
+            }
+            disabled={machine.status === 'authorizing' || machine.status === 'connecting'}
+          >
+            {machine.status === 'authorizing' || machine.status === 'connecting' ? 'Conectando…' : 'Entrar na chamada'}
+          </Button>
+        )}
       </section>
     );
   }

@@ -101,6 +101,10 @@ describe('selectChoices', () => {
         boardId: null,
         roomHub: false,
         temporary: false,
+        ownerId: null,
+        userLimit: null,
+        locked: false,
+        private: false,
       },
       {
         id: 'c1',
@@ -115,6 +119,10 @@ describe('selectChoices', () => {
         boardId: null,
         roomHub: false,
         temporary: false,
+        ownerId: null,
+        userLimit: null,
+        locked: false,
+        private: false,
       },
       {
         id: 'c0',
@@ -129,6 +137,10 @@ describe('selectChoices', () => {
         boardId: null,
         roomHub: false,
         temporary: false,
+        ownerId: null,
+        userLimit: null,
+        locked: false,
+        private: false,
       },
     ],
   };

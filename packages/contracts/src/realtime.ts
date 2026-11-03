@@ -188,12 +188,14 @@ export interface ServerEvents {
   'friend:changed': z.infer<typeof Friend> | { userId: string; removed: true };
   'conversation:upserted': z.infer<typeof Conversation>;
   'notification:created': {
-    kind: 'mention' | 'dm' | 'friend_request' | 'moderation' | 'call';
+    /** room_invite / room_knock: salas trancadas (ADR-0040); `userId` é quem pediu ou convidou */
+    kind: 'mention' | 'dm' | 'friend_request' | 'moderation' | 'call' | 'room_invite' | 'room_knock';
     title: string;
     body: string;
     channelId?: string;
     conversationId?: string;
     serverId?: string;
+    userId?: string;
   };
   'session:revoked': { reason: string };
   /** moderação por IA (ADR-0036): caso novo na fila (só moderadores do servidor) e caso decidido */

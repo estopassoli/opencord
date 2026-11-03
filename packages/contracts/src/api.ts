@@ -198,6 +198,14 @@ export const Channel = z.object({
   roomHub: z.boolean().default(false),
   /** sala temporária: some quando a última pessoa sai */
   temporary: z.boolean().default(false),
+  /** sala temporária (ADR-0040): quem manda nela (tranca, convida, limita, remove); null fora de salas */
+  ownerId: Id.nullable().default(null),
+  /** sala temporária: limite de vagas (null = o máximo do canal) */
+  userLimit: z.number().int().nullable().default(null),
+  /** sala temporária trancada: o @everyone não entra (só a dona e quem ela liberou) */
+  locked: z.boolean().default(false),
+  /** canal privado: o @everyone não vê */
+  private: z.boolean().default(false),
 });
 export type Channel = z.infer<typeof Channel>;
 
@@ -329,8 +337,39 @@ export const CreateChannelRequest = z.object({
   topic: z.string().max(1024).nullable().optional(),
   /** só canal de voz: criador de salas temporárias (ADR-0029) */
   roomHub: z.boolean().optional(),
+  /** canal privado (ADR-0040): só quem está em allowedRoleIds/allowedUserIds (e quem criou) vê o canal */
+  private: z.boolean().optional(),
+  allowedRoleIds: z.array(Id).max(50).optional(),
+  allowedUserIds: z.array(Id).max(100).optional(),
 });
 export type CreateChannelRequest = z.input<typeof CreateChannelRequest>;
+
+/** Nome de sala de voz: livre como "Sala de Fulano" (não vira slug como os canais de texto). */
+const RoomName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine((s) => !/[\p{Cc}\p{Cf}]/u.test(s), 'caracteres não permitidos');
+
+/** Sala temporária criada direto num criador de salas (ADR-0040), já trancada ou com limite. */
+export const CreateRoomRequest = z.object({
+  name: RoomName.optional(),
+  locked: z.boolean().optional(),
+  userLimit: z.number().int().min(1).max(99).nullable().optional(),
+});
+export type CreateRoomRequest = z.input<typeof CreateRoomRequest>;
+
+/** Ajustes da própria sala temporária (dono ou MANAGE_CHANNELS). */
+export const UpdateRoomRequest = z.object({
+  name: RoomName.optional(),
+  locked: z.boolean().optional(),
+  userLimit: z.number().int().min(1).max(99).nullable().optional(),
+});
+export type UpdateRoomRequest = z.input<typeof UpdateRoomRequest>;
+
+export const RoomInviteRequest = z.object({ userIds: z.array(Id).min(1).max(50) });
+export type RoomInviteRequest = z.infer<typeof RoomInviteRequest>;
 
 export const UpdateChannelRequest = z.object({
   name: ChannelName.optional(),
@@ -342,6 +381,8 @@ export const UpdateChannelRequest = z.object({
   boardId: Id.nullable().optional(),
   /** canal de voz: liga/desliga o criador de salas temporárias (ADR-0029) */
   roomHub: z.boolean().optional(),
+  /** canal privado (ADR-0040): liga/desliga o "ninguém vê" do @everyone, mantendo as liberações */
+  private: z.boolean().optional(),
 });
 export type UpdateChannelRequest = z.input<typeof UpdateChannelRequest>;
 

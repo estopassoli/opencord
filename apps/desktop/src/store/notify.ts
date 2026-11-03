@@ -18,6 +18,11 @@ export function notify(n: ServerEvents['notification:created']) {
       },
     });
   }
+  // salas trancadas (ADR-0040): convite com "Entrar" e pedido com "Deixar entrar"
+  if (n.kind === 'room_invite' || n.kind === 'room_knock') {
+    playSound('join');
+    void import('../features/shell/rooms').then(({ handleRoomNotification }) => handleRoomNotification(n));
+  }
   const s = useData.getState().settings;
   if (!s || s.notifications.dnd || useData.getState().myStatus === 'dnd') return;
   const view = useUi.getState().view;

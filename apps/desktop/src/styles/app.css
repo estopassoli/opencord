@@ -7602,3 +7602,42 @@ html[data-wallpaper='true'] .chat-scroll {
 .dm-call-people li + li {
   margin-left: -6px;
 }
+
+/* salas privadas (ADR-0040): escolha de pessoas e cargos */
+.member-checklist {
+  display: grid;
+  gap: 8px;
+}
+.member-checklist ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+}
+.member-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.private-pick {
+  display: grid;
+  gap: 12px;
+}
+.role-checklist {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.role-checklist legend {
+  margin-bottom: 4px;
+}
+.room-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
