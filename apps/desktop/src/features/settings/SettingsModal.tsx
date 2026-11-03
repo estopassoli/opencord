@@ -17,7 +17,7 @@ import { Dialog } from '../../components/Dialog';
 import { acceleratorKey, formatAccelerator, formatCode, MODIFIER_CODES, needsModifier } from '../../lib/keys';
 import { InstallAppBlock } from '../../components/InstallApp';
 import { bridge } from '../../lib/bridge';
-import { playSound } from '../../lib/sounds';
+import { playSound, SOUND_PACK_LABEL, SOUND_PACKS, type SoundPack } from '../../lib/sounds';
 import {
   familyFromFileName,
   FONT_ACCEPT,
@@ -1280,20 +1280,50 @@ function NotificationsTab({ settings }: { settings: UserSettings }) {
         onChange={(v) => set({ sounds: v })}
       />
       {n.sounds && (
-        <div className="sound-volume">
-          <Slider
-            label="Volume dos efeitos"
-            min={0}
-            max={1}
-            step={0.05}
-            value={n.soundVolume}
-            format={(v) => `${Math.round(v * 100)}%`}
-            onChange={(v) => set({ soundVolume: v })}
+        <>
+          <Select<SoundPack>
+            label="Conjunto de sons"
+            value={(SOUND_PACKS as readonly string[]).includes(n.soundPack) ? (n.soundPack as SoundPack) : 'classico'}
+            onChange={(v) => {
+              set({ soundPack: v });
+              playSound('join', { force: true, pack: v });
+            }}
+            options={SOUND_PACKS.map((p) => ({ value: p, label: SOUND_PACK_LABEL[p] }))}
           />
-          <Button variant="secondary" icon="play" onClick={() => playSound('join', { force: true })}>
-            Ouvir exemplo
-          </Button>
-        </div>
+          <div className="sound-volume">
+            <Slider
+              label="Volume dos efeitos"
+              min={0}
+              max={1}
+              step={0.05}
+              value={n.soundVolume}
+              format={(v) => `${Math.round(v * 100)}%`}
+              onChange={(v) => set({ soundVolume: v })}
+            />
+          </div>
+          <div className="sound-previews" role="group" aria-label="Ouvir cada som">
+            {(
+              [
+                ['join', 'Entrar'],
+                ['leave', 'Sair'],
+                ['peerJoin', 'Alguém entrou'],
+                ['mute', 'Mutar'],
+                ['message', 'Mensagem'],
+                ['streamStart', 'Live'],
+              ] as const
+            ).map(([name, label]) => (
+              <Button
+                key={name}
+                variant="secondary"
+                size="sm"
+                icon="play"
+                onClick={() => playSound(name, { force: true })}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </>
       )}
       <Switch
         label="Não perturbe"

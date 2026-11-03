@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
+    time: '22:00',
+    kind: 'novo',
+    icon: 'soundboard',
+    title: 'Conjuntos de efeitos sonoros',
+    body: 'Em Configurações → Notificações dá para escolher o jeito dos sons do app: Clássico, Suave, Retrô (8 bits), Madeira (marimba), Telefone ou Discreto, e ouvir cada um (entrar, sair, alguém entrou, mutar, mensagem, live) antes de decidir. O volume dos efeitos agora começa em 100%.',
+  },
+  {
+    date: '2026-11-02',
     time: '21:30',
     kind: 'novo',
     icon: 'phone',

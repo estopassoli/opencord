@@ -43,6 +43,7 @@ const E6 = 1318.51;
 const A4 = 440;
 const E4 = 329.63;
 const B4 = 493.88;
+const C6 = 1046.5;
 
 export const SOUNDS: Record<SoundName, Note[]> = {
   join: [
@@ -108,6 +109,193 @@ export const SOUNDS: Record<SoundName, Note[]> = {
   ],
 };
 
+/** Conjuntos de sons (Configurações → Notificações). "classico" é o SOUNDS acima. */
+export const SOUND_PACKS = ['classico', 'suave', 'retro', 'madeira', 'telefone', 'discreto'] as const;
+export type SoundPack = (typeof SOUND_PACKS)[number];
+export const SOUND_PACK_LABEL: Record<SoundPack, string> = {
+  classico: 'Clássico',
+  suave: 'Suave',
+  retro: 'Retrô (8 bits)',
+  madeira: 'Madeira (marimba)',
+  telefone: 'Telefone',
+  discreto: 'Discreto',
+};
+
+// notas graves/médias usadas pelos conjuntos novos
+const C4 = 261.63;
+const D4 = 293.66;
+const F4 = 349.23;
+const G4 = 392;
+const C5 = 523.25;
+const D5 = 587.33;
+const F5 = 698.46;
+const G5 = 783.99;
+const Cs5 = 554.37;
+const A3 = 220;
+
+const sq = (f: number, t: number, d: number, g = 0.45): Note => ({ f, t, d, g, type: 'square' });
+const tri = (f: number, t: number, d: number, g = 0.9): Note => ({ f, t, d, g, type: 'triangle' });
+const tick = (f: number, t = 0, g = 0.5): Note => ({ f, t, d: 0.045, g });
+
+/** Suave: senos uma oitava abaixo, decaimento longo; quase um sino distante. */
+const SUAVE: Record<SoundName, Note[]> = {
+  join: [
+    { f: E4, t: 0, d: 0.3, g: 0.8 },
+    { f: A4, t: 0.14, d: 0.45, g: 0.8 },
+  ],
+  leave: [
+    { f: A4, t: 0, d: 0.3, g: 0.8 },
+    { f: E4, t: 0.14, d: 0.5, g: 0.8 },
+  ],
+  peerJoin: [{ f: B4, t: 0, d: 0.35, g: 0.55 }],
+  peerLeave: [{ f: E4, t: 0, d: 0.4, g: 0.55 }],
+  mute: [{ f: E4, t: 0, d: 0.2, g: 0.6 }],
+  unmute: [{ f: A4, t: 0, d: 0.2, g: 0.6 }],
+  deafen: [{ f: A3, t: 0, d: 0.3, g: 0.6 }],
+  undeafen: [{ f: E4, t: 0, d: 0.3, g: 0.6 }],
+  message: [{ f: Cs5, t: 0, d: 0.4, g: 0.45 }],
+  streamStart: [
+    { f: A4, t: 0, d: 0.3, g: 0.8 },
+    { f: Cs5, t: 0.16, d: 0.5, g: 0.8 },
+  ],
+  streamStop: [
+    { f: Cs5, t: 0, d: 0.3, g: 0.8 },
+    { f: A4, t: 0.16, d: 0.5, g: 0.8 },
+  ],
+  disconnect: [{ f: A3, t: 0, d: 0.6, g: 0.6, type: 'triangle' }],
+  reconnect: [
+    { f: E4, t: 0, d: 0.2, g: 0.6 },
+    { f: A4, t: 0.2, d: 0.4, g: 0.6 },
+  ],
+  clip: [
+    { f: A4, t: 0, d: 0.14, g: 0.6 },
+    { f: E5, t: 0.1, d: 0.3, g: 0.6 },
+  ],
+};
+
+/** Retrô: onda quadrada, arpejos rápidos, cara de videogame antigo. */
+const RETRO: Record<SoundName, Note[]> = {
+  join: [sq(C5, 0, 0.07), sq(E5, 0.07, 0.07), sq(G5, 0.14, 0.14)],
+  leave: [sq(G5, 0, 0.07), sq(E5, 0.07, 0.07), sq(C5, 0.14, 0.16)],
+  peerJoin: [sq(G5, 0, 0.06, 0.35), sq(C6, 0.06, 0.1, 0.35)],
+  peerLeave: [sq(C6, 0, 0.06, 0.35), sq(G5, 0.06, 0.12, 0.35)],
+  mute: [sq(E4, 0, 0.08, 0.4)],
+  unmute: [sq(A4, 0, 0.08, 0.4)],
+  deafen: [sq(A3, 0, 0.1, 0.4), sq(E4, 0.1, 0.08, 0.3)],
+  undeafen: [sq(E4, 0, 0.08, 0.3), sq(A3, 0.08, 0.1, 0.4)],
+  message: [sq(B5, 0, 0.05, 0.3), sq(B5, 0.09, 0.08, 0.3)],
+  streamStart: [sq(C5, 0, 0.06), sq(G5, 0.06, 0.06), sq(C6, 0.12, 0.16)],
+  streamStop: [sq(C6, 0, 0.06), sq(G5, 0.06, 0.06), sq(C5, 0.12, 0.16)],
+  disconnect: [sq(E4, 0, 0.12, 0.4), sq(C4, 0.14, 0.22, 0.4)],
+  reconnect: [sq(C5, 0, 0.06), sq(C5, 0.1, 0.06), sq(G5, 0.2, 0.14)],
+  clip: [sq(G5, 0, 0.05, 0.4), sq(C6, 0.05, 0.05, 0.4), sq(E6, 0.1, 0.12, 0.4)],
+};
+
+/** Madeira: triângulo com decaimento curto, notas médias; lembra marimba. */
+const MADEIRA: Record<SoundName, Note[]> = {
+  join: [tri(D4, 0, 0.12), tri(A4, 0.1, 0.18)],
+  leave: [tri(A4, 0, 0.12), tri(D4, 0.1, 0.2)],
+  peerJoin: [tri(F5, 0, 0.14, 0.6)],
+  peerLeave: [tri(D4, 0, 0.16, 0.6)],
+  mute: [tri(G4, 0, 0.08, 0.7), tri(D4, 0.05, 0.1, 0.7)],
+  unmute: [tri(D4, 0, 0.08, 0.7), tri(G4, 0.05, 0.1, 0.7)],
+  deafen: [tri(A3, 0, 0.14, 0.7)],
+  undeafen: [tri(D4, 0, 0.14, 0.7)],
+  message: [tri(F5, 0, 0.1, 0.5), tri(A5, 0.07, 0.16, 0.5)],
+  streamStart: [tri(D4, 0, 0.1), tri(F4, 0.08, 0.1), tri(A4, 0.16, 0.22)],
+  streamStop: [tri(A4, 0, 0.1), tri(F4, 0.08, 0.1), tri(D4, 0.16, 0.22)],
+  disconnect: [tri(D4, 0, 0.16, 0.7), tri(A3, 0.14, 0.28, 0.7)],
+  reconnect: [tri(D4, 0, 0.08), tri(D4, 0.12, 0.08), tri(A4, 0.24, 0.18)],
+  clip: [tri(A4, 0, 0.06, 0.7), tri(D5, 0.06, 0.06, 0.7), tri(F5, 0.12, 0.14, 0.7)],
+};
+
+/** Telefone: bipes de dois tons e toques curtos, como um telefone antigo. */
+const TELEFONE: Record<SoundName, Note[]> = {
+  join: [
+    { f: 880, t: 0, d: 0.18, g: 0.6 },
+    { f: 1320, t: 0, d: 0.18, g: 0.45 },
+  ],
+  leave: [
+    { f: 620, t: 0, d: 0.12, g: 0.6 },
+    { f: 620, t: 0.16, d: 0.12, g: 0.6 },
+  ],
+  peerJoin: [
+    { f: 1000, t: 0, d: 0.08, g: 0.45 },
+    { f: 1000, t: 0.1, d: 0.08, g: 0.45 },
+  ],
+  peerLeave: [{ f: 480, t: 0, d: 0.2, g: 0.45 }],
+  mute: [{ f: 480, t: 0, d: 0.12, g: 0.5 }],
+  unmute: [{ f: 960, t: 0, d: 0.12, g: 0.5 }],
+  deafen: [
+    { f: 480, t: 0, d: 0.1, g: 0.5 },
+    { f: 360, t: 0.1, d: 0.14, g: 0.5 },
+  ],
+  undeafen: [
+    { f: 360, t: 0, d: 0.1, g: 0.5 },
+    { f: 480, t: 0.1, d: 0.14, g: 0.5 },
+  ],
+  message: [
+    { f: 1000, t: 0, d: 0.07, g: 0.4 },
+    { f: 1250, t: 0.08, d: 0.1, g: 0.4 },
+  ],
+  streamStart: [
+    { f: 880, t: 0, d: 0.1, g: 0.5 },
+    { f: 1320, t: 0.12, d: 0.1, g: 0.5 },
+    { f: 1760, t: 0.24, d: 0.16, g: 0.5 },
+  ],
+  streamStop: [
+    { f: 1760, t: 0, d: 0.1, g: 0.5 },
+    { f: 1320, t: 0.12, d: 0.1, g: 0.5 },
+    { f: 880, t: 0.24, d: 0.16, g: 0.5 },
+  ],
+  disconnect: [
+    { f: 480, t: 0, d: 0.25, g: 0.5 },
+    { f: 620, t: 0, d: 0.25, g: 0.35 },
+  ],
+  reconnect: [
+    { f: 880, t: 0, d: 0.08, g: 0.5 },
+    { f: 880, t: 0.12, d: 0.08, g: 0.5 },
+    { f: 1320, t: 0.24, d: 0.16, g: 0.5 },
+  ],
+  clip: [
+    { f: 1320, t: 0, d: 0.05, g: 0.5 },
+    { f: 1760, t: 0.06, d: 0.1, g: 0.5 },
+  ],
+};
+
+/** Discreto: tiques curtíssimos, baixo volume; só para não passar batido. */
+const DISCRETO: Record<SoundName, Note[]> = {
+  join: [tick(1200), tick(1600, 0.05)],
+  leave: [tick(1600), tick(1200, 0.05)],
+  peerJoin: [tick(1400, 0, 0.4)],
+  peerLeave: [tick(1000, 0, 0.4)],
+  mute: [tick(700, 0, 0.4)],
+  unmute: [tick(1100, 0, 0.4)],
+  deafen: [tick(600, 0, 0.4), tick(500, 0.06, 0.4)],
+  undeafen: [tick(500, 0, 0.4), tick(600, 0.06, 0.4)],
+  message: [tick(1500, 0, 0.35)],
+  streamStart: [tick(1200), tick(1500, 0.05), tick(1800, 0.1)],
+  streamStop: [tick(1800), tick(1500, 0.05), tick(1200, 0.1)],
+  disconnect: [tick(700, 0, 0.5), tick(500, 0.08, 0.5)],
+  reconnect: [tick(1200, 0, 0.5), tick(1200, 0.1, 0.5), tick(1600, 0.2, 0.5)],
+  clip: [tick(1500), tick(2000, 0.05)],
+};
+
+export const SOUND_SETS: Record<SoundPack, Record<SoundName, Note[]>> = {
+  classico: SOUNDS,
+  suave: SUAVE,
+  retro: RETRO,
+  madeira: MADEIRA,
+  telefone: TELEFONE,
+  discreto: DISCRETO,
+};
+
+/** conjunto escolhido nas configurações (padrão clássico) */
+export function currentPack(): SoundPack {
+  const p = useData.getState().settings?.notifications.soundPack;
+  return p && p in SOUND_SETS ? (p as SoundPack) : 'classico';
+}
+
 /** últimos sons disparados (diagnóstico/E2E: confere os gatilhos com o áudio mudo) */
 export const soundLog: SoundName[] = [];
 
@@ -138,8 +326,8 @@ export function soundVolume(): number {
   return n.soundVolume;
 }
 
-export function playSound(name: SoundName, opts: { force?: boolean } = {}) {
-  const vol = opts.force ? (useData.getState().settings?.notifications.soundVolume ?? 0.5) : soundVolume();
+export function playSound(name: SoundName, opts: { force?: boolean; pack?: SoundPack } = {}) {
+  const vol = opts.force ? (useData.getState().settings?.notifications.soundVolume ?? 1) : soundVolume();
   if (vol <= 0) return;
   // o mesmo som em rajada (ex.: várias pessoas entrando juntas) toca uma vez
   const now = Date.now();
@@ -156,7 +344,7 @@ export function playSound(name: SoundName, opts: { force?: boolean } = {}) {
   master.gain.value = 0.35 * vol * vol;
   master.connect(c.destination);
   const t0 = c.currentTime + 0.01;
-  for (const n of SOUNDS[name]) {
+  for (const n of SOUND_SETS[opts.pack ?? currentPack()][name]) {
     const start = t0 + n.t;
     const end = start + n.d;
     const peak = n.g ?? 1;

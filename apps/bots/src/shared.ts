@@ -65,6 +65,7 @@ export function makeClient(opts: { baseUrl: string; activity: string; log: (m: s
   const client = new Client({ baseUrl: opts.baseUrl } as ClientOptions);
   client.on(Events.Error, (e) => opts.log(`erro: ${e instanceof Error ? e.message : String(e)}`));
   client.on(Events.Disconnect, (r) => opts.log(`desconectado: ${String(r)}`));
+  client.on('resume', () => opts.log('reconectado'));
   client.once(Events.ClientReady, (c) => {
     void c.user?.setActivity(opts.activity).catch(() => undefined);
   });

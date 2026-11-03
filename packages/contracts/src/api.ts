@@ -1443,8 +1443,10 @@ export const UserSettingsV1 = z.object({
     .object({
       desktop: z.boolean().default(true),
       sounds: z.boolean().default(true),
-      /** volume dos efeitos sonoros (0–1) */
-      soundVolume: z.number().min(0).max(1).default(0.5),
+      /** volume dos efeitos sonoros (0–1); padrão 100 % */
+      soundVolume: z.number().min(0).max(1).default(1),
+      /** conjunto de sons (classico, suave, retro, madeira, telefone, discreto) */
+      soundPack: z.string().max(32).default('classico'),
       dnd: z.boolean().default(false),
     })
     .prefault({}),

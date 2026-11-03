@@ -988,3 +988,10 @@ button.admin-stat:focus-visible {
 .mod-reject {
   gap: 8px;
 }
+
+.sound-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
