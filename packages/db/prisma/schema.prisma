@@ -288,6 +288,10 @@ model Channel {
   roomHub    Boolean                     @default(false)
   /// sala temporária criada por um criador de salas: some quando esvazia
   temporary  Boolean                     @default(false)
+  /// dona da sala temporária (ADR-0040): tranca, convida, limita vagas e remove gente; passa adiante quando sai
+  ownerId    String?                     @db.Uuid
+  /// limite de vagas da sala temporária (null = o máximo do canal)
+  userLimit  Int?
   server     Server                      @relation(fields: [serverId], references: [id], onDelete: Cascade)
   category   Category?                   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   overrides  ChannelPermissionOverride[]
