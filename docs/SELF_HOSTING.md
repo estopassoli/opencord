@@ -58,4 +58,5 @@ pnpm --filter @opencord/desktop dev:win    # abre o app no Windows apontando par
 - [ ] TLS na API e no LiveKit (WSS).
 - [ ] Teste externo de voz e Go Live com dois PCs em redes distintas (gate de mídia).
 - [ ] Backup diário com restauração testada no ambiente real.
-- [ ] Política de retenção e limites de upload definidos pelo mantenedor (DECISIONS.md).
+- [ ] Política de retenção e limites de upload definidos pelo mantenedor (DECISIONS.md); prazos de expurgo em `RETENTION_*_DAYS` (ADR-0039).
+- [ ] Contato para privacidade preenchido no painel do super admin (aparece nos Termos e na Política dentro do app); se publicar a landing, troque `privacidade@opencord.pro` em `site/termos.html` e `site/privacidade.html` pelo seu.

@@ -104,6 +104,7 @@ export async function createTestUser(ownerToken: string, serverId: string, displ
     username,
     displayName,
     password: 'e2e-password-123',
+    acceptTerms: true,
   });
   return { email: `${username}@e2e.local`, password: 'e2e-password-123', id: reg.user.id, username };
 }

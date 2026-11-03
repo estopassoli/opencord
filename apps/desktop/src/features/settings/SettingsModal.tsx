@@ -35,6 +35,7 @@ import { updateSettings } from '../../store/settings';
 import { useUi } from '../../store/ui';
 import './settings.css';
 import { deviceLabel } from '../voice/devices';
+import { PrivacySection } from '../legal/PrivacySection';
 import { AvatarPicker } from './AvatarPicker';
 import { BotsTab } from './BotsTab';
 import { GamesTab } from './GamesTab';
@@ -398,6 +399,8 @@ function AccountTab() {
           </form>
         </Section>
       )}
+
+      <PrivacySection me={me} Section={Section} />
 
       <Section
         title="Sessão"

@@ -199,7 +199,7 @@ test('apelido já em uso é recusado com mensagem clara', async () => {
   const r = await fetch(`${API}/auth/guest`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ nickname: NICK.toUpperCase() }),
+    body: JSON.stringify({ nickname: NICK.toUpperCase(), acceptTerms: true }),
   });
   expect(r.status).toBe(409);
 });

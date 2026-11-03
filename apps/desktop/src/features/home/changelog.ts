@@ -19,6 +19,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-03',
+    time: '10:00',
+    kind: 'novo',
+    icon: 'shield',
+    title: 'Seus dados, nas suas mãos',
+    body: 'Publicamos os Termos de uso e a Política de privacidade, que contam o que o OpenCord guarda sobre você, por quanto tempo, como funciona a moderação automática e com quem nada é compartilhado. Em Configurações → Conta → Privacidade e dados você baixa tudo o que existe sobre você num arquivo e, se quiser, exclui a conta na hora: sessões, arquivos, foto, amizades e configurações somem; suas mensagens ficam nas conversas dos outros como "Usuário removido". O cadastro passa a pedir a confirmação de 13 anos ou mais, e quem já tem conta aceita uma vez ao abrir o app.',
+  },
+  {
     date: '2026-11-02',
     time: '22:00',
     kind: 'novo',

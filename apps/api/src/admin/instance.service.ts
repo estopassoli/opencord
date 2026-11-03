@@ -74,6 +74,7 @@ export class InstanceService {
       creatorId: await this.creatorId(),
       // moderação por IA (ADR-0036): chave no ambiente e ligada no painel
       aiModeration: Boolean(this.cfg.ANTHROPIC_API_KEY) && (row?.aiModeration ?? true),
+      privacyContact: row?.privacyContact ?? null,
     };
   }
 }

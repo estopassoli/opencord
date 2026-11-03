@@ -18,7 +18,7 @@ Identidades sem senha ficam ligadas ao dispositivo pela sessão. Servidores são
 - Assinar builds/updates quando possível; publicar hashes e provenance.
 
 ## Privacidade
-Não gravar chamadas por padrão. WebRTC usa criptografia em trânsito, mas isso não significa E2EE contra SFU. Não alegar E2EE sem implementação específica. Expor exclusão de conta/dados e política de retenção antes de disponibilizar publicamente.
+Não gravar chamadas por padrão. WebRTC usa criptografia em trânsito, mas isso não significa E2EE contra SFU. Não alegar E2EE sem implementação específica (a política diz isso com todas as letras). Desde a ADR-0039 (2026-11-03): Termos de uso e Política de privacidade no app e na landing, aceite com idade mínima de 13 anos no cadastro (`termsAcceptedAt`), exportação (`GET /me/export`) e exclusão da conta pelo app (`POST /me/delete`, anonimiza; mensagens ficam como "Usuário removido"), expurgo automático (`RetentionService`: sessões encerradas 180 d, auditoria/casos decididos/bloqueios de dispositivo 365 d). Ainda sem criptografia em repouso e sem encarregado nomeado.
 
 ## Checklist de revisão
 Testar IDOR, permissões por canal, tokens expirados, reuso de convites, rate limit, MIME spoofing, XSS em mensagens, URL schemes, atualização e IPC.

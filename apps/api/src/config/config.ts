@@ -85,6 +85,11 @@ export const ConfigSchema = z.object({
   MODERATION_AI_FAIL_CLOSED: bool.default(false),
   /** Bots oficiais (ADR-0037): segredo compartilhado com o container dos bots; sem ele a rota de claim não existe. */
   OFFICIAL_BOTS_SECRET: z.string().min(16).optional(),
+  /** Retenção (ADR-0039), em dias: sessões encerradas/expiradas, auditoria, casos de moderação decididos e bloqueios de dispositivo. */
+  RETENTION_SESSIONS_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
+  RETENTION_AUDIT_DAYS: z.coerce.number().int().min(1).max(3650).default(365),
+  RETENTION_MODERATION_DAYS: z.coerce.number().int().min(1).max(3650).default(365),
+  RETENTION_DEVICE_BANS_DAYS: z.coerce.number().int().min(1).max(3650).default(365),
   /** Autocompletar de comandos de bot (ADR-0034): quanto a API espera o bot antes de devolver sem sugestões. */
   AUTOCOMPLETE_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(AUTOCOMPLETE_TIMEOUT_MS),
 });

@@ -94,7 +94,9 @@ let seq = 0;
 export async function register(http: Http, name?: string): Promise<Client> {
   seq++;
   const nickname = name ?? `user_${seq}_${randomUUID().slice(0, 6)}`;
-  const r = await http.req<AuthResponse>('POST', '/auth/register', { body: { nickname, password: 'password-123456' } });
+  const r = await http.req<AuthResponse>('POST', '/auth/register', {
+    body: { nickname, password: 'password-123456', acceptTerms: true },
+  });
   if (r.status !== 201) throw new Error(`register falhou: ${r.status} ${JSON.stringify(r.body)}`);
   return {
     id: r.body.user.id,

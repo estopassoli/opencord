@@ -5,6 +5,7 @@ import { ErrorBoundary, reportError } from './components/ErrorBoundary';
 import { Toasts } from './components/Toasts';
 import { GlobalTips } from './components/GlobalTips';
 import { AuthScreen } from './features/auth/AuthScreen';
+import { TermsGate } from './features/legal/TermsGate';
 import { AppShell } from './features/shell/AppShell';
 import { VidroShell } from './features/vidro/VidroShell';
 import { useLayout } from './lib/layout';
@@ -85,7 +86,10 @@ export function App() {
       ) : status === 'anonymous' ? (
         <AuthScreen />
       ) : (
-        <AvatarProvider>{layout === 'vidro' ? <VidroShell /> : <AppShell />}</AvatarProvider>
+        <AvatarProvider>
+          {layout === 'vidro' ? <VidroShell /> : <AppShell />}
+          <TermsGate />
+        </AvatarProvider>
       )}
       <Toasts />
       <AskHost />

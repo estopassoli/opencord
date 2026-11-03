@@ -310,6 +310,7 @@ export class AdminService {
     if (dto.aiModerationDms !== undefined) data.aiModerationDms = dto.aiModerationDms;
     if (dto.aiAutoBlock !== undefined) data.aiAutoBlock = dto.aiAutoBlock;
     if (dto.aiAutoBlockDevice !== undefined) data.aiAutoBlockDevice = dto.aiAutoBlockDevice;
+    if (dto.privacyContact !== undefined) data.privacyContact = dto.privacyContact || null;
     await this.prisma.instanceConfig.upsert({
       where: { id: 1 },
       create: { id: 1, ...(data as Prisma.InstanceConfigUncheckedCreateInput) },

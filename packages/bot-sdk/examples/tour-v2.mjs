@@ -70,9 +70,17 @@ const envelope = (s, ev, pred = () => true, ms = 8000) =>
   });
 
 // --- cenário: Ana (dona) cria o servidor e o bot; Bruno entra ---
-const ana = await req('POST', '/auth/guest', null, { nickname: `Ana-${tag}`, deviceId: `ana-${tag}` });
+const ana = await req('POST', '/auth/guest', null, {
+  nickname: `Ana-${tag}`,
+  deviceId: `ana-${tag}`,
+  acceptTerms: true,
+});
 const A = ana.tokens.accessToken;
-const bruno = await req('POST', '/auth/guest', null, { nickname: `Bruno-${tag}`, deviceId: `bruno-${tag}` });
+const bruno = await req('POST', '/auth/guest', null, {
+  nickname: `Bruno-${tag}`,
+  deviceId: `bruno-${tag}`,
+  acceptTerms: true,
+});
 const B = bruno.tokens.accessToken;
 const server = await req('POST', '/servers', A, { name: 'Clube do Livro' });
 const geral = server.channels.find((c) => c.kind === 'text');

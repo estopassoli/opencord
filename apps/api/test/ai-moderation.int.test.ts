@@ -364,14 +364,18 @@ describe('bloqueio automático e de dispositivo', () => {
     expect(dead.status).toBe(401);
     // mesmo aparelho, apelido novo: recusado; outro aparelho: entra
     const again = await httpc.req<{ message?: string }>('POST', '/auth/guest', {
-      body: { nickname: 'Bruno2', deviceId: 'dev-outro' },
+      body: { nickname: 'Bruno2', deviceId: 'dev-outro', acceptTerms: true },
       headers: { 'x-hardware-id': hw },
     });
     expect(again.status).toBe(403);
     expect(again.body.message).toContain('dispositivo');
-    const sameDevice = await httpc.req('POST', '/auth/guest', { body: { nickname: 'Bruno3', deviceId: 'dev-bruno' } });
+    const sameDevice = await httpc.req('POST', '/auth/guest', {
+      body: { nickname: 'Bruno3', deviceId: 'dev-bruno', acceptTerms: true },
+    });
     expect(sameDevice.status).toBe(403);
-    const other = await httpc.req('POST', '/auth/guest', { body: { nickname: 'Carla', deviceId: 'dev-carla' } });
+    const other = await httpc.req('POST', '/auth/guest', {
+      body: { nickname: 'Carla', deviceId: 'dev-carla', acceptTerms: true },
+    });
     expect(other.status).toBe(201);
     // painel lista e reativar a conta libera o aparelho
     const list = await httpc.req<{ id: string; kind: string }[]>('GET', '/admin/device-bans', { token: owner.token });
@@ -381,7 +385,7 @@ describe('bloqueio automático e de dispositivo', () => {
     expect([200, 201]).toContain(un.status);
     expect(await prisma.deviceBan.count({ where: { userId: bruno.id } })).toBe(0);
     const back = await httpc.req('POST', '/auth/guest', {
-      body: { nickname: 'Bruno4', deviceId: 'dev-bruno' },
+      body: { nickname: 'Bruno4', deviceId: 'dev-bruno', acceptTerms: true },
       headers: { 'x-hardware-id': hw },
     });
     expect(back.status).toBe(201);

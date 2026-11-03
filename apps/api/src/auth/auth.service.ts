@@ -69,6 +69,7 @@ export class AuthService {
     avatarKey: string | null;
     passwordHash: string | null;
     createdAt: Date;
+    termsAcceptedAt: Date | null;
     isInstanceAdmin?: boolean;
     isBot?: boolean;
     isWebhook?: boolean;
@@ -83,6 +84,8 @@ export class AuthService {
       displayName: u.displayName,
       avatarKey: u.avatarKey,
       hasAccount: u.passwordHash !== null,
+      // bots e webhooks não aceitam termos; contas anteriores à ADR-0039 aceitam no app
+      termsAccepted: u.termsAcceptedAt !== null || Boolean(u.isBot) || Boolean(u.isWebhook),
       createdAt: u.createdAt.toISOString(),
       isInstanceAdmin: u.isInstanceAdmin ?? false,
       ...(u.verified ? { verified: true } : {}),
@@ -145,7 +148,15 @@ export class AuthService {
           username = `${username.slice(0, 24)}_${randomBytes(3).toString('hex')}`;
         }
         const user = await tx.user.create({
-          data: { username, displayName: data.nickname, nickKey, email: data.email, passwordHash: data.passwordHash },
+          data: {
+            username,
+            displayName: data.nickname,
+            nickKey,
+            email: data.email,
+            passwordHash: data.passwordHash,
+            // o cadastro só passa com acceptTerms (contrato): registra quando aceitou (ADR-0039)
+            termsAcceptedAt: new Date(),
+          },
         });
         const serverIds = await joinAllServers(tx, user.id);
         for (const serverId of serverIds) {

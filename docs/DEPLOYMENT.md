@@ -29,6 +29,11 @@ A instância mantida pelo autor roda as mesmas imagens deste repositório, num c
 | PostgreSQL / Redis | instâncias gerenciadas à parte, com réplica e backup periódico |
 
 - TLS no proxy de borda; a mídia WebRTC não passa pelo proxy.
+- **Privacidade (ADR-0039)**: a migração `20261103000000_privacy` roda antes da API nova. Prazos de expurgo em
+  `RETENTION_SESSIONS_DAYS` (180), `RETENTION_AUDIT_DAYS`, `RETENTION_MODERATION_DAYS` e `RETENTION_DEVICE_BANS_DAYS`
+  (365); mudou um prazo, mude a Política (app e landing). O contato para dados pessoais vai no painel do super admin →
+  Instância; a landing cita `privacidade@opencord.pro`, que precisa existir (ou troque o texto em `site/*.html`).
+  A imagem `web` precisa de rebuild para a landing trazer `termos.html` e `privacidade.html`.
 - **Moderação por IA (ADR-0036)**: defina `ANTHROPIC_API_KEY` na API (segredo; sem ela o recurso fica desligado) e,
   se quiser, `MODERATION_AI_MODEL` (padrão `claude-haiku-5-5`), `MODERATION_AI_TIMEOUT_MS` (12000) e
   `MODERATION_AI_FAIL_CLOSED` (false). A migração `20261102030000_ai_moderation` roda antes da API nova; a imagem da

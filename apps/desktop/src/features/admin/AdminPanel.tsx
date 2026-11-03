@@ -558,10 +558,12 @@ function InstanceTab() {
   const [text, setText] = useState('');
   const [tone, setTone] = useState<InstanceAnnouncement['tone']>('info');
   const [uploadMb, setUploadMb] = useState<number | null>(null);
+  const [contact, setContact] = useState('');
   const [busy, setBusy] = useState(false);
 
   const apply = (c: AdminInstanceConfig) => {
     setCfg(c);
+    setContact(c.privacyContact ?? '');
     setText(c.announcement?.text ?? '');
     setTone(c.announcement?.tone ?? 'info');
     setUploadMb(c.uploadOverrideBytes ? Math.round(c.uploadOverrideBytes / MB) : null);
@@ -662,6 +664,31 @@ function InstanceTab() {
           }}
           options={uploadOptions}
         />
+      </Section>
+      <Section
+        title="Contato para privacidade"
+        description="E-mail ou link que aparece nos Termos e na Política de privacidade para pedidos sobre dados pessoais (LGPD). Vazio: só o canal do projeto no GitHub."
+      >
+        <form
+          className="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save({ privacyContact: contact.trim() || null }, 'Contato salvo.');
+          }}
+        >
+          <TextField
+            label="Contato"
+            placeholder="privacidade@exemplo.com"
+            value={contact}
+            onChange={(e) => setContact(e.target.value)}
+            maxLength={254}
+          />
+          <div className="form-actions">
+            <Button type="submit" size="sm" disabled={busy || contact.trim() === (cfg.privacyContact ?? '')}>
+              Salvar
+            </Button>
+          </div>
+        </form>
       </Section>
       {cfg.updatedAt && <p className="muted small">Última alteração: {fmtDate(cfg.updatedAt)}</p>}
     </>

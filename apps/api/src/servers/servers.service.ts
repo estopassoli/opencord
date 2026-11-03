@@ -202,6 +202,16 @@ export class ServersService {
     for (const m of members) await this.realtime.syncUserRooms(m.userId);
   }
 
+  /** Passa o servidor a outro membro (hoje só ao excluir a conta do dono, ADR-0039). */
+  async transferOwnership(serverId: string, fromUserId: string, toUserId: string, reason: string) {
+    const s = await this.prisma.server.update({
+      where: { id: serverId, ownerId: fromUserId },
+      data: { ownerId: toUserId },
+    });
+    await this.audit.log(fromUserId, serverId, 'server.transfer', toUserId, { reason });
+    this.realtime.emit(rooms.server(serverId), 'server:updated', serverSummary(s));
+  }
+
   async leave(serverId: string, userId: string) {
     const access = await this.perms.server(serverId, userId);
     if (access.ownerId === userId)

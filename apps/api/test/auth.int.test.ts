@@ -30,12 +30,12 @@ describe('criar conta (opcional, sem convite — ADR-0007)', () => {
 
   it('e-mail é opcional e único', async () => {
     const r1 = await http.req<AuthResponse>('POST', '/auth/register', {
-      body: { nickname: 'ComEmail', password: 'password-123456', email: 'Mail@Test.local' },
+      body: { nickname: 'ComEmail', password: 'password-123456', email: 'Mail@Test.local', acceptTerms: true },
     });
     expect(r1.status).toBe(201);
     expect(r1.body.user.email).toBe('mail@test.local');
     const r2 = await http.req<{ message: string }>('POST', '/auth/register', {
-      body: { nickname: 'Outro', password: 'password-123456', email: 'mail@test.local' },
+      body: { nickname: 'Outro', password: 'password-123456', email: 'mail@test.local', acceptTerms: true },
     });
     expect(r2.status).toBe(409);
     expect(r2.body.message).toMatch(/e-mail/);
@@ -43,21 +43,25 @@ describe('criar conta (opcional, sem convite — ADR-0007)', () => {
 
   it('apelido de conta não pode ser usado para entrar sem senha (mensagem orienta login)', async () => {
     await register(http, 'Dona');
-    const r = await http.req<{ message: string }>('POST', '/auth/guest', { body: { nickname: 'dona' } });
+    const r = await http.req<{ message: string }>('POST', '/auth/guest', {
+      body: { nickname: 'dona', acceptTerms: true },
+    });
     expect(r.status).toBe(409);
     expect(r.body.message).toMatch(/entre com a senha/);
   });
 
   it('valida payload com Zod (400 com detalhes)', async () => {
     const r = await http.req<{ details: unknown[] }>('POST', '/auth/register', {
-      body: { nickname: 'x', password: 'curta' },
+      body: { nickname: 'x', password: 'curta', acceptTerms: true },
     });
     expect(r.status).toBe(400);
     expect(Array.isArray(r.body.details)).toBe(true);
   });
 
   it('transformar apelido em conta mantém o mesmo usuário e permite login de outro dispositivo', async () => {
-    const g = await http.req<AuthResponse>('POST', '/auth/guest', { body: { nickname: 'Viajante' } });
+    const g = await http.req<AuthResponse>('POST', '/auth/guest', {
+      body: { nickname: 'Viajante', acceptTerms: true },
+    });
     expect(g.body.user.hasAccount).toBe(false);
     const c = await http.req<{ hasAccount: boolean; id: string }>('POST', '/auth/claim', {
       token: g.body.tokens.accessToken,

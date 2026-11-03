@@ -190,7 +190,8 @@ export class ApiClient {
     return this.request<AuthResponse>(
       'POST',
       '/auth/guest',
-      { nickname, deviceId, ...(accessCode ? { accessCode } : {}) },
+      // a tela só envia com a caixa de aceite marcada (ADR-0039)
+      { nickname, deviceId, acceptTerms: true, ...(accessCode ? { accessCode } : {}) },
       { auth: false },
     );
   }
@@ -206,7 +207,7 @@ export class ApiClient {
     accessCode?: string | undefined;
     deviceId: string;
   }) {
-    return this.request<AuthResponse>('POST', '/auth/register', body, { auth: false });
+    return this.request<AuthResponse>('POST', '/auth/register', { ...body, acceptTerms: true }, { auth: false });
   }
 }
 

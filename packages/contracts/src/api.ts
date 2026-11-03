@@ -63,13 +63,21 @@ export const InstanceInfo = z.object({
   aiModeration: z.boolean().default(false),
   /** quem criou o OpenCord (dono do servidor oficial): selo de verificado em qualquer servidor */
   creatorId: z.string().uuid().nullable().default(null),
+  /** contato para pedidos sobre dados pessoais (LGPD, ADR-0039), definido no painel; null = só o canal do projeto */
+  privacyContact: z.string().nullable().default(null),
 });
 export type InstanceInfo = z.infer<typeof InstanceInfo>;
+
+/** Aceite dos Termos de uso e da Política de privacidade, com a declaração de 13 anos ou mais (ADR-0039). */
+export const AcceptTerms = z.literal(true, {
+  error: 'é preciso ter 13 anos ou mais e aceitar os Termos de uso e a Política de privacidade',
+});
 
 export const GuestJoinRequest = z.object({
   nickname: Nickname,
   accessCode: z.string().max(128).optional(),
   deviceId: z.string().min(1).max(128).optional(),
+  acceptTerms: AcceptTerms,
 });
 export type GuestJoinRequest = z.input<typeof GuestJoinRequest>;
 
@@ -81,8 +89,13 @@ export const RegisterRequest = z.object({
   email: z.email().max(254).optional(),
   accessCode: z.string().max(128).optional(),
   deviceId: z.string().min(1).max(128).optional(),
+  acceptTerms: AcceptTerms,
 });
 export type RegisterRequest = z.input<typeof RegisterRequest>;
+
+/** Excluir a própria conta (ADR-0039): quem tem senha confirma com ela. */
+export const DeleteAccountRequest = z.object({ password: z.string().max(256).optional() });
+export type DeleteAccountRequest = z.infer<typeof DeleteAccountRequest>;
 
 /** Login de conta: `login` aceita o apelido ou o e-mail. */
 export const LoginRequest = z.object({
@@ -131,6 +144,8 @@ export const Me = UserPublic.extend({
   email: z.email().nullable(),
   hasAccount: z.boolean(),
   createdAt: IsoDate,
+  /** false: ainda não aceitou os Termos/Política atuais (conta anterior à ADR-0039); o app pede antes de seguir */
+  termsAccepted: z.boolean().default(true),
 });
 export type Me = z.infer<typeof Me>;
 
@@ -1560,6 +1575,7 @@ export const UpdateInstanceConfigRequest = z
     aiModerationDms: z.boolean(),
     aiAutoBlock: z.boolean(),
     aiAutoBlockDevice: z.boolean(),
+    privacyContact: z.string().trim().max(254).nullable(),
   })
   .partial();
 

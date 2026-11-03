@@ -39,7 +39,11 @@ function inspectMp4(buf: Buffer) {
 test.beforeAll(async () => {
   const nickname = uniqueNick('Clipes');
   const password = 'e2e-password-123';
-  const { tokens } = await json<{ tokens: { accessToken: string } }>('POST', '/auth/register', { nickname, password });
+  const { tokens } = await json<{ tokens: { accessToken: string } }>('POST', '/auth/register', {
+    nickname,
+    password,
+    acceptTerms: true,
+  });
   const settings = await json<Record<string, unknown>>('GET', '/me/settings', undefined, tokens.accessToken);
   await json(
     'PUT',

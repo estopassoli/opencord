@@ -181,7 +181,7 @@ describe('painel do super admin', () => {
       uploadMaxBytes: 2 * 1024 * 1024,
     });
     const reg = await http.req<{ message: string }>('POST', '/auth/register', {
-      body: { nickname: 'novato', password: 'password-123456' },
+      body: { nickname: 'novato', password: 'password-123456', acceptTerms: true },
     });
     expect(reg.status).toBe(403);
     expect(reg.body.message).toMatch(/cadastros estão fechados/);

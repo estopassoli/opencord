@@ -1,6 +1,21 @@
-import { BadRequestException, Body, Controller, Delete, Get, Patch, Post, Put, Req } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import { Readable } from 'node:stream';
 import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Patch,
+  Post,
+  Put,
+  Req,
+  Res,
+} from '@nestjs/common';
+import { RouteConfig } from '@nestjs/platform-fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import {
+  DeleteAccountRequest,
   SetPresenceRequest,
   SetStatusTextRequest,
   UpdateProfileRequest,
@@ -15,7 +30,11 @@ import { PrismaService } from '../common/prisma.service.js';
 import { zodPipe } from '../common/zod.pipe.js';
 import { AuthService } from '../auth/auth.service.js';
 import { PresenceService } from '../realtime/presence.service.js';
+import { AccountService } from './account.service.js';
 import { AvatarService } from './avatar.service.js';
+
+// exportar é caro (lê tudo da pessoa): poucas vezes por hora
+const EXPORT_RATE = { rateLimit: { max: 5, timeWindow: '1 hour' } };
 
 @Controller('me')
 export class UsersController {
@@ -24,6 +43,7 @@ export class UsersController {
     private readonly auth: AuthService,
     private readonly presence: PresenceService,
     private readonly avatars: AvatarService,
+    private readonly account: AccountService,
   ) {}
 
   @Get()
@@ -56,6 +76,35 @@ export class UsersController {
   @Delete('avatar')
   async clearAvatar(@CurrentUser() u: AuthUser) {
     return this.auth.toMe(await this.avatars.clear(u.userId));
+  }
+
+  /** Aceite dos Termos de uso e da Política de privacidade por quem já tinha conta (ADR-0039). */
+  @Post('accept-terms')
+  @HttpCode(204)
+  async acceptTerms(@CurrentUser() u: AuthUser) {
+    await this.account.acceptTerms(u.userId);
+  }
+
+  /** Tudo o que a instância guarda sobre a pessoa, em JSON (LGPD art. 18, ADR-0039). */
+  @Get('export')
+  @RouteConfig(EXPORT_RATE)
+  async exportData(@CurrentUser() u: AuthUser, @Res() reply: FastifyReply) {
+    const day = new Date().toISOString().slice(0, 10);
+    return reply
+      .type('application/json; charset=utf-8')
+      .header('content-disposition', `attachment; filename="opencord-meus-dados-${day}.json"`)
+      .header('cache-control', 'no-store')
+      .send(Readable.from(this.account.exportChunks(u.userId)));
+  }
+
+  /** Exclui a própria conta (ADR-0039): sessões derrubadas, dados pessoais apagados, mensagens anonimizadas. */
+  @Post('delete')
+  @HttpCode(204)
+  async deleteAccount(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(DeleteAccountRequest)) dto: z.infer<typeof DeleteAccountRequest>,
+  ) {
+    await this.account.deleteAccount(u.userId, u.sessionId, dto.password);
   }
 
   @Put('presence')

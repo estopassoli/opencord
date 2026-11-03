@@ -27,7 +27,9 @@ beforeEach(async () => {
 });
 
 const join = (nickname: string, extra: Record<string, unknown> = {}) =>
-  http.req<AuthResponse & { message?: string }>('POST', '/auth/guest', { body: { nickname, ...extra } });
+  http.req<AuthResponse & { message?: string }>('POST', '/auth/guest', {
+    body: { nickname, acceptTerms: true, ...extra },
+  });
 
 describe('entrada só com apelido (ADR-0007)', () => {
   it('instância informa que aceita apelido e não exige código', async () => {
@@ -134,10 +136,16 @@ describe('controles opcionais da instância', () => {
   it('código de acesso: exigido e comparado em tempo constante', async () => {
     const h = await start({ INSTANCE_ACCESS_CODE: 'segredo-dos-amigos' } as never);
     expect((await h.req<InstanceInfo>('GET', '/auth/instance')).body.requiresAccessCode).toBe(true);
-    expect((await h.req('POST', '/auth/guest', { body: { nickname: 'Sem' } })).status).toBe(403);
-    expect((await h.req('POST', '/auth/guest', { body: { nickname: 'Errado', accessCode: 'x' } })).status).toBe(403);
+    expect((await h.req('POST', '/auth/guest', { body: { nickname: 'Sem', acceptTerms: true } })).status).toBe(403);
     expect(
-      (await h.req('POST', '/auth/guest', { body: { nickname: 'Certo', accessCode: 'segredo-dos-amigos' } })).status,
+      (await h.req('POST', '/auth/guest', { body: { nickname: 'Errado', accessCode: 'x', acceptTerms: true } })).status,
+    ).toBe(403);
+    expect(
+      (
+        await h.req('POST', '/auth/guest', {
+          body: { nickname: 'Certo', accessCode: 'segredo-dos-amigos', acceptTerms: true },
+        })
+      ).status,
     ).toBe(201);
   });
 
@@ -145,12 +153,12 @@ describe('controles opcionais da instância', () => {
     const h = await start({ GUEST_JOIN_PER_IP_HOUR: '3' } as never);
     const codes = [];
     for (let i = 0; i < 5; i++)
-      codes.push((await h.req('POST', '/auth/guest', { body: { nickname: `Ip${i}` } })).status);
+      codes.push((await h.req('POST', '/auth/guest', { body: { nickname: `Ip${i}`, acceptTerms: true } })).status);
     expect(codes).toEqual([201, 201, 201, 429, 429]);
   });
 
   it('pode ser desativado (apenas login com senha)', async () => {
     const h = await start({ GUEST_JOIN_ENABLED: 'false' } as never);
-    expect((await h.req('POST', '/auth/guest', { body: { nickname: 'Nao' } })).status).toBe(403);
+    expect((await h.req('POST', '/auth/guest', { body: { nickname: 'Nao', acceptTerms: true } })).status).toBe(403);
   });
 });

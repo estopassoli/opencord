@@ -1748,6 +1748,77 @@ textarea:focus-visible {
   padding: 8px 20px 20px;
   overflow: auto;
 }
+/* Termos e Política dentro do app (ADR-0039) */
+.legal {
+  max-width: 78ch;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.legal h3 {
+  margin: 20px 0 6px;
+  font-size: 1rem;
+}
+.legal p,
+.legal ul {
+  margin: 0 0 10px;
+}
+.legal ul {
+  padding-left: 20px;
+}
+.legal li {
+  margin-bottom: 4px;
+}
+.legal code {
+  font-size: 0.875em;
+  word-break: break-all;
+}
+.legal a {
+  color: var(--link, var(--accent));
+}
+.legal-meta {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+.legal-dl {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.legal-dl > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 3fr;
+  gap: 4px 12px;
+}
+.legal-dl dt {
+  font-weight: 600;
+}
+.legal-dl dd {
+  margin: 0;
+}
+@media (max-width: 560px) {
+  .legal-dl > div {
+    grid-template-columns: 1fr;
+  }
+}
+.legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 8px;
+}
+.legal-actions {
+  justify-content: flex-start;
+}
+.auth-terms {
+  font-size: 0.875rem;
+}
+/* aceite tardio: não se fecha pelo X (só aceitar ou sair) */
+.dialog-body:has(.terms-gate) .dialog-header .icon-btn {
+  display: none;
+}
+.auth-terms .link-btn {
+  font-size: inherit;
+}
 .dialog-actions {
   display: flex;
   align-items: center;

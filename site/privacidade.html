@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Política de privacidade — OpenCord</title>
+    <meta
+      name="description"
+      content="O que o OpenCord guarda sobre você, por quanto tempo, a moderação automática e como baixar ou excluir seus dados (LGPD)."
+    />
+    <meta name="theme-color" content="#0b0a14" />
+    <meta name="robots" content="index,follow" />
+    <link rel="icon" type="image/png" href="assets/opencord-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&display=swap" rel="stylesheet" />
+    <link rel="preload" href="assets/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="styles.css?v=4" />
+  </head>
+  <body class="legal-body">
+    <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="./" aria-label="OpenCord, início">
+          <img src="assets/opencord-logo.png" alt="" width="30" height="30" />
+          <span>OpenCord</span>
+        </a>
+        <nav class="nav-links" aria-label="Páginas">
+          <a href="termos.html">Termos de uso</a>
+          <a href="privacidade.html" aria-current="page">Privacidade</a>
+          <a href="https://github.com/estopassoli/opencord" rel="noopener">GitHub</a>
+        </nav>
+        <a class="btn btn-glass btn-sm nav-open" href="https://app.opencord.pro" rel="noopener">Abrir o OpenCord</a>
+      </div>
+    </header>
+
+    <main id="conteudo" class="wrap legal-page">
+      <h1>Política de privacidade</h1>
+      <p class="legal-meta">
+        Versão de 3 de novembro de 2026 · vale para a instância pública <strong>opencord.pro</strong>. Esta página e o
+        texto dentro do app são o mesmo documento.
+      </p>
+
+      <p>
+        Esta política explica quais dados o <strong>OpenCord (opencord.pro)</strong> guarda sobre você, para quê, por
+        quanto tempo e como exercer seus direitos, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018) e o Marco
+        Civil da Internet (Lei 12.965/2014). O OpenCord é um software de código aberto; cada instância tem um operador
+        próprio. O responsável pelos seus dados nesta instância é quem a opera, e o contato para assuntos de privacidade
+        é <a href="mailto:privacidade@opencord.pro">privacidade@opencord.pro</a> ou pelo canal do projeto em
+        <a href="https://github.com/estopassoli/opencord/issues" rel="noopener"
+          >github.com/estopassoli/opencord/issues</a
+        >.
+      </p>
+
+      <h2>O que guardamos</h2>
+      <dl class="legal-dl">
+        <div>
+          <dt>Conta</dt>
+          <dd>
+            Apelido, nome de usuário, e-mail (opcional), foto de perfil e a senha, que fica só como hash (Argon2id),
+            nunca em claro. Quem entra só com apelido não tem e-mail nem senha.
+          </dd>
+        </div>
+        <div>
+          <dt>Sessões</dt>
+          <dd>
+            A cada entrada: endereço IP, navegador ou sistema (user agent), identificador do app no aparelho e, no app
+            para computador, uma impressão digital do aparelho (hash dos endereços de rede). Servem para manter você
+            conectado, limitar abusos e aplicar bloqueios de dispositivo.
+          </dd>
+        </div>
+        <div>
+          <dt>Conteúdo</dt>
+          <dd>
+            Mensagens, arquivos, reações, enquetes, quadros, eventos, efeitos sonoros e configurações. Mensagens diretas
+            e de grupo ficam no servidor como as de canal.
+          </dd>
+        </div>
+        <div>
+          <dt>Voz, câmera e tela</dt>
+          <dd>
+            Passam pelo servidor de mídia e não são gravadas, a menos que alguém da chamada inicie uma gravação: todo
+            mundo vê o aviso "Gravando", e o arquivo fica disponível por 24 horas a quem pode ver o canal.
+          </dd>
+        </div>
+        <div>
+          <dt>Presença</dt>
+          <dd>
+            Se você está online e, se você ligar essa opção, o jogo que está rodando. Nada disso é guardado além do
+            momento.
+          </dd>
+        </div>
+        <div>
+          <dt>Auditoria</dt>
+          <dd>
+            Ações de administração e moderação (quem expulsou, baniu, mudou cargos), com data, para os moderadores do
+            servidor e para o operador.
+          </dd>
+        </div>
+      </dl>
+
+      <h2>Para quê e com qual base legal</h2>
+      <ul>
+        <li>Prestar o serviço que você pediu: conversar, chamar, transmitir (execução de contrato, art. 7, V).</li>
+        <li>
+          Segurança e prevenção a abusos: limites por IP, bloqueio de dispositivo, auditoria (legítimo interesse, art.
+          7, IX).
+        </li>
+        <li>Guardar registros de acesso pelo prazo do Marco Civil (obrigação legal, art. 7, II).</li>
+        <li>E-mail opcional e exibição do jogo em execução: só com o seu consentimento (art. 7, I), revogável.</li>
+      </ul>
+
+      <h2>Moderação automática por inteligência artificial</h2>
+      <p>
+        Quando o operador liga a moderação automática, cada mensagem e arquivo é analisado antes de ser publicado por um
+        modelo da Anthropic (Claude), processado nos Estados Unidos. Enviamos o texto, o seu apelido, as últimas
+        mensagens do canal (suas e de outras pessoas, para contexto), as regras do servidor, as imagens e quadros
+        extraídos dos vídeos. Essa é uma transferência internacional de dados (art. 33), feita sob os termos comerciais
+        da Anthropic, que não usa o conteúdo enviado pela API para treinar modelos. O que a IA retém por dúvida fica
+        visível aos moderadores do servidor até a decisão; se o operador ligar a moderação de mensagens diretas, as
+        retidas ficam visíveis aos administradores da instância. Conteúdo grave pode suspender a conta e bloquear o
+        aparelho automaticamente, com registro para revisão.
+      </p>
+
+      <h2>Com quem compartilhamos</h2>
+      <p>
+        Ninguém vende nem cede seus dados. Têm acesso técnico: os provedores de hospedagem e armazenamento usados pelo
+        operador; a Anthropic, só para a moderação descrita acima; o YouTube, quando você usa "Assistir juntos" (o
+        player é do próprio YouTube); o Slack, quando o dono de um servidor liga a ponte; e os bots que você ou o
+        servidor adicionam, que recebem o que acontece nos servidores onde estão, segundo as permissões dadas a eles.
+      </p>
+
+      <h2>Criptografia</h2>
+      <p>
+        Toda a comunicação é criptografada em trânsito (HTTPS, WSS e DTLS-SRTP para a mídia). A criptografia
+        <strong>não é de ponta a ponta</strong>: o servidor processa mensagens e mídia para entregá-las, moderá-las e
+        guardá-las, e quem administra a infraestrutura tem acesso técnico ao conteúdo armazenado. Senhas nunca ficam em
+        claro.
+      </p>
+
+      <h2>Por quanto tempo</h2>
+      <dl class="legal-dl">
+        <div>
+          <dt>Conta e conteúdo</dt>
+          <dd>Até você excluir a conta ou apagar o conteúdo.</dd>
+        </div>
+        <div>
+          <dt>Sessões encerradas (IP, aparelho)</dt>
+          <dd>180 dias, os 6 meses do Marco Civil (art. 15).</dd>
+        </div>
+        <div>
+          <dt>Auditoria</dt>
+          <dd>12 meses.</dd>
+        </div>
+        <div>
+          <dt>Casos de moderação já decididos</dt>
+          <dd>12 meses; os pendentes, até a decisão.</dd>
+        </div>
+        <div>
+          <dt>Bloqueios de dispositivo</dt>
+          <dd>12 meses.</dd>
+        </div>
+        <div>
+          <dt>Gravações de chamada</dt>
+          <dd>24 horas.</dd>
+        </div>
+        <div>
+          <dt>Arquivos enviados sem mensagem</dt>
+          <dd>24 horas.</dd>
+        </div>
+        <div>
+          <dt>Cópias de segurança</dt>
+          <dd>Podem conter dados já apagados por um período adicional, até a rotação.</dd>
+        </div>
+      </dl>
+
+      <h2>Seus direitos (art. 18)</h2>
+      <ul>
+        <li>
+          <strong>Acessar e levar</strong>: em Configurações → Conta → Privacidade e dados, "Baixar meus dados" gera um
+          arquivo JSON com tudo o que guardamos sobre você.
+        </li>
+        <li><strong>Corrigir</strong>: apelido, e-mail e foto você muda no próprio app.</li>
+        <li>
+          <strong>Excluir</strong>: "Excluir conta" apaga na hora sessões, arquivos enviados, foto, amizades, bloqueios,
+          configurações, reações, votos, convites, casos de moderação e bots seus. Suas mensagens continuam nas
+          conversas dos outros, assinadas "Usuário removido", porque fazem parte do histórico deles. Servidores que você
+          possui passam ao membro mais antigo; sem outro membro, são excluídos.
+        </li>
+        <li>
+          <strong>Revogar consentimento e se opor</strong>: tire o e-mail, desligue a exibição do jogo, ou fale com o
+          operador.
+        </li>
+        <li>
+          Para qualquer pedido, incluindo informação sobre com quem compartilhamos, fale por
+          <a href="mailto:privacidade@opencord.pro">privacidade@opencord.pro</a> ou pelo canal do projeto em
+          <a href="https://github.com/estopassoli/opencord/issues" rel="noopener"
+            >github.com/estopassoli/opencord/issues</a
+          >. Respondemos em até 15 dias. Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD).
+        </li>
+      </ul>
+
+      <h2>Crianças e adolescentes</h2>
+      <p>
+        O serviço é para quem tem <strong>13 anos ou mais</strong>, e isso é declarado no cadastro. Não tratamos, de
+        propósito, dados de menores de 13 anos; se um responsável souber de um cadastro assim, pode pedir a exclusão
+        pelo contato acima. Menores de 18 anos usam o serviço com ciência dos responsáveis.
+      </p>
+
+      <h2>Segurança</h2>
+      <p>
+        Senhas com Argon2id, tokens de sessão rotativos e revogáveis, limites de tentativas, permissões por servidor e
+        canal verificadas no servidor, mínimo de privilégios na infraestrutura. Incidentes que possam causar risco a
+        você são comunicados a você e à ANPD, conforme o art. 48.
+      </p>
+
+      <h2>O que fica no seu aparelho</h2>
+      <p>
+        O app guarda localmente os tokens da sessão, suas preferências e, no computador, os clipes que você salva. Não
+        há cookies de rastreamento nem publicidade.
+      </p>
+
+      <h2>Mudanças</h2>
+      <p>
+        Se esta política mudar em algo essencial, avisaremos no app e pediremos um novo aceite. A versão vigente é a
+        indicada no topo.
+      </p>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-inner">
+        <div class="foot-brand">
+          <img src="assets/opencord-logo.png" alt="" width="28" height="28" />
+          <span>OpenCord · projeto independente</span>
+        </div>
+        <nav class="foot-links" aria-label="Rodapé">
+          <a href="./">Início</a>
+          <a href="termos.html">Termos de uso</a>
+          <a href="privacidade.html">Política de privacidade</a>
+          <a href="https://github.com/estopassoli/opencord" rel="noopener">GitHub</a>
+          <a href="https://github.com/estopassoli/opencord/blob/main/SECURITY.md" rel="noopener">Segurança</a>
+          <a href="https://github.com/estopassoli/opencord/blob/main/LICENSE" rel="noopener">Licença AGPL-3.0</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

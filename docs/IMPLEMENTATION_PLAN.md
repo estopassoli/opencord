@@ -155,6 +155,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-02 | Bloqueio automático + dispositivo (adendo ADR-0036) | int `ai-moderation.int.test.ts` 10/10; unit API `media.test.ts`; desktop `hardware-id.test.ts`; typecheck/lint | verde | migração `20261102040000_device_bans` antes da API nova; chaves desligadas por padrão no painel |
 | 2026-11-02 | Bots públicos oficiais (ADR-0037) | `apps/bots` unit 11/11; int `official-bots.int.test.ts` 2/2; prova real com 6 bots contra a API local (smoke-bots.out: 20 comandos/botões) | verde | migração `20261102050000_official_bots` antes da API nova; serviço `bots` precisa subir na infra com `OFFICIAL_BOTS_SECRET` |
 | 2026-11-02 | Chamadas privadas (ADR-0038) | int `dm-calls.int.test.ts` 1/1 + `voice.int.test.ts` 16/16 (LiveKit real); desktop typecheck/lint/unit | verde | sem migração; validar com duas pessoas reais (voz, câmera, tela) |
+| 2026-11-03 | Privacidade e dados pessoais (ADR-0039): termos/política, aceite 13+, exportar/excluir conta, expurgo | int `account.int.test.ts` 6/6 + suíte 198/198; desktop typecheck/lint/unit 209/209; capturas headless das páginas e da entrada | verde | migração `20261103000000_privacy` antes da API nova; criar `privacidade@opencord.pro` e preencher o contato no painel; rebuild da imagem `web` (landing + app) |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

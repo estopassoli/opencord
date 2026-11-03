@@ -1,6 +1,7 @@
 import type { InstanceInfo } from '@opencord/contracts';
-import { Button, Icon, TextField } from '@opencord/ui';
-import { useEffect, useState, type FormEvent } from 'react';
+import { Button, Checkbox, Icon, TextField } from '@opencord/ui';
+import { useEffect, useState, type FormEvent, type MouseEvent } from 'react';
+import { LegalDialog, type LegalKind } from '../legal/LegalDialog';
 import { ApiClient, normalizeServerUrl } from '../../lib/api';
 import { isDesktop, secrets } from '../../lib/bridge';
 import { DEFAULT_SERVER_URL, FORCED_SERVER_URL } from '../../lib/config';
@@ -34,6 +35,14 @@ export function AuthScreen() {
   const [instance, setInstance] = useState<InstanceInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // aceite dos Termos/Política com a declaração de idade (ADR-0039): só nos cadastros, não no login
+  const [accepted, setAccepted] = useState(false);
+  const [legal, setLegal] = useState<LegalKind | null>(null);
+  // os links ficam dentro do rótulo da caixa: sem isso o clique também marcava/desmarcava o aceite
+  const openLegal = (e: MouseEvent, kind: LegalKind) => {
+    e.stopPropagation();
+    setLegal(kind);
+  };
 
   useEffect(() => {
     void secrets.get('serverUrl').then((u) => setServerUrl(FORCED_SERVER_URL ?? (u || DEFAULT_SERVER_URL)));
@@ -63,9 +72,16 @@ export function AuthScreen() {
   const guestDisabled = closed || (instance !== null && !instance.guestJoin);
   const effective: Mode = closed ? 'login' : guestDisabled && mode === 'nickname' ? 'login' : mode;
   const needsCode = Boolean(instance?.requiresAccessCode) && effective !== 'login';
+  const signup = effective !== 'login';
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (signup && !accepted) {
+      setError(
+        'Para continuar, confirme que tem 13 anos ou mais e aceita os Termos de uso e a Política de privacidade.',
+      );
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -161,13 +177,34 @@ export function AuthScreen() {
           />
         )}
 
+        {signup && (
+          <div className="auth-terms">
+            <Checkbox
+              checked={accepted}
+              onChange={setAccepted}
+              label={
+                <>
+                  Tenho 13 anos ou mais e aceito os{' '}
+                  <button type="button" className="link-btn" onClick={(e) => openLegal(e, 'termos')}>
+                    Termos de uso
+                  </button>{' '}
+                  e a{' '}
+                  <button type="button" className="link-btn" onClick={(e) => openLegal(e, 'privacidade')}>
+                    Política de privacidade
+                  </button>
+                </>
+              }
+            />
+          </div>
+        )}
+
         {error && (
           <p id="auth-error" className="form-error" role="alert">
             <Icon name="warning" size={16} /> {error}
           </p>
         )}
 
-        <Button type="submit" size="lg" block disabled={busy}>
+        <Button type="submit" size="lg" block disabled={busy || (signup && !accepted)}>
           {busy ? 'Aguarde…' : effective === 'register' ? 'Criar conta e entrar' : 'Entrar'}
         </Button>
 
@@ -196,6 +233,7 @@ export function AuthScreen() {
           </div>
         )}
       </form>
+      {legal && <LegalDialog kind={legal} instance={instance} onClose={() => setLegal(null)} />}
     </main>
   );
 }
