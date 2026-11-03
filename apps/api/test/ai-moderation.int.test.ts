@@ -291,6 +291,31 @@ describe('moderação por IA', () => {
     expect(seen.length).toBe(before);
   });
 
+  it('DM com moderação ligada: dúvida e ódio publicam; só o grave com certeza (nudez) bloqueia', async () => {
+    const { owner, bruno } = await setup();
+    await prisma.instanceConfig.upsert({
+      where: { id: 1 },
+      create: { id: 1, aiModerationDms: true },
+      update: { aiModerationDms: true },
+    });
+    app.get(InstanceService).invalidate();
+    const conv = await httpc.req<{ id: string }>('POST', '/conversations', {
+      token: bruno.token,
+      body: { userIds: [owner.id] },
+    });
+    const dm = (body: string) =>
+      httpc.req('POST', `/conversations/${conv.body.id}/messages`, {
+        token: bruno.token,
+        body: { requestId: rid(), body },
+      });
+    const before = seen.length;
+    expect((await dm('suspeito, mas é DM')).status).toBe(201);
+    expect((await dm('xingamento-pesado na dm')).status).toBe(201);
+    expect((await dm('pornografia na dm')).status).toBe(422);
+    expect(seen.length).toBe(before + 3);
+    expect(await prisma.moderationCase.count({ where: { status: 'pending' } })).toBe(0);
+  });
+
   it('regras do servidor entram no contexto e o dono as edita; painel liga/desliga a moderação', async () => {
     const { owner, bruno, channelId, serverId } = await setup();
     const upd = await httpc.req<ServerSummary>('PATCH', `/servers/${serverId}`, {

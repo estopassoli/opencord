@@ -106,3 +106,15 @@ visível pela internet (fica na rede local; o navegador não expõe), então o b
   aparelho/identificador e aceita outro, painel lista, reativar libera; super admin nunca); `media.test.ts`
   (`framesFor`); desktop `hardware-id.test.ts` (hash estável, ignora loopback/zerado, MAC não aparece).
 - Pendente: validação com a chave real da Anthropic em produção (qualidade dos vereditos e latência).
+
+## Adendo (2026-11-03): revisão do que bloqueia
+Pedido do mantenedor depois de casos reais na fila (convite do próprio app retido como golpe, "ai" retido como
+assédio por causa do histórico):
+- Mensagem só com link(s) e sem anexo publica sem chamar a IA (`onlyLinks`).
+- A IA julga só o envio; o histórico serve para entender o tom, nunca para barrar um envio inofensivo.
+- "review" fica para mídia que pode ser nudez/gore, ameaça ou doxxing sem certeza e regra explícita do servidor;
+  zoeira, palavrão, discussão, contexto insuficiente e link passam.
+- DMs: nunca retém para revisão. Bloqueia só `menores`, `sexual`, `violencia` e `doxxing` com confiança ≥ 0,8; o
+  resto publica. A regra está no código (`classify` com `direct`), não só no texto da IA.
+- Evidência: `ai-moderation.int.test.ts` 12/12 (links sem IA; DM com dúvida e ódio publicam, nudez bloqueia).
+

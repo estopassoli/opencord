@@ -44,6 +44,9 @@ export type Verdict = z.infer<typeof VerdictSchema>;
 /** categorias que, com certeza alta, disparam o bloqueio automático da pessoa (ligado no painel) */
 export const SEVERE_CATEGORIES = new Set<Verdict['category']>(['menores', 'sexual', 'violencia']);
 export const SEVERE_MIN_CONFIDENCE = 0.85;
+/** em mensagem direta (revisão de 2026-11-03): ninguém lê DM por dúvida; só o grave, com certeza, bloqueia */
+export const DM_BLOCK_CATEGORIES = new Set<Verdict['category']>(['menores', 'sexual', 'violencia', 'doxxing']);
+export const DM_MIN_CONFIDENCE = 0.8;
 export const isSevere = (v: Verdict) =>
   v.decision === 'block' && SEVERE_CATEGORIES.has(v.category) && v.confidence >= SEVERE_MIN_CONFIDENCE;
 
@@ -73,12 +76,14 @@ const SYSTEM_PROMPT = `Você é o moderador automático de um aplicativo de chat
 
 Responda somente com o JSON pedido.
 
-Decisões:
-- "allow": publica. É o padrão. Conversa entre amigos tem palavrão, zoeira, apelidos, discussão de jogos, humor ácido e links comuns; nada disso é motivo para barrar.
-- "block": NÃO publica. Só quando você tem certeza de violação grave: conteúdo sexual envolvendo menores (sempre), nudez ou pornografia explícita, gore/violência gráfica real, ameaça crível de violência, incitação a ódio contra grupo (raça, religião, orientação, etnia, deficiência), doxxing (endereço, telefone, documento de alguém), golpe/phishing ou malware evidentes, venda de drogas/armas/ilegais, incentivo a autoagressão ou suicídio, spam massivo.
-- "review": NÃO publica e manda para os moderadores humanos. Use quando houver suspeita razoável mas não conclusiva: sátira ou citação ambígua, contexto insuficiente, imagem ou vídeo que pode ser nudez/violência mas não dá para afirmar, assédio que pode ser brincadeira entre amigos, link suspeito sem certeza, conteúdo que as regras do servidor talvez proíbam.
+Julgue SÓ o envio a analisar. As últimas mensagens servem apenas para entender o tom e a quem o envio se dirige; nunca barre um envio inofensivo por causa do que alguém disse antes. "ai", "kkk", "sim", um emoji, uma pergunta comum ou um convite para outro servidor são "allow", não importa o histórico.
 
-Use o contexto: as regras do servidor valem além destas (se o servidor proíbe algo, "review" ou "block" conforme a clareza); as últimas mensagens mostram o tom da conversa (brincadeira recíproca não é assédio; alvo que pede para parar é). Em mensagens diretas seja mais tolerante: só o que é grave bloqueia.
+Decisões:
+- "allow": publica. É o padrão, na dúvida também. Conversa entre amigos tem palavrão, zoeira, xingamento entre eles, apelidos, discussão acalorada, humor ácido, provocação de jogo e links; nada disso é motivo para barrar. Brincadeira que poderia ser lida como ofensa também passa.
+- "block": NÃO publica. Só quando o próprio envio é claramente grave: conteúdo sexual envolvendo menores (sempre), nudez ou pornografia explícita, gore/violência gráfica real, ameaça crível de violência contra alguém, incitação a ódio contra grupo (raça, religião, orientação, etnia, deficiência), doxxing (endereço, telefone, documento de alguém), golpe/phishing ou malware evidentes, venda de drogas/armas/ilegais, incentivo a autoagressão ou suicídio, spam massivo.
+- "review": NÃO publica e manda para os moderadores humanos. Use pouco, só nestes casos: imagem ou vídeo que pode ser nudez, pornografia ou gore mas não dá para afirmar; possível ameaça real ou doxxing sem certeza; conteúdo que as regras do servidor proíbem de forma explícita, quando não está claro. Não use "review" para tom, zoeira, palavrão, discussão, contexto insuficiente ou link.
+
+As regras do servidor valem além destas. Em mensagens diretas, só existe "allow" ou "block" para o que é grave (menores, nudez, gore, ameaça, doxxing).
 
 Imagens e quadros de vídeo: avalie o que aparece neles como parte do envio. Arquivos sem prévia (áudio, documentos) são avaliados pelo nome, tipo e texto que acompanha.
 
@@ -168,6 +173,11 @@ export class AiModerationService {
       const v = res.parsed_output;
       if (!v) return { kind: 'unavailable', error: 'resposta da IA sem o formato esperado' };
       if (v.decision === 'allow') return { kind: 'allow', verdict: v };
+      if (input.direct) {
+        // DM: nunca retém para revisão; bloqueia só o grave com certeza alta, o resto publica
+        const grave = DM_BLOCK_CATEGORIES.has(v.category) && v.confidence >= DM_MIN_CONFIDENCE;
+        return grave ? { kind: 'block', verdict: { ...v, decision: 'block' } } : { kind: 'allow', verdict: v };
+      }
       return { kind: v.decision, verdict: v };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
