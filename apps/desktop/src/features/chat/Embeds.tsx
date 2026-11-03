@@ -3,6 +3,7 @@ import type { CSSProperties, MouseEvent } from 'react';
 import { useUi, type MediaItem } from '../../store/ui';
 import { formatEmbedDate, groupEmbedFields } from './bot-ui';
 import { ExternalLink, renderRich } from './rich';
+import { ChatImage } from './ChatImage';
 
 /**
  * Cartões ricos de bots e webhooks (ADR-0034): barra colorida à esquerda, autor, título com link, descrição em
@@ -121,7 +122,13 @@ function EmbedCard({
           aria-label={e.title ? `Abrir imagem de ${e.title}` : 'Abrir imagem'}
           onClick={(ev) => openImage(ev, e.image!.url)}
         >
-          <img src={e.image.url} alt={e.title ?? ''} loading="lazy" referrerPolicy="no-referrer" />
+          <ChatImage
+            src={e.image.url}
+            alt={e.title ?? ''}
+            maxWidth={480}
+            maxHeight={300}
+            referrerPolicy="no-referrer"
+          />
         </a>
       )}
       {(e.footer || e.timestamp) && (

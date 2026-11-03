@@ -17,6 +17,7 @@ import { ReactionRoleChips, ReactionRolesDialog } from './ReactionRoles';
 import type { ChatTarget } from './ChatView';
 import { nameFor } from '../../lib/names';
 import { messageAppsMenu } from './messageApps';
+import { ChatImage } from './ChatImage';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 
@@ -323,12 +324,13 @@ export const MessageItem = memo(function MessageItem({
                   openMediaFor(keyOf(target), a.id);
                 }}
               >
-                <img
+                <ChatImage
                   src={a.url}
                   alt={a.originalName}
-                  loading="lazy"
-                  width={a.width ?? undefined}
-                  height={a.height ?? undefined}
+                  width={a.width}
+                  height={a.height}
+                  maxWidth={400}
+                  maxHeight={320}
                 />
               </a>
             ) : a.mime.startsWith('video/') ? (

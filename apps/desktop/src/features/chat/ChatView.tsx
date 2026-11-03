@@ -139,6 +139,20 @@ export function ChatView({ target }: { target: ChatTarget }) {
     prevFirst.current = first;
   }, [timeline]);
 
+  // conteúdo que cresce depois (imagem sem dimensões, embed, convite) não tira do fim quem já estava lá
+  const list = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const el = scroller.current;
+    const ol = list.current;
+    if (!el || !ol || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      if (atBottom.current) el.scrollTop = el.scrollHeight;
+      prevHeight.current = el.scrollHeight;
+    });
+    ro.observe(ol);
+    return () => ro.disconnect();
+  }, []);
+
   const onScroll = () => {
     const el = scroller.current;
     if (!el) return;
@@ -254,11 +268,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
             <p className="muted">{channel ? 'Este é o começo do canal.' : 'Este é o começo da conversa.'}</p>
           </div>
         )}
-        {timeline?.loading && (
-          <div className="chat-loading" aria-busy="true">
-            Carregando mensagens…
-          </div>
-        )}
+        {timeline?.loading && !loadError && <MessageSkeleton rows={timeline.loaded ? 2 : 7} />}
         {loadError && (
           <div className="chat-loading" role="alert">
             {loadError}{' '}
@@ -267,7 +277,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
             </button>
           </div>
         )}
-        <ol className="messages">
+        <ol className="messages" ref={list}>
           {timeline?.messages.map((m, i) => {
             const prev = timeline.messages[i - 1];
             const newDay = !prev || new Date(prev.createdAt).toDateString() !== new Date(m.createdAt).toDateString();
@@ -418,4 +428,33 @@ export async function sendMessage(
 function retry(key: TargetKey, target: ChatTarget, requestId: string) {
   const p = useMessages.getState().get(key).pending[requestId];
   if (p) void sendMessage(key, target, requestId, p.body, p.replyToId, p.attachmentIds);
+}
+
+/** Linhas cinzas no formato das mensagens enquanto a conversa carrega (variação fixa para não "piscar"). */
+const SKELETON: { lines: number[]; media?: boolean }[] = [
+  { lines: [72, 38] },
+  { lines: [55] },
+  { lines: [64, 80, 30] },
+  { lines: [42], media: true },
+  { lines: [86, 50] },
+  { lines: [34] },
+  { lines: [60, 45] },
+];
+function MessageSkeleton({ rows }: { rows: number }) {
+  return (
+    <ol className="msg-skeleton" aria-busy="true" aria-label="Carregando mensagens">
+      {SKELETON.slice(0, rows).map((r, i) => (
+        <li key={i} aria-hidden>
+          <span className="sk sk-avatar" />
+          <span className="sk-lines">
+            <span className="sk sk-name" />
+            {r.lines.map((w, j) => (
+              <span key={j} className="sk sk-line" style={{ width: `${w}%` }} />
+            ))}
+            {r.media && <span className="sk sk-media" />}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
 }

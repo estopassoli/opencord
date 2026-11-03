@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-03',
+    time: '17:15',
+    kind: 'melhoria',
+    icon: 'image',
+    title: 'Chat carrega sem pulos',
+    body: 'Enquanto as mensagens carregam, o chat mostra o formato delas em cinza em vez de um texto solto. As imagens já ocupam o tamanho certo antes de chegar e aparecem suavemente, sem empurrar a conversa nem aparecer quebradas no meio do caminho. Se uma imagem não puder ser carregada, aparece um aviso no lugar.',
+  },
+  {
+    date: '2026-11-03',
     time: '14:00',
     kind: 'novo',
     icon: 'music',
