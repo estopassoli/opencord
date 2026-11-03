@@ -8,7 +8,7 @@ import {
 import { rooms, type ActivityState, type YouTubeSearchResult } from '@opencord/contracts';
 import { forbidden } from '../common/errors.js';
 import { RedisService } from '../common/redis.service.js';
-import { APP_CONFIG, type AppConfig } from '../config/config.js';
+import { APP_CONFIG, type AppConfig, youtubeApiHeaders } from '../config/config.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { requireServerId, VoiceService } from './voice.service.js';
 
@@ -156,7 +156,11 @@ export class ActivitiesService {
       }).toString();
       let res: Response;
       try {
-        res = await fetch(u, { redirect: 'error', signal: AbortSignal.timeout(8000) });
+        res = await fetch(u, {
+          redirect: 'error',
+          signal: AbortSignal.timeout(8000),
+          headers: youtubeApiHeaders(this.cfg),
+        });
       } catch {
         throw new ServiceUnavailableException('não foi possível ler a playlist agora');
       }
@@ -236,7 +240,11 @@ export class ActivitiesService {
     }).toString();
     let res: Response;
     try {
-      res = await fetch(u, { redirect: 'error', signal: AbortSignal.timeout(6000) });
+      res = await fetch(u, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(6000),
+        headers: youtubeApiHeaders(this.cfg),
+      });
     } catch {
       throw new ServiceUnavailableException('não foi possível pesquisar agora');
     }

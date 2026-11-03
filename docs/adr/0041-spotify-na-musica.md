@@ -42,3 +42,14 @@ Spotify", "Abrir no Spotify"). Os textos não citam a origem do áudio.
   inexistente recusado, nota do candidato (canal oficial vence ao vivo; duração muito diferente é descartada).
   Suíte 208/208; contratos 23/23 (`parseSpotifyLink`); desktop typecheck/lint/unit 209/209.
 - Não validado com as chaves reais nem visualmente no app (sem chaves locais).
+
+## Adendo (2026-11-03): chave do YouTube com restrição por site
+Em produção, todas as faixas viravam "Não foi possível tocar esta faixa": a chave do YouTube só aceita o referenciador
+`https://app.opencord.pro/` (403 `API_KEY_HTTP_REFERRER_BLOCKED` sem ele), e o servidor chamava sem referenciador. As
+chamadas do servidor à Data API agora mandam o endereço do app (`YOUTUBE_API_REFERER`, senão `PUBLIC_APP_URL`, senão a
+origem `https://app.` de `CORS_ORIGINS`). Isso conserta também a pesquisa do "Assistir juntos" e a importação de
+playlists. O certo para uma chave de servidor é restringir por IP no Google Cloud; o referenciador é o paliativo.
+Também: versões "(Live …)", "(Cover)" entre parênteses passaram a perder pontos (antes o parêntese era descartado antes
+da checagem). Prova com a chave real: "Baby" → áudio do canal "Justin Bieber - Topic", "Evidências" → CHXVEVO,
+"Blinding Lights" → "Official Audio" do TheWeekndVEVO.
+

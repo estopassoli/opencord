@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { SpotifyKind, SpotifySearchResult, SpotifyTrackInfo } from '@opencord/contracts';
-import { APP_CONFIG, type AppConfig } from '../config/config.js';
+import { APP_CONFIG, type AppConfig, youtubeApiHeaders } from '../config/config.js';
 import { RedisService } from '../common/redis.service.js';
 
 /** faixa do catálogo pronta para entrar na fila */
@@ -48,14 +48,11 @@ export function isoDurationSec(iso: string): number {
   return m ? Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) : 0;
 }
 
-const norm = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/\(.*?\)|\[.*?\]/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
+/** minúsculas, sem acento e sem pontuação; `keepExtras` mantém o que vem entre parênteses/colchetes */
+const norm = (s: string, keepExtras = false) => {
+  const base = s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  return (keepExtras ? base : base.replace(/\(.*?\)|\[.*?\]/g, ' ')).replace(/[^a-z0-9]+/g, ' ').trim();
+};
 
 /**
  * Nota de um candidato do YouTube para uma faixa do Spotify: duração perto, título e artista presentes, canal oficial
@@ -76,9 +73,24 @@ export function scoreCandidate(
   if (firstArtist && (t.includes(firstArtist) || ch.includes(firstArtist))) score += 3;
   if (/ - topic$/i.test(c.channel) || /vevo$/i.test(c.channel)) score += 3;
   if (want > 0 && c.durationSec > 0) score += Math.max(0, 3 - diff / 3);
-  const original = norm(track.title);
-  for (const bad of ['live', 'ao vivo', 'cover', 'karaoke', 'instrumental', 'slowed', 'reverb', 'sped up', 'remix'])
-    if (t.includes(bad) && !original.includes(bad)) score -= 4;
+  // "(Live …)", "[Cover]" costumam vir entre parênteses: aqui o título completo conta
+  const full = ` ${norm(c.title, true)} `;
+  const original = ` ${norm(track.title, true)} `;
+  for (const bad of [
+    'live',
+    'ao vivo',
+    'cover',
+    'karaoke',
+    'instrumental',
+    'slowed',
+    'reverb',
+    'sped up',
+    'remix',
+    'lyrics',
+    'letra',
+  ])
+    if (full.includes(` ${bad} `) && !original.includes(` ${bad} `))
+      score -= bad === 'lyrics' || bad === 'letra' ? 1 : 4;
   return score;
 }
 
@@ -313,7 +325,11 @@ export class SpotifyService {
         q: `${firstArtist} ${t.title}`.trim(),
         key,
       }).toString();
-      const sr = await fetch(su, { redirect: 'error', signal: AbortSignal.timeout(6000) });
+      const sr = await fetch(su, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(6000),
+        headers: youtubeApiHeaders(this.cfg),
+      });
       if (!sr.ok) {
         // cota esgotada ou falha: não guarda "sem correspondente" (tenta de novo depois)
         this.log.warn(`busca de correspondente falhou: ${sr.status}`);
@@ -336,7 +352,11 @@ export class SpotifyService {
           id: cands.map((c) => c.videoId).join(','),
           key,
         }).toString();
-        const vr = await fetch(vu, { redirect: 'error', signal: AbortSignal.timeout(6000) });
+        const vr = await fetch(vu, {
+          redirect: 'error',
+          signal: AbortSignal.timeout(6000),
+          headers: youtubeApiHeaders(this.cfg),
+        });
         const durations = new Map<string, number>();
         if (vr.ok) {
           const vj = (await vr.json()) as { items?: { id?: string; contentDetails?: { duration?: string } }[] };

@@ -76,6 +76,11 @@ export const ConfigSchema = z.object({
   SPOTIFY_API_URL: z.url().default('https://api.spotify.com/v1'),
   SPOTIFY_ACCOUNTS_URL: z.url().default('https://accounts.spotify.com'),
   YOUTUBE_API_URL: z.url().default('https://www.googleapis.com/youtube/v3'),
+  /**
+   * Referenciador mandado nas chamadas à Data API do YouTube. Chave com restrição por site (referenciador HTTP)
+   * recusa chamadas do servidor sem ele. Padrão: PUBLIC_APP_URL, ou a origem do app em CORS_ORIGINS.
+   */
+  YOUTUBE_API_REFERER: z.url().optional(),
   /** Busca título/canal do vídeo no oEmbed público do YouTube (desligado nos testes: sem rede externa). */
   YOUTUBE_OEMBED: bool.default(true),
   /** Limite de novos apelidos por IP por hora. */
@@ -134,4 +139,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       throw new Error('LIVEKIT_API_SECRET precisa de ao menos 32 caracteres em produção');
   }
   return cfg;
+}
+
+/** Cabeçalhos das chamadas do servidor à Data API do YouTube (referenciador do app; ver YOUTUBE_API_REFERER). */
+export function youtubeApiHeaders(cfg: AppConfig): Record<string, string> {
+  const origins = cfg.CORS_ORIGINS.split(',')
+    .map((o) => o.trim())
+    .filter((o) => /^https?:\/\//.test(o));
+  const ref =
+    cfg.YOUTUBE_API_REFERER ?? cfg.PUBLIC_APP_URL ?? origins.find((o) => /^https:\/\/app\./.test(o)) ?? origins[0];
+  if (!ref) return {};
+  return { referer: ref.endsWith('/') ? ref : `${ref}/` };
 }

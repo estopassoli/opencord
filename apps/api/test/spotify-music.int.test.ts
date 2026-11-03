@@ -227,5 +227,17 @@ describe('nota do candidato', () => {
     const live = scoreCandidate(t, { title: 'Primeira Canção (Ao Vivo)', channel: 'Fã', durationSec: 201 });
     expect(official).toBeGreaterThan(live);
     expect(scoreCandidate(t, { title: 'Primeira Canção', channel: 'x', durationSec: 600 })).toBe(-Infinity);
+    // "(Live …)" entre parênteses também conta como versão ao vivo
+    const vevoLive = scoreCandidate(t, {
+      title: 'Banda Teste - Primeira Canção (Live On TV)',
+      channel: 'BandaVEVO',
+      durationSec: 199,
+    });
+    const vevo = scoreCandidate(t, {
+      title: 'Banda Teste - Primeira Canção (Official Video)',
+      channel: 'BandaVEVO',
+      durationSec: 205,
+    });
+    expect(vevo).toBeGreaterThan(vevoLive);
   });
 });
