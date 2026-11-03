@@ -137,6 +137,8 @@ export class AiModerationService {
   /** Classifica um envio. Nunca lança: falhas viram `unavailable` (quem chama decide fail-open/closed). */
   async classify(input: ModerationInput): Promise<ModerationResult> {
     if (!this.client) return { kind: 'allow', verdict: null };
+    // links não passam pela IA (pedido do mantenedor, 2026-11-03): mensagem só com link(s) e sem anexo publica direto
+    if (onlyLinks(input.body) && !input.attachments.length) return { kind: 'allow', verdict: null };
     try {
       const images = await this.collectImages(input.attachments);
       const content: Anthropic.ContentBlockParam[] = [{ type: 'text', text: this.describe(input) }];
@@ -237,4 +239,10 @@ export class AiModerationService {
     for await (const c of stream) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
     return Buffer.concat(chunks);
   }
+}
+
+/** Texto feito só de links http(s) (um ou mais, separados por espaço ou quebra de linha). */
+export function onlyLinks(body: string): boolean {
+  const parts = body.trim().split(/\s+/).filter(Boolean);
+  return parts.length > 0 && parts.every((p) => /^<?https?:\/\/\S+>?$/i.test(p));
 }

@@ -161,6 +161,15 @@ describe('moderação por IA', () => {
     expect(cases).toBe(0);
   });
 
+  it('mensagem só com link(s) publica sem passar pela IA; link com texto passa', async () => {
+    const { bruno, channelId } = await setup();
+    expect((await send(bruno.token, channelId, 'https://app.opencord.pro/invite/8tVxEbhfmJ')).status).toBe(201);
+    expect((await send(bruno.token, channelId, 'https://a.com/x\nhttps://b.com/y')).status).toBe(201);
+    expect(seen.length).toBe(0);
+    expect((await send(bruno.token, channelId, 'olha isso https://a.com/x')).status).toBe(201);
+    expect(seen.length).toBe(1);
+  });
+
   it('bloqueio: 422 com motivo, nada publicado, caso "blocked" visível aos moderadores', async () => {
     const { owner, bruno, channelId, serverId } = await setup();
     const r = await send(bruno.token, channelId, 'xingamento-pesado contra todo mundo');
