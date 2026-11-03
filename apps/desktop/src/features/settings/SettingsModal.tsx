@@ -1283,7 +1283,7 @@ function NotificationsTab({ settings }: { settings: UserSettings }) {
         <>
           <Select<SoundPack>
             label="Conjunto de sons"
-            value={(SOUND_PACKS as readonly string[]).includes(n.soundPack) ? (n.soundPack as SoundPack) : 'classico'}
+            value={(SOUND_PACKS as readonly string[]).includes(n.soundPack) ? (n.soundPack as SoundPack) : 'padrao'}
             onChange={(v) => {
               set({ soundPack: v });
               playSound('join', { force: true, pack: v });

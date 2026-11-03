@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     kind: 'novo',
     icon: 'soundboard',
     title: 'Conjuntos de efeitos sonoros',
-    body: 'Em Configurações → Notificações dá para escolher o jeito dos sons do app: Clássico, Suave, Retrô (8 bits), Madeira (marimba), Telefone ou Discreto, e ouvir cada um (entrar, sair, alguém entrou, mutar, mensagem, live) antes de decidir. O volume dos efeitos agora começa em 100%.',
+    body: 'Os sons do app ganharam um jeito novo, mais de chat: notas redondas, duas subindo para entrar e descendo para sair, "ding" com cauda na mensagem. Em Configurações → Notificações dá para trocar por Clássico, Suave, Retrô (8 bits), Madeira (marimba), Telefone ou Discreto, e ouvir cada um (entrar, sair, alguém entrou, mutar, mensagem, live) antes de decidir. O volume dos efeitos agora começa em 100%.',
   },
   {
     date: '2026-11-02',

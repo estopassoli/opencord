@@ -110,9 +110,10 @@ export const SOUNDS: Record<SoundName, Note[]> = {
 };
 
 /** Conjuntos de sons (Configurações → Notificações). "classico" é o SOUNDS acima. */
-export const SOUND_PACKS = ['classico', 'suave', 'retro', 'madeira', 'telefone', 'discreto'] as const;
+export const SOUND_PACKS = ['padrao', 'classico', 'suave', 'retro', 'madeira', 'telefone', 'discreto'] as const;
 export type SoundPack = (typeof SOUND_PACKS)[number];
 export const SOUND_PACK_LABEL: Record<SoundPack, string> = {
+  padrao: 'Padrão',
   classico: 'Clássico',
   suave: 'Suave',
   retro: 'Retrô (8 bits)',
@@ -281,7 +282,38 @@ const DISCRETO: Record<SoundName, Note[]> = {
   clip: [tick(1500), tick(2000, 0.05)],
 };
 
+/**
+ * Padrão: o jeito de "som de chat" que todo mundo reconhece. Notas redondas (seno + um parcial uma oitava acima,
+ * mais baixo, para dar corpo), duas notas subindo para entrar e descendo para sair, "tunc" grave e curto no mute,
+ * "ding" com cauda na mensagem. Timbre e notas próprios.
+ */
+const round = (f: number, t: number, d: number, g = 1): Note[] => [
+  { f, t, d, g },
+  { f: f * 2, t, d: d * 0.6, g: g * 0.18 },
+  { f: f * 3, t, d: d * 0.35, g: g * 0.05 },
+];
+const Fs5 = 739.99;
+const D6 = 1174.66;
+const G3 = 196;
+const PADRAO: Record<SoundName, Note[]> = {
+  join: [...round(Fs5, 0, 0.14), ...round(B5, 0.1, 0.26)],
+  leave: [...round(B5, 0, 0.14), ...round(Fs5, 0.1, 0.3)],
+  peerJoin: [...round(B5, 0, 0.12, 0.6), ...round(D6, 0.08, 0.2, 0.6)],
+  peerLeave: [...round(D6, 0, 0.12, 0.6), ...round(B5, 0.08, 0.22, 0.6)],
+  mute: [...round(A4, 0, 0.06, 0.9), ...round(E4, 0.04, 0.1, 0.9)],
+  unmute: [...round(E4, 0, 0.06, 0.9), ...round(A4, 0.04, 0.12, 0.9)],
+  deafen: [...round(G4, 0, 0.08, 0.9), ...round(C4, 0.06, 0.16, 0.9)],
+  undeafen: [...round(C4, 0, 0.08, 0.9), ...round(G4, 0.06, 0.16, 0.9)],
+  message: [...round(A5, 0, 0.34, 0.7), { f: E6, t: 0.0, d: 0.2, g: 0.12 }],
+  streamStart: [...round(A4, 0, 0.1), ...round(E5, 0.09, 0.1), ...round(A5, 0.18, 0.3)],
+  streamStop: [...round(A5, 0, 0.1), ...round(E5, 0.09, 0.1), ...round(A4, 0.18, 0.3)],
+  disconnect: [...round(E4, 0, 0.14, 0.8), ...round(G3, 0.12, 0.36, 0.8)],
+  reconnect: [...round(E5, 0, 0.09, 0.8), ...round(E5, 0.12, 0.09, 0.8), ...round(A5, 0.24, 0.24, 0.8)],
+  clip: [...round(A5, 0, 0.07, 0.7), ...round(Cs6, 0.06, 0.07, 0.7), ...round(E6, 0.12, 0.2, 0.7)],
+};
+
 export const SOUND_SETS: Record<SoundPack, Record<SoundName, Note[]>> = {
+  padrao: PADRAO,
   classico: SOUNDS,
   suave: SUAVE,
   retro: RETRO,
@@ -290,10 +322,10 @@ export const SOUND_SETS: Record<SoundPack, Record<SoundName, Note[]>> = {
   discreto: DISCRETO,
 };
 
-/** conjunto escolhido nas configurações (padrão clássico) */
+/** conjunto escolhido nas configurações */
 export function currentPack(): SoundPack {
   const p = useData.getState().settings?.notifications.soundPack;
-  return p && p in SOUND_SETS ? (p as SoundPack) : 'classico';
+  return p && p in SOUND_SETS ? (p as SoundPack) : 'padrao';
 }
 
 /** últimos sons disparados (diagnóstico/E2E: confere os gatilhos com o áudio mudo) */
