@@ -59,12 +59,11 @@ export class MusicService {
     const resolve = async (i: number) => {
       const t = queue[i];
       if (!t || t.videoId || t.unavailable || !t.spotify) return;
-      const videoId = await this.spotify.match({
-        id: t.spotify.id,
-        title: t.title ?? '',
-        artists: t.spotify.artists,
-        durationMs: t.spotify.durationMs,
-      });
+      const videoId = await this.spotify.match(
+        { id: t.spotify.id, title: t.title ?? '', artists: t.spotify.artists, durationMs: t.spotify.durationMs },
+        // a atual escolhida pelo DJ (jump numa indisponível) tenta de novo mesmo com "sem correspondente" em cache
+        { retry: i === s.index },
+      );
       queue[i] = videoId ? { ...t, videoId } : { ...t, unavailable: true };
     };
     while (index >= 0 && index < queue.length) {
@@ -244,7 +243,13 @@ export class MusicService {
       case 'jump': {
         const i = s.queue.findIndex((t) => t.id === trackId);
         if (i < 0) throw new BadRequestException('faixa não está na fila');
-        if (s.queue[i]!.unavailable) throw new BadRequestException('não foi possível tocar esta faixa');
+        // faixa marcada como indisponível: o DJ pede para tentar de novo (a busca pode ter falhado por um instante)
+        if (s.queue[i]!.unavailable) {
+          const queue = [...s.queue];
+          queue[i] = { ...queue[i]!, unavailable: false };
+          next = { ...at(i), queue };
+          break;
+        }
         next = at(i);
         break;
       }

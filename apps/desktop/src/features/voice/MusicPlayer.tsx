@@ -493,7 +493,8 @@ function Queue() {
                     ? `Tocar ${t.title ?? 'música'}`
                     : (t.title ?? 'música')
               }
-              disabled={!isDj || t.unavailable}
+              disabled={!isDj}
+            data-tip={t.unavailable && isDj ? 'Tentar tocar de novo' : undefined}
               data-unavailable={t.unavailable ? 'true' : undefined}
               onClick={() => void useMusic.getState().control('jump', { trackId: t.id })}
             >

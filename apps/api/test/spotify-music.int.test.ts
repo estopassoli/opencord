@@ -81,7 +81,7 @@ function stub(): http.Server {
       return json(200, {
         name: 'Disco Teste',
         images: [{ url: 'https://img.test/album.jpg', width: 300 }],
-        tracks: { items: [TRACKS[T1], TRACKS[T3]].map(({ album: _a, ...t }) => t), next: null },
+        tracks: { items: [TRACKS[T1]!, TRACKS[T3]!].map(({ album: _a, ...t }) => t), next: null },
       });
     if (u.pathname === `/spotify/playlists/${PLAYLIST}/tracks`)
       return json(200, { items: [T1, T2, T3].map((id) => ({ track: TRACKS[id] })), next: null });
@@ -186,10 +186,6 @@ describe('Spotify na música da chamada', () => {
     expect(st.queue[2]).toMatchObject({ videoId: null, unavailable: false });
     expect(ytSearches).toBe(2);
 
-    // não dá para pular para a indisponível
-    expect(
-      (await command(s, 'music:control', { channelId: voiceId, action: 'jump', trackId: st.queue[1]!.id })).ok,
-    ).toBe(false);
     // fim da primeira: pula a perdida e toca a terceira
     const after = data<MusicState>(
       await command(s, 'music:control', { channelId: voiceId, action: 'ended', trackId: st.queue[0]!.id }),
@@ -198,9 +194,17 @@ describe('Spotify na música da chamada', () => {
     expect(after.queue[2]!.videoId).toBe('CCCCCCCCCC1');
     expect(ytSearches).toBe(3);
 
+    // o DJ clica na indisponível: tenta de novo (sem correspondente de novo, segue para a seguinte)
+    const retried = data<MusicState>(
+      await command(s, 'music:control', { channelId: voiceId, action: 'jump', trackId: st.queue[1]!.id }),
+    );
+    expect(ytSearches).toBe(4);
+    expect(retried.queue[1]!.unavailable).toBe(true);
+    expect(retried.index).toBe(2);
+
     // a mesma faixa de novo: sai do cache
     data<MusicState>(await command(s, 'music:add', { channelId: voiceId, spotify: { kind: 'track', id: T1 } }));
-    expect(ytSearches).toBe(3);
+    expect(ytSearches).toBe(4);
   });
 
   it('álbum entra inteiro com a capa do álbum; link que não existe é recusado', async () => {

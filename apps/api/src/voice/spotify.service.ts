@@ -292,10 +292,13 @@ export class SpotifyService {
    * Correspondente tocável de uma faixa do catálogo: id do vídeo ou null (nenhum candidato confiável). Cacheado.
    * Custo de cota no YouTube: 101 unidades por faixa nova (search + videos); repetidas saem do cache.
    */
-  async match(t: { id: string; title: string; artists: string; durationMs: number }): Promise<string | null> {
+  async match(
+    t: { id: string; title: string; artists: string; durationMs: number },
+    opts: { retry?: boolean } = {},
+  ): Promise<string | null> {
     const cacheKey = `spotify:match:${t.id}`;
     const cached = await this.redis.client.get(cacheKey);
-    if (cached !== null) return cached === '-' ? null : cached;
+    if (cached !== null && !(opts.retry && cached === '-')) return cached === '-' ? null : cached;
     const key = this.cfg.YOUTUBE_API_KEY;
     if (!key) return null;
     const firstArtist = t.artists.split(',')[0]?.trim() ?? '';
