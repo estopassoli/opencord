@@ -389,6 +389,7 @@ export function WatchTogetherDialog({ onClose }: { onClose: () => void }) {
  * Arte própria (sem logotipos de terceiros).
  */
 export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
+  const spotifyOn = useData((d) => d.instance?.spotify ?? false);
   const running = useActivity((a) => a.state);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -445,7 +446,7 @@ export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
             <span className="app-name">
               <strong>Música</strong>
               <span className="muted small">{music ? 'Tocando: abrir o player' : 'Ouvir juntos, com fila'}</span>
-              <span className="app-tag">YouTube · YouTube Music</span>
+              <span className="app-tag">{spotifyOn ? 'YouTube Music · Spotify' : 'YouTube · YouTube Music'}</span>
             </span>
           </button>
         </li>
