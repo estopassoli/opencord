@@ -31,6 +31,10 @@ model User {
   verified     Boolean   @default(false)
   createdAt    DateTime  @default(now()) @db.Timestamptz(3)
   disabledAt   DateTime? @db.Timestamptz(3)
+  /// quando aceitou os Termos de uso e a Política de privacidade (ADR-0039); null = ainda precisa aceitar no app
+  termsAcceptedAt DateTime? @db.Timestamptz(3)
+  /// conta excluída pela própria pessoa (ADR-0039): linha anonimizada (as mensagens ficam como "Usuário removido")
+  deletedAt    DateTime? @db.Timestamptz(3)
 
   sessions          Session[]
   ownedServers      Server[]             @relation("ServerOwner")
@@ -558,6 +562,8 @@ model InstanceConfig {
   aiAutoBlock      Boolean  @default(false)
   /// ... e bloqueia também o dispositivo (hardwareId, deviceId e IP das sessões da pessoa)
   aiAutoBlockDevice Boolean @default(false)
+  /// canal de contato para pedidos sobre dados pessoais (LGPD, ADR-0039); aparece na política dentro do app
+  privacyContact   String?
   updatedAt        DateTime @default(now()) @updatedAt @db.Timestamptz(3)
   updatedById      String?  @db.Uuid
 }
