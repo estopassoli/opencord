@@ -39,6 +39,8 @@ A instância mantida pelo autor roda as mesmas imagens deste repositório, num c
   (API interna), `OFFICIAL_BOTS_SECRET` (mesmo valor definido na API; gere como os outros segredos),
   `ANTHROPIC_API_KEY` (Oráculo) e volume em `/data`. Na primeira subida ele cria os seis bots públicos em nome do
   criador da instância; a cada subida renova os tokens. Migração `20261102050000_official_bots` antes da API nova.
+  Em produção: app Dokploy `opencord-bots` (auto-deploy do main, mesmo nó da API, volume `opencord-bots-data`),
+  no ar desde 2026-11-02; o segredo fica no env da API e do serviço.
 - **App instalável no celular (PWA, ADR-0035)**: o build do renderer gera `sw.js` e traz `manifest.webmanifest` +
   `icons/`; o nginx do app já os serve com `no-cache` (só arquivos com hash são imutáveis). Precisa de HTTPS no host do
   app (já é o caso) e de uma imagem `web` nova a cada mudança do renderer, como hoje; não há passo extra. O Electron

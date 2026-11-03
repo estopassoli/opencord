@@ -1,5 +1,12 @@
 /** Utilidades comuns aos bots (ADR-0037). */
-import { Client, Events, type ClientOptions } from '@opencord-chat/bot';
+import {
+  Client,
+  Events,
+  PermissionsBitField,
+  type BaseInteraction,
+  type ClientOptions,
+  type InteractionReplyPayload,
+} from '@opencord-chat/bot';
 import type { Store } from './store.js';
 
 export interface BotContext {
@@ -75,4 +82,14 @@ export async function ensureAvatar(ctx: BotContext, png: Buffer | null) {
     body: form,
   }).catch(() => null);
   if (r?.ok) ctx.log('foto de perfil enviada');
+}
+
+/**
+ * Resposta de comando que vira mensagem no canal; se o bot não pode escrever ali (sem cargo), responde só para
+ * quem chamou (efêmera) em vez de falhar com 403.
+ */
+export function reply(i: BaseInteraction, payload: string | InteractionReplyPayload) {
+  const p: InteractionReplyPayload = typeof payload === 'string' ? { content: payload } : payload;
+  const canSend = i.appPermissions.has(PermissionsBitField.Flags.SendMessages);
+  return i.reply(canSend ? p : { ...p, ephemeral: true });
 }

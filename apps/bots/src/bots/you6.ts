@@ -10,7 +10,7 @@ import {
   type ChatInputCommandInteraction,
   type GuildMember,
 } from '@opencord-chat/bot';
-import { fmt, type BotContext, type BotDefinition } from '../shared.js';
+import { fmt, type BotContext, type BotDefinition, reply } from '../shared.js';
 
 const NS = 'you6';
 const COOLDOWN_MS = 60_000;
@@ -143,7 +143,7 @@ export const you6: BotDefinition = {
         if (i.commandName === 'niveis') return await configure(i, settings(i.guildId), (s) => save(i.guildId, s));
       } catch (e) {
         ctx.log(`falha em /${i.commandName}: ${e instanceof Error ? e.message : String(e)}`);
-        await i.reply({ content: 'Deu ruim aqui. Tenta de novo.', ephemeral: true }).catch(() => undefined);
+        await reply(i, { content: 'Deu ruim aqui. Tenta de novo.', ephemeral: true }).catch(() => undefined);
       }
     });
   },
@@ -161,7 +161,7 @@ async function showLevel(i: ChatInputCommandInteraction, ctx: BotContext) {
     }
   ).n;
   const bar = '█'.repeat(Math.round((into / need) * 12)).padEnd(12, '░');
-  await i.reply({
+  await reply(i, {
     embeds: [
       new EmbedBuilder()
         .setColor(COLOR)
@@ -180,13 +180,13 @@ async function showRanking(i: ChatInputCommandInteraction, ctx: BotContext) {
   const rows = ctx.store.db
     .prepare('SELECT user, xp FROM xp WHERE guild = ? ORDER BY xp DESC LIMIT 10')
     .all(i.guildId) as { user: string; xp: number }[];
-  if (!rows.length) return i.reply({ content: 'Ninguém pontuou ainda. Conversem!', ephemeral: true });
+  if (!rows.length) return reply(i, { content: 'Ninguém pontuou ainda. Conversem!', ephemeral: true });
   const medals = ['🥇', '🥈', '🥉'];
   const lines = rows.map(
     (r, idx) =>
       `${medals[idx] ?? `**${idx + 1}.**`} <@${r.user}> — nível ${levelFor(r.xp).level} · ${fmt.format(r.xp)} XP`,
   );
-  await i.reply({
+  await reply(i, {
     embeds: [new EmbedBuilder().setColor(COLOR).setTitle('Ranking de XP').setDescription(lines.join('\n'))],
   });
 }
@@ -197,7 +197,7 @@ async function configure(i: ChatInputCommandInteraction, s: Settings, save: (s: 
     const ch = i.options.getChannel('canal');
     s.announceChannelId = ch?.id ?? null;
     save(s);
-    return i.reply({
+    return reply(i, {
       content: ch ? `Avisos de nível em <#${ch.id}>.` : 'Avisos de nível no próprio canal.',
       ephemeral: true,
     });
@@ -209,29 +209,29 @@ async function configure(i: ChatInputCommandInteraction, s: Settings, save: (s: 
       (a, b) => a.level - b.level,
     );
     save(s);
-    return i.reply({ content: `Nível ${level} dá o cargo **${role.name}**.`, ephemeral: true });
+    return reply(i, { content: `Nível ${level} dá o cargo **${role.name}**.`, ephemeral: true });
   }
   if (sub === 'remover') {
     const level = i.options.getInteger('nivel', true);
     s.rewards = s.rewards.filter((r) => r.level !== level);
     save(s);
-    return i.reply({ content: `Nível ${level} sem recompensa.`, ephemeral: true });
+    return reply(i, { content: `Nível ${level} sem recompensa.`, ephemeral: true });
   }
   if (sub === 'boasvindas') {
     const ch = i.options.getChannel('canal', true);
     s.welcome = { channelId: ch.id, text: i.options.getString('texto', true) };
     save(s);
-    return i.reply({ content: `Boas-vindas em <#${ch.id}>.`, ephemeral: true });
+    return reply(i, { content: `Boas-vindas em <#${ch.id}>.`, ephemeral: true });
   }
   if (sub === 'semboasvindas') {
     s.welcome = null;
     save(s);
-    return i.reply({ content: 'Boas-vindas desligadas.', ephemeral: true });
+    return reply(i, { content: 'Boas-vindas desligadas.', ephemeral: true });
   }
   const rewards = s.rewards.length
     ? s.rewards.map((r) => `nível ${r.level} → <@&${r.roleId}>`).join('\n')
     : 'nenhuma recompensa';
-  return i.reply({
+  return reply(i, {
     content: `Avisos: ${s.announceChannelId ? `<#${s.announceChannelId}>` : 'no próprio canal'}\nBoas-vindas: ${
       s.welcome ? `<#${s.welcome.channelId}>` : 'desligadas'
     }\n${rewards}`,

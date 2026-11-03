@@ -13,7 +13,7 @@ import {
   type ChatInputCommandInteraction,
 } from '@opencord-chat/bot';
 import { randomUUID } from 'node:crypto';
-import { formatDuration, parseDuration, pickRandom, type BotContext, type BotDefinition } from '../shared.js';
+import { formatDuration, parseDuration, pickRandom, type BotContext, type BotDefinition, reply } from '../shared.js';
 
 const COLOR = '#8b5cf6';
 
@@ -150,22 +150,22 @@ export const carlos: BotDefinition = {
             .map((s) => s.trim())
             .filter(Boolean);
           if (opts.length < 2)
-            return await i.reply({ content: 'Me dê pelo menos duas opções separadas por vírgula.', ephemeral: true });
-          return await i.reply(`🎯 **${pickRandom(opts, 1)[0]}**`);
+            return await reply(i, { content: 'Me dê pelo menos duas opções separadas por vírgula.', ephemeral: true });
+          return await reply(i, `🎯 **${pickRandom(opts, 1)[0]}**`);
         }
         if (i.commandName === 'dado') {
           const sides = i.options.getInteger('lados') ?? 6;
-          return await i.reply(`🎲 d${sides}: **${1 + Math.floor(Math.random() * sides)}**`);
+          return await reply(i, `🎲 d${sides}: **${1 + Math.floor(Math.random() * sides)}**`);
         }
         if (i.commandName === 'sortear') {
           const members = [...(i.guild?.members.cache.values() ?? [])].filter((m) => !m.user.bot);
           const pick = pickRandom(members, 1)[0];
-          return await i.reply(pick ? `🎉 Sorteado: <@${pick.id}>` : 'Ninguém para sortear.');
+          return await reply(i, pick ? `🎉 Sorteado: <@${pick.id}>` : 'Ninguém para sortear.');
         }
       } catch (e) {
         ctx.log(`falha na interação: ${e instanceof Error ? e.message : String(e)}`);
         if (i.isRepliable())
-          await i.reply({ content: 'Deu ruim aqui. Tenta de novo.', ephemeral: true }).catch(() => undefined);
+          await reply(i, { content: 'Deu ruim aqui. Tenta de novo.', ephemeral: true }).catch(() => undefined);
       }
     });
   },
@@ -178,26 +178,26 @@ async function tags(i: ChatInputCommandInteraction, ctx: BotContext) {
     const name = i.options.getString('nome', true).toLowerCase();
     const row = db.prepare('SELECT content FROM tags WHERE guild = ? AND name = ?').get(i.guildId, name) as
       { content: string } | undefined;
-    return i.reply(row ? row.content : { content: `Não existe a tag "${name}".`, ephemeral: true });
+    return reply(i, row ? row.content : { content: `Não existe a tag "${name}".`, ephemeral: true });
   }
   if (sub === 'criar') {
     if (!i.memberPermissions?.has(PermissionsBitField.Flags.ManageMessages))
-      return i.reply({ content: 'Só quem gerencia mensagens cria tags.', ephemeral: true });
+      return reply(i, { content: 'Só quem gerencia mensagens cria tags.', ephemeral: true });
     const name = i.options.getString('nome', true).toLowerCase().replace(/\s+/g, '-');
     db.prepare(
       'INSERT INTO tags (guild, name, content, by_user) VALUES (?, ?, ?, ?) ON CONFLICT (guild, name) DO UPDATE SET content = excluded.content, by_user = excluded.by_user',
     ).run(i.guildId, name, i.options.getString('texto', true), i.user.id);
-    return i.reply({ content: `Tag "${name}" salva. Use /tag ver ${name}.`, ephemeral: true });
+    return reply(i, { content: `Tag "${name}" salva. Use /tag ver ${name}.`, ephemeral: true });
   }
   if (sub === 'apagar') {
     if (!i.memberPermissions?.has(PermissionsBitField.Flags.ManageMessages))
-      return i.reply({ content: 'Só quem gerencia mensagens apaga tags.', ephemeral: true });
+      return reply(i, { content: 'Só quem gerencia mensagens apaga tags.', ephemeral: true });
     const name = i.options.getString('nome', true).toLowerCase();
     db.prepare('DELETE FROM tags WHERE guild = ? AND name = ?').run(i.guildId, name);
-    return i.reply({ content: `Tag "${name}" apagada.`, ephemeral: true });
+    return reply(i, { content: `Tag "${name}" apagada.`, ephemeral: true });
   }
   const rows = db.prepare('SELECT name FROM tags WHERE guild = ? ORDER BY name').all(i.guildId) as { name: string }[];
-  return i.reply({
+  return reply(i, {
     content: rows.length ? rows.map((r) => `\`${r.name}\``).join(', ') : 'Nenhuma tag ainda. Crie com /tag criar.',
     ephemeral: true,
   });
@@ -217,14 +217,14 @@ function scheduleReminder(ctx: BotContext, r: { id: number; user: string; channe
 
 async function remind(i: ChatInputCommandInteraction, ctx: BotContext) {
   const ms = parseDuration(i.options.getString('quando', true));
-  if (!ms) return i.reply({ content: 'Tempo inválido. Use algo como 10m, 2h ou 1d.', ephemeral: true });
+  if (!ms) return reply(i, { content: 'Tempo inválido. Use algo como 10m, 2h ou 1d.', ephemeral: true });
   const text = i.options.getString('texto', true);
   const at = Date.now() + ms;
   const res = ctx.store.db
     .prepare('INSERT INTO reminders (user, channel, text, at) VALUES (?, ?, ?, ?)')
     .run(i.user.id, i.channelId, text, at);
   scheduleReminder(ctx, { id: Number(res.lastInsertRowid), user: i.user.id, channel: i.channelId, text, at });
-  return i.reply({ content: `Combinado: daqui a ${formatDuration(ms)} eu te lembro de "${text}".`, ephemeral: true });
+  return reply(i, { content: `Combinado: daqui a ${formatDuration(ms)} eu te lembro de "${text}".`, ephemeral: true });
 }
 
 function giveawayEmbed(g: GiveawayRow, entrants: number) {
@@ -262,7 +262,7 @@ async function giveaway(i: ChatInputCommandInteraction, ctx: BotContext, schedul
   const sub = i.options.getSubcommand();
   if (sub === 'criar') {
     const ms = parseDuration(i.options.getString('duracao', true));
-    if (!ms) return i.reply({ content: 'Duração inválida. Use algo como 30m, 2h ou 1d.', ephemeral: true });
+    if (!ms) return reply(i, { content: 'Duração inválida. Use algo como 30m, 2h ou 1d.', ephemeral: true });
     const g: GiveawayRow = {
       id: randomUUID(),
       guild: i.guildId,
@@ -276,7 +276,7 @@ async function giveaway(i: ChatInputCommandInteraction, ctx: BotContext, schedul
       entrants: '[]',
       won: '[]',
     };
-    const res = await i.reply({ embeds: [giveawayEmbed(g, 0)], components: [giveawayRow(g.id, false)] });
+    const res = await reply(i, { embeds: [giveawayEmbed(g, 0)], components: [giveawayRow(g.id, false)] });
     g.message = res.messageId ?? '';
     ctx.store.db
       .prepare(
@@ -287,15 +287,15 @@ async function giveaway(i: ChatInputCommandInteraction, ctx: BotContext, schedul
     return;
   }
   const g = loadGiveaway(ctx, i.options.getString('id', true), i.guildId);
-  if (!g) return i.reply({ content: 'Sorteio não encontrado.', ephemeral: true });
+  if (!g) return reply(i, { content: 'Sorteio não encontrado.', ephemeral: true });
   if (g.host !== i.user.id && !i.memberPermissions?.has(PermissionsBitField.Flags.ManageGuild))
-    return i.reply({ content: 'Só quem criou (ou gerencia o servidor) mexe nesse sorteio.', ephemeral: true });
+    return reply(i, { content: 'Só quem criou (ou gerencia o servidor) mexe nesse sorteio.', ephemeral: true });
   if (sub === 'encerrar') {
-    if (g.ended) return i.reply({ content: 'Já encerrado.', ephemeral: true });
+    if (g.ended) return reply(i, { content: 'Já encerrado.', ephemeral: true });
     await endGiveaway(ctx, g.id);
-    return i.reply({ content: 'Encerrado.', ephemeral: true });
+    return reply(i, { content: 'Encerrado.', ephemeral: true });
   }
-  if (!g.ended) return i.reply({ content: 'Ainda está rolando; encerre primeiro.', ephemeral: true });
+  if (!g.ended) return reply(i, { content: 'Ainda está rolando; encerre primeiro.', ephemeral: true });
   const winners = pickRandom(JSON.parse(g.entrants) as string[], g.winners);
   ctx.store.db.prepare('UPDATE giveaways SET won = ? WHERE id = ?').run(JSON.stringify(winners), g.id);
   const ch = ctx.client.channels.cache.get(g.channel);
@@ -306,13 +306,13 @@ async function giveaway(i: ChatInputCommandInteraction, ctx: BotContext, schedul
         : 'Ninguém participou.',
     )
     .catch(() => undefined);
-  return i.reply({ content: 'Resorteado.', ephemeral: true });
+  return reply(i, { content: 'Resorteado.', ephemeral: true });
 }
 
 async function joinGiveaway(ctx: BotContext, i: ButtonInteraction) {
   const id = i.customId.split(':')[2] ?? '';
   const g = ctx.store.db.prepare('SELECT * FROM giveaways WHERE id = ?').get(id) as GiveawayRow | undefined;
-  if (!g || g.ended) return i.reply({ content: 'Esse sorteio já acabou.', ephemeral: true });
+  if (!g || g.ended) return reply(i, { content: 'Esse sorteio já acabou.', ephemeral: true });
   const entrants = new Set(JSON.parse(g.entrants) as string[]);
   const joined = !entrants.has(i.user.id);
   if (joined) entrants.add(i.user.id);

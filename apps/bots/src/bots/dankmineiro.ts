@@ -3,7 +3,7 @@
  * ranking. Nada vale dinheiro de verdade; é zoeira entre amigos.
  */
 import { EmbedBuilder, Events, SlashCommandBuilder, type ChatInputCommandInteraction } from '@opencord-chat/bot';
-import { fmt, type BotContext, type BotDefinition } from '../shared.js';
+import { fmt, type BotContext, type BotDefinition, reply } from '../shared.js';
 
 const COLOR = '#22c55e';
 const DAILY = 250;
@@ -83,7 +83,7 @@ export const dankMineiro: BotDefinition = {
         await handle(i, ctx);
       } catch (e) {
         ctx.log(`falha em /${i.commandName}: ${e instanceof Error ? e.message : String(e)}`);
-        await i.reply({ content: 'Deu ruim aqui, sô. Tenta de novo.', ephemeral: true }).catch(() => undefined);
+        await reply(i, { content: 'Deu ruim aqui, sô. Tenta de novo.', ephemeral: true }).catch(() => undefined);
       }
     });
   },
@@ -112,35 +112,36 @@ async function handle(i: ChatInputCommandInteraction, ctx: BotContext) {
   switch (i.commandName) {
     case 'diario': {
       if (now - me.last_daily < DAILY_MS)
-        return i.reply({
+        return reply(i, {
           content: `Já pegou hoje. Volta em ${wait(DAILY_MS - (now - me.last_daily))}.`,
           ephemeral: true,
         });
       put(ctx, g, i.user.id, { ...me, balance: me.balance + DAILY, last_daily: now });
-      return i.reply(`${coins(DAILY)} no bolso. Saldo: ${coins(me.balance + DAILY)}`);
+      return reply(i, `${coins(DAILY)} no bolso. Saldo: ${coins(me.balance + DAILY)}`);
     }
     case 'trabalhar': {
       if (now - me.last_work < WORK_MS)
-        return i.reply({
+        return reply(i, {
           content: `Descansa, trem. Volta em ${wait(WORK_MS - (now - me.last_work))}.`,
           ephemeral: true,
         });
       const job = JOBS[Math.floor(Math.random() * JOBS.length)] ?? JOBS[0];
       const earned = job[1] + Math.floor(Math.random() * (job[2] - job[1] + 1));
       put(ctx, g, i.user.id, { ...me, balance: me.balance + earned, last_work: now });
-      return i.reply(`Você ${job[0]} e ganhou ${coins(earned)}. Saldo: ${coins(me.balance + earned)}`);
+      return reply(i, `Você ${job[0]} e ganhou ${coins(earned)}. Saldo: ${coins(me.balance + earned)}`);
     }
     case 'saldo': {
       const who = i.options.getUser('pessoa') ?? i.user;
       const r = account(ctx, g, who.id);
-      return i.reply(`${who.displayName} tem ${coins(r.balance)}.`);
+      return reply(i, `${who.displayName} tem ${coins(r.balance)}.`);
     }
     case 'apostar': {
       const amount = i.options.getInteger('valor', true);
-      if (amount > me.balance) return i.reply({ content: `Você só tem ${coins(me.balance)}.`, ephemeral: true });
+      if (amount > me.balance) return reply(i, { content: `Você só tem ${coins(me.balance)}.`, ephemeral: true });
       const delta = betOutcome(amount);
       put(ctx, g, i.user.id, { ...me, balance: me.balance + delta });
-      return i.reply(
+      return reply(
+        i,
         delta > 0
           ? `🎰 Ganhou ${coins(delta)}! Saldo: ${coins(me.balance + delta)}`
           : `💸 Perdeu ${coins(amount)}. Saldo: ${coins(me.balance + delta)}`,
@@ -148,27 +149,28 @@ async function handle(i: ChatInputCommandInteraction, ctx: BotContext) {
     }
     case 'caraoucoroa': {
       const amount = i.options.getInteger('valor', true);
-      if (amount > me.balance) return i.reply({ content: `Você só tem ${coins(me.balance)}.`, ephemeral: true });
+      if (amount > me.balance) return reply(i, { content: `Você só tem ${coins(me.balance)}.`, ephemeral: true });
       const side = Math.random() < 0.5 ? 'cara' : 'coroa';
       const won = side === i.options.getString('lado', true);
       put(ctx, g, i.user.id, { ...me, balance: me.balance + (won ? amount : -amount) });
-      return i.reply(`Deu **${side}**. ${won ? `Ganhou ${coins(amount)}!` : `Perdeu ${coins(amount)}.`}`);
+      return reply(i, `Deu **${side}**. ${won ? `Ganhou ${coins(amount)}!` : `Perdeu ${coins(amount)}.`}`);
     }
     case 'roubar': {
       const victim = i.options.getUser('pessoa', true);
       if (victim.id === i.user.id || victim.bot)
-        return i.reply({ content: 'Rouba outra pessoa, uai.', ephemeral: true });
+        return reply(i, { content: 'Rouba outra pessoa, uai.', ephemeral: true });
       if (now - me.last_rob < ROB_MS)
-        return i.reply({
+        return reply(i, {
           content: `A polícia tá de olho. Volta em ${wait(ROB_MS - (now - me.last_rob))}.`,
           ephemeral: true,
         });
       const them = account(ctx, g, victim.id);
-      if (them.balance < 50) return i.reply({ content: 'Essa pessoa está dura. Não vale a pena.', ephemeral: true });
+      if (them.balance < 50) return reply(i, { content: 'Essa pessoa está dura. Não vale a pena.', ephemeral: true });
       const r = robOutcome(me.balance, them.balance);
       put(ctx, g, i.user.id, { ...me, balance: me.balance + r.delta, last_rob: now });
       if (r.ok) put(ctx, g, victim.id, { ...them, balance: them.balance - r.delta });
-      return i.reply(
+      return reply(
+        i,
         r.ok
           ? `🥷 Você levou ${coins(r.delta)} de <@${victim.id}>!`
           : `🚔 Pego no flagra: multa de ${coins(-r.delta)}.`,
@@ -177,19 +179,19 @@ async function handle(i: ChatInputCommandInteraction, ctx: BotContext) {
     case 'pagar': {
       const to = i.options.getUser('pessoa', true);
       const amount = i.options.getInteger('valor', true);
-      if (to.id === i.user.id) return i.reply({ content: 'Pagar a si mesmo não conta.', ephemeral: true });
-      if (amount > me.balance) return i.reply({ content: `Você só tem ${coins(me.balance)}.`, ephemeral: true });
+      if (to.id === i.user.id) return reply(i, { content: 'Pagar a si mesmo não conta.', ephemeral: true });
+      if (amount > me.balance) return reply(i, { content: `Você só tem ${coins(me.balance)}.`, ephemeral: true });
       const them = account(ctx, g, to.id);
       put(ctx, g, i.user.id, { ...me, balance: me.balance - amount });
       put(ctx, g, to.id, { ...them, balance: them.balance + amount });
-      return i.reply(`Pagou ${coins(amount)} para <@${to.id}>.`);
+      return reply(i, `Pagou ${coins(amount)} para <@${to.id}>.`);
     }
     case 'ricos': {
       const rows = ctx.store.db
         .prepare('SELECT user, balance FROM coins WHERE guild = ? ORDER BY balance DESC LIMIT 10')
         .all(g) as { user: string; balance: number }[];
-      if (!rows.length) return i.reply({ content: 'Ninguém tem moedas ainda. /diario!', ephemeral: true });
-      return i.reply({
+      if (!rows.length) return reply(i, { content: 'Ninguém tem moedas ainda. /diario!', ephemeral: true });
+      return reply(i, {
         embeds: [
           new EmbedBuilder()
             .setColor(COLOR)

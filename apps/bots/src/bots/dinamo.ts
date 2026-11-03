@@ -10,7 +10,7 @@ import {
   type ChatInputCommandInteraction,
   type Message,
 } from '@opencord-chat/bot';
-import { formatDuration, type BotContext, type BotDefinition } from '../shared.js';
+import { formatDuration, type BotContext, type BotDefinition, reply } from '../shared.js';
 
 const NS = 'dinamo';
 const COLOR = '#2f81f7';
@@ -186,7 +186,7 @@ export const dinamo: BotDefinition = {
         if (i.commandName === 'aviso') return await warnings(i, ctx, settings(i.guildId));
       } catch (e) {
         ctx.log(`falha em /${i.commandName}: ${e instanceof Error ? e.message : String(e)}`);
-        await i.reply({ content: 'Deu ruim aqui. Tenta de novo.', ephemeral: true }).catch(() => undefined);
+        await reply(i, { content: 'Deu ruim aqui. Tenta de novo.', ephemeral: true }).catch(() => undefined);
       }
     });
   },
@@ -247,15 +247,15 @@ async function configure(i: ChatInputCommandInteraction, s: AutomodSettings, sav
       const w = i.options.getString('palavra', true).trim();
       if (!s.words.includes(w)) s.words.push(w);
       save(s);
-      return i.reply({ content: `"${w}" proibida.`, ephemeral: true });
+      return reply(i, { content: `"${w}" proibida.`, ephemeral: true });
     }
     if (sub === 'remover') {
       const w = i.options.getString('palavra', true).trim();
       s.words = s.words.filter((x) => x !== w);
       save(s);
-      return i.reply({ content: `"${w}" liberada.`, ephemeral: true });
+      return reply(i, { content: `"${w}" liberada.`, ephemeral: true });
     }
-    return i.reply({
+    return reply(i, {
       content: s.words.length ? s.words.map((w) => `• ${w}`).join('\n') : 'Nenhuma palavra proibida.',
       ephemeral: true,
     });
@@ -263,7 +263,7 @@ async function configure(i: ChatInputCommandInteraction, s: AutomodSettings, sav
   if (sub === 'links') {
     s.blockLinks = i.options.getBoolean('ligado', true);
     save(s);
-    return i.reply({
+    return reply(i, {
       content: s.blockLinks ? 'Links bloqueados para quem não modera.' : 'Links liberados.',
       ephemeral: true,
     });
@@ -273,7 +273,7 @@ async function configure(i: ChatInputCommandInteraction, s: AutomodSettings, sav
     const windowS = i.options.getInteger('segundos') ?? s.flood?.windowS ?? 8;
     s.flood = max > 0 ? { max, windowS } : null;
     save(s);
-    return i.reply({
+    return reply(i, {
       content: s.flood ? `Flood: mais de ${max} mensagens em ${windowS} s apaga.` : 'Antiflood desligado.',
       ephemeral: true,
     });
@@ -282,19 +282,19 @@ async function configure(i: ChatInputCommandInteraction, s: AutomodSettings, sav
     const ch = i.options.getChannel('canal');
     s.logChannelId = ch?.id ?? null;
     save(s);
-    return i.reply({ content: ch ? `Registro em <#${ch.id}>.` : 'Sem canal de registro.', ephemeral: true });
+    return reply(i, { content: ch ? `Registro em <#${ch.id}>.` : 'Sem canal de registro.', ephemeral: true });
   }
   if (sub === 'castigo') {
     const warnings = i.options.getInteger('avisos', true);
     const minutes = i.options.getInteger('minutos') ?? Math.round((s.punish?.timeoutMs ?? 600_000) / 60_000);
     s.punish = warnings > 0 ? { warnings, timeoutMs: minutes * 60_000 } : null;
     save(s);
-    return i.reply({
+    return reply(i, {
       content: s.punish ? `A cada ${warnings} avisos: castigo de ${minutes} min.` : 'Castigo automático desligado.',
       ephemeral: true,
     });
   }
-  return i.reply({
+  return reply(i, {
     content: [
       `Palavras proibidas: ${s.words.length}`,
       `Links: ${s.blockLinks ? 'bloqueados' : 'liberados'}`,
@@ -320,17 +320,17 @@ async function warnings(i: ChatInputCommandInteraction, ctx: BotContext, s: Auto
         punished = ` Castigo de ${formatDuration(s.punish.timeoutMs)} aplicado.`;
       }
     }
-    return i.reply({ content: `<@${who.id}> recebeu o aviso ${count}: ${reason}.${punished}` });
+    return reply(i, { content: `<@${who.id}> recebeu o aviso ${count}: ${reason}.${punished}` });
   }
   if (sub === 'limpar') {
     ctx.store.db.prepare('DELETE FROM warnings WHERE guild = ? AND user = ?').run(i.guildId, who.id);
-    return i.reply({ content: `Avisos de <@${who.id}> zerados.`, ephemeral: true });
+    return reply(i, { content: `Avisos de <@${who.id}> zerados.`, ephemeral: true });
   }
   const rows = ctx.store.db
     .prepare('SELECT reason, at, by_user FROM warnings WHERE guild = ? AND user = ? ORDER BY at DESC LIMIT 15')
     .all(i.guildId, who.id) as { reason: string; at: number; by_user: string }[];
-  if (!rows.length) return i.reply({ content: `<@${who.id}> não tem avisos.`, ephemeral: true });
-  return i.reply({
+  if (!rows.length) return reply(i, { content: `<@${who.id}> não tem avisos.`, ephemeral: true });
+  return reply(i, {
     embeds: [
       new EmbedBuilder()
         .setColor(COLOR)

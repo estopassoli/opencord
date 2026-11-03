@@ -12,7 +12,7 @@ import {
   type ChatInputCommandInteraction,
   type TextChannel,
 } from '@opencord-chat/bot';
-import type { BotDefinition } from '../shared.js';
+import { reply, type BotDefinition } from '../shared.js';
 
 const COLOR = '#a855f7';
 const SYSTEM =
@@ -88,7 +88,7 @@ export const oraculo: BotDefinition = {
     client.on(Events.InteractionCreate, async (i) => {
       try {
         if (i.isMessageContextMenuCommand() && i.commandName === 'Explicar mensagem') {
-          if (!ai) return await i.reply({ content: 'A IA está desligada nesta instância.', ephemeral: true });
+          if (!ai) return await reply(i, { content: 'A IA está desligada nesta instância.', ephemeral: true });
           await i.deferReply({ ephemeral: true });
           const text = i.targetMessage.content || '(mensagem sem texto)';
           const out = await ask(
@@ -99,7 +99,7 @@ export const oraculo: BotDefinition = {
         }
         if (!i.isChatInputCommand()) return;
         if (!ai)
-          return await i.reply({
+          return await reply(i, {
             content: 'A IA está desligada nesta instância (sem chave da Anthropic).',
             ephemeral: true,
           });
@@ -107,7 +107,7 @@ export const oraculo: BotDefinition = {
       } catch (e) {
         ctx.log(`falha na interação: ${e instanceof Error ? e.message : String(e)}`);
         if (i.isRepliable())
-          await i.reply({ content: 'O Oráculo engasgou. Tenta de novo.', ephemeral: true }).catch(() => undefined);
+          await reply(i, { content: 'O Oráculo engasgou. Tenta de novo.', ephemeral: true }).catch(() => undefined);
       }
     });
   },

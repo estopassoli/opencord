@@ -21,6 +21,8 @@ FROM node:24-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production DATA_DIR=/data
 COPY --from=build /out /app
+# o volume nasce com dono node: sem isso o SQLite não grava quando o volume é novo
+RUN mkdir -p /data && chown node:node /data
 VOLUME ["/data"]
 USER node
 CMD ["node", "--enable-source-maps", "dist/main.js"]

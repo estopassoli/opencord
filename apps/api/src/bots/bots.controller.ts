@@ -1,4 +1,18 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+} from '@nestjs/common';
+import { APP_CONFIG, type AppConfig } from '../config/config.js';
+import { notFound } from '../common/errors.js';
 import {
   OfficialBotClaimRequest,
   AddBotToServerRequest,
@@ -24,6 +38,7 @@ const id = new ParseUUIDPipe();
 @Controller()
 export class BotsController {
   constructor(
+    @Inject(APP_CONFIG) private readonly cfg: AppConfig,
     private readonly bots: BotsService,
     private readonly interactions: InteractionsService,
   ) {}
@@ -42,8 +57,10 @@ export class BotsController {
   /** Bots oficiais (ADR-0037): container dos bots pede o token com o segredo compartilhado (rota pública). */
   @Public()
   @Post('bots/official/claim')
-  claimOfficial(@Body(zodPipe(OfficialBotClaimRequest)) dto: z.infer<typeof OfficialBotClaimRequest>) {
-    return this.bots.claimOfficial(dto);
+  claimOfficial(@Body() raw: unknown) {
+    // sem segredo configurado a rota "não existe" (404 antes de validar o corpo: não revela nada)
+    if (!this.cfg.OFFICIAL_BOTS_SECRET) throw notFound('recurso');
+    return this.bots.claimOfficial(zodPipe(OfficialBotClaimRequest).transform(raw));
   }
 
   // ---------- Diretório e o próprio bot (as rotas fixas vêm antes de `bots/:id`) ----------

@@ -13,7 +13,7 @@ import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
 } from '@opencord-chat/bot';
-import type { BotContext, BotDefinition } from '../shared.js';
+import { reply, type BotContext, type BotDefinition } from '../shared.js';
 
 const NS = 'tiquete';
 const COLOR = '#14b8a6';
@@ -98,12 +98,12 @@ export const tiquete: BotDefinition = {
               ),
             ],
           });
-          return await i.reply({ content: 'Painel publicado.', ephemeral: true });
+          return await reply(i, { content: 'Painel publicado.', ephemeral: true });
         }
         if (sub === 'equipe') {
           const role = i.options.getRole('cargo', true);
           store.set(NS, i.guildId, { ...settings(i.guildId), staffRoleId: role.id });
-          return await i.reply({ content: `Equipe: **${role.name}**.`, ephemeral: true });
+          return await reply(i, { content: `Equipe: **${role.name}**.`, ephemeral: true });
         }
         if (sub === 'categoria') {
           const name = i.options.getString('nome')?.trim();
@@ -115,7 +115,7 @@ export const tiquete: BotDefinition = {
             categoryId = (existing ?? (await i.guild.categories.create(name))).id;
           }
           store.set(NS, i.guildId, { ...settings(i.guildId), categoryId });
-          return await i.reply({
+          return await reply(i, {
             content: categoryId ? `Tickets na categoria **${name}**.` : 'Tickets sem categoria.',
             ephemeral: true,
           });
@@ -124,7 +124,7 @@ export const tiquete: BotDefinition = {
       } catch (e) {
         ctx.log(`falha na interação: ${e instanceof Error ? e.message : String(e)}`);
         if (i.isRepliable())
-          await i.reply({ content: 'Deu ruim aqui. Tenta de novo.', ephemeral: true }).catch(() => undefined);
+          await reply(i, { content: 'Deu ruim aqui. Tenta de novo.', ephemeral: true }).catch(() => undefined);
       }
     });
   },
@@ -137,14 +137,14 @@ async function open(ctx: BotContext, i: ButtonInteraction, s: Settings) {
     .prepare('SELECT channel FROM tickets WHERE guild = ? AND user = ?')
     .get(guild.id, i.user.id) as { channel: string } | undefined;
   if (existing && guild.channels.cache.get(existing.channel))
-    return i.reply({ content: `Você já tem um ticket aberto: <#${existing.channel}>.`, ephemeral: true });
+    return reply(i, { content: `Você já tem um ticket aberto: <#${existing.channel}>.`, ephemeral: true });
   const everyone = [...guild.roles.cache.values()].find((r) => r.isEveryone);
   const created = await guild.channels.create({
     name: `ticket-${slugify(i.user.displayName)}`,
     parent: s.categoryId,
     topic: `Ticket de ${i.user.displayName}`,
   });
-  if (!('send' in created)) return i.reply({ content: 'Não consegui criar o canal do ticket.', ephemeral: true });
+  if (!('send' in created)) return reply(i, { content: 'Não consegui criar o canal do ticket.', ephemeral: true });
   const channel = created;
   const botId = ctx.client.user?.id;
   const overrides = [
@@ -179,17 +179,17 @@ async function open(ctx: BotContext, i: ButtonInteraction, s: Settings) {
       ),
     ],
   });
-  await i.reply({ content: `Ticket criado: <#${channel.id}>`, ephemeral: true });
+  await reply(i, { content: `Ticket criado: <#${channel.id}>`, ephemeral: true });
 }
 
 async function close(ctx: BotContext, i: ButtonInteraction | ChatInputCommandInteraction) {
   const row = ctx.store.db.prepare('SELECT user FROM tickets WHERE channel = ?').get(i.channelId) as
     { user: string } | undefined;
-  if (!row) return i.reply({ content: 'Este canal não é um ticket.', ephemeral: true });
+  if (!row) return reply(i, { content: 'Este canal não é um ticket.', ephemeral: true });
   const staff = i.memberPermissions?.has(PermissionsBitField.Flags.ManageChannels) ?? false;
   if (row.user !== i.user.id && !staff)
-    return i.reply({ content: 'Só quem abriu ou a equipe fecha o ticket.', ephemeral: true });
-  await i.reply({ content: 'Fechando o ticket em 5 segundos…' });
+    return reply(i, { content: 'Só quem abriu ou a equipe fecha o ticket.', ephemeral: true });
+  await reply(i, { content: 'Fechando o ticket em 5 segundos…' });
   ctx.store.db.prepare('DELETE FROM tickets WHERE channel = ?').run(i.channelId);
   setTimeout(() => void i.channel.delete().catch(() => undefined), 5000);
 }
