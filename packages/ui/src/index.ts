@@ -16,3 +16,4 @@ export {
   type ButtonVariant,
   type SelectOption,
 } from './forms.js';
+export { ColorPicker, hexToHsv, hsvToHex } from './ColorPicker.js';

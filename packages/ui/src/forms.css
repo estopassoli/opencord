@@ -517,3 +517,125 @@
   animation: none;
   transition: none;
 }
+
+/* ---------- seletor de cor (ColorPicker) ---------- */
+.oc-color-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 12px 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: calc(8px * var(--radius-scale, 1));
+  background: var(--rail);
+  transition: border-color var(--dur) var(--ease);
+}
+.oc-color-input:hover {
+  border-color: var(--interactive-hover);
+}
+.oc-color-input:focus-within,
+.oc-color-input[data-open='true'] {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+.oc-color-swatch {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: calc(6px * var(--radius-scale, 1));
+  cursor: pointer;
+}
+.oc-color-swatch[data-empty='true'] {
+  background:
+    linear-gradient(45deg, transparent 45%, var(--danger) 45% 55%, transparent 55%), var(--sidebar) !important;
+}
+.oc-color-swatch:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.oc-color-hex {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9375rem;
+  text-transform: uppercase;
+  outline: none;
+}
+.oc-color-hex::placeholder {
+  color: var(--text-muted);
+  text-transform: none;
+}
+.oc-color-panel {
+  z-index: 1600;
+  width: 232px;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  background: var(--elevated, #1e1f22);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.45);
+}
+.oc-color-sv {
+  position: relative;
+  height: 160px;
+  border-radius: calc(6px * var(--radius-scale, 1));
+  background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent);
+  cursor: crosshair;
+  touch-action: none;
+}
+.oc-color-sv:focus-visible,
+.oc-color-hue:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.oc-color-hue {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  cursor: pointer;
+  touch-action: none;
+}
+.oc-color-thumb {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.35),
+    0 2px 6px rgb(0 0 0 / 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.oc-color-hue .oc-color-thumb {
+  top: 50%;
+}
+.oc-color-presets {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+}
+.oc-color-preset {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.oc-color-preset[aria-pressed='true'] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .oc-color-input {
+    transition: none;
+  }
+}

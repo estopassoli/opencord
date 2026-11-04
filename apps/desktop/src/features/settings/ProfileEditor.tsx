@@ -10,7 +10,7 @@ import {
   type ProfileUpdateResponse,
   type RecentAvatar,
 } from '@opencord/contracts';
-import { Avatar, AvatarSource, Button, ColorSwatches, Icon, TextArea, TextField } from '@opencord/ui';
+import { Avatar, AvatarSource, Button, ColorPicker, Icon, TextArea, TextField } from '@opencord/ui';
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { ImageCropDialog } from '../../components/ImageCropDialog';
@@ -46,7 +46,6 @@ const PROFILE_COLORS = [
   '#2b2d31',
   '#0b0c0e',
 ] as const;
-const HEX = /^#[0-9a-f]{6}$/i;
 
 type ImageDraft =
   { kind: 'keep' } | { kind: 'none' } | { kind: 'file'; file: File; preview: string } | { kind: 'url'; url: string };
@@ -253,21 +252,19 @@ export function ProfileEditor({ me }: { me: Me }) {
 
         <section>
           <h3>Cores do perfil</h3>
-          <ColorSwatches
-            label="Cor de cima"
-            colors={PROFILE_COLORS}
-            value={shownColors?.[0] ?? null}
-            onChange={(c) => setColor(0, c)}
-          />
-          <ColorSwatches
-            label="Cor de baixo"
-            colors={PROFILE_COLORS}
-            value={shownColors?.[1] ?? null}
-            onChange={(c) => setColor(1, c)}
-          />
-          <div className="profile-editor-row">
-            <HexField label="Cima (#rrggbb)" value={shownColors?.[0] ?? ''} onChange={(c) => setColor(0, c)} />
-            <HexField label="Baixo (#rrggbb)" value={shownColors?.[1] ?? ''} onChange={(c) => setColor(1, c)} />
+          <div className="profile-colors">
+            <ColorPicker
+              label="Cor de cima"
+              value={shownColors?.[0] ?? null}
+              presets={PROFILE_COLORS}
+              onChange={(c) => setColor(0, c)}
+            />
+            <ColorPicker
+              label="Cor de baixo"
+              value={shownColors?.[1] ?? null}
+              presets={PROFILE_COLORS}
+              onChange={(c) => setColor(1, c)}
+            />
           </div>
           {shownColors && (
             <Button size="sm" variant="ghost" onClick={() => setColors(null)}>
@@ -544,26 +541,6 @@ function ImageSourceDialog({
         )}
       </div>
     </Dialog>
-  );
-}
-
-/** campo de cor digitada: só aplica quando o hex fica válido */
-function HexField({ label, value, onChange }: { label: string; value: string; onChange: (c: string) => void }) {
-  const [text, setText] = useState(value);
-  useEffect(() => setText(value), [value]);
-  return (
-    <TextField
-      label={label}
-      value={text}
-      maxLength={7}
-      fieldClassName="profile-hex"
-      onChange={(e) => {
-        const v = e.target.value.trim();
-        setText(v);
-        const hex = v.startsWith('#') ? v : `#${v}`;
-        if (HEX.test(hex)) onChange(hex.toLowerCase());
-      }}
-    />
   );
 }
 

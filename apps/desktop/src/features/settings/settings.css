@@ -1173,3 +1173,9 @@
   gap: 8px;
   margin-top: 6px;
 }
+
+.profile-colors {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 6px;
+}
