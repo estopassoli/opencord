@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '02:20',
+    kind: 'melhoria',
+    icon: 'users',
+    title: 'Mais atalhos em quem está na chamada',
+    body: 'No botão direito em você mesmo na lista da chamada: silenciar o microfone, desativar o áudio e mudar o seu apelido neste servidor. No cartão de perfil, a chamada mostra também o servidor, e quem gerencia cargos tem um botão + para dar ou tirar cargos ali mesmo.',
+  },
+  {
+    date: '2026-11-05',
     time: '02:00',
     kind: 'novo',
     icon: 'film',

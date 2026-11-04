@@ -1,8 +1,8 @@
 import { ProfileBadges } from '../../components/UserBadges';
 import { ProfileCardHead, profileThemeVars } from '../../components/ProfileCardView';
 import { EMPTY_APPEARANCE, useProfiles } from '../../store/profiles';
-import { askConfirm } from '../../components/AskDialog';
-import { hasPermission, Permission, type Conversation } from '@opencord/contracts';
+import { askConfirm, askText } from '../../components/AskDialog';
+import { hasPermission, Permission, type Conversation, type Member } from '@opencord/contracts';
 import { Button, Icon, portalTarget, Slider, STATUS_LABEL } from '@opencord/ui';
 import { useEffect, useId, useRef, useState, type ReactNode, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -104,6 +104,31 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
       });
     }
   }
+  // eu mesmo: microfone/áudio da chamada e apelido neste servidor
+  if (isMe && voice && v.machine.status !== 'disconnected')
+    items.push(
+      'separator',
+      { label: 'Silenciar', checked: v.selfMute, onSelect: () => void useVoice.getState().toggleMute() },
+      { label: 'Desativar áudio', checked: v.selfDeaf, onSelect: () => void useVoice.getState().toggleDeafen() },
+    );
+  if (isMe && serverId && member)
+    items.push({
+      label: 'Apelido neste servidor',
+      icon: 'edit',
+      onSelect: async () => {
+        const text = await askText('Só vale neste servidor. Deixe em branco para usar o seu nome.', {
+          title: 'Apelido neste servidor',
+          label: 'Apelido',
+          placeholder: member.nickname ?? user.displayName,
+          confirmLabel: 'Salvar',
+        });
+        if (text === null) return;
+        void api()
+          .request<Member>('PATCH', `/servers/${serverId}/members/me`, { nickname: text.trim() || null })
+          .then((m) => useData.getState().upsertMember(serverId, { ...member, ...m }))
+          .catch(apiError);
+      },
+    });
   // Apps ›: comandos de contexto dos bots do servidor (ADR-0034)
   items.push(...userAppsMenu(serverId, userId));
   if (sameCall) {
@@ -351,6 +376,7 @@ function ProfileCard({
   const canMute =
     detail && hasPermission(detail.myPermissions, Permission.MUTE_MEMBERS) && voiceState && !isMe && !shielded;
   const moderation = moderationTargets(detail, me?.id, member);
+  const canRoles = Boolean(detail && hasPermission(detail.myPermissions, Permission.MANAGE_ROLES));
   const voiceChannel = voiceState ? detail?.channels.find((c) => c.id === voiceState.channelId) : undefined;
   const myCall = useVoice((s) => (s.machine.status === 'disconnected' ? null : s.machine.channelId));
   // bio, banner e cores (ADR-0048): carrega ao abrir o cartão
@@ -408,6 +434,23 @@ function ProfileCard({
               </span>
             ) : null;
           })}
+          {canRoles && (
+            <button
+              type="button"
+              className="role-chip role-chip-add"
+              aria-label="Cargos"
+              data-tip="Dar ou tirar cargos"
+              onClick={(e) => {
+                const cargos = memberMenu(userId, serverId, () => undefined).find(
+                  (x) => typeof x === 'object' && 'kind' in x && x.kind === 'submenu' && x.label === 'Cargos',
+                );
+                if (cargos && typeof cargos === 'object' && 'items' in cargos)
+                  openContextMenu(e, cargos.items, 'Cargos');
+              }}
+            >
+              <Icon name="plus" size={12} />
+            </button>
+          )}
         </div>
       )}
       {voiceChannel && serverId && (
@@ -417,6 +460,7 @@ function ProfileCard({
             <Icon name="speaker" size={16} />
             <strong className="truncate">{voiceChannel.name}</strong>
           </div>
+          {detail && <span className="muted small truncate">em {detail.name}</span>}
           {voiceState?.streaming && !isMe && (
             <StreamPreviewCard
               userId={userId}

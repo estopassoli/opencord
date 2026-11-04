@@ -1065,6 +1065,17 @@ textarea:focus-visible {
   flex-wrap: wrap;
   gap: 4px;
 }
+.role-chip-add {
+  display: inline-grid;
+  place-items: center;
+  padding: 2px 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.role-chip-add:hover,
+.role-chip-add:focus-visible {
+  color: var(--text);
+}
 .role-chip {
   font-size: 0.75rem;
   padding: 2px 8px;
