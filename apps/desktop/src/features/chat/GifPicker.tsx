@@ -51,13 +51,17 @@ export function GifPicker({
   anchor,
   onPick,
   onClose,
+  inline,
 }: {
   cfg: GifConfig;
   anchor: RefObject<HTMLElement | null>;
   onPick: (gif: Gif, q: string) => void;
   onClose: () => void;
+  /** dentro de um diálogo (foto/banner do perfil, ADR-0048): sem portal nem posição flutuante */
+  inline?: boolean;
 }) {
-  const style = usePlacement(anchor);
+  const placed = usePlacement(anchor);
+  const style: CSSProperties = inline ? { position: 'relative', width: '100%', height: 440 } : placed;
   const panel = useRef<HTMLDivElement>(null);
   const meId = useData((s) => s.me?.id ?? '');
   const favorites = useData((s) => s.settings?.gifFavorites ?? EMPTY);
@@ -80,6 +84,8 @@ export function GifPicker({
 
   // fecha com Esc ou clique fora
   useEffect(() => {
+    // no diálogo quem fecha é o próprio diálogo
+    if (inline) return;
     const key = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.stopPropagation();
@@ -99,7 +105,7 @@ export function GifPicker({
       document.removeEventListener('keydown', key, true);
       document.removeEventListener('mousedown', down);
     };
-  }, [view, query, onClose, anchor]);
+  }, [view, query, onClose, anchor, inline]);
 
   // início: categorias e uma capa para "em alta"
   useEffect(() => {
@@ -171,7 +177,7 @@ export function GifPicker({
   const list: (Gif | GifFavorite)[] = view.kind === 'favorites' ? favorites : gifs;
   const heading = view.kind === 'favorites' ? 'Favoritos' : view.kind === 'feed' ? view.title : null;
 
-  return createPortal(
+  const picker = (
     <div ref={panel} className="gif-picker" style={style} role="dialog" aria-label="GIFs">
       <div className="gif-picker-head">
         {view.kind !== 'home' && (
@@ -277,7 +283,7 @@ export function GifPicker({
         )}
       </div>
       <div className="gif-picker-foot muted small">Powered by KLIPY</div>
-    </div>,
-    portalTarget(anchor.current),
+    </div>
   );
+  return inline ? picker : createPortal(picker, portalTarget(anchor.current));
 }

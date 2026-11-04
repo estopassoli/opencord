@@ -1180,3 +1180,12 @@ html[data-layout='vidro'] .embed {
   border-left: 4px solid var(--embed-color);
   box-shadow: var(--vidro-card-edge);
 }
+
+/* cores do perfil (ADR-0048) no Vidro: o degradê vai no vidro do cartão, um pouco translúcido */
+html[data-layout='vidro'] .profile-card[data-themed='true']::before {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pc-a) 88%, transparent),
+    color-mix(in srgb, var(--pc-b) 88%, transparent)
+  );
+}

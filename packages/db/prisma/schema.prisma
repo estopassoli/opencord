@@ -42,6 +42,17 @@ model User {
   emailVerifiedAt    DateTime? @db.Timestamptz(3)
   /// verificação em duas etapas por código no e-mail ligada (alternativa ao app; ADR-0047)
   twoFactorEmailAt   DateTime? @db.Timestamptz(3)
+  /// perfil (ADR-0048): "sobre mim" com a formatação do chat
+  bio                String    @default("")
+  /// banner enviado (banners/<bannerKey>) ou GIF do KLIPY (URL como veio); no máximo um dos dois
+  bannerKey          String?
+  bannerUrl          String?
+  /// foto por GIF do KLIPY (no lugar de avatarKey)
+  avatarUrl          String?
+  /// duas cores #rrggbb que tingem o cartão de perfil; vazio = padrão
+  profileColors      String[]  @default([])
+  /// últimas fotos usadas ("key:<nome>" ou "url:<https>"), mais recente primeiro, até 6
+  recentAvatars      String[]  @default([])
   /// quando aceitou os Termos de uso e a Política de privacidade (ADR-0039); null = ainda precisa aceitar no app
   termsAcceptedAt DateTime? @db.Timestamptz(3)
   /// conta excluída pela própria pessoa (ADR-0039): linha anonimizada (as mensagens ficam como "Usuário removido")

@@ -31,6 +31,12 @@ export class AvatarsController {
   }
 
   @Public()
+  @Get('banners/:name')
+  banner(@Param('name') name: string, @Res() reply: FastifyReply) {
+    return this.serve(this.avatars.open(name, 'banners'), reply);
+  }
+
+  @Public()
   @Get('badge-images/:name')
   badgeImage(@Param('name') name: string, @Res() reply: FastifyReply) {
     return this.serve(this.avatars.open(name, 'badges'), reply);

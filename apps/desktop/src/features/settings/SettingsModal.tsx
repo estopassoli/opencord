@@ -37,6 +37,7 @@ import './settings.css';
 import { deviceLabel } from '../voice/devices';
 import { PrivacySection } from '../legal/PrivacySection';
 import { SecuritySection } from './SecuritySection';
+import { ProfileEditor } from './ProfileEditor';
 import { AvatarPicker } from './AvatarPicker';
 import { BotsTab } from './BotsTab';
 import { GamesTab } from './GamesTab';
@@ -135,14 +136,27 @@ export function Section({
   );
 }
 
+/** Perfil (ADR-0048): foto, banner, cores e bio com prévia ao vivo. */
+function ProfileTab() {
+  const me = useData((s) => s.me);
+  if (!me) return null;
+  return (
+    <Section title="Perfil" description="Como os outros veem você ao abrir o seu cartão de perfil.">
+      <ProfileEditor me={me} />
+    </Section>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Modal de configurações do usuário
 // ---------------------------------------------------------------------------
 
-type UserTab = 'account' | 'voice' | 'games' | 'apps' | 'keybinds' | 'appearance' | 'notifications' | 'about';
+type UserTab =
+  'account' | 'profile' | 'voice' | 'games' | 'apps' | 'keybinds' | 'appearance' | 'notifications' | 'about';
 
 const USER_TABS: readonly TabDef<UserTab>[] = [
   { id: 'account', label: 'Minha conta' },
+  { id: 'profile', label: 'Perfil' },
   { id: 'voice', label: 'Voz e vídeo' },
   { id: 'games', label: 'Jogos' },
   { id: 'apps', label: 'Aplicativos' },
@@ -164,6 +178,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     <Dialog title="Configurações do usuário" onClose={onClose} fullscreen>
       <TabbedLayout tabs={USER_TABS} active={tab} onChange={setTab} label="Seções das configurações">
         {tab === 'account' && <AccountTab />}
+        {tab === 'profile' && <ProfileTab />}
         {tab === 'voice' && <VoiceTab settings={settings} />}
         {tab === 'games' && <GamesTab settings={settings} />}
         {tab === 'apps' && <BotsTab />}

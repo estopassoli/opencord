@@ -6,6 +6,7 @@ type UserRow = {
   username: string;
   displayName: string;
   avatarKey: string | null;
+  avatarUrl?: string | null;
   isWebhook?: boolean;
   isBot?: boolean;
   isInstanceAdmin?: boolean;
@@ -16,6 +17,7 @@ export const USER_PUBLIC_SELECT = {
   username: true,
   displayName: true,
   avatarKey: true,
+  avatarUrl: true,
   isWebhook: true,
   isBot: true,
   isInstanceAdmin: true,
@@ -36,6 +38,8 @@ export const userPublic = (u: UserRow): UserPublic => ({
   username: u.username,
   displayName: u.displayName,
   avatarKey: u.avatarKey,
+  // foto por GIF do KLIPY (ADR-0048)
+  ...(u.avatarUrl ? { avatarUrl: u.avatarUrl } : {}),
   // selo APP: identidade de webhook (ADR-0030) ou usuário de bot (ADR-0032)
   bot: (u.isWebhook ?? false) || (u.isBot ?? false),
   // só vai quando é verdade: a UI esconde expulsar/silenciar e mostra "super admin" (ADR-0013)

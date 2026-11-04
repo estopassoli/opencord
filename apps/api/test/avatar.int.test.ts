@@ -59,7 +59,7 @@ async function send(token: string, data: Buffer, name = 'foto.png', mime = 'imag
 }
 
 describe('foto de perfil', () => {
-  it('envia, serve com cache público, troca apagando a anterior e avisa quem divide servidor', async () => {
+  it('envia, serve com cache público, troca guardando a anterior nas recentes e avisa quem divide servidor', async () => {
     const { owner } = await bootstrapOwner(http);
     const alice = await register(http);
     const sa = await connectSocket(alice.token);
@@ -88,15 +88,16 @@ describe('foto de perfil', () => {
     });
     expect(d.body.members.find((m) => m.user.id === owner.id)?.user.avatarKey).toBe(key);
 
-    // trocar: a antiga deixa de existir
+    // trocar: a antiga vai para as fotos recentes (ADR-0048) e o arquivo continua servido
     const r2 = await send(owner.token, png(32, 32));
     expect(r2.body.avatarKey).not.toBe(key);
-    expect((await fetch(`${base}/avatars/${key}`)).status).toBe(404);
+    expect((await fetch(`${base}/avatars/${key}`)).status).toBe(200);
 
-    // remover
+    // remover: some do perfil, mas fica nas recentes para voltar a usar
     const del = await http.req<Me>('DELETE', '/me/avatar', { token: owner.token });
     expect(del.body.avatarKey).toBeNull();
-    expect((await fetch(`${base}/avatars/${r2.body.avatarKey}`)).status).toBe(404);
+    const recent = await http.req<{ entry: string }[]>('GET', '/me/avatars/recent', { token: owner.token });
+    expect(recent.body.map((x) => x.entry)).toEqual([`key:${r2.body.avatarKey}`, `key:${key}`]);
   });
 
   it('recusa o que não é imagem (mesmo com MIME de imagem), imagens minúsculas e nomes fora do padrão', async () => {

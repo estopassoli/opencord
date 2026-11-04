@@ -27,6 +27,9 @@ import {
   TwoFactorEnableRequest,
   TwoFactorSetupRequest,
   UpdateProfileRequest,
+  UpdateUserProfileRequest,
+  UseRecentAvatarRequest,
+  type ProfileUpdateResponse,
   UserSettingsV1,
   defaultUserSettings,
   type UserSettings,
@@ -88,6 +91,77 @@ export class UsersController {
   @Delete('avatar')
   async clearAvatar(@CurrentUser() u: AuthUser) {
     return this.auth.toMe(await this.avatars.clear(u.userId));
+  }
+
+  // ---------- Personalização do perfil (ADR-0048) ----------
+
+  private async profileView(userId: string): Promise<ProfileUpdateResponse> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    return {
+      me: this.auth.toMe(user),
+      appearance: {
+        bio: user.bio,
+        bannerKey: user.bannerKey,
+        bannerUrl: user.bannerUrl,
+        colors: user.profileColors.length === 2 ? [user.profileColors[0]!, user.profileColors[1]!] : null,
+      },
+    };
+  }
+
+  @Get('profile')
+  myProfile(@CurrentUser() u: AuthUser) {
+    return this.profileView(u.userId);
+  }
+
+  /** bio, cores, banner e foto por GIF do KLIPY; só o que veio muda */
+  @Patch('profile')
+  async updateMyProfile(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(UpdateUserProfileRequest)) dto: z.infer<typeof UpdateUserProfileRequest>,
+  ) {
+    if (dto.bio !== undefined || dto.colors !== undefined)
+      await this.prisma.user.update({
+        where: { id: u.userId },
+        data: {
+          ...(dto.bio !== undefined ? { bio: dto.bio } : {}),
+          ...(dto.colors !== undefined
+            ? { profileColors: dto.colors ? dto.colors.map((c) => c.toLowerCase()) : [] }
+            : {}),
+        },
+      });
+    if (dto.bannerUrl !== undefined) await this.avatars.setBannerUrl(u.userId, dto.bannerUrl);
+    if (dto.avatarUrl !== undefined) await this.avatars.setUrl(u.userId, dto.avatarUrl);
+    return this.profileView(u.userId);
+  }
+
+  /** Banner do perfil (multipart, campo "file"): PNG/JPEG/WebP/GIF até 4 MB e 2560 px de lado. */
+  @Post('banner')
+  async setBanner(@CurrentUser() u: AuthUser, @Req() req: FastifyRequest) {
+    if (!req.isMultipart()) throw new BadRequestException('multipart/form-data esperado');
+    const file = await req.file();
+    if (!file) throw new BadRequestException('campo "file" ausente');
+    await this.avatars.setBanner(u.userId, file.file);
+    return this.profileView(u.userId);
+  }
+
+  @Delete('banner')
+  async clearBanner(@CurrentUser() u: AuthUser) {
+    await this.avatars.setBannerUrl(u.userId, null);
+    return this.profileView(u.userId);
+  }
+
+  @Get('avatars/recent')
+  recentAvatars(@CurrentUser() u: AuthUser) {
+    return this.avatars.recent(u.userId);
+  }
+
+  @Post('avatars/recent')
+  @HttpCode(200)
+  async useRecentAvatar(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(UseRecentAvatarRequest)) dto: z.infer<typeof UseRecentAvatarRequest>,
+  ) {
+    return this.auth.toMe(await this.avatars.useRecent(u.userId, dto.entry));
   }
 
   // ---------- Verificação em duas etapas e aparelhos conectados (ADR-0046) ----------

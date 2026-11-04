@@ -61,6 +61,7 @@ export class AccountService {
       email: user.email,
       temSenha: user.passwordHash !== null,
       fotoDePerfil: user.avatarKey,
+      perfil: { bio: user.bio, banner: user.bannerKey ?? user.bannerUrl, cores: user.profileColors },
       verificado: user.verified,
       criadaEm: iso(user.createdAt),
       termosAceitosEm: iso(user.termsAcceptedAt),
@@ -336,7 +337,7 @@ export class AccountService {
       await this.prisma.callRecording.delete({ where: { id: r.id } }).catch(() => undefined);
       files++;
     }
-    await this.avatars.clear(userId).catch(() => undefined);
+    await this.avatars.purge(userId).catch(() => undefined);
 
     // 6. relações pessoais e a linha do usuário, anonimizada
     const now = new Date();
@@ -363,6 +364,8 @@ export class AccountService {
           nickKey: null,
           passwordHash: null,
           avatarKey: null,
+          bio: '',
+          profileColors: [],
           verified: false,
           termsAcceptedAt: null,
           disabledAt: now,

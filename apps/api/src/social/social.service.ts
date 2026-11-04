@@ -60,7 +60,15 @@ export class SocialService {
   async profile(viewerId: string, userId: string): Promise<UserProfile> {
     const target = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { ...USER_PUBLIC_SELECT, createdAt: true, disabledAt: true },
+      select: {
+        ...USER_PUBLIC_SELECT,
+        createdAt: true,
+        disabledAt: true,
+        bio: true,
+        bannerKey: true,
+        bannerUrl: true,
+        profileColors: true,
+      },
     });
     if (!target || target.disabledAt) throw notFound('usuário');
     const blocked = await this.prisma.block.findFirst({
@@ -100,6 +108,12 @@ export class SocialService {
       friendSince: friendship ? (friendship.acceptedAt ?? friendship.createdAt).toISOString() : null,
       mutualServers: servers,
       mutualFriends: mutual.map(userPublic),
+      appearance: {
+        bio: target.bio,
+        bannerKey: target.bannerKey,
+        bannerUrl: target.bannerUrl,
+        colors: target.profileColors.length === 2 ? [target.profileColors[0]!, target.profileColors[1]!] : null,
+      },
     };
   }
 

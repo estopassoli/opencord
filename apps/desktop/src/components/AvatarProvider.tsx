@@ -5,7 +5,7 @@ import { useSession } from '../store/session';
 
 /**
  * Diz ao <Avatar> qual é a foto de cada pessoa, a partir do que o app já carregou (eu, membros dos servidores,
- * amigos, conversas). Fotos ficam em GET /avatars/:nome no servidor configurado.
+ * amigos, conversas). Fotos ficam em GET /avatars/:nome no servidor configurado, ou são um GIF do KLIPY.
  */
 export function AvatarProvider({ children }: { children: ReactNode }) {
   const serverUrl = useSession((s) => s.serverUrl);
@@ -14,20 +14,21 @@ export function AvatarProvider({ children }: { children: ReactNode }) {
   const friends = useData((s) => s.friends);
   const conversations = useData((s) => s.conversations);
   const resolve = useMemo(() => {
-    const keys = new Map<string, string>();
-    const add = (id: string, key: string | null | undefined) => key && keys.set(id, key);
-    for (const d of Object.values(details)) for (const m of d.members) add(m.user.id, m.user.avatarKey);
-    for (const f of friends) add(f.user.id, f.user.avatarKey);
-    for (const c of conversations) for (const u of c.members) add(u.id, u.avatarKey);
-    if (me) {
-      keys.delete(me.id);
-      add(me.id, me.avatarKey);
-    }
     const base = serverUrl?.replace(/\/+$/, '');
-    return (id: string) => {
-      const k = keys.get(id);
-      return k && base ? `${base}/avatars/${encodeURIComponent(k)}` : null;
+    // foto por GIF do KLIPY (ADR-0048) vem pronta; a enviada é servida em /avatars/:nome
+    const urls = new Map<string, string>();
+    const add = (u: { id: string; avatarKey: string | null; avatarUrl?: string | undefined }) => {
+      const url = u.avatarUrl ?? (u.avatarKey && base ? `${base}/avatars/${encodeURIComponent(u.avatarKey)}` : null);
+      if (url) urls.set(u.id, url);
     };
+    for (const d of Object.values(details)) for (const m of d.members) add(m.user);
+    for (const f of friends) add(f.user);
+    for (const c of conversations) for (const u of c.members) add(u);
+    if (me) {
+      urls.delete(me.id);
+      add(me);
+    }
+    return (id: string) => urls.get(id) ?? null;
   }, [serverUrl, me, details, friends, conversations]);
   return <AvatarSource.Provider value={resolve}>{children}</AvatarSource.Provider>;
 }

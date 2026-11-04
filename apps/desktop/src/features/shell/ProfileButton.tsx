@@ -1,7 +1,9 @@
 import { ProfileBadges } from '../../components/UserBadges';
+import { ProfileCardHead, profileThemeVars } from '../../components/ProfileCardView';
+import { EMPTY_APPEARANCE, useProfiles } from '../../store/profiles';
 import { askConfirm } from '../../components/AskDialog';
 import { hasPermission, Permission, type Conversation } from '@opencord/contracts';
-import { Avatar, Button, Icon, portalTarget, Slider, STATUS_LABEL } from '@opencord/ui';
+import { Button, Icon, portalTarget, Slider, STATUS_LABEL } from '@opencord/ui';
 import { useEffect, useId, useRef, useState, type ReactNode, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
@@ -344,6 +346,11 @@ function ProfileCard({
   const moderation = moderationTargets(detail, me?.id, member);
   const voiceChannel = voiceState ? detail?.channels.find((c) => c.id === voiceState.channelId) : undefined;
   const myCall = useVoice((s) => (s.machine.status === 'disconnected' ? null : s.machine.channelId));
+  // bio, banner e cores (ADR-0048): carrega ao abrir o cartão
+  const appearance = useProfiles((s) => s.byId[userId]) ?? EMPTY_APPEARANCE;
+  useEffect(() => {
+    void useProfiles.getState().load(userId);
+  }, [userId]);
   if (!user) return null;
 
   const run = (fn: () => Promise<unknown>, ok?: string) =>
@@ -362,18 +369,26 @@ function ProfileCard({
       className="profile-card"
       role="dialog"
       aria-label={`Perfil de ${alias ?? user.displayName}`}
-      style={pos ? { left: pos.left, top: pos.top } : { left: -9999, top: 0, visibility: 'hidden' }}
+      data-themed={appearance.colors ? 'true' : undefined}
+      style={{
+        ...(pos ? { left: pos.left, top: pos.top } : { left: -9999, top: 0, visibility: 'hidden' as const }),
+        ...profileThemeVars(appearance.colors),
+      }}
     >
-      <div className="profile-head">
-        <Avatar id={user.id} name={user.displayName} size={56} status={isMe ? undefined : presence} />
-        <div>
-          <strong>{alias ?? member?.nickname ?? user.displayName}</strong>
-          <div className="muted">
-            {alias && <span data-tip="Apelido que só você vê">{user.displayName} · </span>}@{user.username}
-          </div>
-          {!isMe && <div className="muted small">{STATUS_LABEL[presence]}</div>}
-        </div>
-      </div>
+      <ProfileCardHead
+        user={user}
+        appearance={appearance}
+        status={isMe ? undefined : presence}
+        name={alias ?? member?.nickname ?? user.displayName}
+        subtitle={
+          <>
+            <div>
+              {alias && <span data-tip="Apelido que só você vê">{user.displayName} · </span>}@{user.username}
+            </div>
+            {!isMe && <div className="small">{STATUS_LABEL[presence]}</div>}
+          </>
+        }
+      />
       <ProfileBadges userId={userId} fallback={user.badges} verified={user.verified || undefined} />
       <PlayingNow userId={userId} />
       {member && detail && (

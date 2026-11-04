@@ -76,6 +76,7 @@ export class AuthService {
     username: string;
     displayName: string;
     avatarKey: string | null;
+    avatarUrl?: string | null;
     passwordHash: string | null;
     createdAt: Date;
     termsAcceptedAt: Date | null;
@@ -95,6 +96,7 @@ export class AuthService {
       username: u.username,
       displayName: u.displayName,
       avatarKey: u.avatarKey,
+      ...(u.avatarUrl ? { avatarUrl: u.avatarUrl } : {}),
       hasAccount: u.passwordHash !== null,
       twoFactorEnabled: Boolean(u.totpEnabledAt || u.twoFactorEmailAt),
       twoFactorMethod: u.totpEnabledAt ? 'totp' : u.twoFactorEmailAt ? 'email' : null,

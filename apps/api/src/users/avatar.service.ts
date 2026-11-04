@@ -19,6 +19,9 @@ export const AVATAR_MAX_BYTES = 1024 * 1024;
 const MAX_SIDE = 1024;
 const AVATAR_LIMITS = { maxBytes: AVATAR_MAX_BYTES, maxSide: MAX_SIDE, label: '1 MB' };
 const WALLPAPER_LIMITS = { maxBytes: 4 * 1024 * 1024, maxSide: 2560, label: '4 MB' };
+const BANNER_LIMITS = { maxBytes: 4 * 1024 * 1024, maxSide: 2560, label: '4 MB' };
+/** fotos guardadas para voltar a usar (ADR-0048) */
+const RECENT_AVATARS = 6;
 const TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpeg',
@@ -149,16 +152,101 @@ export class AvatarService {
     return this.apply(userId, null);
   }
 
-  private async apply(userId: string, name: string | null) {
-    const prev = await swapKey(
-      async () => (await this.prisma.user.findUniqueOrThrow({ where: { id: userId } })).avatarKey,
-      async (old) =>
-        (await this.prisma.user.updateMany({ where: { id: userId, avatarKey: old }, data: { avatarKey: name } })).count,
-    );
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    if (prev && AVATAR_NAME.test(prev)) await this.storage.remove(`avatars/${prev}`).catch(() => undefined);
+  /** foto enviada (`name`) ou nenhuma (null) */
+  private apply(userId: string, name: string | null) {
+    return this.setCurrent(userId, name ? `key:${name}` : null);
+  }
+
+  /** Foto por GIF do KLIPY (ADR-0048): a URL como veio, sem guardar cópia. */
+  setUrl(userId: string, url: string | null) {
+    return this.setCurrent(userId, url ? `url:${url}` : null);
+  }
+
+  /** Voltar a usar uma das fotos recentes. */
+  async useRecent(userId: string, entry: string) {
+    const u = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { recentAvatars: true } });
+    if (!u.recentAvatars.includes(entry)) throw new BadRequestException('essa foto não está entre as recentes');
+    return this.setCurrent(userId, entry);
+  }
+
+  /** Últimas fotos usadas, mais recente primeiro: caminho relativo (enviada) ou URL do KLIPY. */
+  async recent(userId: string) {
+    const u = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { recentAvatars: true } });
+    return u.recentAvatars.map((entry) => ({
+      entry,
+      url: entry.startsWith('key:') ? `/avatars/${entry.slice(4)}` : entry.slice(4),
+    }));
+  }
+
+  /**
+   * Troca a foto atual por `next` ("key:<nome>", "url:<https>" ou null). A anterior vai para as recentes (até 6); a
+   * que sai das recentes e era enviada tem o arquivo apagado. Atômico contra duas trocas ao mesmo tempo.
+   */
+  private async setCurrent(userId: string, next: string | null) {
+    for (let i = 0; i < 5; i++) {
+      const u = await this.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { avatarKey: true, avatarUrl: true, recentAvatars: true },
+      });
+      const current = u.avatarKey ? `key:${u.avatarKey}` : u.avatarUrl ? `url:${u.avatarUrl}` : null;
+      const recent = [...(current && current !== next ? [current] : []), ...u.recentAvatars]
+        .filter((e, j, a) => e !== next && a.indexOf(e) === j)
+        .slice(0, RECENT_AVATARS);
+      const done = await this.prisma.user.updateMany({
+        where: { id: userId, avatarKey: u.avatarKey, avatarUrl: u.avatarUrl },
+        data: {
+          avatarKey: next?.startsWith('key:') ? next.slice(4) : null,
+          avatarUrl: next?.startsWith('url:') ? next.slice(4) : null,
+          recentAvatars: recent,
+        },
+      });
+      if (done.count !== 1) continue;
+      // arquivos que saíram de tudo (nem atual nem recente)
+      const kept = new Set([next, ...recent]);
+      for (const e of [current, ...u.recentAvatars])
+        if (e?.startsWith('key:') && !kept.has(e) && AVATAR_NAME.test(e.slice(4)))
+          await this.storage.remove(`avatars/${e.slice(4)}`).catch(() => undefined);
+      await this.announce(userId);
+      return this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    }
+    throw new ConflictException('a foto foi alterada ao mesmo tempo; tente de novo');
+  }
+
+  /** Exclusão da conta (ADR-0039): apaga foto, fotos recentes e banner (arquivos inclusos), sem guardar nada. */
+  async purge(userId: string) {
+    const u = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { avatarKey: true, recentAvatars: true, bannerKey: true },
+    });
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarKey: null, avatarUrl: null, recentAvatars: [], bannerKey: null, bannerUrl: null },
+    });
+    const keys = [u.avatarKey, ...u.recentAvatars.filter((e) => e.startsWith('key:')).map((e) => e.slice(4))];
+    for (const k of keys)
+      if (k && AVATAR_NAME.test(k)) await this.storage.remove(`avatars/${k}`).catch(() => undefined);
+    if (u.bannerKey && AVATAR_NAME.test(u.bannerKey))
+      await this.storage.remove(`banners/${u.bannerKey}`).catch(() => undefined);
     await this.announce(userId);
-    return user;
+  }
+
+  /** Banner do perfil (ADR-0048): enviado (até 4 MB, GIF animado vale) ou GIF do KLIPY; um tira o outro. */
+  async setBanner(userId: string, file: AsyncIterable<Buffer> & { truncated?: boolean }) {
+    const name = await this.storeImage(file, 'banners', BANNER_LIMITS);
+    return this.applyBanner(userId, { bannerKey: name, bannerUrl: null });
+  }
+
+  setBannerUrl(userId: string, url: string | null) {
+    return this.applyBanner(userId, { bannerKey: null, bannerUrl: url });
+  }
+
+  private async applyBanner(userId: string, data: { bannerKey: string | null; bannerUrl: string | null }) {
+    const prev = await swapKey(
+      async () => (await this.prisma.user.findUniqueOrThrow({ where: { id: userId } })).bannerKey,
+      async (old) => (await this.prisma.user.updateMany({ where: { id: userId, bannerKey: old }, data })).count,
+    );
+    if (prev && AVATAR_NAME.test(prev)) await this.storage.remove(`banners/${prev}`).catch(() => undefined);
+    return this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
   }
 
   /** Perfil público mudou: avisa a própria pessoa (outras sessões) e quem compartilha servidor com ela. */
@@ -182,7 +270,7 @@ export class AvatarService {
   }
 
   /** Para GET /avatars/:name, /server-icons/:name, /wallpapers/:name e /badge-images/:name. */
-  open(name: string, folder: 'avatars' | 'server-icons' | 'wallpapers' | 'badges' = 'avatars') {
+  open(name: string, folder: 'avatars' | 'server-icons' | 'wallpapers' | 'badges' | 'banners' = 'avatars') {
     const m = AVATAR_NAME.exec(name);
     if (!m) return null;
     const mime = Object.entries(TYPES).find(([, e]) => e === m[1])![0];

@@ -46,3 +46,26 @@ export async function squareImage(file: File, side = 256, name = 'imagem', crop?
   if (!blob) throw new Error('não foi possível preparar a imagem');
   return new File([blob], `${name}.${blob.type === 'image/webp' ? 'webp' : 'png'}`, { type: blob.type });
 }
+
+/**
+ * Banner do perfil (ADR-0048): GIF animado de até 4 MB e 2560 px vai como está (mantém a animação); o resto é
+ * reduzido para no máximo 1500 px de largura em WebP (JPEG de reserva).
+ */
+export async function bannerImage(file: File): Promise<File> {
+  const bmp = await createImageBitmap(file);
+  if (file.type === 'image/gif' && file.size <= 4 * 1024 * 1024 && Math.max(bmp.width, bmp.height) <= 2560) {
+    bmp.close();
+    return file;
+  }
+  const scale = Math.min(1, 1500 / bmp.width);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(16, Math.round(bmp.width * scale));
+  canvas.height = Math.max(16, Math.round(bmp.height * scale));
+  canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close();
+  const blob =
+    (await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/webp', 0.88))) ??
+    (await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.88)));
+  if (!blob) throw new Error('não foi possível preparar a imagem');
+  return new File([blob], `banner.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`, { type: blob.type });
+}

@@ -112,10 +112,10 @@ export function PrivacyPolicy({ instanceName, contact }: LegalProps) {
         Ninguém vende nem cede seus dados. Têm acesso técnico: os provedores de hospedagem e armazenamento usados pelo
         operador; a Anthropic, só para a moderação descrita acima; o YouTube, quando você usa "Assistir juntos" (o
         player é do próprio YouTube); o Resend, que entrega os e-mails da conta (códigos de confirmação e de acesso e
-        avisos de login), só com o seu e-mail e o texto da mensagem; o KLIPY, quando você abre o seletor de GIFs (a
-        busca e as imagens vêm direto dele para o seu app, com um identificador anônimo); o Slack, quando o dono de um
-        servidor liga a ponte; e os bots que você ou o servidor adicionam, que recebem o que acontece nos servidores
-        onde estão, segundo as permissões dadas a eles.
+        avisos de login), só com o seu e-mail e o texto da mensagem; o KLIPY, quando você abre o seletor de GIFs ou vê
+        um GIF dele no chat ou num perfil (a busca e as imagens vêm direto dele para o seu app; a busca leva um
+        identificador anônimo); o Slack, quando o dono de um servidor liga a ponte; e os bots que você ou o servidor
+        adicionam, que recebem o que acontece nos servidores onde estão, segundo as permissões dadas a eles.
       </p>
 
       <h3>Criptografia</h3>

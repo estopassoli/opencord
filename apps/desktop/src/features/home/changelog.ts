@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '22:30',
+    kind: 'novo',
+    icon: 'user',
+    title: 'Seu perfil do seu jeito',
+    body: 'Em Configurações → Perfil: coloque um banner (imagem ou GIF), escolha duas cores que pintam o seu cartão inteiro, escreva uma bio e use um GIF como foto. Também dá para voltar a uma das suas últimas fotos com um clique. A prévia ao lado mostra como os outros vão ver, e nada muda até você salvar.',
+  },
+  {
+    date: '2026-11-04',
     time: '21:30',
     kind: 'novo',
     icon: 'mail',

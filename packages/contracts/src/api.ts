@@ -173,6 +173,8 @@ export const UserPublic = z.object({
   username: Username,
   displayName: DisplayName,
   avatarKey: z.string().nullable(),
+  /** foto por GIF do KLIPY (ADR-0048): URL como o KLIPY entregou; vale no lugar de avatarKey (só vem quando tem) */
+  avatarUrl: z.string().optional(),
   /** identidade de um webhook de entrada (ADR-0030): mostra o selo "APP" */
   bot: z.boolean().default(false),
   /** super admin da instância (ADR-0013): fica acima de todo mundo nos servidores; ninguém expulsa, silencia ou muda os cargos */
@@ -313,6 +315,45 @@ export function maskIp(ip: string | null | undefined): string | null {
 }
 
 export const UpdateProfileRequest = z.object({ displayName: Nickname.optional() });
+
+// ---------- Personalização do perfil (ADR-0048) ----------
+export const BIO_MAX = 190;
+/** URL de mídia do KLIPY (GIF ou WebP), como o seletor entrega */
+export const KlipyMediaUrl = z
+  .url()
+  .max(2000)
+  .regex(/^https:\/\/([a-z0-9-]+\.)*klipy\.com\/\S+\.(gif|webp)(\?\S*)?$/i, 'use um GIF do seletor');
+export const ProfileColor = z.string().regex(/^#[0-9a-f]{6}$/i, 'use uma cor #rrggbb');
+/** Aparência do perfil (ADR-0048): vem em UserProfile.appearance (GET /users/:id/profile) */
+export const ProfileAppearance = z.object({
+  bio: z.string(),
+  /** banner enviado (GET /banners/:nome) */
+  bannerKey: z.string().nullable(),
+  /** banner por GIF do KLIPY */
+  bannerUrl: z.string().nullable(),
+  /** duas cores do cartão; null = padrão do tema */
+  colors: z.tuple([ProfileColor, ProfileColor]).nullable(),
+});
+export type ProfileAppearance = z.infer<typeof ProfileAppearance>;
+/** PATCH /me/profile: só o que veio muda; null tira */
+export const UpdateUserProfileRequest = z.object({
+  bio: z.string().trim().max(BIO_MAX).optional(),
+  colors: z.tuple([ProfileColor, ProfileColor]).nullable().optional(),
+  bannerUrl: KlipyMediaUrl.nullable().optional(),
+  avatarUrl: KlipyMediaUrl.nullable().optional(),
+});
+export type UpdateUserProfileRequest = z.input<typeof UpdateUserProfileRequest>;
+/** foto recente: GET /me/avatars/recent; POST /me/avatars/recent { entry } volta a usar */
+export const RecentAvatar = z.object({
+  /** "key:<nome>" (enviada) ou "url:<https>" (GIF do KLIPY) */
+  entry: z.string().max(2100),
+  url: z.string(),
+});
+export type RecentAvatar = z.infer<typeof RecentAvatar>;
+export const UseRecentAvatarRequest = z.object({ entry: z.string().min(5).max(2100) });
+/** resposta das rotas de edição do perfil: eu atualizado + aparência */
+export const ProfileUpdateResponse = z.object({ me: Me, appearance: ProfileAppearance });
+export type ProfileUpdateResponse = z.infer<typeof ProfileUpdateResponse>;
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>;
 
 // ---------- Servidores, cargos, canais ----------
@@ -1514,6 +1555,8 @@ export const UserProfile = z.object({
   friendSince: IsoDate.nullable(),
   mutualServers: z.array(z.object({ id: Id, name: z.string(), iconKey: z.string().nullable(), official: z.boolean() })),
   mutualFriends: z.array(UserPublic),
+  /** bio, banner e cores (ADR-0048); API antiga não manda */
+  appearance: ProfileAppearance.optional(),
 });
 export type UserProfile = z.infer<typeof UserProfile>;
 

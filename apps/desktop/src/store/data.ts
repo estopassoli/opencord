@@ -269,7 +269,13 @@ export const useData = create<DataState>()((set) => ({
   patchUser: (u) =>
     set((s) => {
       // campos que só vêm quando valem (verificado, insígnias): ausentes no evento = tirados
-      const merged = <T extends object>(x: T): T => ({ ...x, ...u, verified: u.verified, badges: u.badges });
+      const merged = <T extends object>(x: T): T => ({
+        ...x,
+        ...u,
+        verified: u.verified,
+        badges: u.badges,
+        avatarUrl: u.avatarUrl,
+      });
       const fix = <T extends { id: string }>(x: T): T => (x.id === u.id ? merged(x) : x);
       const details = Object.fromEntries(
         Object.entries(s.details).map(([id, d]) => [
@@ -280,7 +286,10 @@ export const useData = create<DataState>()((set) => ({
         ]),
       );
       return {
-        me: s.me && s.me.id === u.id ? { ...s.me, displayName: u.displayName, avatarKey: u.avatarKey } : s.me,
+        me:
+          s.me && s.me.id === u.id
+            ? { ...s.me, displayName: u.displayName, avatarKey: u.avatarKey, avatarUrl: u.avatarUrl }
+            : s.me,
         details,
         friends: s.friends.map((f) => (f.user.id === u.id ? { ...f, user: fix(f.user) } : f)),
         conversations: s.conversations.map((c) =>
