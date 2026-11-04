@@ -16,6 +16,7 @@ import { ServerIcon } from '../../components/ServerIcon';
 import { AddToDmDialog, FullProfileDialog } from '../chat/DmExtras';
 import { BotModalDialog } from '../chat/BotModal';
 import { parseInviteCode } from '../../lib/invite';
+import { useBannerStyle, useServerImageUrl } from '../../lib/serverBanner';
 import { loadServer, api, describeError } from '../../store/session';
 import { useData } from '../../store/data';
 import { useUi, type Modal } from '../../store/ui';
@@ -371,30 +372,67 @@ function InviteJoin({ onJoined, initialCode }: { onJoined: (serverId: string) =>
         </p>
       )}
       {preview && (
-        <form className="directory-row invite-preview" onSubmit={(e) => void join.submit(e)}>
+        <InviteCard preview={preview} busy={join.busy} onJoin={(e) => void join.submit(e)} onOpen={onJoined} />
+      )}
+    </section>
+  );
+}
+
+/** Prévia do convite: fundo do convite e faixa do servidor (ADR-0050), descrição e características. */
+function InviteCard({
+  preview,
+  busy,
+  onJoin,
+  onOpen,
+}: {
+  preview: InvitePreview;
+  busy: boolean;
+  onJoin: (e: FormEvent) => void;
+  onOpen: (serverId: string) => void;
+}) {
+  const s = preview.server;
+  const bg = useServerImageUrl('invite-backgrounds', s.inviteBgKey);
+  const banner = useBannerStyle(s);
+  return (
+    <div
+      className="invite-card"
+      data-bg={bg ? 'true' : undefined}
+      style={bg ? { backgroundImage: `url("${bg}")` } : undefined}
+    >
+      <form className="invite-card-inner" onSubmit={onJoin}>
+        {banner && <div className="invite-card-banner" style={banner} aria-hidden />}
+        <div className="directory-row invite-preview">
           <span className="directory-icon" aria-hidden>
-            <ServerIcon
-              name={preview.server.name}
-              iconKey={preview.server.iconKey}
-              official={preview.server.official}
-            />
+            <ServerIcon name={s.name} iconKey={s.iconKey} official={s.official} />
           </span>
           <span className="directory-names">
-            <strong className="truncate">{preview.server.name}</strong>
-            <span className="muted small">{preview.memberCount} membro(s)</span>
+            <strong className="truncate">{s.name}</strong>
+            <span className="muted small">
+              {preview.memberCount} {preview.memberCount === 1 ? 'membro' : 'membros'}
+            </span>
           </span>
           {preview.joined ? (
-            <Button type="button" variant="secondary" size="sm" onClick={() => onJoined(preview.server.id)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => onOpen(s.id)}>
               Abrir
             </Button>
           ) : (
-            <Button type="submit" size="sm" disabled={join.busy}>
+            <Button type="submit" size="sm" disabled={busy}>
               Entrar
             </Button>
           )}
-        </form>
-      )}
-    </section>
+        </div>
+        {s.description && <p className="invite-card-desc">{s.description}</p>}
+        {s.traits && s.traits.length > 0 && (
+          <ul className="invite-card-traits" aria-label="Características do servidor">
+            {s.traits.map((t, i) => (
+              <li key={i}>
+                {t.emoji && <span aria-hidden>{t.emoji}</span>} {t.label}
+              </li>
+            ))}
+          </ul>
+        )}
+      </form>
+    </div>
   );
 }
 

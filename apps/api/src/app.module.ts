@@ -53,6 +53,7 @@ import { AvatarService } from './users/avatar.service.js';
 import { BadgesService } from './admin/badges.service.js';
 import { SystemUserService } from './system/system-user.service.js';
 import { SystemNoticesService } from './system/system-notices.service.js';
+import { WelcomeService } from './system/welcome.service.js';
 import { TwoFactorService } from './auth/two-factor.service.js';
 import { LoginAlertsService } from './auth/login-alerts.service.js';
 import { MailService } from './mail/mail.service.js';
@@ -120,6 +121,7 @@ export class AppModule {
         BadgesService,
         SystemUserService,
         SystemNoticesService,
+        WelcomeService,
         TwoFactorService,
         LoginAlertsService,
         MailService,

@@ -25,7 +25,7 @@ import { PrismaService } from '../common/prisma.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DomainEvents } from '../common/domain-events.js';
 import { forbidden, notFound } from '../common/errors.js';
-import { category, channel, member, MEMBER_INCLUDE, role, serverSummary } from '../common/serialize.js';
+import { category, channel, member, MEMBER_INCLUDE, parseTraits, role, serverSummary } from '../common/serialize.js';
 import { PresenceService } from '../realtime/presence.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -184,10 +184,26 @@ export class ServersService {
       aiRules?: string | null | undefined;
       afkChannelId?: string | null | undefined;
       afkTimeoutSec?: number | undefined;
+      description?: string | undefined;
+      traits?: { emoji: string; label: string }[] | undefined;
+      bannerColor?: string | null | undefined;
+      systemChannelId?: string | null | undefined;
+      welcomeEnabled?: boolean | undefined;
+      defaultNotify?: 'all' | 'mentions' | undefined;
+      invitesPaused?: boolean | undefined;
     },
   ): Promise<ServerSummary> {
     await this.perms.requireServer(serverId, userId, Permission.MANAGE_SERVER);
     // canal de ausentes (ADR-0049): canal de voz comum deste servidor (não o criador de salas nem sala temporária)
+    // canal do sistema (ADR-0050): canal de texto deste servidor
+    if (dto.systemChannelId) {
+      const ch = await this.prisma.channel.findUnique({
+        where: { id: dto.systemChannelId },
+        select: { serverId: true, kind: true },
+      });
+      if (!ch || ch.serverId !== serverId || ch.kind !== 'text')
+        throw new BadRequestException('escolha um canal de texto deste servidor');
+    }
     if (dto.afkChannelId) {
       const ch = await this.prisma.channel.findUnique({
         where: { id: dto.afkChannelId },
@@ -205,6 +221,14 @@ export class ServersService {
         ...(dto.aiRules !== undefined ? { aiRules: dto.aiRules?.trim() || null } : {}),
         ...(dto.afkChannelId !== undefined ? { afkChannelId: dto.afkChannelId } : {}),
         ...(dto.afkTimeoutSec !== undefined ? { afkTimeoutSec: dto.afkTimeoutSec } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.traits !== undefined ? { traits: dto.traits } : {}),
+        // cor pronta tira a imagem da faixa (a imagem tem rota própria)
+        ...(dto.bannerColor !== undefined ? { bannerColor: dto.bannerColor } : {}),
+        ...(dto.systemChannelId !== undefined ? { systemChannelId: dto.systemChannelId } : {}),
+        ...(dto.welcomeEnabled !== undefined ? { welcomeEnabled: dto.welcomeEnabled } : {}),
+        ...(dto.defaultNotify !== undefined ? { defaultNotify: dto.defaultNotify } : {}),
+        ...(dto.invitesPaused !== undefined ? { invitesPaused: dto.invitesPaused } : {}),
       },
     });
     await this.audit.log(userId, serverId, 'server.update', serverId, dto);
@@ -291,10 +315,15 @@ export class ServersService {
   /** Idempotente: só audita e avisa quando a pessoa ainda não era membro. */
   private async addMember(serverId: string, userId: string, meta: Record<string, string>): Promise<ServerDetail> {
     await this.assertNotBanned(serverId, userId);
-    const created = await this.prisma.serverMember.createMany({ data: [{ serverId, userId }], skipDuplicates: true });
+    const created = await this.prisma.serverMember.createMany({
+      data: [{ serverId, userId, inviteCode: meta.via === 'invite' ? (meta.code ?? null) : null }],
+      skipDuplicates: true,
+    });
     if (created.count) {
       await this.audit.log(userId, serverId, 'member.join', userId, meta);
       await this.realtime.memberJoined(serverId, userId);
+      // boas-vindas no canal do sistema (ADR-0050), quem cuida é o WelcomeService
+      this.events.emit({ type: 'member.joined', serverId, userId });
     }
     return this.detail(serverId, userId);
   }
@@ -536,7 +565,18 @@ export class ServersService {
     const s = inv.server;
     return {
       code: inv.code,
-      server: { id: s.id, name: s.name, iconKey: s.iconKey, official: s.official, verified: s.verified },
+      server: {
+        id: s.id,
+        name: s.name,
+        iconKey: s.iconKey,
+        official: s.official,
+        verified: s.verified,
+        description: s.description,
+        traits: parseTraits(s.traits),
+        bannerColor: s.bannerColor,
+        bannerKey: s.bannerKey,
+        inviteBgKey: s.inviteBgKey,
+      },
       memberCount,
       joined: Boolean(me),
     };
@@ -579,6 +619,9 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
 
   async acceptInvite(code: string, userId: string): Promise<ServerDetail> {
     const inv = await this.findInvite(code);
+    if (inv.server.invitesPaused) throw new BadRequestException('os convites deste servidor estão pausados');
+    if (inv.expiresAt && inv.expiresAt < new Date()) throw notFound('convite');
+    if (inv.maxUses !== null && inv.uses >= inv.maxUses) throw notFound('convite');
     const already = await this.prisma.serverMember.findUnique({
       where: { serverId_userId: { serverId: inv.serverId, userId } },
     });

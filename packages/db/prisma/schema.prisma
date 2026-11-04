@@ -161,6 +161,20 @@ model Server {
   /// canal de ausentes (ADR-0049): canal de voz para onde vai quem fica parado afkTimeoutSec segundos em voz
   afkChannelId  String? @db.Uuid
   afkTimeoutSec Int     @default(300)
+  /// perfil do servidor (ADR-0050): descrição, até 5 características ({emoji, label}), faixa (cor pronta ou imagem)
+  description     String  @default("")
+  traits          Json    @default("[]")
+  bannerColor     String?
+  bannerKey       String?
+  /// imagem de fundo da tela de convite
+  inviteBgKey     String?
+  /// engajamento: canal das mensagens do sistema (boas-vindas) e notificação padrão ("all" | "mentions")
+  systemChannelId String? @db.Uuid
+  welcomeEnabled  Boolean @default(false)
+  defaultNotify   String  @default("mentions")
+  /// convites pausados: nenhum convite deixa entrar
+  invitesPaused   Boolean @default(false)
+  emojis          ServerEmoji[]
   createdAt  DateTime       @default(now()) @db.Timestamptz(3)
   owner      User           @relation("ServerOwner", fields: [ownerId], references: [id])
   invites    Invite[]
@@ -187,6 +201,8 @@ model ServerMember {
   timeoutUntil DateTime? @db.Timestamptz(3)
   /// super admin invisível (adendo ADR-0013): não aparece em listas, contagens nem presença; só ele se vê
   hidden   Boolean      @default(false)
+  /// convite usado para entrar (ADR-0050); null = entrada direta, oficial ou antes disto
+  inviteCode String?
   server   Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
   user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   roles    MemberRole[]
@@ -608,6 +624,9 @@ model Invite {
   serverId  String   @db.Uuid
   creatorId String   @db.Uuid
   uses      Int      @default(0)
+  /// validade e limite de usos (ADR-0050); null = sem
+  expiresAt DateTime? @db.Timestamptz(3)
+  maxUses   Int?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   server    Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
   creator   User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
@@ -782,4 +801,18 @@ model UserBadge {
 
   @@id([userId, badgeId])
   @@index([badgeId])
+}
+
+/// Emoji personalizado do servidor (ADR-0050): imagem em emojis/<imageKey>; usado como <:nome:id> no chat
+model ServerEmoji {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  serverId    String   @db.Uuid
+  name        String
+  imageKey    String
+  animated    Boolean  @default(false)
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@unique([serverId, name])
 }

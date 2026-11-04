@@ -50,6 +50,8 @@ import { ThemeGallery } from './ThemeGallery';
 export interface TabDef<K extends string> {
   id: K;
   label: string;
+  /** título do grupo no menu (aparece quando muda em relação à aba anterior) */
+  group?: string;
 }
 
 /** Lista de abas vertical acessível (setas ↑/↓, Home/End) + painel. */
@@ -92,7 +94,12 @@ export function TabbedLayout<K extends string>({
     <div className="settings-layout">
       <nav className="settings-nav">
         <div role="tablist" aria-orientation="vertical" aria-label={label} onKeyDown={onKeyDown}>
-          {tabs.map((t) => (
+          {tabs.map((t, i) => [
+            t.group && t.group !== tabs[i - 1]?.group ? (
+              <span key={`g-${t.group}`} className="settings-group" role="presentation">
+                {t.group}
+              </span>
+            ) : null,
             <button
               key={t.id}
               id={tabId(t.id)}
@@ -105,8 +112,8 @@ export function TabbedLayout<K extends string>({
               onClick={() => onChange(t.id)}
             >
               {t.label}
-            </button>
-          ))}
+            </button>,
+          ])}
         </div>
         {footer}
       </nav>

@@ -198,7 +198,8 @@ export interface ServerEvents {
   'conversation:upserted': z.infer<typeof Conversation>;
   'notification:created': {
     /** room_invite / room_knock: salas trancadas (ADR-0040); `userId` é quem pediu ou convidou */
-    kind: 'mention' | 'dm' | 'friend_request' | 'moderation' | 'call' | 'room_invite' | 'room_knock';
+    /** message: mensagem comum num servidor com notificação padrão "todas as mensagens" (ADR-0050); `userId` = autor */
+    kind: 'mention' | 'dm' | 'friend_request' | 'moderation' | 'call' | 'room_invite' | 'room_knock' | 'message';
     title: string;
     body: string;
     channelId?: string;

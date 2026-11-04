@@ -493,8 +493,37 @@ export const ServerSummary = z.object({
   /** canal de ausentes (ADR-0049): quem fica parado em voz `afkTimeoutSec` segundos vai para ele (app desktop) */
   afkChannelId: Id.nullable().optional(),
   afkTimeoutSec: z.number().int().optional(),
+  /** perfil do servidor (ADR-0050) */
+  description: z.string().optional(),
+  traits: z.array(z.lazy(() => ServerTrait)).optional(),
+  /** faixa: cor pronta (chave de SERVER_BANNER_COLORS) ou imagem (GET /server-banners/:nome) */
+  bannerColor: z.string().nullable().optional(),
+  bannerKey: z.string().nullable().optional(),
+  /** fundo da tela de convite (GET /invite-backgrounds/:nome) */
+  inviteBgKey: z.string().nullable().optional(),
+  /** engajamento: canal das mensagens do sistema, boas-vindas e notificação padrão */
+  systemChannelId: Id.nullable().optional(),
+  welcomeEnabled: z.boolean().optional(),
+  defaultNotify: z.enum(['all', 'mentions']).optional(),
+  invitesPaused: z.boolean().optional(),
 });
 export type ServerSummary = z.infer<typeof ServerSummary>;
+/** característica do servidor no perfil: emoji + texto curto (até 5) */
+export const ServerTrait = z.object({ emoji: z.string().max(16), label: z.string().trim().min(1).max(24) });
+export type ServerTrait = z.infer<typeof ServerTrait>;
+/** cores prontas da faixa do servidor (o app desenha o degradê de cada uma) */
+export const SERVER_BANNER_COLORS = [
+  'noite',
+  'rosa',
+  'vermelho',
+  'laranja',
+  'amarelo',
+  'lilas',
+  'azul',
+  'agua',
+  'verde',
+  'grafite',
+] as const;
 /** limites de ausência oferecidos (segundos) */
 export const AFK_TIMEOUTS = [60, 300, 900, 1800, 3600] as const;
 
@@ -544,6 +573,15 @@ export const UpdateServerRequest = z.object({
     .int()
     .refine((n) => (AFK_TIMEOUTS as readonly number[]).includes(n), 'limite inválido')
     .optional(),
+  /** perfil do servidor (ADR-0050) */
+  description: z.string().trim().max(300).optional(),
+  traits: z.array(ServerTrait).max(5).optional(),
+  bannerColor: z.enum(SERVER_BANNER_COLORS).nullable().optional(),
+  /** engajamento */
+  systemChannelId: Id.nullable().optional(),
+  welcomeEnabled: z.boolean().optional(),
+  defaultNotify: z.enum(['all', 'mentions']).optional(),
+  invitesPaused: z.boolean().optional(),
 });
 export type UpdateServerRequest = z.infer<typeof UpdateServerRequest>;
 
@@ -727,6 +765,12 @@ export const InvitePreview = z.object({
     iconKey: z.string().nullable(),
     official: z.boolean(),
     verified: z.boolean().optional(),
+    /** perfil do servidor (ADR-0050) */
+    description: z.string().optional(),
+    traits: z.array(z.lazy(() => ServerTrait)).optional(),
+    bannerColor: z.string().nullable().optional(),
+    bannerKey: z.string().nullable().optional(),
+    inviteBgKey: z.string().nullable().optional(),
   }),
   memberCount: z.number().int(),
   joined: z.boolean(),

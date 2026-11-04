@@ -114,6 +114,23 @@ export class MessagesService {
 
   /** Resolve acesso ao destino. DMs: membros têm todas as permissões de mensagem. */
   async access(userId: string, target: Target): Promise<TargetAccess> {
+    // conta de avisos (ADR-0045/0050): escreve em qualquer canal de texto (boas-vindas no canal do sistema)
+    if (target.channelId && systemUserIds.has(userId)) {
+      const ch = await this.prisma.channel.findUnique({
+        where: { id: target.channelId },
+        select: { id: true, serverId: true, kind: true },
+      });
+      if (!ch || ch.kind !== 'text') throw notFound('canal');
+      return {
+        room: rooms.channel(ch.id),
+        channelId: ch.id,
+        conversationId: null,
+        serverId: ch.serverId,
+        perms: Permission.VIEW_CHANNEL | Permission.SEND_MESSAGES | Permission.READ_HISTORY,
+        timeoutUntil: null,
+        hidden: false,
+      };
+    }
     if (target.channelId) {
       const a = await this.perms.channel(target.channelId, userId);
       if (a.kind !== 'text') throw new BadRequestException('este canal não aceita mensagens');
@@ -606,6 +623,35 @@ export class MessagesService {
           ...(a.serverId ? { serverId: a.serverId } : {}),
         });
     }
+    // notificação padrão "todas as mensagens" (ADR-0050): mensagem comum avisa quem vê o canal (o app ignora a própria)
+    if (!mentions.length && a.channelId && a.serverId) {
+      const channelId = a.channelId;
+      const serverId = a.serverId;
+      void this.notifyAll(serverId).then((all) => {
+        if (all)
+          this.realtime.emit(a.room, 'notification:created', {
+            kind: 'message',
+            title,
+            body,
+            channelId,
+            serverId,
+            userId: authorId,
+          });
+      });
+    }
+  }
+
+  /** notificação padrão do servidor, com cache curto (lida a cada mensagem) */
+  private notifyCache = new Map<string, { all: boolean; at: number }>();
+  private async notifyAll(serverId: string): Promise<boolean> {
+    const hit = this.notifyCache.get(serverId);
+    if (hit && Date.now() - hit.at < 30_000) return hit.all;
+    const s = await this.prisma.server
+      .findUnique({ where: { id: serverId }, select: { defaultNotify: true } })
+      .catch(() => null);
+    const all = s?.defaultNotify === 'all';
+    this.notifyCache.set(serverId, { all, at: Date.now() });
+    return all;
   }
 
   /** Menções só valem para usuários que podem ver o destino. */

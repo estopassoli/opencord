@@ -77,6 +77,27 @@ export class AvatarService {
     return this.applyWallpaper(serverId, null);
   }
 
+  /** Faixa do servidor e fundo do convite (ADR-0050): mesmas regras do papel de parede (até 4 MB, 2560 px). */
+  async setServerImage(
+    serverId: string,
+    kind: 'banner' | 'invite-bg',
+    file: (AsyncIterable<Buffer> & { truncated?: boolean }) | null,
+  ) {
+    const folder = kind === 'banner' ? 'server-banners' : 'invite-backgrounds';
+    const name = file ? await this.storeImage(file, folder, WALLPAPER_LIMITS) : null;
+    const column = kind === 'banner' ? 'bannerKey' : 'inviteBgKey';
+    const prev = await swapKey(
+      async () => (await this.prisma.server.findUniqueOrThrow({ where: { id: serverId } }))[column],
+      async (old) =>
+        (await this.prisma.server.updateMany({ where: { id: serverId, [column]: old }, data: { [column]: name } }))
+          .count,
+    );
+    const server = await this.prisma.server.findUniqueOrThrow({ where: { id: serverId } });
+    if (prev && AVATAR_NAME.test(prev)) await this.storage.remove(`${folder}/${prev}`).catch(() => undefined);
+    this.realtime.emit(rooms.server(serverId), 'server:updated', serverSummary(server));
+    return server;
+  }
+
   private async applyWallpaper(serverId: string, name: string | null) {
     const prev = await swapKey(
       async () => (await this.prisma.server.findUniqueOrThrow({ where: { id: serverId } })).wallpaperKey,
@@ -270,7 +291,17 @@ export class AvatarService {
   }
 
   /** Para GET /avatars/:name, /server-icons/:name, /wallpapers/:name e /badge-images/:name. */
-  open(name: string, folder: 'avatars' | 'server-icons' | 'wallpapers' | 'badges' | 'banners' = 'avatars') {
+  open(
+    name: string,
+    folder:
+      | 'avatars'
+      | 'server-icons'
+      | 'wallpapers'
+      | 'badges'
+      | 'banners'
+      | 'server-banners'
+      | 'invite-backgrounds' = 'avatars',
+  ) {
     const m = AVATAR_NAME.exec(name);
     if (!m) return null;
     const mime = Object.entries(TYPES).find(([, e]) => e === m[1])![0];

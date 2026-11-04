@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '04:00',
+    kind: 'novo',
+    icon: 'server',
+    title: 'Servidores com perfil, faixa e boas-vindas',
+    body: 'As configurações do servidor agora vêm agrupadas e ganharam a página Perfil do servidor: uma faixa (10 cores ou uma imagem, GIF animado também vale) que aparece no topo da lista de canais e no convite, até 5 características com emoji e uma descrição, com prévia ao vivo. Em Engajamento dá para escolher o canal das mensagens do sistema e dar boas-vindas a quem entra, definir se o servidor avisa só menções ou todas as mensagens, e colocar um fundo no convite. Tudo grátis, para qualquer servidor.',
+  },
+  {
+    date: '2026-11-05',
     time: '03:00',
     kind: 'novo',
     icon: 'moon',

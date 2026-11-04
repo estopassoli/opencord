@@ -1,6 +1,5 @@
 import { askConfirm } from '../../components/AskDialog';
 import {
-  AFK_TIMEOUTS,
   hasPermission,
   Permission,
   type AuditEntry,
@@ -31,9 +30,12 @@ import { ServerBotsTab } from './ServerBotsTab';
 import { SlackTab } from './SlackTab';
 import { WebhooksTab } from './WebhooksTab';
 import { ServerIconPicker } from './ServerIconPicker';
+import { EngagementTab, ServerProfileSection } from './ServerProfile';
 
 type ServerTab =
   | 'overview'
+  | 'theme'
+  | 'engagement'
   | 'roles'
   | 'members'
   | 'channels'
@@ -100,18 +102,24 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
   const tabs = useMemo<TabDef<ServerTab>[]>(() => {
     if (!detail) return [];
     const p = detail.myPermissions;
-    const list: TabDef<ServerTab>[] = [{ id: 'overview', label: 'Visão geral' }];
-    if (hasPermission(p, Permission.MANAGE_ROLES)) list.push({ id: 'roles', label: 'Cargos' });
-    list.push({ id: 'members', label: 'Membros' });
-    if (hasPermission(p, Permission.MANAGE_CHANNELS)) list.push({ id: 'channels', label: 'Canais' });
-    if (hasPermission(p, Permission.MANAGE_CHANNELS)) list.push({ id: 'webhooks', label: 'Webhooks' });
-    if (hasPermission(p, Permission.MANAGE_SERVER)) list.push({ id: 'bots', label: 'Bots' });
-    if (hasPermission(p, Permission.MANAGE_SERVER)) list.push({ id: 'slack', label: 'Slack' });
-    // qualquer membro envia efeitos sonoros (ADR-0016)
-    list.push({ id: 'sounds', label: 'Efeitos sonoros' });
-    if (hasPermission(p, Permission.MODERATE_MEMBERS)) list.push({ id: 'moderation', label: 'Moderação' });
-    if (hasPermission(p, Permission.BAN_MEMBERS)) list.push({ id: 'bans', label: 'Banidos' });
-    if (hasPermission(p, Permission.VIEW_AUDIT_LOG)) list.push({ id: 'audit', label: 'Registro de auditoria' });
+    const can = (perm: number) => hasPermission(p, perm);
+    const all: (TabDef<ServerTab> | false)[] = [
+      { id: 'overview', label: 'Perfil do servidor', group: 'Servidor' },
+      can(Permission.MANAGE_SERVER) && { id: 'theme', label: 'Tema do servidor', group: 'Servidor' },
+      can(Permission.MANAGE_SERVER) && { id: 'engagement', label: 'Engajamento', group: 'Servidor' },
+      can(Permission.MANAGE_CHANNELS) && { id: 'channels', label: 'Canais', group: 'Servidor' },
+      // qualquer membro envia efeitos sonoros (ADR-0016)
+      { id: 'sounds', label: 'Efeitos sonoros', group: 'Expressões' },
+      { id: 'members', label: 'Membros', group: 'Pessoas' },
+      can(Permission.MANAGE_ROLES) && { id: 'roles', label: 'Cargos', group: 'Pessoas' },
+      can(Permission.MANAGE_CHANNELS) && { id: 'webhooks', label: 'Webhooks', group: 'Apps' },
+      can(Permission.MANAGE_SERVER) && { id: 'bots', label: 'Bots', group: 'Apps' },
+      can(Permission.MANAGE_SERVER) && { id: 'slack', label: 'Slack', group: 'Apps' },
+      can(Permission.MODERATE_MEMBERS) && { id: 'moderation', label: 'Moderação', group: 'Moderação' },
+      can(Permission.BAN_MEMBERS) && { id: 'bans', label: 'Banidos', group: 'Moderação' },
+      can(Permission.VIEW_AUDIT_LOG) && { id: 'audit', label: 'Registro de auditoria', group: 'Moderação' },
+    ];
+    const list = all.filter((t): t is TabDef<ServerTab> => !!t);
     return list;
   }, [detail]);
 
@@ -130,6 +138,8 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
     <Dialog title={`Configurações — ${detail.name}`} onClose={onClose} fullscreen>
       <TabbedLayout tabs={tabs} active={active} onChange={setTab} label="Seções do servidor">
         {active === 'overview' && <OverviewTab detail={detail} isOwner={isOwner} onClose={onClose} />}
+        {active === 'theme' && <ServerThemeSection detail={detail} />}
+        {active === 'engagement' && <EngagementTab detail={detail} />}
         {active === 'roles' && <RolesTab detail={detail} />}
         {active === 'members' && <MembersTab detail={detail} myId={me.id} />}
         {active === 'channels' && <ChannelsTab detail={detail} />}
@@ -318,7 +328,6 @@ function OverviewTab({ detail, isOwner, onClose }: { detail: ServerDetail; isOwn
           <ServerIconPicker detail={detail} />
         </Section>
       )}
-      {canManage && <ServerThemeSection detail={detail} />}
       <Section title="Nome do servidor">
         {canManage ? (
           <form className="form inline-form" onSubmit={(e) => void rename(e)}>
@@ -331,8 +340,7 @@ function OverviewTab({ detail, isOwner, onClose }: { detail: ServerDetail; isOwn
           <p>{detail.name}</p>
         )}
       </Section>
-
-      {canManage && <AfkSection detail={detail} />}
+      {canManage && <ServerProfileSection detail={detail} />}
 
       {!isOwner && !detail.official && (
         <Section title="Sair do servidor" description="Você precisará de um novo convite para voltar.">
@@ -956,46 +964,5 @@ function AuditTab({ detail }: { detail: ServerDetail }) {
         ))}
       </tbody>
     </table>
-  );
-}
-
-/** Canal de ausentes (ADR-0049): quem fica parado em voz pelo limite vai para ele (app para computador). */
-function AfkSection({ detail }: { detail: ServerDetail }) {
-  const voice = detail.channels.filter((c) => c.kind === 'voice' && !c.roomHub && !c.temporary);
-  const save = async (patch: { afkChannelId?: string | null; afkTimeoutSec?: number }) => {
-    try {
-      const s = await api().request<ServerSummary>('PATCH', `/servers/${detail.id}`, patch);
-      useData.setState((st) => ({
-        servers: st.servers.map((x) => (x.id === s.id ? s : x)),
-        details: st.details[s.id] ? { ...st.details, [s.id]: { ...st.details[s.id]!, ...s } } : st.details,
-      }));
-    } catch (e) {
-      toastError(e);
-    }
-  };
-  const fmtLimit = (sec: number) => (sec < 3600 ? `${sec / 60} ${sec === 60 ? 'minuto' : 'minutos'}` : '1 hora');
-  return (
-    <Section
-      title="Canal de ausentes"
-      description="Quem ficar numa chamada sem mexer no teclado e no mouse (e sem falar) pelo tempo do limite vai sozinho para este canal, com o microfone silenciado. Vale para quem usa o app para computador."
-    >
-      <div className="afk-row">
-        <Select<string>
-          label="Canal de ausentes"
-          value={detail.afkChannelId ?? 'none'}
-          onChange={(v) => void save({ afkChannelId: v === 'none' ? null : v })}
-          options={[
-            { value: 'none', label: 'Nenhum (não move ninguém)' },
-            ...voice.map((c) => ({ value: c.id, label: c.name })),
-          ]}
-        />
-        <Select<string>
-          label="Limite de ausência"
-          value={String(detail.afkTimeoutSec ?? 300)}
-          onChange={(v) => void save({ afkTimeoutSec: Number(v) })}
-          options={AFK_TIMEOUTS.map((t) => ({ value: String(t), label: fmtLimit(t) }))}
-        />
-      </div>
-    </Section>
   );
 }

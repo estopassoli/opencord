@@ -15,6 +15,7 @@ import { MusicHint } from '../voice/MusicPlayer';
 import { Tooltip } from '../../components/Tooltip';
 import { moveToVoice } from './voiceMove';
 import { CHANNEL_ICON, CHANNEL_ORDER } from '../../lib/channels';
+import { useBannerStyle } from '../../lib/serverBanner';
 import { useAliases } from '../../lib/names';
 import { GameBadge } from './Playing';
 import { createLockedRoom, isLockedRoom, isPrivateChannel, knockRoom, roomMenuItems } from './rooms';
@@ -38,6 +39,7 @@ function saveCollapsed(c: Record<string, boolean>) {
 
 export function ChannelSidebar({ serverId }: { serverId: string }) {
   const detail = useData((s) => s.details[serverId]);
+  const banner = useBannerStyle(detail);
   const unread = useData((s) => s.unread);
   const voiceStates = useData((s) => s.voiceStates);
   const view = useUi((s) => s.view);
@@ -89,7 +91,12 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
 
   return (
     <>
-      <header className="sidebar-header">
+      <header
+        className="sidebar-header"
+        data-banner={banner ? 'true' : undefined}
+        // faixa do servidor (ADR-0050): cor ou imagem atrás do nome
+        style={banner ?? undefined}
+      >
         <button
           className="server-name"
           onClick={() => open({ kind: 'server-settings', serverId })}

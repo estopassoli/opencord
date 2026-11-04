@@ -479,6 +479,28 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--rail);
   flex: none;
 }
+/* faixa do servidor (ADR-0050): o cabeçalho cresce e o nome fica sobre a cor/imagem, com sombra para ler */
+.sidebar-header[data-banner='true'] {
+  position: relative;
+  isolation: isolate;
+  height: 96px;
+  align-items: flex-start;
+  padding-top: 6px;
+  color: #fff;
+}
+.sidebar-header[data-banner='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0) 70%);
+  pointer-events: none;
+}
+.sidebar-header[data-banner='true'] .server-name,
+.sidebar-header[data-banner='true'] .sidebar-invite {
+  color: #fff;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+}
 .sidebar-title {
   font-weight: 700;
   padding: 0 8px;
@@ -4747,7 +4769,48 @@ button.live-badge {
   min-width: 0;
 }
 .invite-preview {
+  margin-top: 0;
+}
+/* cartão do convite (ADR-0050): fundo do convite atrás, faixa do servidor no topo do cartão */
+.invite-card {
   margin-top: 8px;
+  border-radius: var(--radius);
+}
+.invite-card[data-bg='true'] {
+  padding: 24px 16px;
+  background-size: cover;
+  background-position: center;
+}
+.invite-card-inner {
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  overflow: hidden;
+}
+.invite-card-banner {
+  height: 64px;
+}
+.invite-card-desc {
+  margin: 0;
+  padding: 0 12px 8px;
+  color: var(--text-2);
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.invite-card-traits {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.invite-card-traits li {
+  font-size: 0.8125rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--elevated);
+  color: var(--text-2);
 }
 .directory-icon {
   overflow: hidden;

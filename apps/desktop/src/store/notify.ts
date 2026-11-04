@@ -23,6 +23,8 @@ export function notify(n: ServerEvents['notification:created']) {
     playSound('join');
     void import('../features/shell/rooms').then(({ handleRoomNotification }) => handleRoomNotification(n));
   }
+  // mensagem comum (servidor com notificação padrão "todas"): a própria não avisa
+  if (n.kind === 'message' && n.userId === useData.getState().me?.id) return;
   const s = useData.getState().settings;
   if (!s || s.notifications.dnd || useData.getState().myStatus === 'dnd') return;
   const view = useUi.getState().view;

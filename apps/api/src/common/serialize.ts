@@ -1,4 +1,5 @@
-import { Permission } from '@opencord/contracts';
+import { Permission, ServerTrait } from '@opencord/contracts';
+import { z } from 'zod';
 import type { Category, Channel, Member, Role, ServerSummary, UserPublic } from '@opencord/contracts';
 
 type UserRow = {
@@ -64,6 +65,15 @@ export const serverSummary = (s: {
   aiRules?: string | null;
   afkChannelId?: string | null;
   afkTimeoutSec?: number;
+  description?: string;
+  traits?: unknown;
+  bannerColor?: string | null;
+  bannerKey?: string | null;
+  inviteBgKey?: string | null;
+  systemChannelId?: string | null;
+  welcomeEnabled?: boolean;
+  defaultNotify?: string;
+  invitesPaused?: boolean;
 }): ServerSummary => ({
   id: s.id,
   name: s.name,
@@ -76,7 +86,26 @@ export const serverSummary = (s: {
   aiRules: s.aiRules ?? null,
   afkChannelId: s.afkChannelId ?? null,
   afkTimeoutSec: s.afkTimeoutSec ?? 300,
+  // perfil e engajamento (ADR-0050)
+  description: s.description ?? '',
+  traits: parseTraits(s.traits),
+  bannerColor: s.bannerColor ?? null,
+  bannerKey: s.bannerKey ?? null,
+  inviteBgKey: s.inviteBgKey ?? null,
+  systemChannelId: s.systemChannelId ?? null,
+  welcomeEnabled: s.welcomeEnabled ?? false,
+  defaultNotify: s.defaultNotify === 'all' ? 'all' : 'mentions',
+  invitesPaused: s.invitesPaused ?? false,
 });
+
+/** características gravadas em JSON: o que não bate com o contrato é descartado */
+export function parseTraits(json: unknown): ServerTrait[] {
+  const r = z
+    .array(ServerTrait)
+    .max(5)
+    .safeParse(json ?? []);
+  return r.success ? r.data : [];
+}
 
 export const role = (r: {
   id: string;

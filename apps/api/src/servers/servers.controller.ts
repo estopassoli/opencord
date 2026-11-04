@@ -124,6 +124,40 @@ export class ServersController {
     return serverSummary(await this.avatars.clearServerWallpaper(id));
   }
 
+  /** Faixa do servidor e fundo do convite (ADR-0050; multipart "file", até 4 MB). Exige gerenciar o servidor. */
+  @Post('servers/:id/banner')
+  setBanner(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string, @Req() req: FastifyRequest) {
+    return this.uploadServerImage(u, id, 'banner', req);
+  }
+
+  @Delete('servers/:id/banner')
+  clearBanner(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    return this.clearServerImage(u, id, 'banner');
+  }
+
+  @Post('servers/:id/invite-background')
+  setInviteBackground(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string, @Req() req: FastifyRequest) {
+    return this.uploadServerImage(u, id, 'invite-bg', req);
+  }
+
+  @Delete('servers/:id/invite-background')
+  clearInviteBackground(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    return this.clearServerImage(u, id, 'invite-bg');
+  }
+
+  private async uploadServerImage(u: AuthUser, id: string, kind: 'banner' | 'invite-bg', req: FastifyRequest) {
+    await this.perms.requireServer(id, u.userId, Permission.MANAGE_SERVER);
+    if (!req.isMultipart()) throw new BadRequestException('multipart/form-data esperado');
+    const file = await req.file();
+    if (!file) throw new BadRequestException('campo "file" ausente');
+    return serverSummary(await this.avatars.setServerImage(id, kind, file.file));
+  }
+
+  private async clearServerImage(u: AuthUser, id: string, kind: 'banner' | 'invite-bg') {
+    await this.perms.requireServer(id, u.userId, Permission.MANAGE_SERVER);
+    return serverSummary(await this.avatars.setServerImage(id, kind, null));
+  }
+
   /** Diretório: servidores oficiais (abertos a todos, sem convite). */
   @Get('servers/directory')
   directory(@CurrentUser() u: AuthUser) {
