@@ -2158,7 +2158,8 @@ textarea:focus-visible {
 }
 /* dentro do card o vídeo preenche por posição absoluta: o tamanho natural dele não altera o layout,
    e com contain o quadro inteiro aparece (faixas pretas quando a proporção não bate) */
-.tile > .video {
+.tile > .video,
+.zoom-layer > .video {
   position: absolute;
   inset: 0;
 }
@@ -8342,4 +8343,45 @@ html[data-wallpaper='true'] .chat-scroll {
 }
 .music-unavailable {
   color: var(--danger, #f87171);
+}
+
+/* zoom na transmissão (roda do mouse; arrastar com zoom) */
+.zoom-pan {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.zoom-layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+.zoom-pan[data-zoomed='true'] {
+  cursor: grab;
+  touch-action: none;
+}
+.zoom-pan[data-zoomed='true']:active {
+  cursor: grabbing;
+}
+.zoom-pan[data-zoomed='true'] .zoom-layer {
+  will-change: transform;
+}
+.zoom-chip {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.65);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.zoom-chip .icon-btn {
+  color: #fff;
 }

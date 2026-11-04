@@ -1,3 +1,4 @@
+import { ZoomPan } from './ZoomPan';
 import { MobileNavButton } from '../../components/MobileNavButton';
 import { Avatar, avatarColor, Button, Icon } from '@opencord/ui';
 import { hasPermission, Permission, type Member } from '@opencord/contracts';
@@ -724,7 +725,10 @@ function StreamTile({ p, large, inPopout }: { p: ParticipantView; large?: boolea
         </div>
       ) : watching ? (
         <>
-          <Video identity={p.identity} source="screen" />
+          {/* zoom com a roda do mouse na live em destaque, tela cheia ou janela (não durante o controle remoto) */}
+          <ZoomPan enabled={Boolean(large) && !controllingThis} resetKey={p.identity}>
+            <Video identity={p.identity} source="screen" />
+          </ZoomPan>
           {controllingThis && remote.controlling && <RemoteOverlay name={p.name} kb={remote.controlling.kb} />}
         </>
       ) : (

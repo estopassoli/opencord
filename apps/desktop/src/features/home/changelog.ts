@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '00:30',
+    kind: 'novo',
+    icon: 'search',
+    title: 'Zoom nas transmissões',
+    body: 'Na live em destaque (e em tela cheia ou na janela separada), use a roda do mouse para dar zoom bem no ponto que quer ver e arraste para movimentar a imagem. Para voltar ao normal, afaste o zoom, dê dois cliques ou use o botão no topo.',
+  },
+  {
+    date: '2026-11-05',
     time: '00:10',
     kind: 'novo',
     icon: 'soundboard',
