@@ -72,6 +72,12 @@ export const ConfigSchema = z.object({
   /** Catálogo do Spotify na atividade Música (client credentials; só metadados, o áudio não vem do Spotify). */
   SPOTIFY_CLIENT_ID: z.string().min(10).optional(),
   SPOTIFY_CLIENT_SECRET: z.string().min(10).optional(),
+  /**
+   * Seletor de GIFs (ADR-0044): chave de app do KLIPY (partner panel). Não é segredo: pelos termos do KLIPY as buscas
+   * saem do app de cada pessoa, então a chave vai ao cliente em InstanceInfo.gifs. Sem ela, o botão GIF não aparece.
+   */
+  KLIPY_APP_KEY: z.string().min(8).optional(),
+  KLIPY_API_URL: z.url().default('https://api.klipy.com'),
   /** Só mudam em testes (stubs locais). */
   SPOTIFY_API_URL: z.url().default('https://api.spotify.com/v1'),
   SPOTIFY_ACCOUNTS_URL: z.url().default('https://accounts.spotify.com'),

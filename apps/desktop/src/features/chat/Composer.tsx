@@ -1,4 +1,6 @@
 import { enterSends, useTouchKeyboard } from '../../lib/media';
+import { customerId, registerShare, type Gif } from '../../lib/klipy';
+import { GifPicker } from './GifPicker';
 import type { Attachment, BotCommandChoice, CreateInteractionResponse } from '@opencord/contracts';
 import { Icon, portalTarget, TextArea } from '@opencord/ui';
 import {
@@ -196,6 +198,8 @@ export function Composer({
   const replyToId = useUi((s) => s.replyTo[targetKey] ?? null);
   const privateReply = useUi((s) => s.privateReply[targetKey] ?? null);
   const touchKeyboard = useTouchKeyboard();
+  const gifCfg = useData((s) => s.instance?.gifs ?? null);
+  const [gifOpen, setGifOpen] = useState(false);
   const replyTo = useMessages((s) =>
     replyToId ? s.timelines[targetKey]?.messages.find((m) => m.id === replyToId) : undefined,
   );
@@ -339,6 +343,26 @@ export function Composer({
       .getState()
       .realtime?.command('chat:typing:stop', rtTarget)
       .catch(() => undefined);
+  };
+
+  // GIF do KLIPY (ADR-0044): vai como mensagem com a URL entregue pelo KLIPY; o chat mostra a animação
+  const sendGif = (gif: Gif, q: string) => {
+    if (timedOut) return;
+    setGifOpen(false);
+    void sendMessage(
+      targetKey,
+      target,
+      crypto.randomUUID(),
+      gif.url,
+      replyToId ?? undefined,
+      undefined,
+      replyToId ? undefined : privateReply?.messageId,
+    );
+    useUi.getState().setReplyTo(targetKey, null);
+    useUi.getState().setPrivateReply(targetKey, null);
+    const me = useData.getState().me?.id;
+    if (gifCfg && me) void customerId(me).then((c) => registerShare(gifCfg, gif.slug, c, q));
+    input.current?.focus();
   };
 
   const stopRecorder = () => {
@@ -681,6 +705,20 @@ export function Composer({
             onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
             onPaste={onPaste}
           />
+          {gifCfg && !timedOut && (
+            <button
+              className="icon-btn gif-btn"
+              aria-label="Enviar GIF"
+              aria-expanded={gifOpen}
+              data-tip="GIFs"
+              onClick={() => setGifOpen((o) => !o)}
+            >
+              <span className="gif-btn-label">GIF</span>
+            </button>
+          )}
+          {gifOpen && gifCfg && (
+            <GifPicker cfg={gifCfg} anchor={root} onPick={sendGif} onClose={() => setGifOpen(false)} />
+          )}
           {canAttach && !timedOut && !draft.trim() && !uploads.length && typeof MediaRecorder !== 'undefined' ? (
             <button
               className="icon-btn"

@@ -79,6 +79,9 @@ export class InstanceService {
       aiModeration: Boolean(this.cfg.ANTHROPIC_API_KEY) && (row?.aiModeration ?? true),
       privacyContact: row?.privacyContact ?? null,
       badges: this.badges.list(),
+      gifs: this.cfg.KLIPY_APP_KEY
+        ? { provider: 'klipy', appKey: this.cfg.KLIPY_APP_KEY, apiUrl: this.cfg.KLIPY_API_URL }
+        : null,
     };
   }
 }

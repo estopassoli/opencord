@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '18:30',
+    kind: 'novo',
+    icon: 'image',
+    title: 'GIFs no chat',
+    body: 'O botão GIF, ao lado do campo de mensagem, abre um seletor com busca, GIFs em alta e categorias. Clique para enviar, e toque na estrela para guardar nos Favoritos, que acompanham você em todos os aparelhos. No chat, o GIF aparece animado.',
+  },
+  {
+    date: '2026-11-04',
     time: '17:30',
     kind: 'correção',
     icon: 'keyboard',

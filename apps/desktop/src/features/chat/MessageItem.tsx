@@ -19,6 +19,7 @@ import { nameFor } from '../../lib/names';
 import { enterSends, useTouchKeyboard } from '../../lib/media';
 import { messageAppsMenu } from './messageApps';
 import { ChatImage } from './ChatImage';
+import { gifUrlOf } from '../../lib/klipy';
 import { UserBadges } from '../../components/UserBadges';
 import { canReplyPrivately, openQuotedMessage, startPrivateReply } from './privateReply';
 
@@ -102,6 +103,8 @@ export const MessageItem = memo(function MessageItem({
       : '',
   );
   const privateOk = canReplyPrivately(m, meId);
+  // mensagem que é só um GIF do KLIPY (ADR-0044): mostra a animação em vez do link
+  const gifUrl = m.attachments.length ? null : gifUrlOf(m.body);
   const replyPrivately = () => void startPrivateReply(m, nameOf(m.author.id), channelName);
 
   const react = (emoji: string, on: boolean) => {
@@ -346,6 +349,8 @@ export const MessageItem = memo(function MessageItem({
               targetKey={keyOf(target)}
               canClose={mine || (Boolean(target.channelId) && hasPermission(perms, Permission.MANAGE_MESSAGES))}
             />
+          ) : gifUrl ? (
+            <ChatImage src={gifUrl} alt="GIF" maxWidth={300} maxHeight={300} />
           ) : (
             renderRich(m.body, nameOf)
           )}
