@@ -31,6 +31,8 @@ import { DeviceBansService } from '../ai-moderation/device-bans.service.js';
 
 const PAGE = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** janela das séries da visão geral do painel */
+const STATS_DAYS = 14;
 
 /** O que entra no filtro "Ações de admin" da auditoria global. */
 const ADMIN_ACTIONS: Prisma.AuditLogWhereInput = {
@@ -117,7 +119,44 @@ export class AdminService {
       this.realtime.onlineUserIds(),
       this.voice.countInVoice(),
     ]);
-    return { users, newUsers7d, suspended, admins, onlineNow: online.size, inVoice, servers, messages24h };
+    const today = Math.floor(now / DAY_MS);
+    const since = new Date((today - (STATS_DAYS - 1)) * DAY_MS);
+    const daily = (rows: { day: number; n: number }[]) => {
+      const out = new Array<number>(STATS_DAYS).fill(0);
+      for (const r of rows) {
+        const i = r.day - (today - (STATS_DAYS - 1));
+        if (i >= 0 && i < STATS_DAYS) out[i] = r.n;
+      }
+      return out;
+    };
+    const [msgRows, userRows, serverRows, pendingModeration, deviceBans] = await Promise.all([
+      this.prisma.$queryRaw<{ day: number; n: number }[]>`
+        SELECT floor(extract(epoch FROM "createdAt") / 86400)::int AS day, count(*)::int AS n
+          FROM "Message" WHERE "createdAt" >= ${since} AND "deletedAt" IS NULL GROUP BY 1`,
+      this.prisma.$queryRaw<{ day: number; n: number }[]>`
+        SELECT floor(extract(epoch FROM "createdAt") / 86400)::int AS day, count(*)::int AS n
+          FROM "User" WHERE "createdAt" >= ${since} GROUP BY 1`,
+      this.prisma.$queryRaw<{ day: number; n: number }[]>`
+        SELECT floor(extract(epoch FROM "createdAt") / 86400)::int AS day, count(*)::int AS n
+          FROM "Server" WHERE "createdAt" >= ${since} GROUP BY 1`,
+      this.prisma.moderationCase.count({ where: { status: 'pending' } }),
+      this.prisma.deviceBan.count(),
+    ]);
+    return {
+      users,
+      newUsers7d,
+      suspended,
+      admins,
+      onlineNow: online.size,
+      inVoice,
+      servers,
+      messages24h,
+      messagesDaily: daily(msgRows),
+      signupsDaily: daily(userRows),
+      serversDaily: daily(serverRows),
+      pendingModeration,
+      deviceBans,
+    };
   }
 
   // ---------- Usuários ----------

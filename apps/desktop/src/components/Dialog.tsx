@@ -15,6 +15,8 @@ export function Dialog({
   fullscreen,
   actions,
   bare,
+  hideClose,
+  className,
 }: {
   title: string;
   onClose: () => void;
@@ -25,6 +27,10 @@ export function Dialog({
   actions?: ReactNode;
   /** Sem cabeçalho/rodapé visíveis (o título fica só para leitores de tela); Esc ou clique fora fecham. */
   bare?: boolean;
+  /** tela cheia sem o botão de fechar padrão (quem usa desenha o próprio; Esc continua fechando) */
+  hideClose?: boolean;
+  /** classe extra no <dialog> */
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -34,7 +40,8 @@ export function Dialog({
     return () => d?.close?.();
   }, []);
 
-  const cls = fullscreen ? 'dialog dialog-fullscreen' : wide ? 'dialog dialog-wide' : 'dialog';
+  const base = fullscreen ? 'dialog dialog-fullscreen' : wide ? 'dialog dialog-wide' : 'dialog';
+  const cls = className ? `${base} ${className}` : base;
 
   return createPortal(
     <dialog
@@ -55,12 +62,14 @@ export function Dialog({
             {title}
           </h2>
           {children}
-          <div className="fullscreen-close">
-            <button className="close-circle" aria-label="Fechar (Esc)" onClick={onClose}>
-              <Icon name="close" size={18} />
-            </button>
-            <span aria-hidden>ESC</span>
-          </div>
+          {!hideClose && (
+            <div className="fullscreen-close">
+              <button className="close-circle" aria-label="Fechar (Esc)" onClick={onClose}>
+                <Icon name="close" size={18} />
+              </button>
+              <span aria-hidden>ESC</span>
+            </div>
+          )}
         </div>
       ) : bare ? (
         <div className="dialog-body dialog-bare">

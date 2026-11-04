@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '20:10',
+    kind: 'melhoria',
+    icon: 'server',
+    title: 'Botões da barra de servidores no rodapé',
+    body: 'Criar servidor e Explorar servidores agora ficam fixos no pé da barra de servidores. A lista de servidores rola acima deles, então os botões estão sempre à mão, mesmo com muitos servidores.',
+  },
+  {
+    date: '2026-11-04',
     time: '19:50',
     kind: 'novo',
     icon: 'close',

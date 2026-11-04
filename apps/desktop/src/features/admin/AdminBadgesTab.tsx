@@ -16,7 +16,7 @@ import { Dialog } from '../../components/Dialog';
 import { BADGE_ICONS, BadgeGlyph, useBadgeCatalog } from '../../components/UserBadges';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
-import { Section } from '../settings/SettingsModal';
+import { Card, Empty, IconButton } from './adminKit';
 
 const toastError = (e: unknown) => useUi.getState().toast('error', describeError(e));
 
@@ -42,52 +42,42 @@ export function BadgesTab() {
   };
 
   return (
-    <Section
-      title="Insígnias"
-      description="Crie insígnias e dê para as pessoas em Usuários → Insígnias. Elas aparecem ao lado do nome (até 3) e no perfil. O selo Verificado continua no menu de cada usuário."
-    >
-      <div className="admin-toolbar">
-        <Button size="sm" onClick={() => setEditing('new')}>
-          <Icon name="plus" size={16} /> Nova insígnia
+    <div className="adm-stack">
+      <div className="adm-toolbar">
+        <p className="muted small adm-toolbar-text">
+          {catalog.length === 0
+            ? 'Nenhuma insígnia ainda.'
+            : `${catalog.length} insígnia(s). O selo Verificado continua no menu de cada usuário.`}
+        </p>
+        <Button size="sm" icon="plus" onClick={() => setEditing('new')}>
+          Nova insígnia
         </Button>
       </div>
       {catalog.length === 0 ? (
-        <p className="muted">Nenhuma insígnia ainda.</p>
+        <Card>
+          <Empty icon="star">Crie a primeira insígnia e dê para as pessoas em Usuários → Insígnias.</Empty>
+        </Card>
       ) : (
-        <ul className="admin-badges">
+        <ul className="adm-badge-grid">
           {catalog.map((b) => (
-            <li key={b.id}>
-              <span className="admin-badge-glyph">
-                <BadgeGlyph badge={b} size={22} />
+            <li key={b.id} className="adm-badge-card">
+              <span className="adm-badge-glyph">
+                <BadgeGlyph badge={b} size={28} />
               </span>
-              <span className="admin-user-names">
+              <span className="adm-badge-text">
                 <strong className="truncate">{b.name}</strong>
-                {b.description && <span className="muted small truncate">{b.description}</span>}
+                <span className="muted small">{b.description || 'Sem descrição'}</span>
               </span>
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label={`Editar ${b.name}`}
-                data-tip="Editar"
-                onClick={() => setEditing(b)}
-              >
-                <Icon name="edit" size={18} />
-              </button>
-              <button
-                type="button"
-                className="icon-btn danger"
-                aria-label={`Apagar ${b.name}`}
-                data-tip="Apagar"
-                onClick={() => void remove(b)}
-              >
-                <Icon name="trash" size={18} />
-              </button>
+              <span className="adm-badge-actions">
+                <IconButton icon="edit" label={`Editar ${b.name}`} onClick={() => setEditing(b)} />
+                <IconButton icon="trash" label={`Apagar ${b.name}`} danger onClick={() => void remove(b)} />
+              </span>
             </li>
           ))}
         </ul>
       )}
       {editing && <BadgeDialog badge={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
-    </Section>
+    </div>
   );
 }
 

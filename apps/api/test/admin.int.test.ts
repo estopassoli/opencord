@@ -52,6 +52,12 @@ describe('painel do super admin', () => {
     const stats = await http.req<AdminStats>('GET', '/admin/stats', { token: owner.token });
     expect(stats.status).toBe(200);
     expect(stats.body).toMatchObject({ users: 2, admins: 1, suspended: 0, servers: 1 });
+    // séries de 14 dias da visão geral: os 2 cadastros e o servidor caem em hoje
+    expect(stats.body.signupsDaily).toHaveLength(14);
+    expect(stats.body.signupsDaily?.at(-1)).toBe(2);
+    expect(stats.body.serversDaily?.at(-1)).toBe(1);
+    expect(stats.body.messagesDaily).toHaveLength(14);
+    expect(stats.body).toMatchObject({ pendingModeration: 0, deviceBans: 0 });
 
     const all = await http.req<AdminUserPage>('GET', '/admin/users', { token: owner.token });
     expect(all.body.users.map((u) => u.id)).toEqual([alice.id, owner.id]); // mais novos primeiro

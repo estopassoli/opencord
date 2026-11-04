@@ -1,24 +1,41 @@
 import type { AdminServerEntry, ServerDetail } from '@opencord/contracts';
-import { Button, Icon, Select, TextField, type IconName } from '@opencord/ui';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Icon, Select, TextField } from '@opencord/ui';
+import { useEffect, useMemo, useState } from 'react';
 import { askConfirm } from '../../components/AskDialog';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { ServerIcon } from '../../components/ServerIcon';
-import { Tooltip } from '../../components/Tooltip';
-import { api, describeError, loadServer } from '../../store/session';
+import { api, loadServer } from '../../store/session';
 import { useUi } from '../../store/ui';
+import {
+  BarChart,
+  Card,
+  Chips,
+  DAYS,
+  DAY_MS,
+  Empty,
+  Facts,
+  Kpi,
+  KpiGrid,
+  Loading,
+  MoreButton,
+  Pill,
+  RankList,
+  Sparkline,
+  Trend,
+  ago,
+  delta,
+  fmtDate,
+  nf,
+  series14,
+  sum,
+  toastError,
+  ts,
+} from './adminKit';
 
 /**
- * Painel do super admin → Servidores (ADR-0013/0020) em formato de dashboard: números da instância somados,
- * atividade dos últimos 14 dias, ranking e tabela densa com filtros e ordenação. Entrar (visível/invisível)
- * e o selo de verificado continuam auditados como antes.
+ * Painel do super admin → Servidores (ADR-0013/0020): números somados, atividade de 14 dias, ranking e tabela densa
+ * com filtros e ordenação. Entrar (visível/invisível) e o selo de verificado continuam auditados como antes.
  */
-
-const DAYS = 14;
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const toastError = (e: unknown) => useUi.getState().toast('error', describeError(e));
-const nf = (n: number) => n.toLocaleString('pt-BR');
 
 type Filter = 'all' | 'active' | 'idle' | 'verified' | 'joined' | 'hidden';
 type Sort = 'activity' | 'members' | 'online' | 'recent' | 'created' | 'name';
@@ -32,58 +49,20 @@ const SORTS: { value: Sort; label: string }[] = [
   { value: 'name', label: 'Nome (A–Z)' },
 ];
 
-/** série de 14 dias sempre com 14 posições (API antiga não manda) */
-const series = (s: AdminServerEntry) => {
-  const d = s.messagesDaily ?? [];
-  return d.length === DAYS ? d : [...new Array<number>(Math.max(0, DAYS - d.length)).fill(0), ...d].slice(-DAYS);
-};
-const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0);
+const series = (s: AdminServerEntry) => series14(s.messagesDaily);
 const last7 = (s: AdminServerEntry) => sum(series(s).slice(-7));
 const prev7 = (s: AdminServerEntry) => sum(series(s).slice(0, 7));
-const ts = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() || 0 : 0);
-
-function ago(iso: string | null | undefined): string {
-  const t = ts(iso);
-  if (!t) return 'nunca';
-  const m = Math.max(0, Math.round((Date.now() - t) / 60000));
-  if (m < 1) return 'agora';
-  if (m < 60) return `há ${m} min`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `há ${h} h`;
-  const d = Math.round(h / 24);
-  if (d < 30) return `há ${d} d`;
-  const mo = Math.round(d / 30);
-  return mo < 12 ? `há ${mo} mês${mo > 1 ? 'es' : ''}` : `há ${Math.round(mo / 12)} ano(s)`;
-}
-
-const fmtDay = (offsetFromToday: number) =>
-  new Date(Date.now() - offsetFromToday * DAY_MS).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-const fmtDate = (iso: string | undefined) =>
-  iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-
-/** variação em % entre duas janelas; null quando não há base de comparação */
-const delta = (now: number, before: number) => (before > 0 ? Math.round(((now - before) / before) * 100) : null);
 
 export function AdminServersTab({ onClose }: { onClose: () => void }) {
   const [list, setList] = useState<AdminServerEntry[] | null>(null);
-  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
-  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<Sort>('activity');
 
-  const load = useCallback(() => {
-    setLoading(true);
-    api()
-      .request<AdminServerEntry[]>('GET', '/admin/servers')
-      .then((l) => {
-        setList(l);
-        setLoadedAt(new Date());
-      }, toastError)
-      .finally(() => setLoading(false));
+  useEffect(() => {
+    void api().request<AdminServerEntry[]>('GET', '/admin/servers').then(setList, toastError);
   }, []);
-  useEffect(load, [load]);
 
   const totals = useMemo(() => {
     const l = list ?? [];
@@ -104,6 +83,7 @@ export function AdminServersTab({ onClose }: { onClose: () => void }) {
       msgsPrev7d: sum(daily.slice(0, 7)),
       active: l.filter((s) => last7(s) > 0).length,
       dormant: l.filter((s) => ts(s.lastMessageAt) < monthAgo).length,
+      never: l.filter((s) => !s.lastMessageAt).length,
       joined: l.filter((s) => s.joined).length,
       hidden: l.filter((s) => s.hidden).length,
       verified: l.filter((s) => s.verified || s.official).length,
@@ -151,7 +131,7 @@ export function AdminServersTab({ onClose }: { onClose: () => void }) {
     return (list ?? []).filter(match).sort(by[sort]);
   }, [list, q, filter, sort]);
 
-  if (!list) return <p className="muted">Carregando…</p>;
+  if (!list) return <Loading rows={5} />;
 
   const go = (id: string) => {
     useUi.getState().go({ kind: 'server', serverId: id, channelId: null });
@@ -210,7 +190,7 @@ export function AdminServersTab({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const menu = (e: React.MouseEvent | React.KeyboardEvent, s: AdminServerEntry) => {
+  const menu = (e: React.MouseEvent, s: AdminServerEntry) => {
     const items: MenuEntry[] = [];
     if (s.joined) {
       items.push({ label: 'Abrir', icon: 'popout', onSelect: () => go(s.id) });
@@ -244,42 +224,9 @@ export function AdminServersTab({ onClose }: { onClose: () => void }) {
     openContextMenu(e, items, `Ações de ${s.name}`);
   };
 
-  const msgDelta = delta(totals.msgs7d, totals.msgsPrev7d);
-  const filters: { id: Filter; label: string; n: number }[] = [
-    { id: 'all', label: 'Todos', n: totals.servers },
-    { id: 'active', label: 'Ativos', n: totals.active },
-    { id: 'idle', label: 'Parados', n: totals.servers - totals.active },
-    { id: 'verified', label: 'Verificados', n: totals.verified },
-    { id: 'joined', label: 'Onde estou', n: totals.joined },
-    { id: 'hidden', label: 'Invisível', n: totals.hidden },
-  ];
-  const maxTop = top[0]?.n ?? 1;
-
   return (
-    <section className="admin-dash" aria-labelledby="admin-dash-title">
-      <header className="admin-dash-head">
-        <div>
-          <h3 id="admin-dash-title" className="settings-section-title">
-            Servidores
-          </h3>
-          <p className="muted small">
-            Entrar visível fica na auditoria do servidor; invisível, só na auditoria do painel. O selo não muda a
-            privacidade.
-          </p>
-        </div>
-        <div className="admin-dash-refresh">
-          {loadedAt && (
-            <span className="muted small">
-              Atualizado às {loadedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
-          <Button variant="secondary" size="sm" icon="refresh" disabled={loading} onClick={load}>
-            Atualizar
-          </Button>
-        </div>
-      </header>
-
-      <ul className="admin-kpis" aria-label="Números dos servidores">
+    <div className="adm-stack">
+      <KpiGrid label="Números dos servidores">
         <Kpi icon="server" label="Servidores" value={totals.servers} hint={`+${nf(totals.created30d)} em 30 dias`} />
         <Kpi
           icon="users"
@@ -292,6 +239,7 @@ export function AdminServersTab({ onClose }: { onClose: () => void }) {
           label="Conectados agora"
           value={totals.online}
           hint={`em ${nf(totals.onlineServers)} servidor(es)`}
+          tone="success"
           live
         />
         <Kpi
@@ -299,375 +247,216 @@ export function AdminServersTab({ onClose }: { onClose: () => void }) {
           label="Em voz agora"
           value={totals.voice}
           hint={`em ${nf(totals.voiceServers)} servidor(es)`}
+          tone="success"
           live
         />
-        <Kpi icon="chat" label="Mensagens em 7 dias" value={totals.msgs7d} trend={msgDelta} hint="vs. 7 dias antes" />
+        <Kpi
+          icon="chat"
+          label="Mensagens em 7 dias"
+          value={totals.msgs7d}
+          trend={delta(totals.msgs7d, totals.msgsPrev7d)}
+          hint="vs. 7 dias antes"
+          spark={totals.daily}
+        />
         <Kpi
           icon="activities"
           label="Ativos em 7 dias"
           value={totals.active}
           suffix={`/ ${nf(totals.servers)}`}
           hint={`${nf(totals.dormant)} parado(s) há 30+ dias`}
+          onClick={() => setFilter('active')}
         />
-      </ul>
+      </KpiGrid>
 
-      <div className="admin-panels">
-        <div className="admin-card admin-card-chart">
-          <div className="admin-card-head">
-            <strong>Mensagens por dia</strong>
-            <span className="muted small">últimos {DAYS} dias · todos os servidores</span>
-          </div>
-          <BarChart data={totals.daily} />
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-head">
-            <strong>Mais ativos</strong>
-            <span className="muted small">mensagens em 7 dias</span>
-          </div>
-          {top.length === 0 ? (
-            <p className="muted small admin-empty">Nenhuma mensagem nos últimos 7 dias.</p>
-          ) : (
-            <ol className="admin-rank">
-              {top.map(({ s, n }) => (
-                <li key={s.id}>
-                  <span className="admin-rank-icon" aria-hidden>
-                    <ServerIcon name={s.name} iconKey={s.iconKey} official={s.official} />
-                  </span>
-                  <span className="admin-rank-body">
-                    <span className="admin-rank-line">
-                      <span className="truncate">{s.name}</span>
-                      <span className="admin-num">{nf(n)}</span>
-                    </span>
-                    <span className="admin-rank-bar" aria-hidden>
-                      <span style={{ width: `${Math.max(4, (n / maxTop) * 100)}%` }} />
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-head">
-            <strong>Sua presença</strong>
-            <span className="muted small">como super admin</span>
-          </div>
-          <dl className="admin-facts">
-            <div>
-              <dt>Participa de</dt>
-              <dd>
-                {nf(totals.joined)} <span className="muted">/ {nf(totals.servers)}</span>
-              </dd>
-            </div>
-            <div>
-              <dt>Invisível em</dt>
-              <dd>{nf(totals.hidden)}</dd>
-            </div>
-            <div>
-              <dt>Verificados</dt>
-              <dd>{nf(totals.verified)}</dd>
-            </div>
-            <div>
-              <dt>Sem nenhuma mensagem</dt>
-              <dd>{nf(list.filter((s) => !s.lastMessageAt).length)}</dd>
-            </div>
-          </dl>
-        </div>
+      <div className="adm-grid">
+        <Card className="adm-span-6" title="Mensagens por dia" sub={`últimos ${DAYS} dias · todos os servidores`}>
+          <BarChart
+            data={totals.daily}
+            unit={['mensagem', 'mensagens']}
+            label={`Mensagens por dia em todos os servidores, últimos ${DAYS} dias`}
+          />
+        </Card>
+        <Card className="adm-span-3" title="Mais ativos" sub="mensagens em 7 dias">
+          <RankList
+            empty="Nenhuma mensagem nos últimos 7 dias."
+            items={top.map(({ s, n }) => ({
+              id: s.id,
+              icon: <ServerIcon name={s.name} iconKey={s.iconKey} official={s.official} />,
+              label: s.name,
+              value: n,
+            }))}
+          />
+        </Card>
+        <Card className="adm-span-3" title="Sua presença" sub="como super admin">
+          <Facts
+            items={[
+              {
+                label: 'Participa de',
+                value: (
+                  <>
+                    {nf(totals.joined)} <span className="muted">/ {nf(totals.servers)}</span>
+                  </>
+                ),
+              },
+              { label: 'Invisível em', value: nf(totals.hidden), tone: totals.hidden ? 'brand' : undefined },
+              { label: 'Verificados', value: nf(totals.verified) },
+              { label: 'Sem nenhuma mensagem', value: nf(totals.never) },
+            ]}
+          />
+        </Card>
       </div>
 
-      <div className="admin-dash-toolbar">
+      <div className="adm-toolbar">
         <TextField
-          fieldClassName="admin-search"
+          fieldClassName="adm-search"
           aria-label="Buscar servidor"
           leadingIcon="search"
           placeholder="Buscar por nome ou dono"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <Select
-          className="admin-sort"
-          aria-label="Ordenar servidores"
-          value={sort}
-          onChange={setSort}
-          options={SORTS}
+        <Select className="adm-sort" aria-label="Ordenar servidores" value={sort} onChange={setSort} options={SORTS} />
+        <Chips<Filter>
+          label="Filtrar servidores"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { id: 'all', label: 'Todos', n: totals.servers },
+            { id: 'active', label: 'Ativos', n: totals.active },
+            { id: 'idle', label: 'Parados', n: totals.servers - totals.active },
+            { id: 'verified', label: 'Verificados', n: totals.verified },
+            { id: 'joined', label: 'Onde estou', n: totals.joined },
+            { id: 'hidden', label: 'Invisível', n: totals.hidden },
+          ]}
         />
-        <div className="admin-chips" role="group" aria-label="Filtrar servidores">
-          {filters.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className="admin-chip"
-              aria-pressed={filter === f.id}
-              onClick={() => setFilter(f.id)}
-            >
-              {f.label}
-              <span className="admin-chip-n">{nf(f.n)}</span>
-            </button>
-          ))}
-        </div>
       </div>
 
-      {shown.length === 0 ? (
-        <p className="muted admin-empty">Nenhum servidor encontrado.</p>
-      ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <caption className="sr-only">
-              {shown.length} de {list.length} servidores
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Servidor</th>
-                <th scope="col" className="num">
-                  Membros
-                </th>
-                <th scope="col" className="col-now">
-                  Agora
-                </th>
-                <th scope="col" className="col-channels">
-                  Canais
-                </th>
-                <th scope="col" className="col-activity">
-                  Mensagens · 14 d
-                </th>
-                <th scope="col" className="col-last">
-                  Última msg.
-                </th>
-                <th scope="col" className="col-created">
-                  Criado em
-                </th>
-                <th scope="col">
-                  <span className="sr-only">Ações</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((s) => {
-                const d = series(s);
-                const w7 = last7(s);
-                const dd = delta(w7, prev7(s));
-                return (
-                  <tr key={s.id} onContextMenu={(e) => menu(e, s)} data-idle={w7 === 0 || undefined}>
-                    <th scope="row">
-                      <span className="admin-srv">
-                        <span className="admin-srv-icon" aria-hidden>
-                          <ServerIcon name={s.name} iconKey={s.iconKey} official={s.official} />
-                        </span>
-                        <span className="admin-srv-names">
-                          <span className="admin-srv-name">
-                            <strong className="truncate">{s.name}</strong>
-                            {(s.verified || s.official) && (
-                              <Icon name="verified" size={14} active label="Servidor verificado" />
-                            )}
-                            {s.official && <span className="admin-pill">oficial</span>}
-                            {s.hidden && (
-                              <span className="admin-pill" data-tone="brand">
-                                invisível
-                              </span>
-                            )}
+      <Card
+        flush
+        title="Todos os servidores"
+        sub={`${nf(shown.length)} de ${nf(list.length)} · botão direito numa linha para mais ações · contagens sem membros invisíveis`}
+      >
+        {shown.length === 0 ? (
+          <Empty icon="server">Nenhum servidor encontrado.</Empty>
+        ) : (
+          <div className="adm-table-wrap">
+            <table className="adm-table">
+              <thead>
+                <tr>
+                  <th scope="col">Servidor</th>
+                  <th scope="col" className="adm-num-col">
+                    Membros
+                  </th>
+                  <th scope="col" className="adm-hide-sm">
+                    Agora
+                  </th>
+                  <th scope="col" className="adm-hide-md">
+                    Canais
+                  </th>
+                  <th scope="col" className="adm-hide-sm">
+                    Mensagens · 14 d
+                  </th>
+                  <th scope="col" className="adm-hide-md">
+                    Última msg.
+                  </th>
+                  <th scope="col" className="adm-hide-lg">
+                    Criado em
+                  </th>
+                  <th scope="col">
+                    <span className="oc-visually-hidden">Ações</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((s) => {
+                  const w7 = last7(s);
+                  return (
+                    <tr key={s.id} onContextMenu={(e) => menu(e, s)} data-dim={w7 === 0 || undefined}>
+                      <th scope="row">
+                        <span className="adm-person">
+                          <span className="adm-srv-icon" aria-hidden>
+                            <ServerIcon name={s.name} iconKey={s.iconKey} official={s.official} />
                           </span>
-                          <span className="muted small truncate">de {s.owner.displayName}</span>
+                          <span className="adm-person-names">
+                            <span className="adm-person-name">
+                              <strong className="truncate">{s.name}</strong>
+                              {(s.verified || s.official) && (
+                                <Icon name="verified" size={14} active label="Servidor verificado" />
+                              )}
+                              {s.official && <Pill>oficial</Pill>}
+                              {s.hidden && <Pill tone="brand">invisível</Pill>}
+                            </span>
+                            <span className="muted small truncate">de {s.owner.displayName}</span>
+                          </span>
                         </span>
-                      </span>
-                    </th>
-                    <td className="num">
-                      <span className="admin-num">{nf(s.memberCount)}</span>
-                      {(s.newMembers7d ?? 0) > 0 && <span className="admin-up small">+{nf(s.newMembers7d ?? 0)}</span>}
-                    </td>
-                    <td className="col-now">
-                      <span className="admin-now">
-                        <span className="admin-now-item" data-on={(s.onlineCount ?? 0) > 0 || undefined}>
-                          <span className="admin-dot" aria-hidden />
-                          <span className="admin-num">{nf(s.onlineCount ?? 0)}</span>
-                          <span className="sr-only"> conectados</span>
+                      </th>
+                      <td className="adm-num-col">
+                        <span className="adm-num">{nf(s.memberCount)}</span>
+                        {(s.newMembers7d ?? 0) > 0 && <span className="adm-up small">+{nf(s.newMembers7d ?? 0)}</span>}
+                      </td>
+                      <td className="adm-hide-sm">
+                        <span className="adm-inline">
+                          <span className="adm-inline-item" data-on={(s.onlineCount ?? 0) > 0 || undefined}>
+                            <span className="adm-dot" data-on={(s.onlineCount ?? 0) > 0 || undefined} aria-hidden />
+                            <span className="adm-num">{nf(s.onlineCount ?? 0)}</span>
+                            <span className="oc-visually-hidden"> conectados</span>
+                          </span>
+                          <span className="adm-inline-item" data-on={(s.voiceCount ?? 0) > 0 || undefined}>
+                            <Icon name="speaker" size={14} />
+                            <span className="adm-num">{nf(s.voiceCount ?? 0)}</span>
+                            <span className="oc-visually-hidden"> em voz</span>
+                          </span>
                         </span>
-                        <span className="admin-now-item" data-on={(s.voiceCount ?? 0) > 0 || undefined}>
-                          <Icon name="speaker" size={14} />
-                          <span className="admin-num">{nf(s.voiceCount ?? 0)}</span>
-                          <span className="sr-only"> em voz</span>
+                      </td>
+                      <td className="adm-hide-md">
+                        <span className="adm-inline">
+                          <span className="adm-inline-item">
+                            <Icon name="hashtag" size={14} />
+                            <span className="adm-num">{nf(s.textChannels ?? 0)}</span>
+                            <span className="oc-visually-hidden"> de texto</span>
+                          </span>
+                          <span className="adm-inline-item">
+                            <Icon name="speaker" size={14} />
+                            <span className="adm-num">{nf(s.voiceChannels ?? 0)}</span>
+                            <span className="oc-visually-hidden"> de voz</span>
+                          </span>
                         </span>
-                      </span>
-                    </td>
-                    <td className="col-channels">
-                      <span className="admin-now">
-                        <span className="admin-now-item">
-                          <Icon name="hashtag" size={14} />
-                          <span className="admin-num">{nf(s.textChannels ?? 0)}</span>
-                          <span className="sr-only"> de texto</span>
+                      </td>
+                      <td className="adm-hide-sm">
+                        <span className="adm-inline">
+                          <Sparkline data={series(s)} name={s.name} />
+                          <span className="adm-stacked">
+                            <span className="adm-num">{nf(w7)}</span>
+                            <Trend value={delta(w7, prev7(s))} />
+                          </span>
                         </span>
-                        <span className="admin-now-item">
-                          <Icon name="speaker" size={14} />
-                          <span className="admin-num">{nf(s.voiceChannels ?? 0)}</span>
-                          <span className="sr-only"> de voz</span>
-                        </span>
-                      </span>
-                    </td>
-                    <td className="col-activity">
-                      <span className="admin-activity">
-                        <Sparkline data={d} name={s.name} />
-                        <span className="admin-activity-n">
-                          <span className="admin-num">{nf(w7)}</span>
-                          <Trend value={dd} />
-                        </span>
-                      </span>
-                    </td>
-                    <td className="col-last">
-                      <span className="small">{ago(s.lastMessageAt)}</span>
-                    </td>
-                    <td className="col-created">
-                      <span className="small muted">{fmtDate(s.createdAt)}</span>
-                    </td>
-                    <td className="admin-actions">
-                      {s.joined ? (
-                        <Button variant="secondary" size="sm" onClick={() => go(s.id)}>
-                          Abrir
-                        </Button>
-                      ) : (
-                        <Button size="sm" icon="shield" disabled={busy === s.id} onClick={() => void join(s, false)}>
-                          Entrar
-                        </Button>
-                      )}
-                      <Tooltip label="Mais ações">
-                        <button
-                          type="button"
-                          className="admin-more"
-                          aria-label={`Mais ações de ${s.name}`}
-                          aria-haspopup="menu"
+                      </td>
+                      <td className="adm-hide-md adm-nowrap">{ago(s.lastMessageAt)}</td>
+                      <td className="adm-hide-lg adm-nowrap muted">{fmtDate(s.createdAt)}</td>
+                      <td className="adm-row-actions">
+                        {s.joined ? (
+                          <Button variant="secondary" size="sm" onClick={() => go(s.id)}>
+                            Abrir
+                          </Button>
+                        ) : (
+                          <Button size="sm" icon="shield" disabled={busy === s.id} onClick={() => void join(s, false)}>
+                            Entrar
+                          </Button>
+                        )}
+                        <MoreButton
+                          label={`Mais ações de ${s.name}`}
                           disabled={busy === s.id}
                           onClick={(e) => menu(e, s)}
-                        >
-                          <Icon name="more" size={18} />
-                        </button>
-                      </Tooltip>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {shown.length > 0 && (
-        <p className="muted small admin-foot">
-          Mostrando {nf(shown.length)} de {nf(list.length)} · clique com o botão direito numa linha para mais ações.
-          Contagens não incluem membros invisíveis.
-        </p>
-      )}
-    </section>
-  );
-}
-
-function Kpi({
-  icon,
-  label,
-  value,
-  hint,
-  suffix,
-  trend,
-  live,
-}: {
-  icon: IconName;
-  label: string;
-  value: number;
-  hint?: string;
-  suffix?: string;
-  trend?: number | null;
-  live?: boolean;
-}) {
-  return (
-    <li className="admin-kpi">
-      <span className="admin-kpi-label">
-        <Icon name={icon} size={16} />
-        {label}
-        {live && (
-          <span className="admin-live">
-            <span className="admin-dot" aria-hidden />
-            <span className="sr-only">(ao vivo)</span>
-          </span>
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </span>
-      <span className="admin-kpi-value">
-        {nf(value)}
-        {suffix && <span className="admin-kpi-suffix">{suffix}</span>}
-        {trend !== undefined && <Trend value={trend} />}
-      </span>
-      {hint && <span className="muted small">{hint}</span>}
-    </li>
-  );
-}
-
-/** ↑/↓ em relação à semana anterior */
-function Trend({ value }: { value: number | null | undefined }) {
-  if (value === null || value === undefined) return null;
-  const tone = value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
-  return (
-    <span className="admin-trend" data-tone={tone}>
-      {value > 0 ? '↑' : value < 0 ? '↓' : '→'} {Math.abs(value)}%
-      <span className="sr-only"> em relação aos 7 dias anteriores</span>
-    </span>
-  );
-}
-
-/** Mini gráfico de barras (14 dias) por servidor; a última semana em destaque. */
-function Sparkline({ data, name }: { data: readonly number[]; name: string }) {
-  const max = Math.max(1, ...data);
-  const total = sum(data);
-  const peak = data.indexOf(Math.max(...data));
-  const label =
-    total === 0
-      ? `${name}: nenhuma mensagem em ${DAYS} dias`
-      : `${name}: ${nf(total)} mensagens em ${DAYS} dias; pico de ${nf(data[peak] ?? 0)} em ${fmtDay(DAYS - 1 - peak)}`;
-  const w = 4;
-  const gap = 2;
-  return (
-    <Tooltip label={label}>
-      <span className="admin-spark" tabIndex={0} role="img" aria-label={label}>
-        <svg width={DAYS * (w + gap) - gap} height={22} viewBox={`0 0 ${DAYS * (w + gap) - gap} 22`} aria-hidden>
-          {data.map((n, i) => {
-            const h = n === 0 ? 2 : Math.max(3, Math.round((n / max) * 22));
-            return (
-              <rect
-                key={i}
-                x={i * (w + gap)}
-                y={22 - h}
-                width={w}
-                height={h}
-                rx={1}
-                data-zero={n === 0 || undefined}
-                data-recent={i >= DAYS - 7 || undefined}
-              />
-            );
-          })}
-        </svg>
-      </span>
-    </Tooltip>
-  );
-}
-
-/** Gráfico de barras maior com o total diário da instância, com eixo de datas e valor no hover/foco. */
-function BarChart({ data }: { data: readonly number[] }) {
-  const max = Math.max(1, ...data);
-  return (
-    <div className="admin-bars" role="list" aria-label={`Mensagens por dia, últimos ${DAYS} dias`}>
-      {data.map((n, i) => {
-        const day = fmtDay(DAYS - 1 - i);
-        const today = i === DAYS - 1;
-        return (
-          <Tooltip key={i} label={`${today ? 'Hoje' : day}: ${nf(n)} mensage${n === 1 ? 'm' : 'ns'}`}>
-            <span className="admin-bar" role="listitem" tabIndex={0} aria-label={`${day}: ${nf(n)} mensagens`}>
-              <span
-                className="admin-bar-fill"
-                data-today={today || undefined}
-                data-zero={n === 0 || undefined}
-                style={{ height: `${n === 0 ? 2 : Math.max(4, (n / max) * 100)}%` }}
-              />
-              <span className="admin-bar-day" aria-hidden>
-                {i % 2 === (DAYS - 1) % 2 ? (today ? 'hoje' : day) : ''}
-              </span>
-            </span>
-          </Tooltip>
-        );
-      })}
+      </Card>
     </div>
   );
 }

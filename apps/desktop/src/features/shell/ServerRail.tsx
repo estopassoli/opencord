@@ -303,7 +303,7 @@ export function ServerRail() {
 
   return (
     <nav className="rail" aria-label="Servidores">
-      <ul className="rail-list">
+      <ul className="rail-list rail-main">
         <RailItem
           label="Mensagens diretas"
           variant="home"
@@ -316,6 +316,9 @@ export function ServerRail() {
         </RailItem>
         <li className="rail-sep" role="separator" />
         {entries.map((e) => (e.kind === 'server' ? serverItem(e.server, null) : folderItem(e.folder, e.servers)))}
+      </ul>
+      {/* ações fixas no pé do rail: a lista de servidores rola acima delas */}
+      <ul className="rail-list rail-actions" aria-label="Ações">
         <RailItem label="Criar um servidor" variant="action" onClick={() => open({ kind: 'create-server' })}>
           <Icon name="plus" />
         </RailItem>

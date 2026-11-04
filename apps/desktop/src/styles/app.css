@@ -2280,6 +2280,38 @@ body {
   display: flex;
   justify-content: center;
 }
+/* servidores rolam; criar/explorar/painel admin ficam presos no pé do rail */
+.rail {
+  overflow: hidden;
+}
+.rail-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  align-content: start;
+  padding: 2px 0 8px;
+}
+.rail-main::-webkit-scrollbar {
+  display: none;
+}
+.rail-actions {
+  flex: none;
+  position: relative;
+  padding-top: 10px;
+}
+.rail-actions::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 32px;
+  height: 2px;
+  margin-left: -16px;
+  border-radius: 1px;
+  background: var(--interactive);
+}
 .rail-li[data-unread='true']::before {
   content: none;
 }

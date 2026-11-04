@@ -1665,6 +1665,14 @@ export const AdminStats = z.object({
   inVoice: z.number().int(),
   servers: z.number().int(),
   messages24h: z.number().int(),
+  /** séries do painel (opcionais: API antiga não manda): por dia nos últimos 14 dias (UTC), da mais antiga para hoje */
+  messagesDaily: z.array(z.number().int()).optional(),
+  signupsDaily: z.array(z.number().int()).optional(),
+  serversDaily: z.array(z.number().int()).optional(),
+  /** envios retidos pela IA esperando decisão, em toda a instância */
+  pendingModeration: z.number().int().optional(),
+  /** aparelhos/IPs bloqueados */
+  deviceBans: z.number().int().optional(),
 });
 export type AdminStats = z.infer<typeof AdminStats>;
 

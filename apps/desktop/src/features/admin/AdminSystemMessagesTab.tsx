@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { renderRich } from '../chat/rich';
-import { Section } from '../settings/SettingsModal';
+import { Card, Empty, Loading } from './adminKit';
 
 const fmt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const noNames = () => 'alguém';
@@ -40,46 +40,61 @@ export function SystemMessagesTab() {
   };
 
   return (
-    <Section
-      title="Avisos enviados"
-      description="Mensagens que a conta OpenCord mandou nas DMs (ex.: ideia recusada no quadro). Quem recebe não pode responder."
-    >
-      {!page ? (
-        <p className="muted">Carregando…</p>
-      ) : page.messages.length === 0 ? (
-        <p className="muted">Nenhum aviso enviado ainda.</p>
-      ) : (
-        <ul className="admin-notices">
-          {page.messages.map((m) => (
-            <li key={m.id}>
-              <header>
+    <div className="adm-stack">
+      <Card
+        flush
+        title="Caixa de saída da conta OpenCord"
+        sub={page ? `${page.messages.length} carregado(s)${page.nextCursor ? ' · há mais' : ''}` : undefined}
+      >
+        {!page ? (
+          <div className="adm-pad">
+            <Loading rows={4} />
+          </div>
+        ) : page.messages.length === 0 ? (
+          <Empty icon="mail">Nenhum aviso enviado ainda.</Empty>
+        ) : (
+          <ul className="adm-notices">
+            {page.messages.map((m) => (
+              <li key={m.id}>
                 {m.recipient ? (
-                  <>
-                    <Avatar id={m.recipient.id} name={m.recipient.displayName} size={24} />
-                    <strong className="truncate">{m.recipient.displayName}</strong>
-                    <span className="muted small truncate">@{m.recipient.username}</span>
-                  </>
+                  <Avatar id={m.recipient.id} name={m.recipient.displayName} size={32} />
                 ) : (
-                  <strong className="muted">Conta removida</strong>
+                  <span className="adm-notice-gone" aria-hidden>
+                    ?
+                  </span>
                 )}
-                <time className="muted small" dateTime={m.createdAt}>
-                  {fmt(m.createdAt)}
-                </time>
-              </header>
-              {m.deleted ? (
-                <p className="muted small">Mensagem excluída.</p>
-              ) : (
-                <div className="admin-notice-body">{renderRich(m.body, noNames)}</div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+                <div className="adm-notice-main">
+                  <header>
+                    {m.recipient ? (
+                      <>
+                        <strong className="truncate">{m.recipient.displayName}</strong>
+                        <span className="muted small truncate">@{m.recipient.username}</span>
+                      </>
+                    ) : (
+                      <strong className="muted">Conta removida</strong>
+                    )}
+                    <time className="muted small" dateTime={m.createdAt}>
+                      {fmt(m.createdAt)}
+                    </time>
+                  </header>
+                  {m.deleted ? (
+                    <p className="muted small">Mensagem excluída.</p>
+                  ) : (
+                    <div className="admin-notice-body">{renderRich(m.body, noNames)}</div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
       {page?.nextCursor && (
-        <Button variant="ghost" size="sm" disabled={loadingMore} onClick={() => void more()}>
-          Carregar mais
-        </Button>
+        <div className="adm-more-row">
+          <Button variant="secondary" size="sm" disabled={loadingMore} onClick={() => void more()}>
+            Carregar mais
+          </Button>
+        </div>
       )}
-    </Section>
+    </div>
   );
 }
