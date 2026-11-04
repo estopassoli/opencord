@@ -4,23 +4,21 @@ import {
   type AdminAuditEntry,
   type AdminAuditPage,
   type AdminInstanceConfig,
-  type AdminServerEntry,
   type AdminStats,
   type AdminUser,
   type AdminUserPage,
   type InstanceAnnouncement,
-  type ServerDetail,
 } from '@opencord/contracts';
 import { Avatar, Button, Icon, RadioGroup, Select, Switch, TextArea, TextField, type IconName } from '@opencord/ui';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Dialog } from '../../components/Dialog';
-import { ServerIcon } from '../../components/ServerIcon';
 import { useData } from '../../store/data';
-import { api, describeError, loadServer } from '../../store/session';
+import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { Section, TabbedLayout, type TabDef } from '../settings/SettingsModal';
 import { AdminModerationTab } from './AdminModerationTab';
+import { AdminServersTab } from './AdminServersTab';
 import { BadgesTab, UserBadgesDialog } from './AdminBadgesTab';
 import { UserBadges } from '../../components/UserBadges';
 import '../settings/settings.css';
@@ -65,7 +63,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
     <Dialog title="Painel admin" onClose={onClose} fullscreen>
       <TabbedLayout tabs={TABS} active={tab} onChange={setTab} label="Seções do painel admin">
         {tab === 'overview' && <OverviewTab onTab={setTab} />}
-        {tab === 'servers' && <ServersTab onClose={onClose} />}
+        {tab === 'servers' && <AdminServersTab onClose={onClose} />}
         {tab === 'users' && <UsersTab />}
         {tab === 'badges' && <BadgesTab />}
         {tab === 'instance' && <InstanceTab />}
@@ -140,158 +138,6 @@ function OverviewTab({ onTab }: { onTab: (t: AdminTab) => void }) {
             </li>
           );
         })}
-      </ul>
-    </Section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Servidores (ADR-0013): entrar como super admin (auditado) e selo de verificado
-// ---------------------------------------------------------------------------
-
-function ServersTab({ onClose }: { onClose: () => void }) {
-  const [list, setList] = useState<AdminServerEntry[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [q, setQ] = useState('');
-  useEffect(() => {
-    void api().request<AdminServerEntry[]>('GET', '/admin/servers').then(setList, toastError);
-  }, []);
-  if (!list) return <p className="muted">Carregando…</p>;
-  const term = q.trim().toLowerCase();
-  const shown = list.filter(
-    (s) => !term || s.name.toLowerCase().includes(term) || s.owner.displayName.toLowerCase().includes(term),
-  );
-  const go = (id: string) => {
-    useUi.getState().go({ kind: 'server', serverId: id, channelId: null });
-    onClose();
-  };
-  const join = async (s: AdminServerEntry, hidden: boolean) => {
-    const q = hidden
-      ? 'Você entra sem aparecer na lista de membros, na presença nem nas contagens. Fica registrado só na auditoria do painel. Em voz você não entra enquanto invisível.'
-      : 'A entrada fica registrada e os membros veem você.';
-    if (
-      !(await askConfirm(q, {
-        title: `Entrar em "${s.name}" ${hidden ? 'invisível' : 'como super admin'}`,
-        confirmLabel: hidden ? 'Entrar invisível' : 'Entrar',
-      }))
-    )
-      return;
-    setBusy(s.id);
-    try {
-      await api().request<ServerDetail>('POST', `/admin/servers/${s.id}/join`, { hidden });
-      await loadServer(s.id);
-      go(s.id);
-    } catch (e) {
-      toastError(e);
-    } finally {
-      setBusy(null);
-    }
-  };
-  /** Visível ↔ invisível no servidor em que já participa (adendo da ADR-0013). */
-  const toggleHidden = async (s: AdminServerEntry) => {
-    const hidden = !s.hidden;
-    setBusy(s.id);
-    try {
-      await api().request('PUT', `/admin/servers/${s.id}/hidden`, { hidden });
-      setList((l) => l?.map((x) => (x.id === s.id ? { ...x, hidden } : x)) ?? l);
-      await loadServer(s.id);
-      useUi.getState().toast('success', hidden ? 'Agora você está invisível.' : 'Agora os membros veem você.');
-    } catch (e) {
-      toastError(e);
-    } finally {
-      setBusy(null);
-    }
-  };
-  /** Só o selo de verificado: o servidor continua privado (ADR-0013). */
-  const toggleVerified = async (s: AdminServerEntry) => {
-    setBusy(s.id);
-    try {
-      await api().request('PUT', `/admin/servers/${s.id}/verified`, { verified: !s.verified });
-      setList((l) => l?.map((x) => (x.id === s.id ? { ...x, verified: !s.verified } : x)) ?? l);
-    } catch (e) {
-      toastError(e);
-    } finally {
-      setBusy(null);
-    }
-  };
-  return (
-    <Section
-      title={`Servidores · ${list.length}`}
-      description="Entrar visível fica na auditoria do servidor; invisível, só na auditoria do painel. O selo não muda a privacidade."
-    >
-      <TextField
-        aria-label="Buscar servidor"
-        leadingIcon="search"
-        placeholder="Buscar por nome ou dono"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
-      {shown.length === 0 && <p className="muted">Nenhum servidor encontrado.</p>}
-      <ul className="directory">
-        {shown.map((s) => (
-          <li key={s.id} className="directory-row">
-            <span className="directory-icon" aria-hidden>
-              <ServerIcon name={s.name} iconKey={s.iconKey} official={s.official} />
-            </span>
-            <span className="directory-names">
-              <strong className="truncate">
-                {s.name}
-                {(s.verified || s.official) && <Icon name="verified" size={14} active label="Servidor verificado" />}
-              </strong>
-              <span className="muted small truncate">
-                {s.official ? 'Oficial · ' : ''}de {s.owner.displayName} · {s.memberCount} membro(s)
-              </span>
-            </span>
-            {!s.official && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon="verified"
-                aria-pressed={s.verified}
-                disabled={busy === s.id}
-                onClick={() => void toggleVerified(s)}
-              >
-                {s.verified ? 'Tirar selo' : 'Verificar'}
-              </Button>
-            )}
-            {s.joined ? (
-              <>
-                {s.hidden && (
-                  <span className="admin-pill" data-tone="brand">
-                    invisível
-                  </span>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={s.hidden ? 'eye' : 'eye-off'}
-                  disabled={busy === s.id}
-                  onClick={() => void toggleHidden(s)}
-                >
-                  {s.hidden ? 'Ficar visível' : 'Ficar invisível'}
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => go(s.id)}>
-                  Abrir
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon="eye-off"
-                  disabled={busy === s.id}
-                  onClick={() => void join(s, true)}
-                >
-                  Entrar invisível
-                </Button>
-                <Button size="sm" icon="shield" disabled={busy === s.id} onClick={() => void join(s, false)}>
-                  Entrar
-                </Button>
-              </>
-            )}
-          </li>
-        ))}
       </ul>
     </Section>
   );

@@ -100,6 +100,11 @@ export const InstanceInfo = z.object({
   creatorId: z.string().uuid().nullable().default(null),
   /** contato para pedidos sobre dados pessoais (LGPD, ADR-0039), definido no painel; null = só o canal do projeto */
   privacyContact: z.string().nullable().default(null),
+  /** seletor de GIFs (ADR-0044): o app busca direto no KLIPY com esta chave; null = sem GIFs */
+  gifs: z
+    .object({ provider: z.literal('klipy'), appKey: z.string(), apiUrl: z.string() })
+    .nullable()
+    .default(null),
   /** catálogo de insígnias (ADR-0043), na ordem de exibição */
   badges: z.array(Badge).default([]),
 });
@@ -504,6 +509,18 @@ export const AdminServerEntry = ServerDirectoryEntry.extend({
   owner: z.object({ id: Id, displayName: z.string() }),
   /** o admin participa sem aparecer para os membros */
   hidden: z.boolean().optional(),
+  /** métricas do painel (opcionais: API antiga não manda). Membros invisíveis não contam. */
+  createdAt: IsoDate.optional(),
+  textChannels: z.number().int().optional(),
+  voiceChannels: z.number().int().optional(),
+  /** membros conectados agora (qualquer status) */
+  onlineCount: z.number().int().optional(),
+  /** pessoas em canais de voz do servidor agora */
+  voiceCount: z.number().int().optional(),
+  newMembers7d: z.number().int().optional(),
+  /** mensagens por dia nos últimos 14 dias (UTC), da mais antiga para hoje */
+  messagesDaily: z.array(z.number().int()).optional(),
+  lastMessageAt: IsoDate.nullable().optional(),
 });
 export type AdminServerEntry = z.infer<typeof AdminServerEntry>;
 /** POST /admin/servers/:id/join: `hidden` entra sem aparecer para os membros (registro só na auditoria global) */
@@ -1474,6 +1491,17 @@ export const ServerFolder = z.object({
 });
 export type ServerFolder = z.infer<typeof ServerFolder>;
 export type ServerLayoutItem = string | ServerFolder;
+/** GIF favorito (ADR-0044): `url` é a enviada no chat; `preview` a miniatura do seletor. */
+export const GIF_FAVORITES_MAX = 100;
+export const GifFavorite = z.object({
+  slug: z.string().max(200),
+  url: z.url().max(2000),
+  preview: z.url().max(2000),
+  width: z.number().int().positive().max(4096),
+  height: z.number().int().positive().max(4096),
+});
+export type GifFavorite = z.infer<typeof GifFavorite>;
+
 export const UserSettingsV1 = z.object({
   version: z.literal(1),
   audio: z
@@ -1593,6 +1621,8 @@ export const UserSettingsV1 = z.object({
     .max(500)
     .default([]),
   sidebarWidth: z.number().int().min(200).max(480).default(240),
+  /** GIFs favoritos (ADR-0044), mais recente primeiro; a URL é guardada como o KLIPY entregou */
+  gifFavorites: z.array(GifFavorite).max(GIF_FAVORITES_MAX).default([]),
 });
 export type UserSettingsV1 = z.infer<typeof UserSettingsV1>;
 export const UserSettings = UserSettingsV1;

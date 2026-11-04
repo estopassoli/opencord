@@ -43,6 +43,7 @@ import { PresenceService } from '../realtime/presence.service.js';
 import { PermissionsService } from './permissions.service.js';
 import { RoomsService } from './rooms.service.js';
 import { ServersService } from './servers.service.js';
+import { VoiceService } from '../voice/voice.service.js';
 import { DiscordImportService } from './discord-import.service.js';
 
 const anyUuid = new ParseUUIDPipe();
@@ -56,6 +57,7 @@ const VerifiedBody = z.object({ verified: z.boolean() });
 export class ServersController {
   constructor(
     private readonly servers: ServersService,
+    private readonly voice: VoiceService,
     private readonly audit: AuditService,
     private readonly presence: PresenceService,
     private readonly perms: PermissionsService,
@@ -136,8 +138,8 @@ export class ServersController {
 
   /** Super admin (ADR-0013): todos os servidores da instância; 404 para quem não é admin. */
   @Get('admin/servers')
-  adminServers(@CurrentUser() u: AuthUser) {
-    return this.servers.adminServers(u.userId);
+  async adminServers(@CurrentUser() u: AuthUser) {
+    return this.servers.adminServers(u.userId, await this.voice.countByChannel());
   }
 
   @Post('admin/servers/:id/join')

@@ -38,6 +38,9 @@ const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz234567
 /** 10 caracteres de um alfabeto sem ambíguos (~57 bits): inviável de adivinhar com o rate limit. */
 const inviteCode = () => Array.from({ length: 10 }, () => INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)]).join('');
 
+/** janela da série de mensagens do painel do super admin */
+const ADMIN_DAYS = 14;
+
 @Injectable()
 export class ServersService {
   constructor(
@@ -318,22 +321,92 @@ export class ServersService {
     if (!u?.isInstanceAdmin) throw notFound('recurso');
   }
 
-  /** Todos os servidores da instância, com dono, membros e se o admin já participa. */
-  async adminServers(userId: string): Promise<AdminServerEntry[]> {
+  /**
+   * Todos os servidores da instância, com dono, membros, se o admin já participa e métricas do painel:
+   * canais, conectados, em voz (`voiceByChannel` vem do VoiceService), membros novos, mensagens por dia (14 dias)
+   * e a última mensagem. Membros invisíveis não entram nas contagens.
+   */
+  async adminServers(userId: string, voiceByChannel: Map<string, number> = new Map()): Promise<AdminServerEntry[]> {
     await this.requireInstanceAdmin(userId);
-    const rows = await this.prisma.server.findMany({
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        iconKey: true,
-        official: true,
-        verified: true,
-        owner: { select: { id: true, displayName: true } },
-        _count: { select: { members: { where: { hidden: false } } } },
-        members: { where: { userId }, select: { userId: true, hidden: true } },
-      },
-    });
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    const today = Math.floor(now / DAY);
+    const since = new Date((today - (ADMIN_DAYS - 1)) * DAY);
+    const online = [...(await this.realtime.onlineUserIds())];
+    const [rows, channels, onlineRows, newRows, daily, last, voiceChannels] = await Promise.all([
+      this.prisma.server.findMany({
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          iconKey: true,
+          official: true,
+          verified: true,
+          createdAt: true,
+          owner: { select: { id: true, displayName: true } },
+          _count: { select: { members: { where: { hidden: false } } } },
+          members: { where: { userId }, select: { userId: true, hidden: true } },
+        },
+      }),
+      this.prisma.channel.groupBy({ by: ['serverId', 'kind'], where: { temporary: false }, _count: { _all: true } }),
+      online.length
+        ? this.prisma.serverMember.groupBy({
+            by: ['serverId'],
+            where: { hidden: false, userId: { in: online } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+      this.prisma.serverMember.groupBy({
+        by: ['serverId'],
+        where: { hidden: false, joinedAt: { gte: new Date(now - 7 * DAY) } },
+        _count: { _all: true },
+      }),
+      this.prisma.$queryRaw<{ serverId: string; day: number; n: number }[]>`
+        SELECT c."serverId" AS "serverId",
+               floor(extract(epoch FROM m."createdAt") / 86400)::int AS day,
+               count(*)::int AS n
+          FROM "Message" m JOIN "Channel" c ON c.id = m."channelId"
+         WHERE m."createdAt" >= ${since} AND m."deletedAt" IS NULL
+         GROUP BY 1, 2`,
+      this.prisma.$queryRaw<{ serverId: string; at: Date }[]>`
+        SELECT c."serverId" AS "serverId", max(l."createdAt") AS at
+          FROM "Channel" c
+          JOIN LATERAL (
+            SELECT m."createdAt" FROM "Message" m
+             WHERE m."channelId" = c.id AND m."deletedAt" IS NULL
+             ORDER BY m."createdAt" DESC LIMIT 1
+          ) l ON true
+         GROUP BY 1`,
+      voiceByChannel.size
+        ? this.prisma.channel.findMany({
+            where: { id: { in: [...voiceByChannel.keys()] } },
+            select: { id: true, serverId: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const count = (list: { serverId: string; _count: { _all: number } }[]) =>
+      new Map(list.map((r) => [r.serverId, r._count._all]));
+    const onlineBy = count(onlineRows);
+    const newBy = count(newRows);
+    const lastBy = new Map(last.map((r) => [r.serverId, r.at]));
+    const chanBy = new Map<string, { text: number; voice: number }>();
+    for (const c of channels) {
+      const e = chanBy.get(c.serverId) ?? { text: 0, voice: 0 };
+      if (c.kind === 'voice') e.voice += c._count._all;
+      else e.text += c._count._all;
+      chanBy.set(c.serverId, e);
+    }
+    const voiceBy = new Map<string, number>();
+    for (const c of voiceChannels)
+      voiceBy.set(c.serverId, (voiceBy.get(c.serverId) ?? 0) + (voiceByChannel.get(c.id) ?? 0));
+    const dailyBy = new Map<string, number[]>();
+    for (const d of daily) {
+      const i = d.day - (today - (ADMIN_DAYS - 1));
+      if (i < 0 || i >= ADMIN_DAYS) continue;
+      const arr = dailyBy.get(d.serverId) ?? new Array<number>(ADMIN_DAYS).fill(0);
+      arr[i] = d.n;
+      dailyBy.set(d.serverId, arr);
+    }
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -344,6 +417,14 @@ export class ServersService {
       memberCount: r._count.members,
       joined: r.members.length > 0,
       ...(r.members[0]?.hidden ? { hidden: true } : {}),
+      createdAt: r.createdAt.toISOString(),
+      textChannels: chanBy.get(r.id)?.text ?? 0,
+      voiceChannels: chanBy.get(r.id)?.voice ?? 0,
+      onlineCount: onlineBy.get(r.id) ?? 0,
+      voiceCount: voiceBy.get(r.id) ?? 0,
+      newMembers7d: newBy.get(r.id) ?? 0,
+      messagesDaily: dailyBy.get(r.id) ?? new Array<number>(ADMIN_DAYS).fill(0),
+      lastMessageAt: lastBy.get(r.id)?.toISOString() ?? null,
     }));
   }
 

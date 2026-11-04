@@ -322,6 +322,12 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     await prisma.user.update({ where: { id: boss.id }, data: { isInstanceAdmin: true } });
     const list = await http.req<AdminServerEntry[]>('GET', '/admin/servers', { token: boss.token });
     expect(list.body.find((x) => x.id === priv.body.id)).toMatchObject({ joined: false, owner: { id: alice.id } });
+    // métricas do painel: canais, série de 14 dias, conectados/voz/novos
+    const metrics = list.body.find((x) => x.id === priv.body.id)!;
+    expect(metrics.messagesDaily).toHaveLength(14);
+    expect(metrics).toMatchObject({ voiceCount: 0, newMembers7d: 1, lastMessageAt: null });
+    expect(metrics.textChannels).toBeGreaterThan(0);
+    expect(metrics.voiceChannels).toBeGreaterThan(0);
     // antes de entrar, nada de acesso escondido
     expect((await http.req('GET', `/servers/${priv.body.id}`, { token: boss.token })).status).toBe(404);
     const joined = await http.req<ServerDetail>('POST', `/admin/servers/${priv.body.id}/join`, { token: boss.token });
