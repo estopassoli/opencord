@@ -1,6 +1,6 @@
 import { askConfirm } from '../../components/AskDialog';
 import { hasPermission, Permission, type Message } from '@opencord/contracts';
-import { Avatar, Icon, TextArea } from '@opencord/ui';
+import { Avatar, Button, Icon, TextArea } from '@opencord/ui';
 import { memo, useEffect, useState, type KeyboardEvent } from 'react';
 import { useSession, api, describeError } from '../../store/session';
 import { useUi, type MediaItem } from '../../store/ui';
@@ -16,6 +16,7 @@ import { ComponentRows } from './Components';
 import { ReactionRoleChips, ReactionRolesDialog } from './ReactionRoles';
 import type { ChatTarget } from './ChatView';
 import { nameFor } from '../../lib/names';
+import { enterSends, useTouchKeyboard } from '../../lib/media';
 import { messageAppsMenu } from './messageApps';
 import { ChatImage } from './ChatImage';
 import { UserBadges } from '../../components/UserBadges';
@@ -77,6 +78,7 @@ export const MessageItem = memo(function MessageItem({
     if (editing) setDraft(m.body);
   }, [editing, m.body]);
   const [picker, setPicker] = useState(false);
+  const touchKeyboard = useTouchKeyboard();
   const [rrOpen, setRrOpen] = useState(false);
   const mine = m.author.id === meId;
   const canDelete = mine || hasPermission(perms, Permission.MANAGE_MESSAGES);
@@ -142,7 +144,7 @@ export const MessageItem = memo(function MessageItem({
       .catch((e: unknown) => useUi.getState().toast('error', describeError(e)));
 
   const editKeys = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && enterSends()) {
       e.preventDefault();
       void saveEdit();
     } else if (e.key === 'Escape') {
@@ -316,7 +318,18 @@ export const MessageItem = memo(function MessageItem({
             maxLength={4000}
             aria-label="Editar mensagem"
           />
-          <span className="small muted">Enter para salvar · Esc para cancelar</span>
+          {touchKeyboard ? (
+            <span className="msg-edit-actions">
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={() => void saveEdit()}>
+                Salvar
+              </Button>
+            </span>
+          ) : (
+            <span className="small muted">Enter para salvar · Esc para cancelar</span>
+          )}
         </div>
       ) : m.body || m.poll || m.pinnedAt || m.editedAt ? (
         // mensagem só com embeds/componentes (corpo vazio) não mostra o texto vazio

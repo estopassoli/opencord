@@ -19,3 +19,27 @@ export function useIsMobile(): boolean {
     () => false,
   );
 }
+
+/**
+ * Teclado virtual (tela de toque sem mouse): Enter pula linha e só o botão envia, como nos apps de mensagem do celular
+ * (card "corrigir o pular linha do teclado", 2026-11-04). Com mouse/teclado físico, Enter envia e Shift+Enter pula.
+ */
+export const TOUCH_KEYBOARD_QUERY = '(hover: none) and (pointer: coarse)';
+
+/** lido na hora da tecla: não precisa re-renderizar */
+export const enterSends = () =>
+  typeof window === 'undefined' || typeof window.matchMedia !== 'function'
+    ? true
+    : !window.matchMedia(TOUCH_KEYBOARD_QUERY).matches;
+
+export function useTouchKeyboard(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const mq = window.matchMedia(TOUCH_KEYBOARD_QUERY);
+      mq.addEventListener('change', cb);
+      return () => mq.removeEventListener('change', cb);
+    },
+    () => window.matchMedia(TOUCH_KEYBOARD_QUERY).matches,
+    () => false,
+  );
+}

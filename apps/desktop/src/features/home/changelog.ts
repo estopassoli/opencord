@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '17:30',
+    kind: 'correção',
+    icon: 'keyboard',
+    title: 'Pular linha pelo celular',
+    body: 'No celular, o Enter do teclado agora pula linha, e a mensagem vai pelo botão de enviar, como nos apps de mensagem. Ao editar uma mensagem no celular, aparecem os botões Salvar e Cancelar. No computador nada muda: Enter envia e Shift+Enter pula linha.',
+  },
+  {
+    date: '2026-11-04',
     time: '16:30',
     kind: 'novo',
     icon: 'star',

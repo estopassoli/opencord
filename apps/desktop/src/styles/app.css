@@ -1435,6 +1435,11 @@ textarea:focus-visible {
   border-color: color-mix(in srgb, var(--brand) 55%, var(--border));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent);
 }
+.msg-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .composer-reply {
   display: flex;
   align-items: center;

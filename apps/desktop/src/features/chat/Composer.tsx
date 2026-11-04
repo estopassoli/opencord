@@ -1,3 +1,4 @@
+import { enterSends, useTouchKeyboard } from '../../lib/media';
 import type { Attachment, BotCommandChoice, CreateInteractionResponse } from '@opencord/contracts';
 import { Icon, portalTarget, TextArea } from '@opencord/ui';
 import {
@@ -194,6 +195,7 @@ export function Composer({
   const [pollOpen, setPollOpen] = useState(false);
   const replyToId = useUi((s) => s.replyTo[targetKey] ?? null);
   const privateReply = useUi((s) => s.privateReply[targetKey] ?? null);
+  const touchKeyboard = useTouchKeyboard();
   const replyTo = useMessages((s) =>
     replyToId ? s.timelines[targetKey]?.messages.find((m) => m.id === replyToId) : undefined,
   );
@@ -448,7 +450,8 @@ export function Composer({
         return;
       }
     }
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+    // no celular o Enter do teclado pula linha; envia pelo botão
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && enterSends()) {
       e.preventDefault();
       send();
     } else if (e.key === 'Escape') {
@@ -656,6 +659,7 @@ export function Composer({
             bare
             ref={input}
             rows={1}
+            enterKeyHint={touchKeyboard ? 'enter' : 'send'}
             value={draft}
             placeholder={
               timedOut && myTimeoutUntil ? `Você está em castigo até ${fmtTimeoutUntil(myTimeoutUntil)}` : placeholder
@@ -690,7 +694,7 @@ export function Composer({
             <button
               className="icon-btn"
               aria-label="Enviar"
-              data-tip="Enviar (Enter)"
+              data-tip={touchKeyboard ? 'Enviar' : 'Enviar (Enter)'}
               onClick={send}
               disabled={timedOut || (!draft.trim() && !uploads.some((u) => u.status === 'done'))}
             >
