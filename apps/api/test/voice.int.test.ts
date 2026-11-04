@@ -263,9 +263,14 @@ describe('voz com LiveKit real', () => {
     const r1 = await connectRoom(j1.body);
     await waitUntil(async () => (await participants(j1.body.roomName)).includes(alice.id));
     const gone = new Promise<void>((r) => r1.once(RoomEvent.Disconnected, () => r()));
+    // o aparelho que ficou na chamada antiga fica sabendo que a conta entrou em outra (e não "removido")
+    const sock = await connectSocket(alice.token);
+    cleanup.push(async () => void sock.disconnect());
+    const told = nextEvent<{ channelId: string; reason: string }>(sock, 'voice:force-disconnect');
     const j2 = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${second.body.id}/join`, {
       token: alice.token,
     });
+    expect(await told).toEqual({ channelId: voiceId, reason: 'replaced' });
     await gone;
     await connectRoom(j2.body);
     await waitUntil(async () => (await participants(j2.body.roomName)).includes(alice.id));

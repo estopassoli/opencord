@@ -281,8 +281,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       !hasPermission(access.perms, Permission.MOVE_MEMBERS)
     )
       throw new BadRequestException('sala cheia');
-    // Uma sessão de voz por usuário: trocar de canal encerra a anterior na SFU.
-    if (current && current.channelId !== channelId) await this.endSession(current, 'moved');
+    // Uma sessão de voz por usuário: trocar de canal encerra a anterior na SFU. Se a anterior era em outro aparelho,
+    // ele fica sabendo o motivo ("replaced"); o próprio aparelho que trocou ignora (o canal do aviso não é o dele).
+    if (current && current.channelId !== channelId) await this.endSession(current, 'moved', 'replaced');
 
     const roomName = this.roomNameFor(channelId);
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { displayName: true } });
@@ -363,7 +364,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const occupants = await this.r.scard(`voice:channel:${conversationId}`);
     if (occupants >= MAX_PER_CHANNEL && current?.channelId !== conversationId)
       throw new BadRequestException('chamada cheia');
-    if (current && current.channelId !== conversationId) await this.endSession(current, 'moved');
+    if (current && current.channelId !== conversationId) await this.endSession(current, 'moved', 'replaced');
     const roomName = this.roomNameFor(`conv:${conversationId}`);
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { displayName: true } });
     const sources = [
@@ -481,9 +482,12 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
   private async endSession(
     s: StoredState,
     reason: 'left' | 'kicked' | 'timeout' | 'moved',
-    notifyUser?: 'kicked' | 'revoked',
+    notifyUser?: 'kicked' | 'revoked' | 'replaced',
   ) {
     await this.clear(s);
+    // o aviso vai antes de tirar da SFU: o app mostra o motivo certo em vez de "removido da chamada"
+    if (notifyUser)
+      this.realtime.toUser(s.userId, 'voice:force-disconnect', { channelId: s.channelId, reason: notifyUser });
     await this.rooms.removeParticipant(s.roomName, s.userId).catch(() => undefined);
     this.realtime.emit(this.roomOf(s), 'voice:member:left', {
       userId: s.userId,
@@ -492,8 +496,6 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       conversationId: s.conversationId ?? null,
       reason,
     });
-    if (notifyUser)
-      this.realtime.toUser(s.userId, 'voice:force-disconnect', { channelId: s.channelId, reason: notifyUser });
     // sala temporária vazia some (ADR-0029); com gente, a dona que saiu passa a sala adiante (ADR-0040)
     if (s.serverId) {
       const remaining = await this.r.smembers(`voice:channel:${s.channelId}`);

@@ -474,15 +474,18 @@ function wireRealtime(rt: RealtimeClient) {
       });
     });
     rt.on('voice:force-disconnect', (e) => {
-      void import('./voice').then(({ useVoice }) =>
-        useVoice
-          .getState()
-          .forcedOut(
-            e.reason === 'kicked'
-              ? 'Você foi desconectado da chamada por um moderador.'
+      void import('./voice').then(({ useVoice }) => {
+        const v = useVoice.getState();
+        // entrou em outra chamada: só o aparelho que ainda está na chamada antiga sai (o que trocou já está na nova)
+        if (e.reason === 'replaced' && v.machine.channelId !== e.channelId) return;
+        v.forcedOut(
+          e.reason === 'kicked'
+            ? 'Você foi desconectado da chamada por um moderador.'
+            : e.reason === 'replaced'
+              ? 'Você entrou em uma chamada em outro aparelho.'
               : 'Sua permissão de voz foi revogada.',
-          ),
-      );
+        );
+      });
     });
     rt.on('server:updated', (s) =>
       useData.setState((st) => ({

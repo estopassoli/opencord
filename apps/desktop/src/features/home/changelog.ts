@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '23:20',
+    kind: 'correção',
+    icon: 'phone',
+    title: 'Aviso certo ao entrar em chamada por outro aparelho',
+    body: 'Se você está numa chamada no computador e entra em outra pelo celular (ou o contrário), o aparelho que sai agora avisa "Você entrou em uma chamada em outro aparelho", em vez de "removido da chamada".',
+  },
+  {
+    date: '2026-11-04',
     time: '23:00',
     kind: 'correção',
     icon: 'music',
