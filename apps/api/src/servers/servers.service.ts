@@ -178,9 +178,24 @@ export class ServersService {
   async update(
     serverId: string,
     userId: string,
-    dto: { name?: string | undefined; accent?: string | null | undefined; aiRules?: string | null | undefined },
+    dto: {
+      name?: string | undefined;
+      accent?: string | null | undefined;
+      aiRules?: string | null | undefined;
+      afkChannelId?: string | null | undefined;
+      afkTimeoutSec?: number | undefined;
+    },
   ): Promise<ServerSummary> {
     await this.perms.requireServer(serverId, userId, Permission.MANAGE_SERVER);
+    // canal de ausentes (ADR-0049): canal de voz comum deste servidor (não o criador de salas nem sala temporária)
+    if (dto.afkChannelId) {
+      const ch = await this.prisma.channel.findUnique({
+        where: { id: dto.afkChannelId },
+        select: { serverId: true, kind: true, roomHub: true, temporary: true },
+      });
+      if (!ch || ch.serverId !== serverId || ch.kind !== 'voice' || ch.roomHub || ch.temporary)
+        throw new BadRequestException('escolha um canal de voz deste servidor');
+    }
     const s = await this.prisma.server.update({
       where: { id: serverId },
       data: {
@@ -188,6 +203,8 @@ export class ServersService {
         ...(dto.accent !== undefined ? { accent: dto.accent?.toLowerCase() ?? null } : {}),
         // regras para a moderação por IA (ADR-0036)
         ...(dto.aiRules !== undefined ? { aiRules: dto.aiRules?.trim() || null } : {}),
+        ...(dto.afkChannelId !== undefined ? { afkChannelId: dto.afkChannelId } : {}),
+        ...(dto.afkTimeoutSec !== undefined ? { afkTimeoutSec: dto.afkTimeoutSec } : {}),
       },
     });
     await this.audit.log(userId, serverId, 'server.update', serverId, dto);

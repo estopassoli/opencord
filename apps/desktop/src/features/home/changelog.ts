@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '03:00',
+    kind: 'novo',
+    icon: 'moon',
+    title: 'Canal de ausentes',
+    body: 'Quem administra um servidor pode escolher um canal de ausentes e um limite (de 1 minuto a 1 hora) em Configurações do servidor. Quem ficar numa chamada sem mexer no computador e sem falar por esse tempo vai sozinho para lá, com o microfone silenciado. Vale para quem usa o app para computador.',
+  },
+  {
+    date: '2026-11-05',
     time: '02:40',
     kind: 'melhoria',
     icon: 'window',

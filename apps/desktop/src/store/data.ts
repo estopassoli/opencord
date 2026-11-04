@@ -112,6 +112,8 @@ const summaryOf = (d: ServerSummary): ServerSummary => ({
   iconKey: d.iconKey,
   accent: d.accent ?? null,
   wallpaperKey: d.wallpaperKey ?? null,
+  afkChannelId: d.afkChannelId ?? null,
+  afkTimeoutSec: d.afkTimeoutSec ?? 300,
   ownerId: d.ownerId,
   official: d.official,
   verified: d.verified ?? false,

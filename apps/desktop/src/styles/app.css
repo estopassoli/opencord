@@ -8485,3 +8485,10 @@ dialog.dialog:not(.dialog-fullscreen)::backdrop,
     background-color: rgb(0 0 0 / 0.75);
   }
 }
+
+/* canal de ausentes nas configurações do servidor */
+.afk-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}

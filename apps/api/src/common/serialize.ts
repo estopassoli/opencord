@@ -62,6 +62,8 @@ export const serverSummary = (s: {
   accent?: string | null;
   wallpaperKey?: string | null;
   aiRules?: string | null;
+  afkChannelId?: string | null;
+  afkTimeoutSec?: number;
 }): ServerSummary => ({
   id: s.id,
   name: s.name,
@@ -72,6 +74,8 @@ export const serverSummary = (s: {
   wallpaperKey: s.wallpaperKey ?? null,
   verified: s.verified ?? false,
   aiRules: s.aiRules ?? null,
+  afkChannelId: s.afkChannelId ?? null,
+  afkTimeoutSec: s.afkTimeoutSec ?? 300,
 });
 
 export const role = (r: {

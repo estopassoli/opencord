@@ -1,5 +1,6 @@
 import { askConfirm } from '../../components/AskDialog';
 import {
+  AFK_TIMEOUTS,
   hasPermission,
   Permission,
   type AuditEntry,
@@ -330,6 +331,8 @@ function OverviewTab({ detail, isOwner, onClose }: { detail: ServerDetail; isOwn
           <p>{detail.name}</p>
         )}
       </Section>
+
+      {canManage && <AfkSection detail={detail} />}
 
       {!isOwner && !detail.official && (
         <Section title="Sair do servidor" description="Você precisará de um novo convite para voltar.">
@@ -953,5 +956,46 @@ function AuditTab({ detail }: { detail: ServerDetail }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** Canal de ausentes (ADR-0049): quem fica parado em voz pelo limite vai para ele (app para computador). */
+function AfkSection({ detail }: { detail: ServerDetail }) {
+  const voice = detail.channels.filter((c) => c.kind === 'voice' && !c.roomHub && !c.temporary);
+  const save = async (patch: { afkChannelId?: string | null; afkTimeoutSec?: number }) => {
+    try {
+      const s = await api().request<ServerSummary>('PATCH', `/servers/${detail.id}`, patch);
+      useData.setState((st) => ({
+        servers: st.servers.map((x) => (x.id === s.id ? s : x)),
+        details: st.details[s.id] ? { ...st.details, [s.id]: { ...st.details[s.id]!, ...s } } : st.details,
+      }));
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const fmtLimit = (sec: number) => (sec < 3600 ? `${sec / 60} ${sec === 60 ? 'minuto' : 'minutos'}` : '1 hora');
+  return (
+    <Section
+      title="Canal de ausentes"
+      description="Quem ficar numa chamada sem mexer no teclado e no mouse (e sem falar) pelo tempo do limite vai sozinho para este canal, com o microfone silenciado. Vale para quem usa o app para computador."
+    >
+      <div className="afk-row">
+        <Select<string>
+          label="Canal de ausentes"
+          value={detail.afkChannelId ?? 'none'}
+          onChange={(v) => void save({ afkChannelId: v === 'none' ? null : v })}
+          options={[
+            { value: 'none', label: 'Nenhum (não move ninguém)' },
+            ...voice.map((c) => ({ value: c.id, label: c.name })),
+          ]}
+        />
+        <Select<string>
+          label="Limite de ausência"
+          value={String(detail.afkTimeoutSec ?? 300)}
+          onChange={(v) => void save({ afkTimeoutSec: Number(v) })}
+          options={AFK_TIMEOUTS.map((t) => ({ value: String(t), label: fmtLimit(t) }))}
+        />
+      </div>
+    </Section>
   );
 }

@@ -16,6 +16,8 @@ const srv = (id: string): ServerSummary => ({
   id,
   name: id.toUpperCase(),
   accent: null,
+  afkChannelId: null,
+  afkTimeoutSec: 300,
   wallpaperKey: null,
   iconKey: null,
   ownerId: 'o',

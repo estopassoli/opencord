@@ -158,6 +158,9 @@ model Server {
   verified   Boolean        @default(false)
   /// regras do servidor que a moderação por IA leva em conta (ADR-0036); null = só as regras gerais
   aiRules    String?
+  /// canal de ausentes (ADR-0049): canal de voz para onde vai quem fica parado afkTimeoutSec segundos em voz
+  afkChannelId  String? @db.Uuid
+  afkTimeoutSec Int     @default(300)
   createdAt  DateTime       @default(now()) @db.Timestamptz(3)
   owner      User           @relation("ServerOwner", fields: [ownerId], references: [id])
   invites    Invite[]

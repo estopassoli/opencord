@@ -8,6 +8,7 @@ import {
   type Role,
   type ServerDirectoryEntry,
   type ServerDetail,
+  type ServerSummary,
 } from '@opencord/contracts';
 import { TEST_API_PORT } from './env.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -473,5 +474,35 @@ describe('servidores e RBAC (RF-02, RF-10)', () => {
     expect(await prisma.channelPermissionOverride.count({ where: { subjectType: 'member', subjectId: bob.id } })).toBe(
       0,
     );
+  });
+});
+
+describe('canal de ausentes (ADR-0049)', () => {
+  it('só canal de voz do próprio servidor; limite da lista; quem não gerencia não muda', async () => {
+    const { owner, serverId } = await bootstrapOwner(http);
+    const alice = await register(http);
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const voice = d.body.channels.find((c) => c.kind === 'voice')!;
+    const text = d.body.channels.find((c) => c.kind === 'text')!;
+    const ok = await http.req<ServerSummary>('PATCH', `/servers/${serverId}`, {
+      token: owner.token,
+      body: { afkChannelId: voice.id, afkTimeoutSec: 900 },
+    });
+    expect(ok.status).toBe(200);
+    expect(ok.body).toMatchObject({ afkChannelId: voice.id, afkTimeoutSec: 900 });
+    expect(
+      (await http.req('PATCH', `/servers/${serverId}`, { token: owner.token, body: { afkChannelId: text.id } })).status,
+    ).toBe(400);
+    expect(
+      (await http.req('PATCH', `/servers/${serverId}`, { token: owner.token, body: { afkTimeoutSec: 42 } })).status,
+    ).toBe(400);
+    expect(
+      (await http.req('PATCH', `/servers/${serverId}`, { token: alice.token, body: { afkChannelId: null } })).status,
+    ).toBe(403);
+    const off = await http.req<ServerSummary>('PATCH', `/servers/${serverId}`, {
+      token: owner.token,
+      body: { afkChannelId: null },
+    });
+    expect(off.body.afkChannelId).toBeNull();
   });
 });

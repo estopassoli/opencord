@@ -490,8 +490,13 @@ export const ServerSummary = z.object({
   wallpaperKey: z.string().nullable().default(null),
   /** regras do servidor que a moderação por IA leva em conta (ADR-0036); só quem gerencia o servidor edita */
   aiRules: z.string().nullable().optional(),
+  /** canal de ausentes (ADR-0049): quem fica parado em voz `afkTimeoutSec` segundos vai para ele (app desktop) */
+  afkChannelId: Id.nullable().optional(),
+  afkTimeoutSec: z.number().int().optional(),
 });
 export type ServerSummary = z.infer<typeof ServerSummary>;
+/** limites de ausência oferecidos (segundos) */
+export const AFK_TIMEOUTS = [60, 300, 900, 1800, 3600] as const;
 
 export const ServerDetail = ServerSummary.extend({
   roles: z.array(Role),
@@ -532,6 +537,13 @@ export const UpdateServerRequest = z.object({
     .optional(),
   /** regras para a moderação por IA (ADR-0036); '' ou null apaga */
   aiRules: z.string().trim().max(2000).nullable().optional(),
+  /** canal de ausentes (canal de voz do servidor); null tira */
+  afkChannelId: Id.nullable().optional(),
+  afkTimeoutSec: z
+    .number()
+    .int()
+    .refine((n) => (AFK_TIMEOUTS as readonly number[]).includes(n), 'limite inválido')
+    .optional(),
 });
 export type UpdateServerRequest = z.infer<typeof UpdateServerRequest>;
 
