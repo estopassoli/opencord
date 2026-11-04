@@ -952,6 +952,18 @@ function KeybindsTab({ settings }: { settings: UserSettings }) {
           value={keybinds.saveClip}
           onChange={(v) => setKeybind({ saveClip: v })}
         />
+        <KeyCapture
+          label="Parar os efeitos sonoros tocando"
+          mode="accelerator"
+          value={keybinds.stopSounds}
+          onChange={(v) => setKeybind({ stopSounds: v })}
+        />
+        <KeyCapture
+          label="Silenciar / ativar efeitos sonoros"
+          mode="accelerator"
+          value={keybinds.toggleSoundsMuted}
+          onChange={(v) => setKeybind({ toggleSoundsMuted: v })}
+        />
       </Section>
     </>
   );

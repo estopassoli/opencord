@@ -1699,6 +1699,9 @@ export const UserSettingsV1 = z.object({
       toggleDeafen: z.string().max(64).nullable().default('CommandOrControl+Shift+D'),
       /** salva os últimos 60 s do jogo como clipe (ADR-0022) */
       saveClip: z.string().max(64).nullable().default('Shift+F10'),
+      /** efeitos sonoros (soundboard): parar os que estão tocando e silenciar/voltar (só para mim) */
+      stopSounds: z.string().max(64).nullable().default('CommandOrControl+Shift+X'),
+      toggleSoundsMuted: z.string().max(64).nullable().default('CommandOrControl+Shift+B'),
     })
     .prefault({}),
   appearance: z

@@ -19,6 +19,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-05',
+    time: '00:10',
+    kind: 'novo',
+    icon: 'soundboard',
+    title: 'Atalhos para os efeitos sonoros',
+    body: 'Dois atalhos novos, que funcionam até com o jogo em tela cheia: Ctrl+Shift+X para parar os efeitos sonoros que estão tocando e Ctrl+Shift+B para silenciar ou trazer de volta os efeitos (só para você). Dá para trocar as teclas em Configurações → Atalhos.',
+  },
+  {
     date: '2026-11-04',
     time: '23:20',
     kind: 'correção',

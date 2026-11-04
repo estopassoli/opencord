@@ -63,6 +63,15 @@ export function App() {
         else if (a === 'toggleDeafen') void v.toggleDeafen();
         else if (a === 'pushToTalkToggle') v.setPtt(!v.pttActive);
         else if (a === 'saveClip') void import('./store/clips').then(({ saveClip }) => saveClip());
+        // efeitos sonoros (só para mim): funcionam com o jogo em foco
+        else if (a === 'stopSounds')
+          void import('./store/sounds').then(({ useSounds }) => useSounds.getState().stopAll());
+        else if (a === 'toggleSoundsMuted')
+          void import('./store/sounds').then(({ useSounds }) => {
+            const s = useSounds.getState();
+            s.setMuted(!s.muted);
+            useUi.getState().toast('info', s.muted ? 'Efeitos sonoros de volta.' : 'Efeitos sonoros silenciados.');
+          });
       }),
       bridge.on('tray-action', (a) => {
         const v = useVoice.getState();

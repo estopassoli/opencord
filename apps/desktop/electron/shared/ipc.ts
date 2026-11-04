@@ -52,6 +52,9 @@ export const ShortcutsArgs = z.object({
   pushToTalkToggle: Accelerator.nullable(),
   /** salvar clipe (ADR-0022) */
   saveClip: Accelerator.nullable().optional(),
+  /** efeitos sonoros: parar todos e silenciar/voltar (só para quem aperta) */
+  stopSounds: Accelerator.nullable().optional(),
+  toggleSoundsMuted: Accelerator.nullable().optional(),
 });
 export type ShortcutsArgs = z.infer<typeof ShortcutsArgs>;
 
@@ -79,7 +82,8 @@ export interface CaptureSourceDto {
   displayId?: string;
 }
 
-export type ShortcutAction = 'toggleMute' | 'toggleDeafen' | 'pushToTalkToggle' | 'saveClip';
+export type ShortcutAction =
+  'toggleMute' | 'toggleDeafen' | 'pushToTalkToggle' | 'saveClip' | 'stopSounds' | 'toggleSoundsMuted';
 export type TrayAction = 'toggleMute' | 'toggleDeafen' | 'disconnect' | 'show';
 
 /** Atualização "avisar e baixar": Windows baixa e fica `ready`; macOS/Linux ficam `available` (abre o download). */

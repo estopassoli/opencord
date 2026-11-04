@@ -30,6 +30,8 @@ export function applySettingsSideEffects(s: UserSettings) {
         toggleDeafen: s.keybinds.toggleDeafen,
         pushToTalkToggle: s.audio.inputMode === 'ptt' ? pushToTalkAccelerator(s.keybinds.pushToTalk) : null,
         saveClip: s.games.clips ? s.keybinds.saveClip : null,
+        stopSounds: s.keybinds.stopSounds,
+        toggleSoundsMuted: s.keybinds.toggleSoundsMuted,
       })
       .then((r) => {
         if (r.failed.length)
