@@ -5475,10 +5475,16 @@ section:first-child > .friends-panel-sep {
 .music-player {
   width: min(380px, calc(100% - 32px));
   max-height: calc(100% - 120px);
-  overflow-y: auto;
-  display: grid;
+  /* só a fila rola: rolar o painel inteiro levava junto o fundo (no Vidro ele é uma camada do tamanho do painel) e
+     as últimas músicas ficavam sem fundo, por cima do palco */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 12px;
+}
+.music-player > * {
+  flex: none;
 }
 /* o player do YouTube fica visível (termos: mínimo 200 px de altura) */
 .music-video {
@@ -5594,7 +5600,14 @@ section:first-child > .friends-panel-sep {
   margin: 0;
   padding: 0;
   display: grid;
+  align-content: start;
   gap: 2px;
+}
+.music-player > .music-queue {
+  flex: 1 1 auto;
+  min-height: 72px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .music-queue > li {
   display: flex;
@@ -8122,7 +8135,8 @@ html[data-wallpaper='true'] .chat-scroll {
 .spotify-results {
   display: grid;
   gap: 10px;
-  max-height: 360px;
+  /* o player não rola mais inteiro: a busca cabe junto com a fila */
+  max-height: min(360px, 38vh);
   overflow: auto;
   padding: 4px 0;
 }

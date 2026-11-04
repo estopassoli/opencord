@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '23:00',
+    kind: 'correção',
+    icon: 'music',
+    title: 'Fila de músicas longa cabe no player',
+    body: 'Com muitas músicas na fila, o player da chamada agora fica do tamanho da tela e só a lista rola por dentro. Antes, as últimas músicas apareciam sem fundo, por cima de quem estava ao vivo.',
+  },
+  {
+    date: '2026-11-04',
     time: '22:30',
     kind: 'novo',
     icon: 'user',
