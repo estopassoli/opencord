@@ -811,6 +811,56 @@ textarea:focus-visible {
   gap: 12px;
   align-items: center;
 }
+/* insígnias (ADR-0043): ao lado do nome e no cartão de perfil */
+.user-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.user-badge {
+  display: inline-flex;
+  line-height: 0;
+}
+.badge-glyph {
+  display: inline-flex;
+  line-height: 0;
+  color: var(--text-2);
+}
+.badge-glyph.is-verified {
+  color: var(--brand);
+}
+.badge-img {
+  display: block;
+  object-fit: contain;
+  border-radius: 3px;
+}
+.user-badge-more {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.profile-badges {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.profile-badges li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 8px 3px 6px;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: calc(10px * var(--radius-scale, 1));
+  background: var(--sidebar);
+}
 .profile-roles {
   display: flex;
   flex-wrap: wrap;

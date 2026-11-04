@@ -21,18 +21,21 @@ import { api, describeError, loadServer } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { Section, TabbedLayout, type TabDef } from '../settings/SettingsModal';
 import { AdminModerationTab } from './AdminModerationTab';
+import { BadgesTab, UserBadgesDialog } from './AdminBadgesTab';
+import { UserBadges } from '../../components/UserBadges';
 import '../settings/settings.css';
 
 /**
  * Painel do super admin (ADR-0020): números da instância, servidores, usuários, configuração e auditoria global.
  * Só aparece para quem é super admin; a API responde 404 para os demais.
  */
-type AdminTab = 'overview' | 'servers' | 'users' | 'instance' | 'moderation' | 'audit';
+type AdminTab = 'overview' | 'servers' | 'users' | 'badges' | 'instance' | 'moderation' | 'audit';
 
 const TABS: readonly TabDef<AdminTab>[] = [
   { id: 'overview', label: 'Visão geral' },
   { id: 'servers', label: 'Servidores' },
   { id: 'users', label: 'Usuários' },
+  { id: 'badges', label: 'Insígnias' },
   { id: 'instance', label: 'Instância' },
   { id: 'moderation', label: 'Moderação IA' },
   { id: 'audit', label: 'Auditoria' },
@@ -64,6 +67,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
         {tab === 'overview' && <OverviewTab onTab={setTab} />}
         {tab === 'servers' && <ServersTab onClose={onClose} />}
         {tab === 'users' && <UsersTab />}
+        {tab === 'badges' && <BadgesTab />}
         {tab === 'instance' && <InstanceTab />}
         {tab === 'moderation' && <AdminModerationTab />}
         {tab === 'audit' && <AuditTab />}
@@ -310,6 +314,7 @@ function UsersTab() {
   const [filter, setFilter] = useState<UserFilter>('all');
   const [page, setPage] = useState<AdminUserPage | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [badgesFor, setBadgesFor] = useState<AdminUser | null>(null);
 
   const fetchPage = useCallback(
     (cursor?: string) => {
@@ -370,6 +375,12 @@ function UsersTab() {
         label: 'Copiar ID',
         icon: 'copy',
         onSelect: () => void navigator.clipboard.writeText(u.id),
+      },
+      {
+        label: 'Insígnias…',
+        icon: 'star',
+        hint: u.badges?.length ? String(u.badges.length) : undefined,
+        onSelect: () => setBadgesFor(u),
       },
     ];
     if (locked) return items;
@@ -506,6 +517,7 @@ function UsersTab() {
                         label={u.isCreator ? 'Criador do OpenCord' : 'Verificado'}
                       />
                     )}
+                    <UserBadges userId={u.id} fallback={u.badges} />
                   </strong>
                   <span className="muted small truncate">
                     @{u.username}
@@ -539,6 +551,7 @@ function UsersTab() {
           Carregar mais
         </Button>
       )}
+      {badgesFor && <UserBadgesDialog user={badgesFor} onClose={() => setBadgesFor(null)} onSaved={replace} />}
     </Section>
   );
 }

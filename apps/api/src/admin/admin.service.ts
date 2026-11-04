@@ -6,8 +6,12 @@ import type {
   AdminStats,
   AdminUser,
   AdminUserPage,
+  Badge,
+  CreateBadgeRequest,
+  UpdateBadgeRequest,
   UpdateInstanceConfigRequest,
 } from '@opencord/contracts';
+import type { z } from 'zod';
 import { rooms } from '@opencord/contracts';
 import type { Prisma } from '@opencord/db';
 import { AuditService } from '../audit/audit.service.js';
@@ -15,10 +19,12 @@ import { TokenService } from '../auth/token.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { notFound } from '../common/errors.js';
 import { PrismaService } from '../common/prisma.service.js';
-import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
+import { USER_PUBLIC_SELECT, userBadgeIndex, userPublic } from '../common/serialize.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { VoiceService } from '../voice/voice.service.js';
 import { InstanceService } from './instance.service.js';
+import { BadgesService } from './badges.service.js';
+import { AvatarService } from '../users/avatar.service.js';
 import { DeviceBansService } from '../ai-moderation/device-bans.service.js';
 
 const PAGE = 50;
@@ -68,6 +74,8 @@ export class AdminService {
     private readonly instance: InstanceService,
     private readonly tokens: TokenService,
     private readonly deviceBans: DeviceBansService,
+    private readonly badges: BadgesService,
+    private readonly images: AvatarService,
   ) {}
 
   /** Bloqueios de dispositivo (ADR-0036), só super admin. */
@@ -130,6 +138,7 @@ export class AdminService {
       hasAccount: r.passwordHash !== null,
       isInstanceAdmin: r.isInstanceAdmin,
       verified: r.verified,
+      ...(userBadgeIndex.get(r.id)?.length ? { badges: userBadgeIndex.get(r.id) } : {}),
       isCreator: r.id === ctx.creatorId,
       createdAt: r.createdAt.toISOString(),
       disabledAt: r.disabledAt?.toISOString() ?? null,
@@ -254,6 +263,80 @@ export class AdminService {
       );
     }
     return this.one(targetId);
+  }
+
+  // ---------- Insígnias (ADR-0043) ----------
+
+  async createBadge(actorId: string, dto: z.infer<typeof CreateBadgeRequest>): Promise<Badge> {
+    await this.requireAdmin(actorId);
+    const b = await this.badges.create(dto);
+    await this.audit.log(actorId, null, 'admin.badge.create', b.id, { name: b.name });
+    await this.badgesChanged([]);
+    return b;
+  }
+
+  async updateBadge(actorId: string, id: string, dto: z.infer<typeof UpdateBadgeRequest>): Promise<Badge> {
+    await this.requireAdmin(actorId);
+    const b = await this.badges.update(id, dto);
+    await this.audit.log(actorId, null, 'admin.badge.update', id, { name: b.name });
+    await this.badgesChanged([]);
+    return b;
+  }
+
+  async setBadgeImage(
+    actorId: string,
+    id: string,
+    file: (AsyncIterable<Buffer> & { truncated?: boolean }) | null,
+  ): Promise<Badge> {
+    await this.requireAdmin(actorId);
+    const name = file ? await this.images.storeBadgeImage(file) : null;
+    const { badge: b, previous } = await this.badges.setImage(id, name).catch(async (e: unknown) => {
+      await this.images.removeBadgeImage(name);
+      throw e;
+    });
+    await this.images.removeBadgeImage(previous);
+    await this.audit.log(actorId, null, 'admin.badge.update', id, { name: b.name, image: Boolean(file) });
+    await this.badgesChanged([]);
+    return b;
+  }
+
+  async deleteBadge(actorId: string, id: string) {
+    await this.requireAdmin(actorId);
+    const { badge, holders } = await this.badges.remove(id);
+    await this.images.removeBadgeImage(badge.imageKey);
+    await this.audit.log(actorId, null, 'admin.badge.delete', id, { name: badge.name, holders: holders.length });
+    await this.badgesChanged(holders);
+  }
+
+  /** Insígnias da pessoa (o conjunto inteiro). Quem compartilha servidor com ela recebe `user:updated`. */
+  async setUserBadges(actorId: string, targetId: string, badgeIds: string[]): Promise<AdminUser> {
+    await this.requireAdmin(actorId);
+    const exists = await this.prisma.user.findUnique({ where: { id: targetId }, select: { id: true } });
+    if (!exists) throw notFound('usuário');
+    if (await this.badges.setForUser(actorId, targetId, badgeIds)) {
+      await this.audit.log(actorId, null, 'admin.user.badges', targetId, { badgeIds });
+      await this.announceUser(targetId);
+    }
+    return this.one(targetId);
+  }
+
+  /** Catálogo mudou: todo mundo recebe o InstanceInfo novo; quem perdeu insígnia apagada, o perfil novo. */
+  private async badgesChanged(holders: string[]) {
+    this.realtime.emitAll('instance:updated', await this.instance.info());
+    for (const id of holders) await this.announceUser(id).catch(() => undefined);
+  }
+
+  private async announceUser(targetId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: targetId }, select: USER_PUBLIC_SELECT });
+    const servers = await this.prisma.serverMember.findMany({
+      where: { userId: targetId },
+      select: { serverId: true },
+    });
+    this.realtime.emit(
+      [rooms.user(targetId), ...servers.map((m) => rooms.server(m.serverId))],
+      'user:updated',
+      userPublic(user),
+    );
   }
 
   /** Promove ou rebaixa outro super admin. Os servidores em que a pessoa está recalculam as permissões. */

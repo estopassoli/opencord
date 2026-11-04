@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '16:30',
+    kind: 'novo',
+    icon: 'star',
+    title: 'Insígnias no perfil',
+    body: 'Agora as pessoas podem ganhar insígnias da equipe do OpenCord. Elas aparecem ao lado do nome no chat e na lista de membros (passe o mouse para ver o nome) e todas ficam no cartão de perfil, junto com o selo de verificado.',
+  },
+  {
+    date: '2026-11-04',
     time: '15:10',
     kind: 'correção',
     icon: 'window',

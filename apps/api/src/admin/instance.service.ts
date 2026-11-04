@@ -3,6 +3,7 @@ import type { InstanceAnnouncement, InstanceInfo } from '@opencord/contracts';
 import type { InstanceConfig } from '@opencord/db';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { PrismaService } from '../common/prisma.service.js';
+import { BadgesService } from './badges.service.js';
 
 /** Quanto tempo a configuração lida do banco vale em memória (o painel invalida ao salvar). */
 const CACHE_MS = 5_000;
@@ -20,6 +21,7 @@ export class InstanceService {
   constructor(
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
     private readonly prisma: PrismaService,
+    private readonly badges: BadgesService,
   ) {}
 
   async row(): Promise<InstanceConfig | null> {
@@ -76,6 +78,7 @@ export class InstanceService {
       // moderação por IA (ADR-0036): chave no ambiente e ligada no painel
       aiModeration: Boolean(this.cfg.ANTHROPIC_API_KEY) && (row?.aiModeration ?? true),
       privacyContact: row?.privacyContact ?? null,
+      badges: this.badges.list(),
     };
   }
 }

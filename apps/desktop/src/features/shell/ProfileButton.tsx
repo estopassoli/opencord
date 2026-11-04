@@ -1,3 +1,4 @@
+import { ProfileBadges } from '../../components/UserBadges';
 import { askConfirm } from '../../components/AskDialog';
 import { hasPermission, Permission, type Conversation } from '@opencord/contracts';
 import { Avatar, Button, Icon, portalTarget, Slider, STATUS_LABEL } from '@opencord/ui';
@@ -373,6 +374,7 @@ function ProfileCard({
           {!isMe && <div className="muted small">{STATUS_LABEL[presence]}</div>}
         </div>
       </div>
+      <ProfileBadges userId={userId} fallback={user.badges} verified={user.verified || undefined} />
       <PlayingNow userId={userId} />
       {member && detail && (
         <div className="profile-roles">

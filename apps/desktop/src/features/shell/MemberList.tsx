@@ -5,6 +5,7 @@ import { ProfileButton } from './ProfileButton';
 import { useAliases } from '../../lib/names';
 import { fmtTimeoutUntil, isTimedOut } from '../../lib/moderation';
 import { SubLine } from './Playing';
+import { UserBadges } from '../../components/UserBadges';
 
 /** Cor do nick: a do cargo mais alto que tem cor. */
 export function roleColorOf(detail: ServerDetail, m: Member | undefined): string | undefined {
@@ -103,6 +104,7 @@ export function MemberList({ serverId }: { serverId: string }) {
                     </span>
                     <SubLine userId={m.user.id} className="small" />
                   </span>
+                  <UserBadges userId={m.user.id} fallback={m.user.badges} />
                   {m.hidden && (
                     <span className="owner-tag" data-tip="Só você se vê aqui">
                       <Icon name="eye-off" size={12} label="Invisível" /> invisível

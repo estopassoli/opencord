@@ -48,6 +48,7 @@ model User {
   botsOwned         Bot[]                @relation("BotOwner")
   botOf             Bot?                 @relation("BotUser")
   boardCards        BoardCard[]
+  badges            UserBadge[]
   pollVotes         PollVote[]
   memberships       ServerMember[]
   bans              ServerBan[]          @relation("BannedUser")
@@ -729,4 +730,29 @@ model SlackLink {
   channel          Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@index([serverId])
+}
+
+/// Insígnia (ADR-0043): criada pelo super admin; ícone da biblioteca + cor, ou imagem enviada (badges/<imageKey>).
+model Badge {
+  id          String      @id @default(uuid(7)) @db.Uuid
+  name        String
+  description String      @default("")
+  icon        String?
+  color       String?
+  imageKey    String?
+  position    Int         @default(0)
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  holders     UserBadge[]
+}
+
+model UserBadge {
+  userId      String   @db.Uuid
+  badgeId     String   @db.Uuid
+  grantedById String?  @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge       Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, badgeId])
+  @@index([badgeId])
 }

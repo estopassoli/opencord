@@ -48,6 +48,39 @@ export const InstanceAnnouncement = z.object({
 });
 export type InstanceAnnouncement = z.infer<typeof InstanceAnnouncement>;
 
+/** Insígnia (ADR-0043): ícone da biblioteca do app com cor, ou imagem enviada (GET /badge-images/:imageKey). */
+export const BADGE_NAME_MAX = 32;
+export const BADGE_DESCRIPTION_MAX = 120;
+export const BadgeIcon = z.string().regex(/^[a-z0-9-]{1,40}$/, 'ícone inválido');
+export const BadgeColor = z.string().regex(/^#[0-9a-f]{6}$/i, 'use uma cor #rrggbb');
+export const Badge = z.object({
+  id: Id,
+  name: z.string(),
+  description: z.string(),
+  icon: z.string().nullable(),
+  color: z.string().nullable(),
+  /** com imagem, ela vale no lugar do ícone */
+  imageKey: z.string().nullable(),
+});
+export type Badge = z.infer<typeof Badge>;
+export const CreateBadgeRequest = z.object({
+  name: z.string().trim().min(1).max(BADGE_NAME_MAX),
+  description: z.string().trim().max(BADGE_DESCRIPTION_MAX).default(''),
+  icon: BadgeIcon.nullable().default('star'),
+  color: BadgeColor.nullable().default(null),
+});
+export type CreateBadgeRequest = z.input<typeof CreateBadgeRequest>;
+export const UpdateBadgeRequest = z.object({
+  name: z.string().trim().min(1).max(BADGE_NAME_MAX).optional(),
+  description: z.string().trim().max(BADGE_DESCRIPTION_MAX).optional(),
+  icon: BadgeIcon.nullable().optional(),
+  color: BadgeColor.nullable().optional(),
+});
+export type UpdateBadgeRequest = z.input<typeof UpdateBadgeRequest>;
+/** PUT /admin/users/:id/badges: substitui o conjunto inteiro */
+export const SetUserBadgesRequest = z.object({ badgeIds: z.array(Id).max(50) });
+export type SetUserBadgesRequest = z.input<typeof SetUserBadgesRequest>;
+
 export const InstanceInfo = z.object({
   name: z.string(),
   guestJoin: z.boolean(),
@@ -67,6 +100,8 @@ export const InstanceInfo = z.object({
   creatorId: z.string().uuid().nullable().default(null),
   /** contato para pedidos sobre dados pessoais (LGPD, ADR-0039), definido no painel; null = só o canal do projeto */
   privacyContact: z.string().nullable().default(null),
+  /** catálogo de insígnias (ADR-0043), na ordem de exibição */
+  badges: z.array(Badge).default([]),
 });
 export type InstanceInfo = z.infer<typeof InstanceInfo>;
 
@@ -137,6 +172,8 @@ export const UserPublic = z.object({
   isInstanceAdmin: z.boolean().optional(),
   /** selo de verificado no perfil, dado pelo super admin (só vem quando é verdade) */
   verified: z.boolean().optional(),
+  /** insígnias (ADR-0043): ids do catálogo em InstanceInfo.badges, na ordem do catálogo (só vem quando tem) */
+  badges: z.array(Id).optional(),
 });
 export type UserPublic = z.infer<typeof UserPublic>;
 

@@ -30,6 +30,12 @@ export class AvatarsController {
     return this.serve(this.avatars.open(name, 'server-icons'), reply);
   }
 
+  @Public()
+  @Get('badge-images/:name')
+  badgeImage(@Param('name') name: string, @Res() reply: FastifyReply) {
+    return this.serve(this.avatars.open(name, 'badges'), reply);
+  }
+
   private async serve(f: { mime: string; key: string } | null, reply: FastifyReply) {
     if (!f) throw new NotFoundException();
     const size = await this.storage.size(f.key).catch(() => null);

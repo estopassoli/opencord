@@ -18,6 +18,7 @@ import type { ChatTarget } from './ChatView';
 import { nameFor } from '../../lib/names';
 import { messageAppsMenu } from './messageApps';
 import { ChatImage } from './ChatImage';
+import { UserBadges } from '../../components/UserBadges';
 import { canReplyPrivately, openQuotedMessage, startPrivateReply } from './privateReply';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
@@ -288,6 +289,7 @@ export const MessageItem = memo(function MessageItem({
                 <Icon name="verified" size={14} active label="Verificado" />
               </span>
             )}
+            <UserBadges userId={m.author.id} fallback={m.author.badges} />
             {m.author.bot && (
               <span className="bot-badge" data-tip="Aplicativo">
                 APP

@@ -22,6 +22,12 @@ export const USER_PUBLIC_SELECT = {
   verified: true,
 } as const;
 
+/**
+ * Insígnias por pessoa (ADR-0043), mantidas em memória pelo BadgesService (são poucas, dadas à mão pelo super admin).
+ * Fica aqui para todo `userPublic` levar as insígnias sem cada consulta precisar de um join.
+ */
+export const userBadgeIndex = new Map<string, string[]>();
+
 export const userPublic = (u: UserRow): UserPublic => ({
   id: u.id,
   username: u.username,
@@ -32,6 +38,7 @@ export const userPublic = (u: UserRow): UserPublic => ({
   // só vai quando é verdade: a UI esconde expulsar/silenciar e mostra "super admin" (ADR-0013)
   ...(u.isInstanceAdmin ? { isInstanceAdmin: true } : {}),
   ...(u.verified ? { verified: true } : {}),
+  ...(userBadgeIndex.get(u.id)?.length ? { badges: userBadgeIndex.get(u.id) } : {}),
 });
 
 export const serverSummary = (s: {

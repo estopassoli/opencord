@@ -172,8 +172,17 @@ export class AvatarService {
     );
   }
 
-  /** Para GET /avatars/:name e GET /server-icons/:name. */
-  open(name: string, folder: 'avatars' | 'server-icons' | 'wallpapers' = 'avatars') {
+  /** Imagem de insígnia (ADR-0043): mesmas regras da foto de perfil; devolve o nome (badges/<nome>). */
+  storeBadgeImage(file: AsyncIterable<Buffer> & { truncated?: boolean }) {
+    return this.storeImage(file, 'badges');
+  }
+
+  async removeBadgeImage(name: string | null) {
+    if (name && AVATAR_NAME.test(name)) await this.storage.remove(`badges/${name}`).catch(() => undefined);
+  }
+
+  /** Para GET /avatars/:name, /server-icons/:name, /wallpapers/:name e /badge-images/:name. */
+  open(name: string, folder: 'avatars' | 'server-icons' | 'wallpapers' | 'badges' = 'avatars') {
     const m = AVATAR_NAME.exec(name);
     if (!m) return null;
     const mime = Object.entries(TYPES).find(([, e]) => e === m[1])![0];

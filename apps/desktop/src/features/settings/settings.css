@@ -995,3 +995,79 @@ button.admin-stat:focus-visible {
   gap: 6px;
   margin-top: 8px;
 }
+
+/* insígnias no painel admin (ADR-0043) */
+.admin-badges,
+.badge-pick {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.admin-badges li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+}
+.admin-badge-glyph {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  background: var(--rail);
+}
+.badge-form {
+  display: grid;
+  gap: 14px;
+}
+.badge-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  font-weight: 600;
+}
+.badge-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 6px;
+}
+.badge-icon-option {
+  display: grid;
+  place-items: center;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.badge-icon-option:hover,
+.badge-icon-option:focus-visible {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+.badge-icon-option[aria-checked='true'] {
+  color: var(--text);
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 16%, var(--sidebar));
+}
+.badge-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.badge-pick-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

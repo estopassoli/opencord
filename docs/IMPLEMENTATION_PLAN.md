@@ -159,6 +159,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-03 | Salas privadas (ADR-0040): canal privado e sala trancada | int `rooms.int.test.ts` 4/4 + suíte 204/204; desktop typecheck/lint/unit; SDK 64/64; capturas headless | verde | migração `20261103010000_private_rooms` antes da API nova; validar com pessoas reais (convite, pedido, vagas) |
 | 2026-11-03 | Spotify na música da chamada (ADR-0041) | int `spotify-music.int.test.ts` 4/4 (stubs) + suíte 208/208; contratos 23/23; desktop 209/209 | verde | `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` e `YOUTUBE_API_KEY` na API em produção; validar com chaves reais e pessoas na call |
 | 2026-11-03 | Responder no privado (ADR-0042) | int `private-reply.int.test.ts` 1/1 + suíte 209/209 (32 arquivos); contratos 23/23; SDK 64/64; desktop 211/211; typecheck/lint verdes | verde | migração `20261103020000_private_reply` em produção antes da API (Rick); validar com duas pessoas reais |
+| 2026-11-04 | Insígnias (ADR-0043) | int `badges.int.test.ts` 1/1 + suíte 210/210 (33 arquivos); desktop 213/213 (`badges.test.tsx`); contratos 23/23; SDK 64/64; typecheck/lint verdes | verde | migração `20261104000000_badges` em produção antes da API (Rick); conferir visual no app real |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

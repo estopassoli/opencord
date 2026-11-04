@@ -50,6 +50,7 @@ import { MusicService } from './voice/music.service.js';
 import { SpotifyService } from './voice/spotify.service.js';
 import { AccountService } from './users/account.service.js';
 import { AvatarService } from './users/avatar.service.js';
+import { BadgesService } from './admin/badges.service.js';
 import { RetentionService } from './users/retention.service.js';
 import { AvatarsController } from './users/avatars.controller.js';
 import { SocialController } from './social/social.controller.js';
@@ -109,6 +110,7 @@ export class AppModule {
         MusicService,
         SpotifyService,
         AvatarService,
+        BadgesService,
         AccountService,
         RetentionService,
         RealtimeService,

@@ -268,12 +268,14 @@ export const useData = create<DataState>()((set) => ({
     }),
   patchUser: (u) =>
     set((s) => {
-      const fix = <T extends { id: string }>(x: T): T => (x.id === u.id ? { ...x, ...u } : x);
+      // campos que só vêm quando valem (verificado, insígnias): ausentes no evento = tirados
+      const merged = <T extends object>(x: T): T => ({ ...x, ...u, verified: u.verified, badges: u.badges });
+      const fix = <T extends { id: string }>(x: T): T => (x.id === u.id ? merged(x) : x);
       const details = Object.fromEntries(
         Object.entries(s.details).map(([id, d]) => [
           id,
           d.members.some((m) => m.user.id === u.id)
-            ? { ...d, members: d.members.map((m) => (m.user.id === u.id ? { ...m, user: { ...m.user, ...u } } : m)) }
+            ? { ...d, members: d.members.map((m) => (m.user.id === u.id ? { ...m, user: merged(m.user) } : m)) }
             : d,
         ]),
       );
