@@ -18,6 +18,7 @@ import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { PinnedMessages } from './PinnedMessages';
 import { MessageSearch } from './MessageSearch';
 import { useAliases } from '../../lib/names';
+import { reopenConversation } from '../../lib/closedConversations';
 
 export type ChatTarget =
   { channelId: string; conversationId?: undefined } | { conversationId: string; channelId?: undefined };
@@ -99,6 +100,11 @@ export function ChatView({ target }: { target: ChatTarget }) {
   useEffect(() => {
     void load(false);
   }, [load]);
+
+  // abrir uma conversa fechada (pelo perfil, pela busca...) a traz de volta para a lista
+  useEffect(() => {
+    if (target.conversationId) reopenConversation(target.conversationId);
+  }, [target.conversationId]);
 
   // falhou ao carregar (ex.: servidor reiniciando numa atualização): tenta de novo sozinho a cada 5 s
   useEffect(() => {

@@ -1598,6 +1598,11 @@ export const UserSettingsV1 = z.object({
   perUserVolume: z.record(z.string(), z.number().min(0).max(2)).default({}),
   /** apelido que EU dei a alguém (só eu vejo; vale em todo lugar, inclusive acima do apelido do servidor) */
   friendNicknames: z.record(z.string(), z.string().trim().min(1).max(32)).default({}),
+  /**
+   * Conversas fechadas (tiradas só da minha lista): id da conversa → id da última mensagem quando fechei ('' = nenhuma).
+   * Mensagem mais nova (ids são uuid v7, crescem com o tempo) traz a conversa de volta.
+   */
+  closedConversations: z.record(z.string(), z.string().max(64)).default({}),
   /** conversas diretas fixadas no topo da lista, na ordem em que foram fixadas */
   pinnedConversations: z.array(z.string()).max(50).default([]),
   /** Jogo que estou jogando (ADR-0021): mostrar para os outros e jogos que eu mesmo cadastrei (executável → nome). */

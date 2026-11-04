@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Tooltip } from '../../components/Tooltip';
 import { nameFor, togglePinnedConversation, useAliases } from '../../lib/names';
+import { closeConversation, isClosed } from '../../lib/closedConversations';
 import { useData } from '../../store/data';
 import { api, describeError, markTargetRead } from '../../store/session';
 import { useUi } from '../../store/ui';
@@ -41,6 +42,16 @@ function dmMenu(c: Conversation, meId: string | undefined): MenuEntry[] {
       label: pinned ? 'Desafixar conversa' : 'Fixar conversa',
       icon: 'pin',
       onSelect: () => togglePinnedConversation(c.id),
+    },
+    {
+      label: 'Fechar conversa',
+      icon: 'close',
+      hint: 'Some da sua lista até chegar mensagem nova',
+      onSelect: () => {
+        closeConversation(c, useData.getState().unread[`d:${c.id}`]);
+        const ui = useUi.getState();
+        if (ui.view.kind === 'dm' && ui.view.conversationId === c.id) ui.go({ kind: 'home', tab: 'friends' });
+      },
     },
   ];
   const other = c.kind === 'dm' ? c.members.find((m) => m.id !== meId) : undefined;
@@ -123,11 +134,15 @@ export function DmSidebar() {
   const go = useUi((s) => s.go);
   const openSwitcher = () => useUi.getState().openModal({ kind: 'quick-switcher' });
   // fixadas no topo (na ordem em que foram fixadas), depois as demais como vieram
+  const closed = useData((s) => s.settings?.closedConversations);
+  const activeConv = view.kind === 'dm' ? view.conversationId : null;
   const ordered = useMemo(() => {
-    const byId = new Map(conversations.map((c) => [c.id, c]));
+    // fechadas somem da lista até chegar mensagem nova (a aberta agora sempre aparece)
+    const visible = conversations.filter((c) => c.id === activeConv || !isClosed(closed, c, unread[`d:${c.id}`]));
+    const byId = new Map(visible.map((c) => [c.id, c]));
     const top = pins.flatMap((id) => byId.get(id) ?? []);
-    return [...top, ...conversations.filter((c) => !pins.includes(c.id))];
-  }, [conversations, pins]);
+    return [...top, ...visible.filter((c) => !pins.includes(c.id))];
+  }, [conversations, pins, closed, unread, activeConv]);
 
   return (
     <>
