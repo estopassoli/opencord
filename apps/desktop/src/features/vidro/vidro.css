@@ -214,7 +214,7 @@ html[data-layout='vidro'] .vidro-panel {
   background: transparent;
   overflow: clip;
   isolation: isolate;
-  animation: vidro-fade-in 480ms var(--ease-out) both;
+  animation: vidro-fade-in 480ms var(--ease-out) backwards;
   animation-delay: calc(var(--i, 0) * 80ms);
 }
 html[data-layout='vidro'] .vidro-panel::before,
@@ -247,7 +247,7 @@ html[data-layout='vidro'] .vidro-view {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  animation: vidro-fade 200ms var(--ease-out) both;
+  animation: vidro-fade 200ms var(--ease-out) backwards;
 }
 @keyframes vidro-fade {
   from {
@@ -945,10 +945,14 @@ html[data-layout='vidro'] {
   }
 }
 
-/* o que abre: menus e popovers nascem do ponto onde foram chamados */
+/* o que abre: menus e popovers nascem do ponto onde foram chamados.
+   Todas as animações do vidro usam `backwards`, nunca `both`: uma animação de opacidade que continua valendo depois de
+   acabar faz do elemento uma "raiz de backdrop" no Chromium, e o desfoque de tudo dentro dele (o ::before de vidro)
+   passa a enxergar só o próprio elemento, deixando o que está atrás nítido (menu de contexto sobre os cards do kanban,
+   2026-11-04). As keyframes só têm `from`, então o fim é o mesmo. */
 html[data-layout='vidro'] .context-menu {
   transform-origin: top left;
-  animation: vidro-pop 180ms var(--vidro-spring) both;
+  animation: vidro-pop 180ms var(--vidro-spring) backwards;
 }
 html[data-layout='vidro'] .context-menu[data-side='left'] {
   transform-origin: top right;
@@ -958,32 +962,32 @@ html[data-layout='vidro'] .oc-listbox,
 html[data-layout='vidro'] .profile-card,
 html[data-layout='vidro'] .tooltip {
   transform-origin: top center;
-  animation: vidro-pop 180ms var(--vidro-spring) both;
+  animation: vidro-pop 180ms var(--vidro-spring) backwards;
 }
 html[data-layout='vidro'] .menu-up,
 html[data-layout='vidro'] .music-player,
 html[data-layout='vidro'] .soundboard {
   transform-origin: bottom center;
-  animation: vidro-pop-up 200ms var(--vidro-spring) both;
+  animation: vidro-pop-up 200ms var(--vidro-spring) backwards;
 }
 html[data-layout='vidro'] .dialog:not(.dialog-fullscreen) .dialog-body {
-  animation: vidro-dialog 240ms var(--vidro-spring) both;
+  animation: vidro-dialog 240ms var(--vidro-spring) backwards;
 }
 html[data-layout='vidro'] .dialog-fullscreen .fullscreen-body {
-  animation: vidro-msg 220ms var(--ease-out) both;
+  animation: vidro-msg 220ms var(--ease-out) backwards;
 }
 html[data-layout='vidro'] .toast {
-  animation: vidro-toast 260ms var(--vidro-spring) both;
+  animation: vidro-toast 260ms var(--vidro-spring) backwards;
 }
 html[data-layout='vidro'] .msg {
-  animation: vidro-msg 200ms var(--ease-out) both;
+  animation: vidro-msg 200ms var(--ease-out) backwards;
 }
 html[data-layout='vidro'] .tile,
 html[data-layout='vidro'] .now-card,
 html[data-layout='vidro'] .event-card,
 html[data-layout='vidro'] .highlight-card,
 html[data-layout='vidro'] .timeline-card {
-  animation: vidro-tile 260ms var(--ease-out) both;
+  animation: vidro-tile 260ms var(--ease-out) backwards;
 }
 
 /* o que responde ao mouse */

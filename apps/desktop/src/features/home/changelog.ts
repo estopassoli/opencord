@@ -19,6 +19,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-04',
+    time: '15:10',
+    kind: 'correção',
+    icon: 'window',
+    title: 'Vidro desfocado de verdade',
+    body: 'No visual Vidro, menus de contexto, cartões de perfil, janelas e painéis voltaram a desfocar o que fica atrás deles. Antes o texto de trás aparecia nítido através do menu e atrapalhava a leitura.',
+  },
+  {
     date: '2026-11-03',
     time: '21:10',
     kind: 'novo',
