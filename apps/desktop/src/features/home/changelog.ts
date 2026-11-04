@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '01:20',
+    kind: 'melhoria',
+    icon: 'edit',
+    title: 'Editar perfil a um clique',
+    body: 'Clique com o botão direito no seu nome (na lista da chamada, de membros ou no chat) e escolha "Editar perfil", ou use o botão no seu cartão de perfil: o editor abre direto.',
+  },
+  {
+    date: '2026-11-05',
     time: '01:00',
     kind: 'novo',
     icon: 'star',

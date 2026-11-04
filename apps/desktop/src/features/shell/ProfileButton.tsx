@@ -54,6 +54,13 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
   const chatKey = currentChatKey();
 
   const items: MenuEntry[] = [{ label: 'Perfil', icon: 'users', onSelect: openProfile }];
+  // o próprio perfil: atalho para o editor (Configurações → Perfil)
+  if (isMe)
+    items.push({
+      label: 'Editar perfil',
+      icon: 'edit',
+      onSelect: () => useUi.getState().openModal({ kind: 'settings', tab: 'profile' }),
+    });
   if (!isMe)
     items.push({
       label: d.settings?.friendNicknames[userId] ? 'Editar apelido de amigo' : 'Adicionar apelido de amigo',
@@ -431,6 +438,19 @@ function ProfileCard({
             }}
           >
             {myCall === voiceChannel.id ? 'Abrir chamada de voz' : 'Entrar na chamada'}
+          </Button>
+        </div>
+      )}
+      {isMe && (
+        <div className="profile-actions">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              onClose();
+              useUi.getState().openModal({ kind: 'settings', tab: 'profile' });
+            }}
+          >
+            <Icon name="edit" size={16} /> Editar perfil
           </Button>
         </div>
       )}
