@@ -416,7 +416,11 @@ html[data-layout='vidro'] .oc-btn-primary {
 html[data-layout='vidro'] .menu,
 html[data-layout='vidro'] .pins-panel,
 html[data-layout='vidro'] .tooltip,
-html[data-layout='vidro'] .toast {
+html[data-layout='vidro'] .toast,
+html[data-layout='vidro'] .gif-picker,
+html[data-layout='vidro'] .oc-color-panel,
+html[data-layout='vidro'] .clips-page,
+html[data-layout='vidro'] .dock-card {
   background: var(--elevated);
   backdrop-filter: blur(30px) saturate(1.5);
   border: 1px solid var(--vidro-line);
@@ -1188,4 +1192,10 @@ html[data-layout='vidro'] .profile-card[data-themed='true']::before {
     color-mix(in srgb, var(--pc-a) 88%, transparent),
     color-mix(in srgb, var(--pc-b) 88%, transparent)
   );
+}
+
+/* camadas atrás de janelas e páginas: desfocam o que está atrás (fundo vivo, live, chat) */
+html[data-layout='vidro'] .clips-page-backdrop,
+html[data-layout='vidro'] .clip-viewer-backdrop {
+  backdrop-filter: blur(6px);
 }

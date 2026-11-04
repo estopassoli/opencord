@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '02:40',
+    kind: 'melhoria',
+    icon: 'window',
+    title: 'Janelas mais legíveis por cima da live',
+    body: 'Janelas, páginas e o visualizador de imagens agora desfocam o que fica atrás deles (a live, o chat, o fundo), e no visual Vidro a página de clipes, o cartão da conta, o seletor de GIFs e o seletor de cor ganharam o mesmo vidro desfocado dos outros menus.',
+  },
+  {
+    date: '2026-11-05',
     time: '02:20',
     kind: 'melhoria',
     icon: 'users',

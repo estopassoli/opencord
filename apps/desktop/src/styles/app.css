@@ -8461,3 +8461,27 @@ html[data-wallpaper='true'] .chat-scroll {
     animation: none;
   }
 }
+
+/* fundo atrás de diálogos, páginas e do visualizador: escurece e desfoca o que está atrás (live, chat), para a janela
+   da frente ler bem em qualquer visual */
+dialog.dialog:not(.dialog-fullscreen)::backdrop,
+.clips-page-backdrop,
+.clip-viewer-backdrop,
+.media-viewer {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+@media (prefers-reduced-transparency: reduce) {
+  dialog.dialog:not(.dialog-fullscreen)::backdrop,
+  .clips-page-backdrop,
+  .clip-viewer-backdrop,
+  .media-viewer {
+    backdrop-filter: none;
+  }
+  /* sem desfoque, o fundo fica mais escuro para a janela da frente continuar legível */
+  dialog.dialog:not(.dialog-fullscreen)::backdrop,
+  .clips-page-backdrop,
+  .clip-viewer-backdrop {
+    background-color: rgb(0 0 0 / 0.75);
+  }
+}
