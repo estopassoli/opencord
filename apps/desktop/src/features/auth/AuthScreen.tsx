@@ -37,6 +37,9 @@ export function AuthScreen() {
   const [error, setError] = useState<string | null>(null);
   // aceite dos Termos/Política com a declaração de idade (ADR-0039): só nos cadastros, não no login
   const [accepted, setAccepted] = useState(false);
+  // verificação em duas etapas (ADR-0046): a senha conferiu e falta o código
+  const [ticket, setTicket] = useState<string | null>(null);
+  const [code, setCode] = useState('');
   const [legal, setLegal] = useState<LegalKind | null>(null);
   // os links ficam dentro do rótulo da caixa: sem isso o clique também marcava/desmarcava o aceite
   const openLegal = (e: MouseEvent, kind: LegalKind) => {
@@ -88,8 +91,13 @@ export function AuthScreen() {
       const s = useSession.getState();
       const code = accessCode || undefined;
       if (effective === 'nickname') await s.join(serverUrl, nickname, code);
-      else if (effective === 'login') await s.login(serverUrl, login, password);
-      else await s.register(serverUrl, { nickname, password, email: email.trim() || undefined, accessCode: code });
+      else if (effective === 'login') {
+        const r = await s.login(serverUrl, login, password);
+        if (r) {
+          setTicket(r.twoFactorTicket);
+          setCode('');
+        }
+      } else await s.register(serverUrl, { nickname, password, email: email.trim() || undefined, accessCode: code });
     } catch (err) {
       setError(describeError(err));
     } finally {
@@ -104,6 +112,72 @@ export function AuthScreen() {
   };
 
   const [title, subtitle] = TITLES[effective];
+
+  async function submitCode(e: FormEvent) {
+    e.preventDefault();
+    if (!ticket) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await useSession.getState().loginTwoFactor(serverUrl, ticket, code);
+    } catch (err) {
+      const msg = describeError(err);
+      setError(msg);
+      // bilhete vencido ou tentativas esgotadas: volta para a senha
+      if (/expirou|tentativas/.test(msg)) {
+        setTicket(null);
+        setPassword('');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (ticket)
+    return (
+      <main className="auth">
+        <form className="auth-card" onSubmit={submitCode} aria-describedby={error ? 'auth-error' : undefined}>
+          <div className="auth-brand">
+            <span className="brand-mark" aria-hidden />
+            <h1>Verificação em duas etapas</h1>
+            <p className="muted">Abra o app autenticador e digite o código de 6 dígitos do OpenCord.</p>
+          </div>
+          <TextField
+            label="Código"
+            hint="Sem o celular? Use um dos seus códigos de recuperação."
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+            minLength={6}
+            maxLength={16}
+            autoFocus
+            autoComplete="one-time-code"
+            inputMode="text"
+          />
+          {error && (
+            <p id="auth-error" className="form-error" role="alert">
+              <Icon name="warning" size={16} /> {error}
+            </p>
+          )}
+          <Button type="submit" size="lg" block disabled={busy || code.trim().length < 6}>
+            {busy ? 'Aguarde…' : 'Confirmar'}
+          </Button>
+          <p className="auth-switch auth-links">
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => {
+                setTicket(null);
+                setError(null);
+                setPassword('');
+              }}
+            >
+              Voltar
+            </button>
+          </p>
+        </form>
+      </main>
+    );
 
   return (
     <main className="auth">

@@ -36,6 +36,7 @@ import { useUi } from '../../store/ui';
 import './settings.css';
 import { deviceLabel } from '../voice/devices';
 import { PrivacySection } from '../legal/PrivacySection';
+import { SecuritySection } from './SecuritySection';
 import { AvatarPicker } from './AvatarPicker';
 import { BotsTab } from './BotsTab';
 import { GamesTab } from './GamesTab';
@@ -399,6 +400,8 @@ function AccountTab() {
           </form>
         </Section>
       )}
+
+      <SecuritySection me={me} Section={Section} />
 
       <PrivacySection me={me} Section={Section} />
 

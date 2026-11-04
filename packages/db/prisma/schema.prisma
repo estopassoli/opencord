@@ -31,6 +31,13 @@ model User {
   verified     Boolean   @default(false)
   createdAt    DateTime  @default(now()) @db.Timestamptz(3)
   disabledAt   DateTime? @db.Timestamptz(3)
+  /// verificação em duas etapas (ADR-0046): segredo TOTP cifrado (AES-GCM, chave derivada do JWT_ACCESS_SECRET)
+  totpSecret         String?
+  totpEnabledAt      DateTime? @db.Timestamptz(3)
+  /// SHA-256 dos códigos de recuperação ainda não usados
+  totpRecoveryHashes String[]  @default([])
+  /// último passo de 30 s aceito: o mesmo código não entra duas vezes
+  totpLastStep       BigInt?
   /// quando aceitou os Termos de uso e a Política de privacidade (ADR-0039); null = ainda precisa aceitar no app
   termsAcceptedAt DateTime? @db.Timestamptz(3)
   /// conta excluída pela própria pessoa (ADR-0039): linha anonimizada (as mensagens ficam como "Usuário removido")

@@ -192,11 +192,98 @@ export const Me = UserPublic.extend({
   createdAt: IsoDate,
   /** false: ainda não aceitou os Termos/Política atuais (conta anterior à ADR-0039); o app pede antes de seguir */
   termsAccepted: z.boolean().default(true),
+  /** verificação em duas etapas ligada (ADR-0046) */
+  twoFactorEnabled: z.boolean().default(false),
 });
 export type Me = z.infer<typeof Me>;
 
 export const AuthResponse = z.object({ user: Me, tokens: TokenPair });
 export type AuthResponse = z.infer<typeof AuthResponse>;
+
+// ---------- Verificação em duas etapas e aparelhos (ADR-0046) ----------
+/** Código do app autenticador (6 dígitos) ou de recuperação (xxxxx-xxxxx). */
+export const TwoFactorCode = z
+  .string()
+  .trim()
+  .min(6)
+  .max(16)
+  .transform((c) => c.replace(/\s+/g, '').toLowerCase());
+/** POST /auth/login com duas etapas ligadas: a senha conferiu e falta o código (bilhete vale 5 minutos). */
+export const TwoFactorChallenge = z.object({ twoFactorRequired: z.literal(true), ticket: z.string() });
+export type TwoFactorChallenge = z.infer<typeof TwoFactorChallenge>;
+export const LoginResponse = z.union([AuthResponse, TwoFactorChallenge]);
+export type LoginResponse = z.infer<typeof LoginResponse>;
+export const LoginTwoFactorRequest = z.object({ ticket: z.string().min(16).max(128), code: TwoFactorCode });
+export type LoginTwoFactorRequest = z.input<typeof LoginTwoFactorRequest>;
+export const TwoFactorSetupRequest = z.object({ password: z.string().min(1).max(256) });
+export const TwoFactorSetupResponse = z.object({ secret: z.string(), otpauthUrl: z.string() });
+export type TwoFactorSetupResponse = z.infer<typeof TwoFactorSetupResponse>;
+export const TwoFactorEnableRequest = z.object({ code: TwoFactorCode });
+/** mostrados uma vez só; cada um entra no lugar do código do app uma vez */
+export const TwoFactorRecoveryCodes = z.object({ recoveryCodes: z.array(z.string()) });
+export type TwoFactorRecoveryCodes = z.infer<typeof TwoFactorRecoveryCodes>;
+export const TwoFactorDisableRequest = z.object({ password: z.string().min(1).max(256), code: TwoFactorCode });
+export type TwoFactorDisableRequest = z.input<typeof TwoFactorDisableRequest>;
+
+/** Aparelho conectado (uma família de sessões): GET /me/sessions */
+export const SessionInfo = z.object({
+  /** id da família de sessões (estável enquanto o aparelho continua conectado) */
+  id: Id,
+  userAgent: z.string().nullable(),
+  /** IP de origem mascarado (só o começo) */
+  ip: z.string().nullable(),
+  createdAt: IsoDate,
+  lastActiveAt: IsoDate,
+  current: z.boolean(),
+});
+export type SessionInfo = z.infer<typeof SessionInfo>;
+
+/** "Chrome no Windows", "App OpenCord no Windows", "Safari no iPhone"... a partir do user agent. */
+export function describeDevice(ua: string | null | undefined): string {
+  if (!ua) return 'Aparelho desconhecido';
+  const os = /android/i.test(ua)
+    ? 'Android'
+    : /iphone/i.test(ua)
+      ? 'iPhone'
+      : /ipad/i.test(ua)
+        ? 'iPad'
+        : /windows/i.test(ua)
+          ? 'Windows'
+          : /mac os x|macintosh/i.test(ua)
+            ? 'Mac'
+            : /cros/i.test(ua)
+              ? 'ChromeOS'
+              : /linux/i.test(ua)
+                ? 'Linux'
+                : null;
+  const app = /electron|opencord/i.test(ua)
+    ? 'App OpenCord'
+    : /edg\//i.test(ua)
+      ? 'Edge'
+      : /opr\/|opera/i.test(ua)
+        ? 'Opera'
+        : /samsungbrowser/i.test(ua)
+          ? 'Samsung Internet'
+          : /firefox|fxios/i.test(ua)
+            ? 'Firefox'
+            : /chrome|crios/i.test(ua)
+              ? 'Chrome'
+              : /safari/i.test(ua)
+                ? 'Safari'
+                : /node|undici|curl|bot/i.test(ua)
+                  ? 'Programa'
+                  : 'Navegador';
+  return os ? `${app} no ${os}` : app;
+}
+
+/** IP só com o começo: 189.40.12.* / 2804:14c:65* */
+export function maskIp(ip: string | null | undefined): string | null {
+  if (!ip) return null;
+  const v4 = /^(?:::ffff:)?(\d+\.\d+\.\d+)\.\d+$/.exec(ip);
+  if (v4) return `${v4[1]}.*`;
+  if (ip.includes(':')) return `${ip.split(':').slice(0, 3).join(':')}:*`;
+  return null;
+}
 
 export const UpdateProfileRequest = z.object({ displayName: Nickname.optional() });
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>;

@@ -6,6 +6,7 @@ import {
   HttpException,
   Inject,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { hash, verify } from '@node-rs/argon2';
@@ -14,6 +15,9 @@ import {
   type AuthResponse,
   type InstanceInfo,
   type LoginRequest,
+  type LoginResponse,
+  type SessionInfo,
+  maskIp,
   type Me,
   type RegisterRequest,
   type TokenPair,
@@ -27,6 +31,8 @@ import { DeviceBansService } from '../ai-moderation/device-bans.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { VoiceService } from '../voice/voice.service.js';
 import { isBotSession, randomToken, sha256, TokenService } from './token.service.js';
+import { TwoFactorService } from './two-factor.service.js';
+import { LoginAlertsService } from './login-alerts.service.js';
 
 // Argon2id (algorithm 2) com parâmetros OWASP (m=19 MiB, t=2, p=1).
 const ARGON = { algorithm: 2, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
@@ -59,6 +65,8 @@ export class AuthService {
     private readonly instance: InstanceService,
     private readonly voice: VoiceService,
     private readonly deviceBans: DeviceBansService,
+    private readonly twoFactor: TwoFactorService,
+    private readonly loginAlerts: LoginAlertsService,
   ) {}
 
   toMe(u: {
@@ -74,6 +82,7 @@ export class AuthService {
     isBot?: boolean;
     isWebhook?: boolean;
     verified?: boolean;
+    totpEnabledAt?: Date | null;
   }): Me {
     return {
       id: u.id,
@@ -84,6 +93,7 @@ export class AuthService {
       displayName: u.displayName,
       avatarKey: u.avatarKey,
       hasAccount: u.passwordHash !== null,
+      twoFactorEnabled: Boolean(u.totpEnabledAt),
       // bots e webhooks não aceitam termos; contas anteriores à ADR-0039 aceitam no app
       termsAccepted: u.termsAcceptedAt !== null || Boolean(u.isBot) || Boolean(u.isWebhook),
       createdAt: u.createdAt.toISOString(),
@@ -246,7 +256,7 @@ export class AuthService {
   }
 
   /** Login de conta: `login` é o apelido ou o e-mail. */
-  async login(dto: LoginRequest, client: ClientInfo): Promise<AuthResponse> {
+  async login(dto: LoginRequest, client: ClientInfo): Promise<LoginResponse> {
     await this.deviceBans.assertAllowed({ ...client, deviceId: dto.deviceId ?? client.deviceId });
     const login = dto.login.trim();
     const user = login.includes('@')
@@ -272,10 +282,49 @@ export class AuthService {
     if (!user || !user.passwordHash || !ok || user.disabledAt)
       throw new UnauthorizedException('apelido/e-mail ou senha incorretos');
     await this.redis.client.del(ipKey, acctKey);
-    const tokens = await this.issueSession(user.id, randomUUID(), {
-      ...client,
-      deviceId: dto.deviceId ?? client.deviceId,
-    });
+    const device = { ...client, deviceId: dto.deviceId ?? client.deviceId };
+    // duas etapas (ADR-0046): a senha conferiu; a sessão só sai com o código do app (bilhete de 5 minutos)
+    if (user.totpEnabledAt) {
+      const ticket = randomToken(24);
+      await this.redis.client.set(
+        `2fa:ticket:${ticket}`,
+        JSON.stringify({ userId: user.id, client: device }),
+        'EX',
+        300,
+      );
+      return { twoFactorRequired: true, ticket };
+    }
+    return this.finishLogin(user, device);
+  }
+
+  /** Segunda etapa do login: código do app autenticador ou de recuperação. 5 erros encerram o bilhete. */
+  async loginTwoFactor(dto: { ticket: string; code: string }): Promise<AuthResponse> {
+    const key = `2fa:ticket:${dto.ticket}`;
+    const raw = await this.redis.client.get(key);
+    if (!raw) throw new UnauthorizedException('a verificação expirou; entre de novo com a senha');
+    const t = JSON.parse(raw) as { userId: string; client: ClientInfo };
+    const tries = await this.redis.client.incr(`${key}:n`);
+    await this.redis.client.expire(`${key}:n`, 300);
+    if (tries > 5) {
+      await this.redis.client.del(key, `${key}:n`);
+      throw new UnauthorizedException('muitas tentativas; entre de novo com a senha');
+    }
+    if (!(await this.twoFactor.check(t.userId, dto.code))) throw new UnauthorizedException('código incorreto');
+    // bilhete de uso único
+    if (!(await this.redis.client.del(key)))
+      throw new UnauthorizedException('a verificação expirou; entre de novo com a senha');
+    await this.redis.client.del(`${key}:n`);
+    const user = await this.prisma.user.findUnique({ where: { id: t.userId } });
+    if (!user || user.disabledAt) throw new UnauthorizedException('conta desativada');
+    await this.deviceBans.assertAllowed(t.client);
+    return this.finishLogin(user, t.client);
+  }
+
+  /** cria a sessão e avisa por DM se o aparelho é novo (ADR-0046) */
+  private async finishLogin(user: Parameters<AuthService['toMe']>[0], client: ClientInfo): Promise<AuthResponse> {
+    const alert = await this.loginAlerts.prepare(user.id, client).catch(() => null);
+    const tokens = await this.issueSession(user.id, randomUUID(), client);
+    alert?.();
     return { user: this.toMe(user), tokens };
   }
 
@@ -348,6 +397,60 @@ export class AuthService {
   private async leaveVoiceIfNoSession(userId: string) {
     const active = await this.prisma.session.count({ where: { userId, revokedAt: null } });
     if (!active) await this.voice.forceLeave(userId).catch(() => undefined);
+  }
+
+  // ---------- Aparelhos conectados (ADR-0046) ----------
+
+  /** Uma linha por família de sessões ativa (cada aparelho/login), mais recente primeiro. */
+  async listSessions(userId: string, currentSessionId: string): Promise<SessionInfo[]> {
+    const now = new Date();
+    const live = await this.prisma.session.findMany({
+      where: { userId, revokedAt: null, rotatedAt: null, expiresAt: { gt: now } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const current = await this.prisma.session.findUnique({
+      where: { id: currentSessionId },
+      select: { familyId: true },
+    });
+    const firsts = await this.prisma.session.groupBy({
+      by: ['familyId'],
+      where: { familyId: { in: live.map((s) => s.familyId) } },
+      _min: { createdAt: true },
+    });
+    const started = new Map(firsts.map((f) => [f.familyId, f._min.createdAt]));
+    const seen = new Set<string>();
+    return live
+      .filter((s) => (seen.has(s.familyId) ? false : (seen.add(s.familyId), true)))
+      .map((s) => ({
+        id: s.familyId,
+        userAgent: s.userAgent,
+        ip: maskIp(s.ip),
+        createdAt: (started.get(s.familyId) ?? s.createdAt).toISOString(),
+        lastActiveAt: s.createdAt.toISOString(),
+        current: s.familyId === current?.familyId,
+      }));
+  }
+
+  /** Encerra um aparelho (família de sessões) da própria conta. */
+  async revokeSession(userId: string, familyId: string) {
+    const own = await this.prisma.session.findFirst({ where: { familyId, userId }, select: { id: true } });
+    if (!own) throw new NotFoundException('aparelho não encontrado');
+    await this.revokeFamily(familyId, 'session_revoked');
+  }
+
+  /** Encerra todos os aparelhos menos o atual. */
+  async revokeOtherSessions(userId: string, currentSessionId: string): Promise<number> {
+    const current = await this.prisma.session.findUnique({
+      where: { id: currentSessionId },
+      select: { familyId: true },
+    });
+    const others = await this.prisma.session.findMany({
+      where: { userId, revokedAt: null, ...(current ? { NOT: { familyId: current.familyId } } : {}) },
+      select: { familyId: true },
+      distinct: ['familyId'],
+    });
+    for (const o of others) await this.revokeFamily(o.familyId, 'session_revoked');
+    return others.length;
   }
 
   async revokeAllForUser(userId: string, reason: string) {

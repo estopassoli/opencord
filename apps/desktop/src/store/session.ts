@@ -32,7 +32,9 @@ interface SessionState {
   error: string | null;
   restore(): Promise<void>;
   /** Login de conta: apelido ou e-mail + senha. */
-  login(serverUrl: string, login: string, password: string): Promise<void>;
+  /** com verificação em duas etapas ligada devolve o bilhete; a sessão sai em loginTwoFactor (ADR-0046) */
+  login(serverUrl: string, login: string, password: string): Promise<{ twoFactorTicket: string } | void>;
+  loginTwoFactor(serverUrl: string, ticket: string, code: string): Promise<void>;
   /** Entrar só com apelido (ADR-0007). */
   join(serverUrl: string, nickname: string, accessCode?: string): Promise<void>;
   register(
@@ -67,6 +69,21 @@ let restoring: Promise<void> | null = null;
 const hardwareId: Promise<string | null> = bridge ? bridge.hardwareId().catch(() => null) : Promise.resolve(null);
 
 export const useSession = create<SessionState>()((set, get) => {
+  async function finishLogin(api: ApiClient, serverUrl: string, res: AuthResponse) {
+    api.setTokens({
+      accessToken: res.tokens.accessToken,
+      refreshToken: res.tokens.refreshToken,
+      accessExpiresAt: res.tokens.accessExpiresAt,
+    });
+    await secrets.set('serverUrl', serverUrl);
+    await persistTokens({
+      accessToken: res.tokens.accessToken,
+      refreshToken: res.tokens.refreshToken,
+      accessExpiresAt: res.tokens.accessExpiresAt,
+    });
+    await start(api, serverUrl, res);
+  }
+
   function makeApi(serverUrl: string) {
     const api = new ApiClient(serverUrl);
     api.hardwareId = () => hardwareId;
@@ -134,19 +151,15 @@ export const useSession = create<SessionState>()((set, get) => {
     async login(serverUrlRaw, login, password) {
       const serverUrl = normalizeServerUrl(serverUrlRaw);
       const api = makeApi(serverUrl);
-      const res = await api.login(login, password, deviceId);
-      api.setTokens({
-        accessToken: res.tokens.accessToken,
-        refreshToken: res.tokens.refreshToken,
-        accessExpiresAt: res.tokens.accessExpiresAt,
-      });
-      await secrets.set('serverUrl', serverUrl);
-      await persistTokens({
-        accessToken: res.tokens.accessToken,
-        refreshToken: res.tokens.refreshToken,
-        accessExpiresAt: res.tokens.accessExpiresAt,
-      });
-      await start(api, serverUrl, res);
+      const first = await api.login(login, password, deviceId);
+      if ('twoFactorRequired' in first) return { twoFactorTicket: first.ticket };
+      await finishLogin(api, serverUrl, first);
+    },
+
+    async loginTwoFactor(serverUrlRaw, ticket, code) {
+      const serverUrl = normalizeServerUrl(serverUrlRaw);
+      const api = makeApi(serverUrl);
+      await finishLogin(api, serverUrl, await api.loginTwoFactor(ticket, code));
     },
 
     async join(serverUrlRaw, nickname, accessCode) {

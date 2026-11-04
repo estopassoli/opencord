@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '20:30',
+    kind: 'novo',
+    icon: 'shield',
+    title: 'Mais segurança na sua conta',
+    body: 'Em Configurações → Minha conta: ligue a verificação em duas etapas com um app autenticador do celular (o login passa a pedir um código, e você guarda códigos de recuperação para emergências) e veja os aparelhos conectados, podendo tirar qualquer um. Quando a sua conta entrar de um aparelho novo, o OpenCord avisa por mensagem direta.',
+  },
+  {
+    date: '2026-11-04',
     time: '20:10',
     kind: 'melhoria',
     icon: 'server',

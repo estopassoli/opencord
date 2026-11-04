@@ -1,4 +1,4 @@
-import type { AuthResponse, InstanceInfo, TokenPair } from '@opencord/contracts';
+import type { AuthResponse, InstanceInfo, LoginResponse, TokenPair } from '@opencord/contracts';
 
 export class ApiError extends Error {
   constructor(
@@ -197,7 +197,11 @@ export class ApiClient {
   }
   /** Login de conta: `login` = apelido ou e-mail. */
   login(login: string, password: string, deviceId: string) {
-    return this.request<AuthResponse>('POST', '/auth/login', { login, password, deviceId }, { auth: false });
+    return this.request<LoginResponse>('POST', '/auth/login', { login, password, deviceId }, { auth: false });
+  }
+  /** Segunda etapa (ADR-0046): código do app autenticador ou de recuperação. */
+  loginTwoFactor(ticket: string, code: string) {
+    return this.request<AuthResponse>('POST', '/auth/login/2fa', { ticket, code }, { auth: false });
   }
   /** Criar conta (opcional): apelido + senha; e-mail opcional. */
   register(body: {

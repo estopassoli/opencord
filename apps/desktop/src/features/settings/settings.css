@@ -926,3 +926,70 @@
   overflow-wrap: anywhere;
   font-size: 0.875rem;
 }
+
+/* segurança da conta (ADR-0046) */
+.security-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.security-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.security-status[data-on='true'] {
+  color: var(--success, #3fb27f);
+}
+.security-qr {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: #fff;
+  width: fit-content;
+  margin: 0 auto;
+}
+.security-secret {
+  user-select: all;
+  word-break: break-all;
+}
+.security-codes {
+  list-style: none;
+  margin: 0;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  font-family: var(--font-mono);
+}
+.security-devices {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.security-devices li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+}
+.security-device-names {
+  display: grid;
+  min-width: 0;
+}
+.security-device-names strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

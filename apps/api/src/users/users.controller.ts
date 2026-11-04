@@ -6,6 +6,8 @@ import {
   Delete,
   Get,
   HttpCode,
+  Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Put,
@@ -18,6 +20,9 @@ import {
   DeleteAccountRequest,
   SetPresenceRequest,
   SetStatusTextRequest,
+  TwoFactorDisableRequest,
+  TwoFactorEnableRequest,
+  TwoFactorSetupRequest,
   UpdateProfileRequest,
   UserSettingsV1,
   defaultUserSettings,
@@ -32,6 +37,7 @@ import { AuthService } from '../auth/auth.service.js';
 import { PresenceService } from '../realtime/presence.service.js';
 import { AccountService } from './account.service.js';
 import { AvatarService } from './avatar.service.js';
+import { TwoFactorService } from '../auth/two-factor.service.js';
 
 // exportar é caro (lê tudo da pessoa): poucas vezes por hora
 const EXPORT_RATE = { rateLimit: { max: 5, timeWindow: '1 hour' } };
@@ -44,6 +50,7 @@ export class UsersController {
     private readonly presence: PresenceService,
     private readonly avatars: AvatarService,
     private readonly account: AccountService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   @Get()
@@ -76,6 +83,61 @@ export class UsersController {
   @Delete('avatar')
   async clearAvatar(@CurrentUser() u: AuthUser) {
     return this.auth.toMe(await this.avatars.clear(u.userId));
+  }
+
+  // ---------- Verificação em duas etapas e aparelhos conectados (ADR-0046) ----------
+
+  @Post('2fa/setup')
+  @HttpCode(200)
+  setupTwoFactor(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(TwoFactorSetupRequest)) dto: z.infer<typeof TwoFactorSetupRequest>,
+  ) {
+    return this.twoFactor.setup(u.userId, dto.password);
+  }
+
+  @Post('2fa/enable')
+  @HttpCode(200)
+  enableTwoFactor(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(TwoFactorEnableRequest)) dto: z.infer<typeof TwoFactorEnableRequest>,
+  ) {
+    return this.twoFactor.enable(u.userId, dto.code);
+  }
+
+  @Post('2fa/disable')
+  @HttpCode(204)
+  async disableTwoFactor(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(TwoFactorDisableRequest)) dto: z.infer<typeof TwoFactorDisableRequest>,
+  ) {
+    await this.twoFactor.disable(u.userId, dto.password, dto.code);
+  }
+
+  @Post('2fa/recovery-codes')
+  @HttpCode(200)
+  regenerateRecovery(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(TwoFactorDisableRequest)) dto: z.infer<typeof TwoFactorDisableRequest>,
+  ) {
+    return this.twoFactor.regenerateRecovery(u.userId, dto.password, dto.code);
+  }
+
+  @Get('sessions')
+  sessions(@CurrentUser() u: AuthUser) {
+    return this.auth.listSessions(u.userId, u.sessionId);
+  }
+
+  @Delete('sessions/:id')
+  @HttpCode(204)
+  async revokeSession(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) {
+    await this.auth.revokeSession(u.userId, id);
+  }
+
+  @Post('sessions/revoke-others')
+  @HttpCode(200)
+  async revokeOthers(@CurrentUser() u: AuthUser) {
+    return { revoked: await this.auth.revokeOtherSessions(u.userId, u.sessionId) };
   }
 
   /** Aceite dos Termos de uso e da Política de privacidade por quem já tinha conta (ADR-0039). */

@@ -9,6 +9,12 @@ Identidades sem senha ficam ligadas ao dispositivo pela sessão. Servidores são
 ## Controles
 - Argon2id; login rate limit; e-mails normalizados; convites armazenados como hash e com expiração/uso máximo.
 - Access token curto; refresh rotativo com hash e revogação; armazenamento de tokens com mecanismo seguro do sistema quando disponível.
+- Verificação em duas etapas opcional (ADR-0046):
+  - TOTP RFC 6238, com o segredo cifrado em AES-256-GCM (chave derivada do `JWT_ACCESS_SECRET` por HKDF);
+  - anti-replay por passo de 30 s;
+  - 10 códigos de recuperação guardados só como SHA-256, cada um de uso único;
+  - login em duas fases com bilhete de uso único (Redis, 5 min, 5 tentativas).
+- Aparelhos conectados com encerramento remoto, e aviso por DM da conta OpenCord quando a conta entra de um aparelho novo.
 - RBAC por servidor/canal, deny explícito prevalece conforme regra documentada; verificar permissões no backend e no momento de emitir tokens LiveKit.
 - Remoção de membro implica expulsão ativa da SFU e rooms de realtime.
 - Upload: tamanho máximo, MIME real, nome sanitizado, URLs assinadas e política de retenção.

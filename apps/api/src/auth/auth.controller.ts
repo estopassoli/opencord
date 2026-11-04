@@ -3,6 +3,7 @@ import {
   ClaimAccountRequest,
   GuestJoinRequest,
   LoginRequest,
+  LoginTwoFactorRequest,
   Password,
   RefreshRequest,
   RegisterRequest,
@@ -59,6 +60,15 @@ export class AuthController {
   @HttpCode(200)
   login(@Body(zodPipe(LoginRequest)) dto: LoginRequest, @Req() req: FastifyRequest) {
     return this.auth.login(dto, client(req));
+  }
+
+  /** Segunda etapa do login com verificação em duas etapas (ADR-0046) */
+  @Public()
+  @Post('login/2fa')
+  @RouteConfig(AUTH_RATE)
+  @HttpCode(200)
+  loginTwoFactor(@Body(zodPipe(LoginTwoFactorRequest)) dto: z.infer<typeof LoginTwoFactorRequest>) {
+    return this.auth.loginTwoFactor(dto);
   }
 
   @Public()

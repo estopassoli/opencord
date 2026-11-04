@@ -1,11 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service.js';
 import { PrismaService } from '../common/prisma.service.js';
-import { MessagesService } from '../messages/messages.service.js';
-import { RealtimeService } from '../realtime/realtime.service.js';
-import { SystemUserService } from '../system/system-user.service.js';
-import { SocialService } from '../social/social.service.js';
+import { SystemNoticesService } from '../system/system-notices.service.js';
 import { BoardsService } from './boards.service.js';
 
 /** texto da DM de recusa (Markdown do chat) */
@@ -32,12 +28,9 @@ export function rejectionText(o: { server: string; board: string; title: string;
 export class CardRejectionService {
   constructor(
     private readonly boards: BoardsService,
-    private readonly messages: MessagesService,
-    private readonly system: SystemUserService,
+    private readonly notices: SystemNoticesService,
     private readonly prisma: PrismaService,
-    private readonly realtime: RealtimeService,
     private readonly audit: AuditService,
-    private readonly social: SocialService,
   ) {}
 
   async reject(
@@ -57,21 +50,14 @@ export class CardRejectionService {
     });
     let notified = false;
     if (dto.notify && card.reporterId && card.reporterId !== userId && !card.reporter?.disabledAt) {
-      const systemId = await this.system.ensure();
-      const conversationId = await this.dmWith(systemId, card.reporterId);
-      await this.messages.create(
-        systemId,
-        { conversationId },
-        {
-          requestId: randomUUID(),
-          body: rejectionText({
-            server: card.board.server.name,
-            board: card.board.name,
-            title: card.title,
-            reason: dto.reason,
-          }),
-        },
-        { skipModeration: true },
+      await this.notices.notify(
+        card.reporterId,
+        rejectionText({
+          server: card.board.server.name,
+          board: card.board.name,
+          title: card.title,
+          reason: dto.reason,
+        }),
       );
       notified = true;
     }
@@ -81,20 +67,5 @@ export class CardRejectionService {
       notified,
     });
     return { notified };
-  }
-
-  /** DM 1:1 entre a conta de avisos e a pessoa (a mesma de sempre, criada na primeira vez) */
-  private async dmWith(systemId: string, userId: string): Promise<string> {
-    const [low, high] = systemId < userId ? [systemId, userId] : [userId, systemId];
-    const dmKey = `${low}:${high}`;
-    const existing = await this.prisma.conversation.findUnique({ where: { dmKey }, select: { id: true } });
-    if (existing) return existing.id;
-    const c = await this.prisma.conversation.create({
-      data: { kind: 'dm', dmKey, members: { create: [{ userId: systemId }, { userId }] } },
-      select: { id: true },
-    });
-    await this.realtime.conversationJoined(c.id, [systemId, userId]);
-    await this.social.announceConversation(c.id);
-    return c.id;
   }
 }
