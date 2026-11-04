@@ -35,6 +35,8 @@ export type Modal =
   | { kind: 'events'; serverId: string }
   | { kind: 'highlights'; serverId: string }
   | { kind: 'watch-together' }
+  /** página de clipes (todos os clipes salvos neste computador) */
+  | { kind: 'clips' }
   | { kind: 'screen-picker' }
   | { kind: 'quick-switcher' }
   /** formulário aberto por um bot (ADR-0034) */

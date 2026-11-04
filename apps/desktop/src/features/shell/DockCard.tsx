@@ -13,6 +13,7 @@ import { useData } from '../../store/data';
 import { EMPTY_APPEARANCE, useProfiles } from '../../store/profiles';
 import { useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
+import { bridge } from '../../lib/bridge';
 
 type Settable = Exclude<PresenceStatus, 'offline'>;
 const STATUSES: Settable[] = ['online', 'idle', 'dnd', 'invisible'];
@@ -152,6 +153,19 @@ export function DockCard({
             <Icon name="star" size={18} /> <span>Insígnias em destaque</span>
           </button>
         </li>
+        {bridge && (
+          <li role="none">
+            <button
+              role="menuitem"
+              onClick={() => {
+                onClose();
+                useUi.getState().openModal({ kind: 'clips' });
+              }}
+            >
+              <Icon name="film" size={18} /> <span>Clipes</span>
+            </button>
+          </li>
+        )}
       </ul>
 
       <ul className="dock-card-menu" role="menu">

@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '02:00',
+    kind: 'novo',
+    icon: 'film',
+    title: 'Página de clipes',
+    body: 'Todos os seus clipes num lugar só, separados por jogo, com miniatura, data e duração. A barra à esquerda filtra por jogo, e clicar num clipe abre o editor de sempre. Abra pelo seu cartão de conta, no canto de baixo (só no app para computador).',
+  },
+  {
+    date: '2026-11-05',
     time: '01:40',
     kind: 'novo',
     icon: 'user',

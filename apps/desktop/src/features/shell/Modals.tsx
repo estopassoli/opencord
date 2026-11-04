@@ -1,3 +1,4 @@
+import { ClipsPage } from '../clips/ClipsPage';
 import type {
   Category,
   Channel,
@@ -68,6 +69,8 @@ export function Modals() {
       return <RoomInviteDialog serverId={modal.serverId} channelId={modal.channelId} onClose={close} />;
     case 'watch-together':
       return <WatchTogetherDialog onClose={close} />;
+    case 'clips':
+      return <ClipsPage onClose={close} />;
     case 'create-category':
       return <CreateCategory serverId={modal.serverId} onClose={close} />;
     case 'events':
