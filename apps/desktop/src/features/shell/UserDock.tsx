@@ -1,3 +1,4 @@
+import { DockCard } from './DockCard';
 import type { PresenceStatus } from '@opencord/contracts';
 import { Avatar, Icon, STATUS_LABEL } from '@opencord/ui';
 import { useEffect, useRef, useState } from 'react';
@@ -15,7 +16,6 @@ import { askText } from '../../components/AskDialog';
 import { autoIdleEnabled, setAutoIdleEnabled } from '../../lib/auto-idle';
 import { ResumeCall } from './ResumeCall';
 
-const STATUSES: Exclude<PresenceStatus, 'offline'>[] = ['online', 'idle', 'dnd', 'invisible'];
 
 const VOICE_LABEL = {
   authorizing: 'Autorizando…',
@@ -227,10 +227,10 @@ export function UserDock() {
         <div className="popover-anchor user-dock-anchor">
           <button
             className="user-dock-id"
-            aria-haspopup="menu"
+            aria-haspopup="dialog"
             aria-expanded={menu}
             onClick={() => setMenu((m) => !m)}
-            data-tip="Alterar status"
+            data-tip="Sua conta e status"
           >
             <Avatar
               id={me.id}
@@ -252,48 +252,18 @@ export function UserDock() {
             </span>
           </button>
           {menu && (
-            <ul className="menu menu-up" role="menu">
-              {STATUSES.map((s) => (
-                <li key={s} role="none">
-                  <button
-                    role="menuitem"
-                    aria-current={myStatus === s ? 'true' : undefined}
-                    onClick={() => setStatus(s)}
-                  >
-                    <span className="oc-status-dot" data-status={s === 'invisible' ? 'offline' : s} aria-hidden />{' '}
-                    {STATUS_LABEL[s]}
-                  </button>
-                </li>
-              ))}
-              <li role="separator" className="menu-sep" />
-              <li role="none">
-                <button role="menuitem" onClick={() => void setText()}>
-                  <Icon name="edit" size={16} />{' '}
-                  {myText ? 'Editar status personalizado' : 'Definir status personalizado'}
-                </button>
-              </li>
-              {myText && (
-                <li role="none">
-                  <button role="menuitem" onClick={clearText}>
-                    <Icon name="close" size={16} /> Limpar status
-                  </button>
-                </li>
-              )}
-              <li role="none">
-                <button
-                  role="menuitemcheckbox"
-                  aria-checked={autoIdle}
-                  onClick={() => {
-                    const on = !autoIdle;
-                    setAutoIdle(on);
-                    setAutoIdleEnabled(on);
-                  }}
-                >
-                  {autoIdle ? <Icon name="check" size={16} /> : <span className="menu-blank" aria-hidden />} Ausente
-                  após 10 min parado
-                </button>
-              </li>
-            </ul>
+            <DockCard
+              onClose={() => setMenu(false)}
+              setStatus={setStatus}
+              editText={() => void setText()}
+              clearText={clearText}
+              autoIdle={autoIdle}
+              toggleAutoIdle={() => {
+                const on = !autoIdle;
+                setAutoIdle(on);
+                setAutoIdleEnabled(on);
+              }}
+            />
           )}
         </div>
         <div className="dock-split" data-off={v.selfMute ? 'true' : undefined}>

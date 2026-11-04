@@ -8385,3 +8385,68 @@ html[data-wallpaper='true'] .chat-scroll {
 .zoom-chip .icon-btn {
   color: #fff;
 }
+
+/* cartão da conta no painel de baixo (clicar na própria foto/nome) */
+.dock-card {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: -4px;
+  z-index: 1300;
+  width: 300px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+  animation: oc-pop var(--dur) var(--ease-out);
+}
+.dock-card-menu {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: rgb(0 0 0 / 0.22);
+}
+.dock-card-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+.dock-card-menu button:hover,
+.dock-card-menu button:focus-visible {
+  background: rgb(255 255 255 / 0.08);
+}
+.dock-card-menu .danger-text {
+  color: var(--danger);
+}
+.dock-card-chevron {
+  margin-left: auto;
+}
+.dock-card-sub > ul {
+  list-style: none;
+  margin: 0 0 4px 18px;
+  padding: 0 0 0 8px;
+  border-left: 1px solid rgb(255 255 255 / 0.12);
+}
+.dock-card-texts {
+  display: grid;
+  min-width: 0;
+}
+.dock-card-menu li + li:not(.dock-card-sub) {
+  border-top: 1px solid rgb(255 255 255 / 0.05);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-card {
+    animation: none;
+  }
+}

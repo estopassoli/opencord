@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '01:40',
+    kind: 'novo',
+    icon: 'user',
+    title: 'Sua conta num cartão',
+    body: 'Clique na sua foto ou no seu nome no canto de baixo: abre o seu cartão de perfil, com banner, bio e insígnias, e logo embaixo os atalhos da conta (editar perfil, mudar o status, escrever o status personalizado, insígnias em destaque, configurações, copiar ID e sair).',
+  },
+  {
+    date: '2026-11-05',
     time: '01:20',
     kind: 'melhoria',
     icon: 'edit',
