@@ -8,9 +8,14 @@
   flex: 1;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
+  /* a linha precisa ser minmax(0, 1fr): com a linha implícita (auto) a grade cresce com o conteúdo, o <dialog> inteiro
+     passa a rolar e o topo e o fim da barra lateral somem; quem rola é só .adm-content */
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   height: 100%;
+  overflow: hidden;
+  position: relative;
 }
 .adm-side {
   display: flex;
@@ -228,6 +233,8 @@
   outline-offset: 2px;
 }
 .adm-content {
+  /* relative: textos .oc-visually-hidden (absolute) das linhas ficam presos a esta rolagem em vez de estourar o <dialog> */
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
