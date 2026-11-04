@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     kind: 'novo',
     icon: 'close',
     title: 'Fechar conversas diretas',
-    body: 'Clique com o botão direito numa conversa da lista de mensagens diretas e escolha "Fechar conversa" para tirá-la da sua lista. Nada é apagado e a outra pessoa não fica sabendo. Se chegar mensagem nova, ou se você abrir a conversa pelo perfil, ela volta.',
+    body: 'Passe o mouse numa conversa da lista de mensagens diretas e clique no X, ou use "Fechar conversa" no botão direito, para tirá-la da sua lista. Nada é apagado e a outra pessoa não fica sabendo. Se chegar mensagem nova, ou se você abrir a conversa pelo perfil, ela volta.',
   },
   {
     date: '2026-11-04',

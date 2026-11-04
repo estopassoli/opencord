@@ -2916,6 +2916,41 @@ body {
   min-height: 44px;
   gap: 12px;
 }
+/* X para fechar a conversa: aparece ao passar o mouse ou focar a linha (no toque, sempre visível) */
+.dm-item {
+  position: relative;
+}
+.dm-close {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease);
+}
+.dm-item:hover .dm-close,
+.dm-item:focus-within .dm-close {
+  opacity: 1;
+  pointer-events: auto;
+}
+.dm-item:hover .dm-row,
+.dm-item:focus-within .dm-row {
+  padding-right: 36px;
+}
+.dm-item:hover .dm-row .badge-inline,
+.dm-item:hover .dm-row .dm-pin {
+  visibility: hidden;
+}
+@media (hover: none) {
+  .dm-close {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .dm-row {
+    padding-right: 36px;
+  }
+}
 .dm-row[data-offline='true']:not([aria-current]) {
   opacity: 0.6;
 }

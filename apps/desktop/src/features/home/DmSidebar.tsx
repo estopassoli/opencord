@@ -26,6 +26,13 @@ async function inviteTo(serverId: string, conversationId: string) {
 }
 
 /** Menu da conversa direta (botão direito na lista). */
+/** tira a conversa só da minha lista (volta com mensagem nova); se estava aberta, vai para Amigos */
+function closeDm(c: Conversation) {
+  closeConversation(c, useData.getState().unread[`d:${c.id}`]);
+  const ui = useUi.getState();
+  if (ui.view.kind === 'dm' && ui.view.conversationId === c.id) ui.go({ kind: 'home', tab: 'friends' });
+}
+
 function dmMenu(c: Conversation, meId: string | undefined): MenuEntry[] {
   const d = useData.getState();
   const pinned = d.settings?.pinnedConversations.includes(c.id) ?? false;
@@ -47,11 +54,7 @@ function dmMenu(c: Conversation, meId: string | undefined): MenuEntry[] {
       label: 'Fechar conversa',
       icon: 'close',
       hint: 'Some da sua lista até chegar mensagem nova',
-      onSelect: () => {
-        closeConversation(c, useData.getState().unread[`d:${c.id}`]);
-        const ui = useUi.getState();
-        if (ui.view.kind === 'dm' && ui.view.conversationId === c.id) ui.go({ kind: 'home', tab: 'friends' });
-      },
+      onSelect: () => closeDm(c),
     },
   ];
   const other = c.kind === 'dm' ? c.members.find((m) => m.id !== meId) : undefined;
@@ -190,7 +193,7 @@ export function DmSidebar() {
             const status = first && c.kind === 'dm' ? (presence[first.id] ?? 'offline') : undefined;
             const pinned = pins.includes(c.id);
             return (
-              <li key={c.id}>
+              <li key={c.id} className="dm-item">
                 <button
                   className="channel-row dm-row"
                   aria-current={active ? 'page' : undefined}
@@ -212,8 +215,21 @@ export function DmSidebar() {
                       <span className="muted small">{STATUS_LABEL[status]}</span>
                     ) : null}
                   </span>
-                  {pinned && <Icon name="pin" size={14} label="Conversa fixada" />}
+                  {pinned && (
+                    <span className="dm-pin">
+                      <Icon name="pin" size={14} label="Conversa fixada" />
+                    </span>
+                  )}
                   {(u?.unreadCount ?? 0) > 0 && !active && <span className="badge badge-inline">{u?.unreadCount}</span>}
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn icon-btn-sm dm-close"
+                  aria-label={`Fechar conversa com ${name}`}
+                  data-tip="Fechar conversa"
+                  onClick={() => closeDm(c)}
+                >
+                  <Icon name="close" size={16} />
                 </button>
               </li>
             );
