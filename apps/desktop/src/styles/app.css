@@ -1307,6 +1307,10 @@ textarea:focus-visible {
   height: 100%;
   object-fit: cover;
 }
+/* sem dimensões (GIF, imagem de embed): a caixa abraça a imagem, senão o canto arredondado fica longe dela */
+.chat-img:not([data-sized]) {
+  width: fit-content;
+}
 .chat-img:not([data-sized]) img {
   max-width: 100%;
   width: auto;
