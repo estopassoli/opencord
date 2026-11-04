@@ -16,6 +16,7 @@ import { Dialog } from '../../components/Dialog';
 import { ImageCropDialog } from '../../components/ImageCropDialog';
 import { ProfileCardHead, profileThemeVars, useBannerUrl } from '../../components/ProfileCardView';
 import { bannerImage, keepsAnimation, squareImage } from '../../lib/images';
+import { BadgeGlyph, useBadgeCatalog } from '../../components/UserBadges';
 import { useData } from '../../store/data';
 import { EMPTY_APPEARANCE, useProfiles } from '../../store/profiles';
 import { api, describeError, useSession } from '../../store/session';
@@ -65,6 +66,11 @@ export function ProfileEditor({ me }: { me: Me }) {
   const current = saved ?? EMPTY_APPEARANCE;
 
   const [bio, setBio] = useState<string | null>(null);
+  // insígnias em destaque (até 3 das minhas)
+  const catalog = useBadgeCatalog();
+  const myBadges = catalog.filter((b) => (me.badges ?? []).includes(b.id));
+  const [featured, setFeatured] = useState<string[] | null>(null);
+  const featuredDraft = featured ?? me.featuredBadges ?? [];
   // status com texto (o mesmo do menu do usuário): no balão ao lado da foto
   const savedStatus = useData((s) => s.myStatusText) ?? '';
   const [status, setStatus] = useState<string | null>(null);
@@ -112,6 +118,7 @@ export function ProfileEditor({ me }: { me: Me }) {
           ? avatar.url
           : null;
   const dirty =
+    (featured !== null && JSON.stringify(featured) !== JSON.stringify(me.featuredBadges ?? [])) ||
     (status !== null && status.trim() !== savedStatus) ||
     (bio !== null && bio.trim() !== current.bio) ||
     (colors !== undefined && JSON.stringify(colors) !== JSON.stringify(current.colors)) ||
@@ -134,6 +141,7 @@ export function ProfileEditor({ me }: { me: Me }) {
 
   const reset = () => {
     setBio(null);
+    setFeatured(null);
     setStatus(null);
     setColors(undefined);
     setBanner({ kind: 'keep' });
@@ -160,6 +168,12 @@ export function ProfileEditor({ me }: { me: Me }) {
         ...(avatar.kind === 'url' ? { avatarUrl: avatar.url } : {}),
       };
       if (Object.keys(patch).length) last = await api().request<ProfileUpdateResponse>('PATCH', '/me/profile', patch);
+      if (featured !== null) {
+        await api().request('PUT', '/me/badges/featured', { badgeIds: featured });
+        useData.setState((s) =>
+          s.me ? { me: { ...s.me, featuredBadges: featured.length ? featured : undefined } } : {},
+        );
+      }
       if (status !== null && status.trim() !== savedStatus) {
         const text = status.trim() || null;
         await api().request('PUT', '/me/status-text', { text });
@@ -249,6 +263,31 @@ export function ProfileEditor({ me }: { me: Me }) {
             </span>
           </button>
         </section>
+
+        {myBadges.length > 0 && (
+          <section>
+            <h3>Insígnias em destaque</h3>
+            <span className="muted small">Escolha até 3 para aparecer ao lado do seu nome.</span>
+            <div className="profile-featured" role="group" aria-label="Insígnias em destaque">
+              {myBadges.map((b) => {
+                const on = featuredDraft.includes(b.id);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className="profile-featured-item"
+                    aria-pressed={on}
+                    disabled={!on && featuredDraft.length >= 3}
+                    onClick={() => setFeatured(on ? featuredDraft.filter((x) => x !== b.id) : [...featuredDraft, b.id])}
+                  >
+                    <BadgeGlyph badge={b} size={18} />
+                    <span className="truncate">{b.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         <section>
           <h3>Cores do perfil</h3>

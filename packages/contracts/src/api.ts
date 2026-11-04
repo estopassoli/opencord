@@ -77,6 +77,8 @@ export const UpdateBadgeRequest = z.object({
   color: BadgeColor.nullable().optional(),
 });
 export type UpdateBadgeRequest = z.input<typeof UpdateBadgeRequest>;
+/** PUT /me/badges/featured: até 3 das próprias insígnias para destacar ao lado do nome ([] = padrão) */
+export const SetFeaturedBadgesRequest = z.object({ badgeIds: z.array(Id).max(3) });
 /** PUT /admin/users/:id/badges: substitui o conjunto inteiro */
 export const SetUserBadgesRequest = z.object({ badgeIds: z.array(Id).max(50) });
 export type SetUserBadgesRequest = z.input<typeof SetUserBadgesRequest>;
@@ -185,6 +187,8 @@ export const UserPublic = z.object({
   system: z.boolean().optional(),
   /** insígnias (ADR-0043): ids do catálogo em InstanceInfo.badges, na ordem do catálogo (só vem quando tem) */
   badges: z.array(Id).optional(),
+  /** até 3 escolhidas pela pessoa para aparecer ao lado do nome (só vem quando escolheu) */
+  featuredBadges: z.array(Id).max(3).optional(),
 });
 export type UserPublic = z.infer<typeof UserPublic>;
 

@@ -274,6 +274,7 @@ export const useData = create<DataState>()((set) => ({
         ...u,
         verified: u.verified,
         badges: u.badges,
+        featuredBadges: u.featuredBadges,
         avatarUrl: u.avatarUrl,
       });
       const fix = <T extends { id: string }>(x: T): T => (x.id === u.id ? merged(x) : x);
@@ -288,7 +289,14 @@ export const useData = create<DataState>()((set) => ({
       return {
         me:
           s.me && s.me.id === u.id
-            ? { ...s.me, displayName: u.displayName, avatarKey: u.avatarKey, avatarUrl: u.avatarUrl }
+            ? {
+                ...s.me,
+                displayName: u.displayName,
+                avatarKey: u.avatarKey,
+                avatarUrl: u.avatarUrl,
+                badges: u.badges,
+                featuredBadges: u.featuredBadges,
+              }
             : s.me,
         details,
         friends: s.friends.map((f) => (f.user.id === u.id ? { ...f, user: fix(f.user) } : f)),

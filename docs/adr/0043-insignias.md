@@ -43,3 +43,8 @@ O mantenedor pediu: "queria que tivessemos insignias, essas insignias eu crio no
   DROP TABLE "Badge";
   ```
   Depois, apague `badges/` do armazenamento.
+
+## Adendo (2026-11-05): insígnias em destaque
+- A pessoa escolhe até 3 das próprias insígnias para aparecer ao lado do nome. A escolha fica em `UserBadge.featured` (migração `20261105000000_featured_badges`), é feita por `PUT /me/badges/featured` e chega aos outros em `UserPublic.featuredBadges` (e no `Me`).
+- Sem escolha, continuam aparecendo as 3 primeiras do catálogo. As que sobram ficam na dica do "+N" e no cartão de perfil.
+- As insígnias passam a aparecer também na lista de quem está na chamada, na barra lateral.

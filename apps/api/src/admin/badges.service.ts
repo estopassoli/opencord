@@ -3,7 +3,7 @@ import type { Badge, CreateBadgeRequest, UpdateBadgeRequest } from '@opencord/co
 import type { z } from 'zod';
 import { PrismaService } from '../common/prisma.service.js';
 import { notFound } from '../common/errors.js';
-import { userBadgeIndex } from '../common/serialize.js';
+import { featuredBadgeIndex, userBadgeIndex } from '../common/serialize.js';
 
 /** Recarga periódica do índice (outra réplica da API pode ter mudado as insígnias). */
 const REFRESH_MS = 60_000;
@@ -53,12 +53,19 @@ export class BadgesService implements OnModuleInit, OnModuleDestroy {
     try {
       const [badges, held] = await Promise.all([
         this.prisma.badge.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }),
-        this.prisma.userBadge.findMany({ select: { userId: true, badgeId: true } }),
+        this.prisma.userBadge.findMany({ select: { userId: true, badgeId: true, featured: true } }),
       ]);
       this.catalog = badges.map(toBadge);
       const order = new Map(badges.map((b, i) => [b.id, i]));
       const by = new Map<string, string[]>();
-      for (const h of held) by.set(h.userId, [...(by.get(h.userId) ?? []), h.badgeId]);
+      const feat = new Map<string, string[]>();
+      for (const h of held) {
+        by.set(h.userId, [...(by.get(h.userId) ?? []), h.badgeId]);
+        if (h.featured) feat.set(h.userId, [...(feat.get(h.userId) ?? []), h.badgeId]);
+      }
+      featuredBadgeIndex.clear();
+      for (const [userId, ids] of feat)
+        featuredBadgeIndex.set(userId, ids.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0)).slice(0, 3));
       userBadgeIndex.clear();
       for (const [userId, ids] of by)
         userBadgeIndex.set(
@@ -138,6 +145,19 @@ export class BadgesService implements OnModuleInit, OnModuleDestroy {
     ]);
     await this.reload();
     return true;
+  }
+
+  /** a pessoa escolhe até 3 das próprias insígnias para destacar ([] volta ao padrão: as 3 primeiras) */
+  async setFeatured(userId: string, badgeIds: string[]): Promise<void> {
+    const wanted = [...new Set(badgeIds)];
+    if (wanted.length > 3) throw new BadRequestException('no máximo 3 insígnias em destaque');
+    const own = new Set(userBadgeIndex.get(userId) ?? []);
+    if (wanted.some((id) => !own.has(id))) throw new BadRequestException('você não tem essa insígnia');
+    await this.prisma.$transaction([
+      this.prisma.userBadge.updateMany({ where: { userId }, data: { featured: false } }),
+      this.prisma.userBadge.updateMany({ where: { userId, badgeId: { in: wanted } }, data: { featured: true } }),
+    ]);
+    await this.reload();
   }
 
   private async get(id: string) {

@@ -771,6 +771,8 @@ model UserBadge {
   userId      String   @db.Uuid
   badgeId     String   @db.Uuid
   grantedById String?  @db.Uuid
+  /// escolhida pela pessoa para aparecer ao lado do nome (até 3)
+  featured    Boolean  @default(false)
   createdAt   DateTime @default(now()) @db.Timestamptz(3)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   badge       Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)

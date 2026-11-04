@@ -1179,3 +1179,30 @@
   gap: 10px;
   margin-bottom: 6px;
 }
+
+.profile-featured {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+.profile-featured-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--sidebar);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.profile-featured-item[aria-pressed='true'] {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 14%, var(--sidebar));
+}
+.profile-featured-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

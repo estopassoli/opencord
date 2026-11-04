@@ -75,6 +75,19 @@ describe('insígnias', () => {
     // quem não tem insígnia não leva o campo
     expect(d.body.members.find((m) => m.user.id === owner.id)!.user.badges).toBeUndefined();
 
+    // destaque: a pessoa escolhe até 3 das suas para aparecer ao lado do nome
+    expect(
+      (await http.req('PUT', '/me/badges/featured', { token: ana.token, body: { badgeIds: [founder.body.id] } }))
+        .status,
+    ).toBe(204);
+    const feat = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    expect(feat.body.members.find((m) => m.user.id === ana.id)!.user.featuredBadges).toEqual([founder.body.id]);
+    // insígnia que ela não tem: recusada
+    const other = await http.req<Badge>('POST', '/admin/badges', { token: owner.token, body: { name: 'Outra' } });
+    expect(
+      (await http.req('PUT', '/me/badges/featured', { token: ana.token, body: { badgeIds: [other.body.id] } })).status,
+    ).toBe(400);
+
     // imagem no lugar do ícone
     const form = new FormData();
     form.append('file', new Blob([tinyPng(32, 32)], { type: 'image/png' }), 'b.png');

@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '01:00',
+    kind: 'novo',
+    icon: 'star',
+    title: 'Escolha suas insígnias em destaque',
+    body: 'Em Configurações → Perfil, escolha até 3 das suas insígnias para aparecer ao lado do seu nome no chat, na lista de membros e agora também na lista de quem está na chamada. As outras continuam no seu cartão de perfil.',
+  },
+  {
+    date: '2026-11-05',
     time: '00:30',
     kind: 'novo',
     icon: 'search',

@@ -71,12 +71,29 @@ export function useBadgeImageUrl(key: string | null): string | null {
 export function useLiveBadgeIds(userId: string, fallback: string[] | undefined): string[] {
   return useData(
     useShallow((s) => {
+      if (s.me?.id === userId) return s.me.badges ?? [];
       for (const d of Object.values(s.details)) {
         const m = d.members.find((x) => x.user.id === userId);
         if (m) return m.user.badges ?? [];
       }
       const f = s.friends.find((x) => x.user.id === userId);
       if (f) return f.user.badges ?? [];
+      return fallback ?? [];
+    }),
+  );
+}
+
+/** as até 3 que a pessoa escolheu destacar (vazio = sem escolha) */
+function useFeaturedIds(userId: string, fallback: string[] | undefined): string[] {
+  return useData(
+    useShallow((s) => {
+      if (s.me?.id === userId) return s.me.featuredBadges ?? [];
+      for (const d of Object.values(s.details)) {
+        const m = d.members.find((x) => x.user.id === userId);
+        if (m) return m.user.featuredBadges ?? [];
+      }
+      const f = s.friends.find((x) => x.user.id === userId);
+      if (f) return f.user.featuredBadges ?? [];
       return fallback ?? [];
     }),
   );
@@ -102,19 +119,24 @@ export function BadgeGlyph({
 export function UserBadges({
   userId,
   fallback,
+  featuredFallback,
   max = 3,
   size = 14,
 }: {
   userId: string;
   fallback?: string[] | undefined;
+  featuredFallback?: string[] | undefined;
   max?: number;
   size?: number;
 }) {
   const catalog = useBadgeCatalog();
   const ids = useLiveBadgeIds(userId, fallback);
+  const featured = useFeaturedIds(userId, featuredFallback);
   const badges = catalog.filter((b) => ids.includes(b.id));
   if (!badges.length) return null;
-  const shown = badges.slice(0, max);
+  // as escolhidas pela pessoa; sem escolha, as primeiras do catálogo
+  const picked = featured.length ? badges.filter((b) => featured.includes(b.id)) : badges;
+  const shown = picked.slice(0, max);
   const rest = badges.length - shown.length;
   return (
     <span className="user-badges">
@@ -127,7 +149,7 @@ export function UserBadges({
         <span
           className="user-badge-more"
           data-tip={badges
-            .slice(max)
+            .filter((b) => !shown.includes(b))
             .map((b) => b.name)
             .join(', ')}
         >

@@ -34,6 +34,7 @@ import { isBotSession, randomToken, sha256, TokenService } from './token.service
 import { TwoFactorService } from './two-factor.service.js';
 import { LoginAlertsService } from './login-alerts.service.js';
 import { maskEmail } from '../mail/mail.service.js';
+import { featuredBadgeIndex, userBadgeIndex } from '../common/serialize.js';
 
 // Argon2id (algorithm 2) com parâmetros OWASP (m=19 MiB, t=2, p=1).
 const ARGON = { algorithm: 2, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
@@ -97,6 +98,9 @@ export class AuthService {
       displayName: u.displayName,
       avatarKey: u.avatarKey,
       ...(u.avatarUrl ? { avatarUrl: u.avatarUrl } : {}),
+      // insígnias (ADR-0043): as minhas e as que escolhi destacar
+      ...(userBadgeIndex.get(u.id)?.length ? { badges: userBadgeIndex.get(u.id) } : {}),
+      ...(featuredBadgeIndex.get(u.id)?.length ? { featuredBadges: featuredBadgeIndex.get(u.id) } : {}),
       hasAccount: u.passwordHash !== null,
       twoFactorEnabled: Boolean(u.totpEnabledAt || u.twoFactorEmailAt),
       twoFactorMethod: u.totpEnabledAt ? 'totp' : u.twoFactorEmailAt ? 'email' : null,

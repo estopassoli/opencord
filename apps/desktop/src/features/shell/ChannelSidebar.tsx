@@ -9,6 +9,7 @@ import { api, describeError, markTargetRead } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { CreatorTag, VerifiedTag, roleColorOf, useCreatorId } from './MemberList';
+import { UserBadges } from '../../components/UserBadges';
 import { ProfileButton } from './ProfileButton';
 import { MusicHint } from '../voice/MusicPlayer';
 import { Tooltip } from '../../components/Tooltip';
@@ -378,6 +379,11 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                                   {name}
                                 </span>
                                 {creator ? <CreatorTag iconOnly /> : m?.user.verified && <VerifiedTag iconOnly />}
+                                <UserBadges
+                                  userId={v.userId}
+                                  fallback={m?.user.badges}
+                                  featuredFallback={m?.user.featuredBadges}
+                                />
                                 <GameBadge userId={v.userId} />
                                 {v.streaming && <span className="live-pill">AO VIVO</span>}
                                 {v.video && <Icon name="camera" size={14} label="Câmera ligada" />}

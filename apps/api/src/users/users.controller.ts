@@ -20,6 +20,7 @@ import {
   DeleteAccountRequest,
   EnableEmailTwoFactorRequest,
   SetEmailRequest,
+  SetFeaturedBadgesRequest,
   VerifyEmailRequest,
   SetPresenceRequest,
   SetStatusTextRequest,
@@ -45,6 +46,7 @@ import { AccountService } from './account.service.js';
 import { AvatarService } from './avatar.service.js';
 import { TwoFactorService } from '../auth/two-factor.service.js';
 import { AccountEmailService } from '../auth/account-email.service.js';
+import { BadgesService } from '../admin/badges.service.js';
 
 // exportar é caro (lê tudo da pessoa): poucas vezes por hora
 const EXPORT_RATE = { rateLimit: { max: 5, timeWindow: '1 hour' } };
@@ -59,6 +61,7 @@ export class UsersController {
     private readonly account: AccountService,
     private readonly twoFactor: TwoFactorService,
     private readonly accountEmail: AccountEmailService,
+    private readonly badges: BadgesService,
   ) {}
 
   @Get()
@@ -148,6 +151,17 @@ export class UsersController {
   async clearBanner(@CurrentUser() u: AuthUser) {
     await this.avatars.setBannerUrl(u.userId, null);
     return this.profileView(u.userId);
+  }
+
+  /** insígnias em destaque ao lado do nome (até 3 das próprias) */
+  @Put('badges/featured')
+  @HttpCode(204)
+  async setFeaturedBadges(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(SetFeaturedBadgesRequest)) dto: z.infer<typeof SetFeaturedBadgesRequest>,
+  ) {
+    await this.badges.setFeatured(u.userId, dto.badgeIds);
+    await this.avatars.announce(u.userId);
   }
 
   @Get('avatars/recent')

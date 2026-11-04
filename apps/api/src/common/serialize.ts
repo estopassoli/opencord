@@ -29,6 +29,8 @@ export const USER_PUBLIC_SELECT = {
  * Fica aqui para todo `userPublic` levar as insígnias sem cada consulta precisar de um join.
  */
 export const userBadgeIndex = new Map<string, string[]>();
+/** as até 3 que a pessoa escolheu destacar */
+export const featuredBadgeIndex = new Map<string, string[]>();
 
 /** Conta de avisos do OpenCord (ADR-0045), registrada pelo SystemUserService no boot. */
 export const systemUserIds = new Set<string>();
@@ -47,6 +49,7 @@ export const userPublic = (u: UserRow): UserPublic => ({
   ...(u.verified ? { verified: true } : {}),
   ...(systemUserIds.has(u.id) ? { system: true } : {}),
   ...(userBadgeIndex.get(u.id)?.length ? { badges: userBadgeIndex.get(u.id) } : {}),
+  ...(featuredBadgeIndex.get(u.id)?.length ? { featuredBadges: featuredBadgeIndex.get(u.id) } : {}),
 });
 
 export const serverSummary = (s: {

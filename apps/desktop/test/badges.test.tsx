@@ -46,6 +46,17 @@ describe('insígnias', () => {
     expect(getByText('+1').getAttribute('data-tip')).toBe('DJ');
   });
 
+  it('com destaque escolhido, mostra só as escolhidas (até 3); o resto vai para o +N', () => {
+    const { getAllByRole, getByText } = render(
+      <UserBadges userId="u1" fallback={[A, B, C, D]} featuredFallback={[D, B]} />,
+    );
+    expect(getAllByRole('img').map((e) => e.getAttribute('aria-label'))).toEqual([
+      'Insígnia: Fundador',
+      'Insígnia: DJ',
+    ]);
+    expect(getByText('+2').getAttribute('data-tip')).toBe('Testador, Artista');
+  });
+
   it('perfil lista o verificado e as insígnias com nome; sem nenhuma não mostra nada', () => {
     const { getByText } = render(<ProfileBadges userId="u1" fallback={[B]} verified />);
     expect(getByText('Verificado')).toBeTruthy();
