@@ -22,6 +22,7 @@ import type { Subscription } from 'rxjs';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DomainEvents } from '../common/domain-events.js';
 import { PrismaService } from '../common/prisma.service.js';
+import { systemUserIds } from '../common/serialize.js';
 import { RedisService } from '../common/redis.service.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { assertNotTimedOut, PermissionsService } from '../servers/permissions.service.js';
@@ -346,6 +347,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const memberIds = conv?.members.map((m) => m.userId) ?? [];
     if (!conv || !memberIds.includes(userId)) throw notFound('conversa');
     const others = memberIds.filter((m) => m !== userId);
+    // conta de avisos (ADR-0045): sem chamada
+    if (others.some((m) => systemUserIds.has(m))) throw forbidden('esta conversa é só de avisos');
     const block = await this.prisma.block.findFirst({
       where: {
         OR: [

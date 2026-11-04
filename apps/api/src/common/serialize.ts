@@ -28,6 +28,9 @@ export const USER_PUBLIC_SELECT = {
  */
 export const userBadgeIndex = new Map<string, string[]>();
 
+/** Conta de avisos do OpenCord (ADR-0045), registrada pelo SystemUserService no boot. */
+export const systemUserIds = new Set<string>();
+
 export const userPublic = (u: UserRow): UserPublic => ({
   id: u.id,
   username: u.username,
@@ -38,6 +41,7 @@ export const userPublic = (u: UserRow): UserPublic => ({
   // só vai quando é verdade: a UI esconde expulsar/silenciar e mostra "super admin" (ADR-0013)
   ...(u.isInstanceAdmin ? { isInstanceAdmin: true } : {}),
   ...(u.verified ? { verified: true } : {}),
+  ...(systemUserIds.has(u.id) ? { system: true } : {}),
   ...(userBadgeIndex.get(u.id)?.length ? { badges: userBadgeIndex.get(u.id) } : {}),
 });
 

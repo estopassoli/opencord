@@ -26,7 +26,7 @@ import { z } from 'zod';
 import { DomainEvents } from '../common/domain-events.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { forbidden, notFound } from '../common/errors.js';
-import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
+import { systemUserIds, USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
 import { AiModerationService, isSevere, type Verdict } from '../ai-moderation/ai-moderation.service.js';
 import { ModerationHoldService } from '../ai-moderation/moderation-hold.service.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
@@ -342,6 +342,9 @@ export class MessagesService {
     if (existing) return { message: this.serialize(existing, userId), duplicate: true };
 
     if (a.conversationId && a.memberIds) await this.assertNotBlocked(userId, a.memberIds);
+    // DM com a conta de avisos do OpenCord (ADR-0045): só ela escreve
+    if (a.memberIds?.some((m) => systemUserIds.has(m)) && !systemUserIds.has(userId))
+      throw forbidden('esta conversa é só de avisos e não recebe respostas');
     if (dto.replyToId) {
       const parent = await this.prisma.message.findUnique({
         where: { id: dto.replyToId },

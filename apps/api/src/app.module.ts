@@ -51,6 +51,8 @@ import { SpotifyService } from './voice/spotify.service.js';
 import { AccountService } from './users/account.service.js';
 import { AvatarService } from './users/avatar.service.js';
 import { BadgesService } from './admin/badges.service.js';
+import { SystemUserService } from './system/system-user.service.js';
+import { CardRejectionService } from './boards/card-rejection.service.js';
 import { RetentionService } from './users/retention.service.js';
 import { AvatarsController } from './users/avatars.controller.js';
 import { SocialController } from './social/social.controller.js';
@@ -111,6 +113,8 @@ export class AppModule {
         SpotifyService,
         AvatarService,
         BadgesService,
+        SystemUserService,
+        CardRejectionService,
         AccountService,
         RetentionService,
         RealtimeService,

@@ -66,6 +66,8 @@ export function ChatView({ target }: { target: ChatTarget }) {
 
   const perms = channel?.myPermissions ?? Permission.SEND_MESSAGES | Permission.ATTACH_FILES | Permission.ADD_REACTIONS;
   const canSend = hasPermission(perms, Permission.SEND_MESSAGES);
+  // DM com a conta de avisos do OpenCord (ADR-0045): só leitura, sem chamada nem convidar
+  const noReply = Boolean(conv?.members.some((m) => m.system));
   const title = channel
     ? channel.name
     : conv
@@ -196,7 +198,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
           canUnpin={!channel || hasPermission(perms, Permission.MANAGE_MESSAGES)}
           nameOf={nameOf}
         />
-        {!channel && target.conversationId && (
+        {!channel && target.conversationId && !noReply && (
           <button
             className="icon-btn"
             aria-label="Ligar"
@@ -206,7 +208,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
             <Icon name="phone" />
           </button>
         )}
-        {!channel && dmPeer && (
+        {!channel && dmPeer && !noReply && (
           <button
             className="icon-btn"
             aria-label="Adicionar amigos à conversa"
@@ -345,7 +347,11 @@ export function ChatView({ target }: { target: ChatTarget }) {
           <Icon name="kanban" size={14} /> Cada mensagem aqui vira um card no quadro da equipe.
         </p>
       )}
-      {canSend ? (
+      {noReply ? (
+        <div className="composer composer-disabled composer-noreply">
+          <Icon name="inbox" size={16} /> Avisos automáticos do OpenCord. Esta conversa não recebe respostas.
+        </div>
+      ) : canSend ? (
         <Composer
           target={target}
           targetKey={key}

@@ -154,6 +154,16 @@ export class BoardsService {
 
   async remove(cardId: string, userId: string) {
     const { boardId } = await this.card(cardId, userId);
+    await this.removeById(cardId, boardId);
+  }
+
+  /** 404 para quem não vê o quadro, 403 para quem vê mas não gerencia; devolve o quadro do card */
+  requireManageCard(cardId: string, userId: string) {
+    return this.card(cardId, userId);
+  }
+
+  /** apaga sem checar permissão (quem chama já checou) e avisa quem vê o quadro */
+  async removeById(cardId: string, boardId: string) {
     await this.prisma.boardCard.delete({ where: { id: cardId } });
     this.realtime.emit(rooms.channel(boardId), 'board:card:deleted', { boardId, cardId });
   }

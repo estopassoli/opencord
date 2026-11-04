@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '19:30',
+    kind: 'novo',
+    icon: 'inbox',
+    title: 'Resposta às suas ideias',
+    body: 'Quando a equipe de um servidor decide não seguir com uma ideia que você mandou para o quadro, você recebe uma mensagem direta do OpenCord explicando, com o motivo quando houver. São avisos automáticos, então essa conversa não aceita respostas.',
+  },
+  {
+    date: '2026-11-04',
     time: '18:30',
     kind: 'novo',
     icon: 'image',

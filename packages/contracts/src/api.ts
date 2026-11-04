@@ -177,6 +177,8 @@ export const UserPublic = z.object({
   isInstanceAdmin: z.boolean().optional(),
   /** selo de verificado no perfil, dado pelo super admin (só vem quando é verdade) */
   verified: z.boolean().optional(),
+  /** conta de avisos do OpenCord (ADR-0045): DM com ela é só leitura, sem resposta (só vem quando é verdade) */
+  system: z.boolean().optional(),
   /** insígnias (ADR-0043): ids do catálogo em InstanceInfo.badges, na ordem do catálogo (só vem quando tem) */
   badges: z.array(Id).optional(),
 });
@@ -287,6 +289,13 @@ export const CreateBoardCardRequest = z.object({
 export type CreateBoardCardRequest = z.input<typeof CreateBoardCardRequest>;
 
 /** mover (coluna e/ou posição) e editar título/descrição */
+/** POST /cards/:id/reject (ADR-0045): recusa a ideia, apaga o card e (por padrão) avisa quem relatou por DM sem resposta */
+export const RejectBoardCardRequest = z.object({
+  reason: z.string().trim().max(500).default(''),
+  notify: z.boolean().default(true),
+});
+export type RejectBoardCardRequest = z.input<typeof RejectBoardCardRequest>;
+
 export const UpdateBoardCardRequest = z.object({
   column: BoardColumn.optional(),
   position: z.number().finite().optional(),

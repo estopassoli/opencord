@@ -7,7 +7,7 @@ import {
   type BoardColumn,
   type Channel,
 } from '@opencord/contracts';
-import { Avatar, Button, Icon, Select, TextArea, TextField } from '@opencord/ui';
+import { Avatar, Button, Checkbox, Icon, Select, TextArea, TextField } from '@opencord/ui';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Dialog } from '../../components/Dialog';
@@ -15,6 +15,7 @@ import { MobileNavButton } from '../../components/MobileNavButton';
 import { useBoards } from '../../store/boards';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
+import { api, describeError } from '../../store/session';
 
 const CARD = { title: 'Excluir card', confirmLabel: 'Excluir', danger: true };
 
@@ -32,6 +33,7 @@ export function BoardView({ channel }: { channel: Channel }) {
   const canManage = hasPermission(channel.myPermissions, Permission.MANAGE_MESSAGES);
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [rejecting, setRejecting] = useState<BoardCard | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{ column: BoardColumn; before: string | null } | null>(null);
 
@@ -121,6 +123,7 @@ export function BoardView({ channel }: { channel: Channel }) {
                     canManage={canManage}
                     dragging={dragging === card.id}
                     onOpen={() => setOpen(card.id)}
+                    onReject={() => setRejecting(card)}
                     onDragStart={() => setDragging(card.id)}
                     onDragEnd={() => {
                       setDragging(null);
@@ -134,13 +137,24 @@ export function BoardView({ channel }: { channel: Channel }) {
           </section>
         ))}
       </div>
-      {openCard && <CardDialog card={openCard} canManage={canManage} onClose={() => setOpen(null)} />}
+      {openCard && (
+        <CardDialog
+          card={openCard}
+          canManage={canManage}
+          onClose={() => setOpen(null)}
+          onReject={() => {
+            setOpen(null);
+            setRejecting(openCard);
+          }}
+        />
+      )}
+      {rejecting && <RejectCardDialog card={rejecting} onClose={() => setRejecting(null)} />}
       {creating && <NewCardDialog boardId={channel.id} onClose={() => setCreating(false)} />}
     </section>
   );
 }
 
-function cardMenu(card: BoardCard, canManage: boolean, onOpen: () => void): MenuEntry[] {
+function cardMenu(card: BoardCard, canManage: boolean, onOpen: () => void, onReject: () => void): MenuEntry[] {
   const items: MenuEntry[] = [{ label: 'Abrir', icon: 'edit', onSelect: onOpen }];
   if (card.sourceChannelId) items.push({ label: 'Ir para o relato', icon: 'chat', onSelect: () => goToSource(card) });
   if (canManage) {
@@ -155,6 +169,7 @@ function cardMenu(card: BoardCard, canManage: boolean, onOpen: () => void): Menu
         })),
       },
       'separator',
+      { label: 'Recusar ideia…', icon: 'block', danger: true, onSelect: onReject },
       {
         label: 'Excluir card',
         icon: 'trash',
@@ -181,6 +196,7 @@ function CardItem({
   canManage,
   dragging,
   onOpen,
+  onReject,
   onDragStart,
   onDragEnd,
 }: {
@@ -188,6 +204,7 @@ function CardItem({
   canManage: boolean;
   dragging: boolean;
   onOpen: () => void;
+  onReject: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
@@ -204,7 +221,7 @@ function CardItem({
       }}
       onDragEnd={onDragEnd}
       onClick={onOpen}
-      onContextMenu={(e) => openContextMenu(e, cardMenu(card, canManage, onOpen), `Card ${card.title}`)}
+      onContextMenu={(e) => openContextMenu(e, cardMenu(card, canManage, onOpen, onReject), `Card ${card.title}`)}
     >
       <span className="board-card-title">{card.title}</span>
       {card.body && card.body !== card.title && (
@@ -225,7 +242,17 @@ function CardItem({
   );
 }
 
-function CardDialog({ card, canManage, onClose }: { card: BoardCard; canManage: boolean; onClose: () => void }) {
+function CardDialog({
+  card,
+  canManage,
+  onClose,
+  onReject,
+}: {
+  card: BoardCard;
+  canManage: boolean;
+  onClose: () => void;
+  onReject: () => void;
+}) {
   const [title, setTitle] = useState(card.title);
   const [body, setBody] = useState(card.body);
   const dirty = title.trim() !== card.title || body.trim() !== card.body;
@@ -285,6 +312,11 @@ function CardDialog({ card, canManage, onClose }: { card: BoardCard; canManage: 
               Excluir
             </Button>
           )}
+          {canManage && (
+            <Button variant="ghost" size="sm" icon="block" onClick={onReject}>
+              Recusar ideia
+            </Button>
+          )}
           <span className="spacer" />
           {card.sourceChannelId && (
             <Button
@@ -340,6 +372,72 @@ function NewCardDialog({ boardId, onClose }: { boardId: string; onClose: () => v
           </Button>
           <Button type="submit" disabled={!title.trim()}>
             Criar card
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** Recusar a ideia (ADR-0045): o card sai do quadro e quem relatou recebe uma DM do OpenCord, sem poder responder. */
+function RejectCardDialog({ card, onClose }: { card: BoardCard; onClose: () => void }) {
+  const meId = useData((s) => s.me?.id);
+  const canNotify = Boolean(card.reporter && card.reporter.id !== meId);
+  const [reason, setReason] = useState('');
+  const [notify, setNotify] = useState(canNotify);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const r = await api().request<{ notified: boolean }>('POST', `/cards/${card.id}/reject`, {
+        reason: reason.trim(),
+        notify: notify && canNotify,
+      });
+      useBoards.getState().remove(card.boardId, card.id);
+      useUi
+        .getState()
+        .toast(
+          'success',
+          r.notified ? `Ideia recusada. ${card.reporter?.displayName} foi avisado(a).` : 'Ideia recusada.',
+        );
+      onClose();
+    } catch (err) {
+      useUi.getState().toast('error', describeError(err));
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog title="Recusar ideia" onClose={onClose}>
+      <form className="form board-dialog" onSubmit={(e) => void submit(e)}>
+        <p className="muted">
+          O card <strong>{card.title}</strong> sai do quadro.
+        </p>
+        <TextArea
+          label="Motivo (opcional, vai na mensagem)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          maxLength={500}
+          placeholder="Ex.: já existe algo parecido, ou não combina com o foco do app agora"
+        />
+        {canNotify ? (
+          <Checkbox
+            checked={notify}
+            onChange={setNotify}
+            label={`Avisar ${card.reporter?.displayName} por mensagem`}
+            description="Chega uma mensagem direta do OpenCord, que não aceita resposta."
+          />
+        ) : (
+          <p className="muted small">Este card não tem quem avisar (foi criado pela equipe).</p>
+        )}
+        <div className="form-actions">
+          <span className="spacer" />
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="danger" disabled={busy}>
+            Recusar
           </Button>
         </div>
       </form>

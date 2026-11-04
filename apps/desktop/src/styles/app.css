@@ -1417,6 +1417,12 @@ textarea:focus-visible {
   padding: 12px 16px;
   color: var(--text-muted);
 }
+.composer-noreply {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+}
 .composer-row {
   display: flex;
   align-items: flex-end;

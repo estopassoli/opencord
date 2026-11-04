@@ -280,6 +280,15 @@ export class SocialService {
     return this.convView(c);
   }
 
+  /** Conversa criada por fora (ex.: aviso da conta de sistema, ADR-0045): manda para cada membro. */
+  async announceConversation(conversationId: string) {
+    const c = await this.prisma.conversation.findUniqueOrThrow({
+      where: { id: conversationId },
+      include: { members: { include: { user: { select: USER_PUBLIC_SELECT } } } },
+    });
+    for (const m of c.members) this.realtime.toUser(m.userId, 'conversation:upserted', this.convView(c));
+  }
+
   private async canContact(a: string, b: string, group: boolean): Promise<boolean> {
     const f = await this.prisma.friendship.findUnique({ where: { userLowId_userHighId: canonical(a, b) } });
     if (f?.status === 'accepted') return true;

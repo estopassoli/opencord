@@ -1,16 +1,20 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
-import { CreateBoardCardRequest, UpdateBoardCardRequest } from '@opencord/contracts';
+import { CreateBoardCardRequest, RejectBoardCardRequest, UpdateBoardCardRequest } from '@opencord/contracts';
 import type { z } from 'zod';
 import { CurrentUser, type AuthUser } from '../common/auth.js';
 import { zodPipe } from '../common/zod.pipe.js';
 import { BoardsService } from './boards.service.js';
+import { CardRejectionService } from './card-rejection.service.js';
 
 const id = new ParseUUIDPipe();
 
 /** Quadros kanban (ADR-0017). */
 @Controller()
 export class BoardsController {
-  constructor(private readonly boards: BoardsService) {}
+  constructor(
+    private readonly boards: BoardsService,
+    private readonly rejection: CardRejectionService,
+  ) {}
 
   @Get('channels/:id/cards')
   list(@CurrentUser() u: AuthUser, @Param('id', id) boardId: string) {
@@ -33,6 +37,17 @@ export class BoardsController {
     @Body(zodPipe(UpdateBoardCardRequest)) dto: z.infer<typeof UpdateBoardCardRequest>,
   ) {
     return this.boards.update(cardId, u.userId, dto);
+  }
+
+  /** Recusar a ideia (ADR-0045): apaga o card e avisa quem relatou por DM sem resposta */
+  @Post('cards/:id/reject')
+  @HttpCode(200)
+  reject(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) cardId: string,
+    @Body(zodPipe(RejectBoardCardRequest.prefault({}))) dto: z.infer<typeof RejectBoardCardRequest>,
+  ) {
+    return this.rejection.reject(cardId, u.userId, dto);
   }
 
   @Delete('cards/:id')
