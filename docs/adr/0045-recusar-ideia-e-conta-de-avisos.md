@@ -20,6 +20,8 @@ O mantenedor pediu: "dar negativa no card do kanban e o usuario receber uma mens
   - No app: "Recusar ideia…" no menu do card e no diálogo, com o motivo e a opção "Avisar por mensagem".
 - **Sem migração:** a conta é uma linha comum de `User`.
 
+- **Conferência pelo super admin** (adendo, mesmo dia): `GET /admin/system-messages` (paginado, mais novas primeiro, 404 para quem não é super admin). Lista tudo o que a conta mandou, com quem recebeu e quando. No painel admin, fica na aba "Avisos enviados".
+
 ## Alternativas descartadas
 - Coluna "Recusado" no quadro: muda o enum `BoardColumn` (migração) e o pedido era tirar a ideia e avisar.
 - Mandar como o próprio moderador: a pessoa responderia e a conversa viraria discussão; o pedido era no-reply.

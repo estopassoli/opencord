@@ -1636,3 +1636,34 @@ button.admin-stat:focus-visible {
     display: none;
   }
 }
+
+/* avisos da conta OpenCord no painel admin (ADR-0045) */
+.admin-notices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.admin-notices li {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+}
+.admin-notices header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-notices header time {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.admin-notice-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}

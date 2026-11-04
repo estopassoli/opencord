@@ -16,6 +16,7 @@ import {
 import type { FastifyRequest } from 'fastify';
 import {
   AdminAuditQuery,
+  AdminSystemMessagesQuery,
   AdminUsersQuery,
   CreateBadgeRequest,
   SetUserBadgesRequest,
@@ -40,6 +41,14 @@ export class AdminController {
   @Get('stats')
   stats(@CurrentUser() u: AuthUser) {
     return this.admin.stats(u.userId);
+  }
+
+  @Get('system-messages')
+  systemMessages(
+    @CurrentUser() u: AuthUser,
+    @Query(zodPipe(AdminSystemMessagesQuery)) q: z.infer<typeof AdminSystemMessagesQuery>,
+  ) {
+    return this.admin.systemMessages(u.userId, q.cursor);
   }
 
   @Get('users')

@@ -1694,6 +1694,20 @@ export const AdminUsersQuery = z.object({
 export const AdminUserPage = z.object({ users: z.array(AdminUser), nextCursor: Id.nullable() });
 export type AdminUserPage = z.infer<typeof AdminUserPage>;
 
+/** Avisos mandados pela conta OpenCord (ADR-0045), para o super admin conferir: GET /admin/system-messages */
+export const AdminSystemMessage = z.object({
+  id: Id,
+  body: z.string(),
+  createdAt: IsoDate,
+  deleted: z.boolean(),
+  /** quem recebeu (a outra pessoa da DM); null se a conta foi removida */
+  recipient: UserPublic.nullable(),
+});
+export type AdminSystemMessage = z.infer<typeof AdminSystemMessage>;
+export const AdminSystemMessagePage = z.object({ messages: z.array(AdminSystemMessage), nextCursor: Id.nullable() });
+export type AdminSystemMessagePage = z.infer<typeof AdminSystemMessagePage>;
+export const AdminSystemMessagesQuery = z.object({ cursor: Id.optional() });
+
 export const SuspendUserRequest = z.object({ reason: z.string().trim().max(200).optional() });
 export const SetInstanceAdminRequest = z.object({ admin: z.boolean() });
 export const SetUserVerifiedRequest = z.object({ verified: z.boolean() });

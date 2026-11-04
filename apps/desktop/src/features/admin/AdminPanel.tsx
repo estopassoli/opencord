@@ -20,6 +20,7 @@ import { Section, TabbedLayout, type TabDef } from '../settings/SettingsModal';
 import { AdminModerationTab } from './AdminModerationTab';
 import { AdminServersTab } from './AdminServersTab';
 import { BadgesTab, UserBadgesDialog } from './AdminBadgesTab';
+import { SystemMessagesTab } from './AdminSystemMessagesTab';
 import { UserBadges } from '../../components/UserBadges';
 import '../settings/settings.css';
 
@@ -27,13 +28,14 @@ import '../settings/settings.css';
  * Painel do super admin (ADR-0020): números da instância, servidores, usuários, configuração e auditoria global.
  * Só aparece para quem é super admin; a API responde 404 para os demais.
  */
-type AdminTab = 'overview' | 'servers' | 'users' | 'badges' | 'instance' | 'moderation' | 'audit';
+type AdminTab = 'overview' | 'servers' | 'users' | 'badges' | 'notices' | 'instance' | 'moderation' | 'audit';
 
 const TABS: readonly TabDef<AdminTab>[] = [
   { id: 'overview', label: 'Visão geral' },
   { id: 'servers', label: 'Servidores' },
   { id: 'users', label: 'Usuários' },
   { id: 'badges', label: 'Insígnias' },
+  { id: 'notices', label: 'Avisos enviados' },
   { id: 'instance', label: 'Instância' },
   { id: 'moderation', label: 'Moderação IA' },
   { id: 'audit', label: 'Auditoria' },
@@ -66,6 +68,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
         {tab === 'servers' && <AdminServersTab onClose={onClose} />}
         {tab === 'users' && <UsersTab />}
         {tab === 'badges' && <BadgesTab />}
+        {tab === 'notices' && <SystemMessagesTab />}
         {tab === 'instance' && <InstanceTab />}
         {tab === 'moderation' && <AdminModerationTab />}
         {tab === 'audit' && <AuditTab />}

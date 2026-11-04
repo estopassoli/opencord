@@ -5,6 +5,7 @@ import type {
   AdminInstanceConfig,
   AdminStats,
   AdminUser,
+  AdminSystemMessagePage,
   AdminUserPage,
   Badge,
   CreateBadgeRequest,
@@ -25,6 +26,7 @@ import { VoiceService } from '../voice/voice.service.js';
 import { InstanceService } from './instance.service.js';
 import { BadgesService } from './badges.service.js';
 import { AvatarService } from '../users/avatar.service.js';
+import { SystemUserService } from '../system/system-user.service.js';
 import { DeviceBansService } from '../ai-moderation/device-bans.service.js';
 
 const PAGE = 50;
@@ -76,6 +78,7 @@ export class AdminService {
     private readonly deviceBans: DeviceBansService,
     private readonly badges: BadgesService,
     private readonly images: AvatarService,
+    private readonly system: SystemUserService,
   ) {}
 
   /** Bloqueios de dispositivo (ADR-0036), só super admin. */
@@ -263,6 +266,45 @@ export class AdminService {
       );
     }
     return this.one(targetId);
+  }
+
+  // ---------- Avisos da conta OpenCord (ADR-0045) ----------
+
+  /** Mensagens mandadas pela conta de avisos, mais novas primeiro, com quem recebeu. */
+  async systemMessages(actorId: string, cursor?: string): Promise<AdminSystemMessagePage> {
+    await this.requireAdmin(actorId);
+    const systemId = await this.system.ensure();
+    const PAGE_SIZE = 30;
+    const rows = await this.prisma.message.findMany({
+      where: { authorId: systemId, ...(cursor ? { id: { lt: cursor } } : {}) },
+      orderBy: { id: 'desc' },
+      take: PAGE_SIZE + 1,
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+        deletedAt: true,
+        conversation: {
+          select: {
+            members: { where: { userId: { not: systemId } }, select: { user: { select: USER_PUBLIC_SELECT } } },
+          },
+        },
+      },
+    });
+    const page = rows.slice(0, PAGE_SIZE);
+    return {
+      messages: page.map((m) => {
+        const r = m.conversation?.members[0]?.user;
+        return {
+          id: m.id,
+          body: m.deletedAt ? '' : m.body,
+          createdAt: m.createdAt.toISOString(),
+          deleted: m.deletedAt !== null,
+          recipient: r ? userPublic(r) : null,
+        };
+      }),
+      nextCursor: rows.length > PAGE_SIZE ? (page.at(-1)?.id ?? null) : null,
+    };
   }
 
   // ---------- Insígnias (ADR-0043) ----------
