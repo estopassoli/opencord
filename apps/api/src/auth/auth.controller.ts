@@ -4,6 +4,7 @@ import {
   GuestJoinRequest,
   LoginRequest,
   LoginTwoFactorRequest,
+  LoginTwoFactorResendRequest,
   Password,
   RefreshRequest,
   RegisterRequest,
@@ -69,6 +70,14 @@ export class AuthController {
   @HttpCode(200)
   loginTwoFactor(@Body(zodPipe(LoginTwoFactorRequest)) dto: z.infer<typeof LoginTwoFactorRequest>) {
     return this.auth.loginTwoFactor(dto);
+  }
+
+  @Public()
+  @Post('login/2fa/resend')
+  @RouteConfig(AUTH_RATE)
+  @HttpCode(204)
+  async resendLoginCode(@Body(zodPipe(LoginTwoFactorResendRequest)) dto: z.infer<typeof LoginTwoFactorResendRequest>) {
+    await this.auth.resendLoginCode(dto.ticket);
   }
 
   @Public()

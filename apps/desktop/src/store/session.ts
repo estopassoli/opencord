@@ -33,7 +33,11 @@ interface SessionState {
   restore(): Promise<void>;
   /** Login de conta: apelido ou e-mail + senha. */
   /** com verificação em duas etapas ligada devolve o bilhete; a sessão sai em loginTwoFactor (ADR-0046) */
-  login(serverUrl: string, login: string, password: string): Promise<{ twoFactorTicket: string } | void>;
+  login(
+    serverUrl: string,
+    login: string,
+    password: string,
+  ): Promise<{ twoFactorTicket: string; method: 'totp' | 'email'; emailHint: string | null } | void>;
   loginTwoFactor(serverUrl: string, ticket: string, code: string): Promise<void>;
   /** Entrar só com apelido (ADR-0007). */
   join(serverUrl: string, nickname: string, accessCode?: string): Promise<void>;
@@ -152,7 +156,8 @@ export const useSession = create<SessionState>()((set, get) => {
       const serverUrl = normalizeServerUrl(serverUrlRaw);
       const api = makeApi(serverUrl);
       const first = await api.login(login, password, deviceId);
-      if ('twoFactorRequired' in first) return { twoFactorTicket: first.ticket };
+      if ('twoFactorRequired' in first)
+        return { twoFactorTicket: first.ticket, method: first.method ?? 'totp', emailHint: first.emailHint ?? null };
       await finishLogin(api, serverUrl, first);
     },
 

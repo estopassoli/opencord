@@ -4,6 +4,7 @@ import type { InstanceConfig } from '@opencord/db';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { BadgesService } from './badges.service.js';
+import { MailService } from '../mail/mail.service.js';
 
 /** Quanto tempo a configuração lida do banco vale em memória (o painel invalida ao salvar). */
 const CACHE_MS = 5_000;
@@ -22,6 +23,7 @@ export class InstanceService {
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
     private readonly prisma: PrismaService,
     private readonly badges: BadgesService,
+    private readonly mail: MailService,
   ) {}
 
   async row(): Promise<InstanceConfig | null> {
@@ -79,6 +81,7 @@ export class InstanceService {
       aiModeration: Boolean(this.cfg.ANTHROPIC_API_KEY) && (row?.aiModeration ?? true),
       privacyContact: row?.privacyContact ?? null,
       badges: this.badges.list(),
+      email: this.mail.enabled,
       gifs: this.cfg.KLIPY_APP_KEY
         ? { provider: 'klipy', appKey: this.cfg.KLIPY_APP_KEY, apiUrl: this.cfg.KLIPY_API_URL }
         : null,

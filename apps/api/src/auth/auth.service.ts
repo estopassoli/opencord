@@ -33,6 +33,7 @@ import { VoiceService } from '../voice/voice.service.js';
 import { isBotSession, randomToken, sha256, TokenService } from './token.service.js';
 import { TwoFactorService } from './two-factor.service.js';
 import { LoginAlertsService } from './login-alerts.service.js';
+import { maskEmail } from '../mail/mail.service.js';
 
 // Argon2id (algorithm 2) com parâmetros OWASP (m=19 MiB, t=2, p=1).
 const ARGON = { algorithm: 2, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
@@ -83,6 +84,8 @@ export class AuthService {
     isWebhook?: boolean;
     verified?: boolean;
     totpEnabledAt?: Date | null;
+    twoFactorEmailAt?: Date | null;
+    emailVerifiedAt?: Date | null;
   }): Me {
     return {
       id: u.id,
@@ -93,7 +96,9 @@ export class AuthService {
       displayName: u.displayName,
       avatarKey: u.avatarKey,
       hasAccount: u.passwordHash !== null,
-      twoFactorEnabled: Boolean(u.totpEnabledAt),
+      twoFactorEnabled: Boolean(u.totpEnabledAt || u.twoFactorEmailAt),
+      twoFactorMethod: u.totpEnabledAt ? 'totp' : u.twoFactorEmailAt ? 'email' : null,
+      emailVerified: Boolean(u.email && u.emailVerifiedAt),
       // bots e webhooks não aceitam termos; contas anteriores à ADR-0039 aceitam no app
       termsAccepted: u.termsAcceptedAt !== null || Boolean(u.isBot) || Boolean(u.isWebhook),
       createdAt: u.createdAt.toISOString(),
@@ -284,15 +289,21 @@ export class AuthService {
     await this.redis.client.del(ipKey, acctKey);
     const device = { ...client, deviceId: dto.deviceId ?? client.deviceId };
     // duas etapas (ADR-0046): a senha conferiu; a sessão só sai com o código do app (bilhete de 5 minutos)
-    if (user.totpEnabledAt) {
+    if (user.totpEnabledAt || user.twoFactorEmailAt) {
       const ticket = randomToken(24);
+      // com código por e-mail o bilhete dura o mesmo que o código (10 min)
       await this.redis.client.set(
         `2fa:ticket:${ticket}`,
         JSON.stringify({ userId: user.id, client: device }),
         'EX',
-        300,
+        user.twoFactorEmailAt ? 600 : 300,
       );
-      return { twoFactorRequired: true, ticket };
+      if (user.twoFactorEmailAt && user.email) {
+        // falha no envio não trava: dá para pedir de novo ou usar um código de recuperação
+        await this.twoFactor.sendEmailCode(user.id, user.email, '2fa').catch(() => undefined);
+        return { twoFactorRequired: true, ticket, method: 'email', emailHint: maskEmail(user.email) };
+      }
+      return { twoFactorRequired: true, ticket, method: 'totp', emailHint: null };
     }
     return this.finishLogin(user, device);
   }
@@ -318,6 +329,14 @@ export class AuthService {
     if (!user || user.disabledAt) throw new UnauthorizedException('conta desativada');
     await this.deviceBans.assertAllowed(t.client);
     return this.finishLogin(user, t.client);
+  }
+
+  /** manda outro código por e-mail para um login em andamento (ADR-0047) */
+  async resendLoginCode(ticket: string) {
+    const raw = await this.redis.client.get(`2fa:ticket:${ticket}`);
+    if (!raw) throw new UnauthorizedException('a verificação expirou; entre de novo com a senha');
+    const { userId } = JSON.parse(raw) as { userId: string };
+    await this.twoFactor.sendTwoFactorEmail(userId);
   }
 
   /** cria a sessão e avisa por DM se o aparelho é novo (ADR-0046) */

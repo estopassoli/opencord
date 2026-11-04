@@ -38,6 +38,10 @@ model User {
   totpRecoveryHashes String[]  @default([])
   /// último passo de 30 s aceito: o mesmo código não entra duas vezes
   totpLastStep       BigInt?
+  /// e-mail confirmado por código (ADR-0047); trocar o e-mail zera
+  emailVerifiedAt    DateTime? @db.Timestamptz(3)
+  /// verificação em duas etapas por código no e-mail ligada (alternativa ao app; ADR-0047)
+  twoFactorEmailAt   DateTime? @db.Timestamptz(3)
   /// quando aceitou os Termos de uso e a Política de privacidade (ADR-0039); null = ainda precisa aceitar no app
   termsAcceptedAt DateTime? @db.Timestamptz(3)
   /// conta excluída pela própria pessoa (ADR-0039): linha anonimizada (as mensagens ficam como "Usuário removido")

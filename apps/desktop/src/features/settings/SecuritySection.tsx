@@ -22,30 +22,45 @@ type SectionComp = (p: { title: string; description?: ReactNode; children: React
 
 const toastError = (e: unknown) => useUi.getState().toast('error', describeError(e));
 const fmt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-const setTwoFactor = (on: boolean) => useData.setState((s) => (s.me ? { me: { ...s.me, twoFactorEnabled: on } } : {}));
+const setTwoFactor = (method: Me['twoFactorMethod']) =>
+  useData.setState((s) =>
+    s.me ? { me: { ...s.me, twoFactorEnabled: method !== null, twoFactorMethod: method } } : {},
+  );
+const patchMe = (p: Partial<Me>) => useData.setState((s) => (s.me ? { me: { ...s.me, ...p } } : {}));
 
 export function SecuritySection({ me, Section }: { me: Me; Section: SectionComp }) {
+  // a instância envia e-mail (ADR-0047)
+  const mailOn = useData((s) => s.instance?.email ?? false);
   return (
     <>
-      <TwoFactor me={me} Section={Section} />
+      {mailOn && me.hasAccount && <EmailBlock me={me} Section={Section} />}
+      <TwoFactor me={me} Section={Section} mailOn={mailOn} />
       <Devices Section={Section} />
     </>
   );
 }
 
-function TwoFactor({ me, Section }: { me: Me; Section: SectionComp }) {
-  const [dialog, setDialog] = useState<'enable' | 'disable' | 'codes' | null>(null);
+function TwoFactor({ me, Section, mailOn }: { me: Me; Section: SectionComp; mailOn: boolean }) {
+  const [dialog, setDialog] = useState<'enable' | 'enable-email' | 'disable' | 'codes' | null>(null);
+  const emailReady = mailOn && me.emailVerified;
   return (
     <Section
       title="Verificação em duas etapas"
-      description="Além da senha, o login pede um código do app autenticador do seu celular (Google Authenticator, Microsoft Authenticator, Authy, 2FAS…)."
+      description={
+        mailOn
+          ? 'Além da senha, o login pede um código: do app autenticador do celular (Google Authenticator, Authy, 2FAS…) ou mandado para o seu e-mail.'
+          : 'Além da senha, o login pede um código do app autenticador do seu celular (Google Authenticator, Microsoft Authenticator, Authy, 2FAS…).'
+      }
     >
       {!me.hasAccount ? (
         <p className="muted small">Crie uma conta com senha acima para poder ligar.</p>
       ) : me.twoFactorEnabled ? (
         <div className="security-row">
           <span className="security-status" data-on="true">
-            <Icon name="shield" size={18} /> Ligada
+            <Icon name="shield" size={18} /> Ligada{' '}
+            <span className="muted small">
+              ({me.twoFactorMethod === 'email' ? 'código por e-mail' : 'app autenticador'})
+            </span>
           </span>
           <span className="spacer" />
           <Button size="sm" variant="ghost" onClick={() => setDialog('codes')}>
@@ -61,13 +76,27 @@ function TwoFactor({ me, Section }: { me: Me; Section: SectionComp }) {
             <Icon name="shield" size={18} /> Desligada
           </span>
           <span className="spacer" />
+          {mailOn && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={!emailReady}
+              onClick={() => setDialog('enable-email')}
+              {...(!emailReady ? { 'data-tip': 'Confirme o seu e-mail acima primeiro' } : {})}
+            >
+              Usar código por e-mail
+            </Button>
+          )}
           <Button size="sm" onClick={() => setDialog('enable')}>
-            Ligar
+            {mailOn ? 'Usar app autenticador' : 'Ligar'}
           </Button>
         </div>
       )}
       {dialog === 'enable' && <EnableDialog onClose={() => setDialog(null)} />}
-      {(dialog === 'disable' || dialog === 'codes') && <ConfirmDialog mode={dialog} onClose={() => setDialog(null)} />}
+      {dialog === 'enable-email' && <EnableEmailDialog onClose={() => setDialog(null)} />}
+      {(dialog === 'disable' || dialog === 'codes') && (
+        <ConfirmDialog mode={dialog} byEmail={me.twoFactorMethod === 'email'} onClose={() => setDialog(null)} />
+      )}
     </Section>
   );
 }
@@ -100,7 +129,7 @@ function EnableDialog({ onClose }: { onClose: () => void }) {
     try {
       const r = await api().request<TwoFactorRecoveryCodes>('POST', '/me/2fa/enable', { code });
       setCodes(r.recoveryCodes);
-      setTwoFactor(true);
+      setTwoFactor('totp');
     } catch (err) {
       toastError(err);
     } finally {
@@ -171,7 +200,23 @@ function EnableDialog({ onClose }: { onClose: () => void }) {
 }
 
 /** desligar ou gerar novos códigos: os dois pedem senha + código */
-function ConfirmDialog({ mode, onClose }: { mode: 'disable' | 'codes'; onClose: () => void }) {
+function ConfirmDialog({
+  mode,
+  byEmail,
+  onClose,
+}: {
+  mode: 'disable' | 'codes';
+  byEmail: boolean;
+  onClose: () => void;
+}) {
+  const [sent, setSent] = useState(false);
+  const sendCode = () =>
+    void api()
+      .request('POST', '/me/2fa/email/send')
+      .then(() => {
+        setSent(true);
+        useUi.getState().toast('success', 'Código enviado para o seu e-mail.');
+      }, toastError);
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [codes, setCodes] = useState<string[] | null>(null);
@@ -183,7 +228,7 @@ function ConfirmDialog({ mode, onClose }: { mode: 'disable' | 'codes'; onClose: 
     try {
       if (mode === 'disable') {
         await api().request('POST', '/me/2fa/disable', { password, code });
-        setTwoFactor(false);
+        setTwoFactor(null);
         useUi.getState().toast('success', 'Verificação em duas etapas desligada.');
         onClose();
       } else {
@@ -213,8 +258,13 @@ function ConfirmDialog({ mode, onClose }: { mode: 'disable' | 'codes'; onClose: 
           autoFocus
           autoComplete="current-password"
         />
+        {byEmail && (
+          <Button type="button" size="sm" variant="ghost" icon="mail" onClick={sendCode}>
+            {sent ? 'Enviar outro código' : 'Enviar código para o e-mail'}
+          </Button>
+        )}
         <TextField
-          label="Código do app ou de recuperação"
+          label={byEmail ? 'Código do e-mail ou de recuperação' : 'Código do app ou de recuperação'}
           value={code}
           onChange={(e) => setCode(e.target.value)}
           required
@@ -233,6 +283,204 @@ function ConfirmDialog({ mode, onClose }: { mode: 'disable' | 'codes'; onClose: 
             disabled={busy || !password || code.trim().length < 6}
           >
             {mode === 'disable' ? 'Desligar' : 'Gerar códigos'}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** liga o código por e-mail: confirma a senha e mostra os códigos de recuperação */
+function EnableEmailDialog({ onClose }: { onClose: () => void }) {
+  const [password, setPassword] = useState('');
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const r = await api().request<TwoFactorRecoveryCodes>('POST', '/me/2fa/email/enable', { password });
+      setCodes(r.recoveryCodes);
+      setTwoFactor('email');
+    } catch (err) {
+      toastError(err);
+      setBusy(false);
+    }
+  };
+  if (codes) return <RecoveryCodes codes={codes} onClose={onClose} />;
+  return (
+    <Dialog title="Código por e-mail" onClose={onClose}>
+      <form className="form" onSubmit={(e) => void submit(e)}>
+        <p className="muted">A cada login, depois da senha, mandamos um código de 6 dígitos para o seu e-mail.</p>
+        <TextField
+          label="Senha"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoFocus
+          autoComplete="current-password"
+        />
+        <div className="form-actions">
+          <span className="spacer" />
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={busy || !password}>
+            Ligar
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** E-mail da conta (ADR-0047): adicionar/trocar (com a senha) e confirmar por código. */
+function EmailBlock({ me, Section }: { me: Me; Section: SectionComp }) {
+  const [dialog, setDialog] = useState<'set' | 'verify' | null>(null);
+  return (
+    <Section
+      title="E-mail"
+      description="Usado para o código da verificação em duas etapas e para avisos de acesso novo."
+    >
+      <div className="security-row">
+        {me.email ? (
+          <>
+            <span className="truncate">{me.email}</span>
+            <span className="admin-pill" data-tone={me.emailVerified ? 'brand' : undefined}>
+              {me.emailVerified ? 'confirmado' : 'não confirmado'}
+            </span>
+          </>
+        ) : (
+          <span className="muted">Nenhum e-mail na conta.</span>
+        )}
+        <span className="spacer" />
+        {me.email && !me.emailVerified && (
+          <Button size="sm" onClick={() => setDialog('verify')}>
+            Confirmar
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={me.twoFactorMethod === 'email'}
+          onClick={() => setDialog('set')}
+          {...(me.twoFactorMethod === 'email' ? { 'data-tip': 'Desligue o código por e-mail antes' } : {})}
+        >
+          {me.email ? 'Trocar' : 'Adicionar e-mail'}
+        </Button>
+      </div>
+      {dialog === 'set' && <SetEmailDialog current={me.email} onClose={() => setDialog(null)} />}
+      {dialog === 'verify' && me.email && <VerifyEmailDialog email={me.email} onClose={() => setDialog(null)} />}
+    </Section>
+  );
+}
+
+function SetEmailDialog({ current, onClose }: { current: string | null; onClose: () => void }) {
+  const [email, setEmail] = useState(current ?? '');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api().request('PUT', '/me/email', { email: email.trim(), password });
+      patchMe({ email: email.trim().toLowerCase(), emailVerified: false });
+      useUi.getState().toast('success', 'E-mail salvo. Agora confirme pelo código.');
+      onClose();
+    } catch (err) {
+      toastError(err);
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog title={current ? 'Trocar e-mail' : 'Adicionar e-mail'} onClose={onClose}>
+      <form className="form" onSubmit={(e) => void submit(e)}>
+        <TextField
+          label="E-mail"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          maxLength={254}
+          autoFocus
+          autoComplete="email"
+        />
+        <TextField
+          label="Senha"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+        />
+        <div className="form-actions">
+          <span className="spacer" />
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={busy || !email.trim() || !password}>
+            Salvar
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+function VerifyEmailDialog({ email, onClose }: { email: string; onClose: () => void }) {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const send = useCallback(
+    () =>
+      void api()
+        .request('POST', '/me/email/verify/send')
+        .then(() => useUi.getState().toast('success', `Código enviado para ${email}.`), toastError),
+    [email],
+  );
+  useEffect(() => {
+    send();
+  }, [send]);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api().request('POST', '/me/email/verify', { code: code.trim() });
+      patchMe({ emailVerified: true });
+      useUi.getState().toast('success', 'E-mail confirmado.');
+      onClose();
+    } catch (err) {
+      toastError(err);
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog title="Confirmar e-mail" onClose={onClose}>
+      <form className="form" onSubmit={(e) => void submit(e)}>
+        <p className="muted">
+          Mandamos um código de 6 dígitos para <strong>{email}</strong>. Ele vale por 10 minutos.
+        </p>
+        <TextField
+          label="Código"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          required
+          minLength={6}
+          maxLength={6}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          autoFocus
+        />
+        <div className="form-actions">
+          <Button type="button" variant="ghost" onClick={send}>
+            Reenviar
+          </Button>
+          <span className="spacer" />
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={busy || code.trim().length !== 6}>
+            Confirmar
           </Button>
         </div>
       </form>

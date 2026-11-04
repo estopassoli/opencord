@@ -73,6 +73,27 @@ export const ConfigSchema = z.object({
   SPOTIFY_CLIENT_ID: z.string().min(10).optional(),
   SPOTIFY_CLIENT_SECRET: z.string().min(10).optional(),
   /**
+   * Envio de e-mail (ADR-0047): confirmar e-mail, código da verificação em duas etapas e aviso de acesso novo.
+   * Sem SMTP_HOST, a instância não manda e-mail (o app esconde as opções).
+   */
+  /** Resend (API HTTPS): tem prioridade sobre o SMTP quando definida */
+  RESEND_API_KEY: z.string().min(8).optional(),
+  /** remetente no Resend, ex.: "OpenCord <naoresponda@opencord.pro>" (domínio validado no Resend) */
+  RESEND_FROM: z.string().min(3).optional(),
+  /** Só muda em testes (stub local). */
+  RESEND_API_URL: z.url().default('https://api.resend.com'),
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  /** true = TLS direto (porta 465); false = STARTTLS quando o servidor oferece (587) */
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  /** remetente, ex.: "OpenCord <naoresponda@opencord.pro>" */
+  MAIL_FROM: z.string().min(3).optional(),
+  /**
    * Seletor de GIFs (ADR-0044): chave de app do KLIPY (partner panel). Não é segredo: pelos termos do KLIPY as buscas
    * saem do app de cada pessoa, então a chave vai ao cliente em InstanceInfo.gifs. Sem ela, o botão GIF não aparece.
    */

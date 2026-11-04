@@ -55,6 +55,8 @@ import { SystemUserService } from './system/system-user.service.js';
 import { SystemNoticesService } from './system/system-notices.service.js';
 import { TwoFactorService } from './auth/two-factor.service.js';
 import { LoginAlertsService } from './auth/login-alerts.service.js';
+import { MailService } from './mail/mail.service.js';
+import { AccountEmailService } from './auth/account-email.service.js';
 import { CardRejectionService } from './boards/card-rejection.service.js';
 import { RetentionService } from './users/retention.service.js';
 import { AvatarsController } from './users/avatars.controller.js';
@@ -120,6 +122,8 @@ export class AppModule {
         SystemNoticesService,
         TwoFactorService,
         LoginAlertsService,
+        MailService,
+        AccountEmailService,
         CardRejectionService,
         AccountService,
         RetentionService,

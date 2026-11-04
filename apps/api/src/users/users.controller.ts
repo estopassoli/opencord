@@ -18,6 +18,9 @@ import { RouteConfig } from '@nestjs/platform-fastify';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   DeleteAccountRequest,
+  EnableEmailTwoFactorRequest,
+  SetEmailRequest,
+  VerifyEmailRequest,
   SetPresenceRequest,
   SetStatusTextRequest,
   TwoFactorDisableRequest,
@@ -38,6 +41,7 @@ import { PresenceService } from '../realtime/presence.service.js';
 import { AccountService } from './account.service.js';
 import { AvatarService } from './avatar.service.js';
 import { TwoFactorService } from '../auth/two-factor.service.js';
+import { AccountEmailService } from '../auth/account-email.service.js';
 
 // exportar é caro (lê tudo da pessoa): poucas vezes por hora
 const EXPORT_RATE = { rateLimit: { max: 5, timeWindow: '1 hour' } };
@@ -51,6 +55,7 @@ export class UsersController {
     private readonly avatars: AvatarService,
     private readonly account: AccountService,
     private readonly twoFactor: TwoFactorService,
+    private readonly accountEmail: AccountEmailService,
   ) {}
 
   @Get()
@@ -121,6 +126,45 @@ export class UsersController {
     @Body(zodPipe(TwoFactorDisableRequest)) dto: z.infer<typeof TwoFactorDisableRequest>,
   ) {
     return this.twoFactor.regenerateRecovery(u.userId, dto.password, dto.code);
+  }
+
+  // ---------- E-mail e código por e-mail (ADR-0047) ----------
+
+  @Put('email')
+  @HttpCode(204)
+  async setEmail(@CurrentUser() u: AuthUser, @Body(zodPipe(SetEmailRequest)) dto: z.infer<typeof SetEmailRequest>) {
+    await this.accountEmail.set(u.userId, dto.email, dto.password);
+  }
+
+  @Post('email/verify/send')
+  @HttpCode(204)
+  async sendEmailVerification(@CurrentUser() u: AuthUser) {
+    await this.accountEmail.sendVerification(u.userId);
+  }
+
+  @Post('email/verify')
+  @HttpCode(204)
+  async verifyEmail(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(VerifyEmailRequest)) dto: z.infer<typeof VerifyEmailRequest>,
+  ) {
+    await this.accountEmail.verify(u.userId, dto.code);
+  }
+
+  @Post('2fa/email/enable')
+  @HttpCode(200)
+  enableEmailTwoFactor(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(EnableEmailTwoFactorRequest)) dto: z.infer<typeof EnableEmailTwoFactorRequest>,
+  ) {
+    return this.twoFactor.enableEmail(u.userId, dto.password);
+  }
+
+  /** manda o código da segunda etapa por e-mail (para desligar ou gerar novos códigos) */
+  @Post('2fa/email/send')
+  @HttpCode(204)
+  async sendTwoFactorEmail(@CurrentUser() u: AuthUser) {
+    await this.twoFactor.sendTwoFactorEmail(u.userId);
   }
 
   @Get('sessions')

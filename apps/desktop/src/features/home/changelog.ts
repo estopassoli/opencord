@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
+    time: '21:30',
+    kind: 'novo',
+    icon: 'mail',
+    title: 'Código de acesso por e-mail',
+    body: 'Agora dá para confirmar o e-mail da conta e usar a verificação em duas etapas com um código que chega no seu e-mail, em vez do app autenticador. Quem tem e-mail confirmado também recebe por e-mail o aviso de acesso de aparelho novo. Tudo fica em Configurações → Minha conta.',
+  },
+  {
+    date: '2026-11-04',
     time: '20:30',
     kind: 'novo',
     icon: 'shield',

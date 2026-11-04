@@ -39,6 +39,10 @@ export function AuthScreen() {
   const [accepted, setAccepted] = useState(false);
   // verificação em duas etapas (ADR-0046): a senha conferiu e falta o código
   const [ticket, setTicket] = useState<string | null>(null);
+  const [via, setVia] = useState<{ method: 'totp' | 'email'; emailHint: string | null }>({
+    method: 'totp',
+    emailHint: null,
+  });
   const [code, setCode] = useState('');
   const [legal, setLegal] = useState<LegalKind | null>(null);
   // os links ficam dentro do rótulo da caixa: sem isso o clique também marcava/desmarcava o aceite
@@ -95,6 +99,7 @@ export function AuthScreen() {
         const r = await s.login(serverUrl, login, password);
         if (r) {
           setTicket(r.twoFactorTicket);
+          setVia({ method: r.method, emailHint: r.emailHint });
           setCode('');
         }
       } else await s.register(serverUrl, { nickname, password, email: email.trim() || undefined, accessCode: code });
@@ -140,7 +145,11 @@ export function AuthScreen() {
           <div className="auth-brand">
             <span className="brand-mark" aria-hidden />
             <h1>Verificação em duas etapas</h1>
-            <p className="muted">Abra o app autenticador e digite o código de 6 dígitos do OpenCord.</p>
+            <p className="muted">
+              {via.method === 'email'
+                ? `Mandamos um código de 6 dígitos para ${via.emailHint ?? 'o seu e-mail'}. Ele vale por 10 minutos.`
+                : 'Abra o app autenticador e digite o código de 6 dígitos do OpenCord.'}
+            </p>
           </div>
           <TextField
             label="Código"
@@ -163,6 +172,21 @@ export function AuthScreen() {
             {busy ? 'Aguarde…' : 'Confirmar'}
           </Button>
           <p className="auth-switch auth-links">
+            {via.method === 'email' && (
+              <button
+                type="button"
+                className="link-btn"
+                disabled={busy}
+                onClick={() =>
+                  void new ApiClient(normalizeServerUrl(serverUrl)).resendLoginCode(ticket).then(
+                    () => setError(null),
+                    (err: unknown) => setError(describeError(err)),
+                  )
+                }
+              >
+                Reenviar código
+              </button>
+            )}
             <button
               type="button"
               className="link-btn"

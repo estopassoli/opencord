@@ -14,6 +14,7 @@ Identidades sem senha ficam ligadas ao dispositivo pela sessão. Servidores são
   - anti-replay por passo de 30 s;
   - 10 códigos de recuperação guardados só como SHA-256, cada um de uso único;
   - login em duas fases com bilhete de uso único (Redis, 5 min, 5 tentativas).
+- Segunda etapa alternativa por código no e-mail (ADR-0047): 6 dígitos, hash no Redis, 10 min, 5 tentativas, uso único e 1 envio por minuto. Só vale com e-mail confirmado, e com ela ligada o e-mail não pode ser trocado.
 - Aparelhos conectados com encerramento remoto, e aviso por DM da conta OpenCord quando a conta entra de um aparelho novo.
 - RBAC por servidor/canal, deny explícito prevalece conforme regra documentada; verificar permissões no backend e no momento de emitir tokens LiveKit.
 - Remoção de membro implica expulsão ativa da SFU e rooms de realtime.

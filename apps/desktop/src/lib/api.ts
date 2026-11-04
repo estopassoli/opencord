@@ -199,6 +199,10 @@ export class ApiClient {
   login(login: string, password: string, deviceId: string) {
     return this.request<LoginResponse>('POST', '/auth/login', { login, password, deviceId }, { auth: false });
   }
+  /** Outro código por e-mail para o login em andamento (ADR-0047). */
+  resendLoginCode(ticket: string) {
+    return this.request<void>('POST', '/auth/login/2fa/resend', { ticket }, { auth: false });
+  }
   /** Segunda etapa (ADR-0046): código do app autenticador ou de recuperação. */
   loginTwoFactor(ticket: string, code: string) {
     return this.request<AuthResponse>('POST', '/auth/login/2fa', { ticket, code }, { auth: false });

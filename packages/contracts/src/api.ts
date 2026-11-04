@@ -105,6 +105,8 @@ export const InstanceInfo = z.object({
     .object({ provider: z.literal('klipy'), appKey: z.string(), apiUrl: z.string() })
     .nullable()
     .default(null),
+  /** a instância envia e-mail (SMTP configurado): confirmar e-mail e 2FA por e-mail (ADR-0047) */
+  email: z.boolean().default(false),
   /** catálogo de insígnias (ADR-0043), na ordem de exibição */
   badges: z.array(Badge).default([]),
 });
@@ -194,6 +196,10 @@ export const Me = UserPublic.extend({
   termsAccepted: z.boolean().default(true),
   /** verificação em duas etapas ligada (ADR-0046) */
   twoFactorEnabled: z.boolean().default(false),
+  /** como a segunda etapa chega: app autenticador ou código no e-mail (ADR-0047) */
+  twoFactorMethod: z.enum(['totp', 'email']).nullable().default(null),
+  /** e-mail confirmado por código (ADR-0047) */
+  emailVerified: z.boolean().default(false),
 });
 export type Me = z.infer<typeof Me>;
 
@@ -209,7 +215,13 @@ export const TwoFactorCode = z
   .max(16)
   .transform((c) => c.replace(/\s+/g, '').toLowerCase());
 /** POST /auth/login com duas etapas ligadas: a senha conferiu e falta o código (bilhete vale 5 minutos). */
-export const TwoFactorChallenge = z.object({ twoFactorRequired: z.literal(true), ticket: z.string() });
+export const TwoFactorChallenge = z.object({
+  twoFactorRequired: z.literal(true),
+  ticket: z.string(),
+  /** email: o código foi mandado agora para o e-mail (mostrado mascarado em `emailHint`) */
+  method: z.enum(['totp', 'email']).default('totp'),
+  emailHint: z.string().nullable().default(null),
+});
 export type TwoFactorChallenge = z.infer<typeof TwoFactorChallenge>;
 export const LoginResponse = z.union([AuthResponse, TwoFactorChallenge]);
 export type LoginResponse = z.infer<typeof LoginResponse>;
@@ -224,6 +236,21 @@ export const TwoFactorRecoveryCodes = z.object({ recoveryCodes: z.array(z.string
 export type TwoFactorRecoveryCodes = z.infer<typeof TwoFactorRecoveryCodes>;
 export const TwoFactorDisableRequest = z.object({ password: z.string().min(1).max(256), code: TwoFactorCode });
 export type TwoFactorDisableRequest = z.input<typeof TwoFactorDisableRequest>;
+
+/** POST /auth/login/2fa/resend: manda outro código por e-mail (1 por minuto) */
+export const LoginTwoFactorResendRequest = z.object({ ticket: z.string().min(16).max(128) });
+/** PUT /me/email: define ou troca o e-mail da conta (fica sem confirmar); pede a senha */
+export const SetEmailRequest = z.object({ email: z.email().max(254), password: z.string().min(1).max(256) });
+export type SetEmailRequest = z.input<typeof SetEmailRequest>;
+/** POST /me/email/verify: código de 6 dígitos que chegou no e-mail */
+export const VerifyEmailRequest = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'código de 6 dígitos'),
+});
+/** POST /me/2fa/email/enable: liga o código por e-mail (precisa de e-mail confirmado) */
+export const EnableEmailTwoFactorRequest = z.object({ password: z.string().min(1).max(256) });
 
 /** Aparelho conectado (uma família de sessões): GET /me/sessions */
 export const SessionInfo = z.object({
