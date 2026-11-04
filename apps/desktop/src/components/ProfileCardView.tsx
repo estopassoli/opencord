@@ -3,9 +3,10 @@
  * O mesmo desenho serve o cartão de verdade e a prévia ao vivo do editor.
  */
 import type { ProfileAppearance, PresenceStatus } from '@opencord/contracts';
-import { Avatar } from '@opencord/ui';
+import { Avatar, Icon } from '@opencord/ui';
 import type { CSSProperties, ReactNode } from 'react';
 import { renderRich } from '../features/chat/rich';
+import { useData } from '../store/data';
 import { useSession } from '../store/session';
 import { UserBadges } from './UserBadges';
 
@@ -45,6 +46,10 @@ export function ProfileCardHead({
   bannerSrc,
   status,
   children,
+  onEditAvatar,
+  onEditBanner,
+  bioEditor,
+  statusEditor,
 }: {
   user: { id: string; displayName: string; badges?: string[] | undefined };
   name: ReactNode;
@@ -54,16 +59,37 @@ export function ProfileCardHead({
   bannerSrc?: string | null;
   status?: PresenceStatus | undefined;
   children?: ReactNode;
+  /** editor de perfil (ADR-0048): lápis ao passar o mouse na foto/banner */
+  onEditAvatar?: () => void;
+  onEditBanner?: () => void;
+  /** editor: a bio e o balão de status viram campos de escrever ali mesmo */
+  bioEditor?: ReactNode;
+  statusEditor?: ReactNode;
 }) {
   const stored = useBannerUrl(appearance);
+  const statusText = useData((s) => (s.me?.id === user.id ? s.myStatusText : s.statusTexts[user.id]) ?? null);
   const banner = bannerSrc === undefined ? stored : bannerSrc;
   return (
     <div className="pc-head" data-themed={appearance.colors ? 'true' : undefined}>
       <div className="pc-banner" data-empty={banner ? undefined : 'true'}>
         {banner && <img src={banner} alt="" draggable={false} />}
+        {onEditBanner && (
+          <button type="button" className="pc-edit pc-edit-banner" aria-label="Trocar banner" onClick={onEditBanner}>
+            <Icon name="edit" size={16} />
+          </button>
+        )}
       </div>
-      <div className="pc-avatar">
-        <Avatar id={user.id} name={user.displayName} size={80} status={status} />
+      <div className="pc-avatar-row">
+        <div className="pc-avatar">
+          <Avatar id={user.id} name={user.displayName} size={80} status={status} />
+          {onEditAvatar && (
+            <button type="button" className="pc-edit pc-edit-avatar" aria-label="Trocar foto" onClick={onEditAvatar}>
+              <Icon name="edit" size={18} />
+            </button>
+          )}
+        </div>
+        {/* balão ao lado da foto: o status com texto da pessoa */}
+        {statusEditor ?? (statusText && <div className="pc-status">{statusText}</div>)}
       </div>
       <div className="pc-names">
         <strong className="pc-name">
@@ -72,7 +98,13 @@ export function ProfileCardHead({
         </strong>
         {subtitle && <div className="pc-sub">{subtitle}</div>}
       </div>
-      {appearance.bio && <div className="pc-bio">{renderRich(appearance.bio, () => 'alguém')}</div>}
+      {bioEditor ??
+        (appearance.bio && (
+          <section className="pc-section">
+            <h4>Bio</h4>
+            <div className="pc-bio">{renderRich(appearance.bio, () => 'alguém')}</div>
+          </section>
+        ))}
       {children}
     </div>
   );

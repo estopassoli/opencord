@@ -828,7 +828,15 @@ textarea:focus-visible {
   height: 100%;
   object-fit: cover;
 }
+.pc-avatar-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
 .pc-avatar {
+  position: relative;
+  flex: none;
   margin-top: -44px;
   width: fit-content;
   padding: 4px;
@@ -852,14 +860,140 @@ textarea:focus-visible {
   color: var(--pc-muted, var(--text-muted));
   font-size: 0.875rem;
 }
+/* balão do status ao lado da foto */
+.pc-status {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: -18px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--elevated, #1e1f22);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-style: italic;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
+}
+.pc-status::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: inherit;
+}
+.pc-section {
+  margin-top: 8px;
+}
+.pc-section h4 {
+  margin: 0 0 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--pc-muted, var(--text-muted));
+}
 .pc-bio {
-  margin-top: 6px;
-  padding: 8px 10px;
-  border-radius: var(--radius);
-  background: rgb(0 0 0 / 0.18);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 0.875rem;
+}
+/* editor: foto e banner com lápis; bio e status editáveis no lugar */
+.pc-banner {
+  position: relative;
+}
+.pc-edit {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.pc-edit-banner {
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+}
+.pc-edit-avatar {
+  inset: 4px;
+}
+.pc-banner:hover .pc-edit,
+.pc-avatar:hover .pc-edit,
+.pc-edit:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .pc-edit {
+    opacity: 0.85;
+  }
+  .pc-edit-avatar {
+    inset: auto 0 0 auto;
+    width: 28px;
+    height: 28px;
+  }
+}
+.pc-inline-edit {
+  display: block;
+  width: 100%;
+  border: 1px dashed transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: text;
+}
+.pc-section .pc-inline-edit {
+  margin: -2px -6px;
+  padding: 2px 6px;
+  width: calc(100% + 12px);
+}
+.pc-status.pc-inline-edit {
+  width: auto;
+  background: var(--elevated, #1e1f22);
+}
+.pc-inline-edit:hover,
+.pc-inline-edit:focus-visible {
+  border-color: var(--pc-muted, var(--text-muted));
+}
+.pc-inline-edit[data-empty='true'] {
+  color: var(--pc-muted, var(--text-muted));
+}
+.pc-status-editing {
+  flex: 1;
+  padding: 2px;
+  font-style: normal;
+}
+.pc-bio-editing {
+  position: relative;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: rgb(0 0 0 / 0.25);
+  outline: 2px solid var(--brand);
+}
+.pc-bio-editing textarea {
+  width: 100%;
+  resize: vertical;
+}
+.pc-bio-count {
+  display: block;
+  text-align: right;
+  font-size: 0.6875rem;
+  color: var(--pc-muted, var(--text-muted));
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-edit {
+    transition: none;
+  }
 }
 /* cores do perfil: o cartão inteiro fica no degradê, texto claro ou escuro conforme o fundo */
 .profile-card[data-themed='true'],

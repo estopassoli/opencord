@@ -21,6 +21,7 @@ import { EMPTY_APPEARANCE, useProfiles } from '../../store/profiles';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { GifPicker } from '../chat/GifPicker';
+import { renderRich } from '../chat/rich';
 
 /** cores para o degradê: claras, médias e escuras (o texto do cartão se ajusta sozinho) */
 const PROFILE_COLORS = [
@@ -65,11 +66,16 @@ export function ProfileEditor({ me }: { me: Me }) {
   const current = saved ?? EMPTY_APPEARANCE;
 
   const [bio, setBio] = useState<string | null>(null);
+  // status com texto (o mesmo do menu do usuário): no balão ao lado da foto
+  const savedStatus = useData((s) => s.myStatusText) ?? '';
+  const [status, setStatus] = useState<string | null>(null);
+  const statusDraft = status ?? savedStatus;
   const [colors, setColors] = useState<[string, string] | null | undefined>(undefined);
   const [banner, setBanner] = useState<ImageDraft>({ kind: 'keep' });
   const [avatar, setAvatar] = useState<AvatarDraft>({ kind: 'keep' });
   const [busy, setBusy] = useState(false);
   const [gifFor, setGifFor] = useState<'avatar' | 'banner' | null>(null);
+  const [pickFor, setPickFor] = useState<'avatar' | 'banner' | null>(null);
   const [cropping, setCropping] = useState<File | null>(null);
   const [recent, setRecent] = useState<RecentAvatar[]>([]);
   const avatarInput = useRef<HTMLInputElement>(null);
@@ -107,6 +113,7 @@ export function ProfileEditor({ me }: { me: Me }) {
           ? avatar.url
           : null;
   const dirty =
+    (status !== null && status.trim() !== savedStatus) ||
     (bio !== null && bio.trim() !== current.bio) ||
     (colors !== undefined && JSON.stringify(colors) !== JSON.stringify(current.colors)) ||
     banner.kind !== 'keep' ||
@@ -128,6 +135,7 @@ export function ProfileEditor({ me }: { me: Me }) {
 
   const reset = () => {
     setBio(null);
+    setStatus(null);
     setColors(undefined);
     setBanner({ kind: 'keep' });
     setAvatar({ kind: 'keep' });
@@ -153,6 +161,11 @@ export function ProfileEditor({ me }: { me: Me }) {
         ...(avatar.kind === 'url' ? { avatarUrl: avatar.url } : {}),
       };
       if (Object.keys(patch).length) last = await api().request<ProfileUpdateResponse>('PATCH', '/me/profile', patch);
+      if (status !== null && status.trim() !== savedStatus) {
+        const text = status.trim() || null;
+        await api().request('PUT', '/me/status-text', { text });
+        useData.setState({ myStatusText: text });
+      }
       if (last) {
         useProfiles.getState().set(me.id, last.appearance);
         useData.getState().patchUser(last.me);
@@ -200,79 +213,42 @@ export function ProfileEditor({ me }: { me: Me }) {
 
   const previewStyle = useMemo(() => profileThemeVars(shownColors), [shownColors]);
 
+  const recentUrl = (r: RecentAvatar) => (r.url.startsWith('/') && base ? `${base}${r.url}` : r.url);
+
   return (
     <div className="profile-editor">
       <div className="profile-editor-controls">
         <section>
           <h3>Foto</h3>
-          <div className="profile-editor-row">
-            <Button size="sm" icon="upload" onClick={() => avatarInput.current?.click()}>
-              Enviar imagem
-            </Button>
-            {gifCfg && (
-              <Button size="sm" variant="ghost" icon="image" onClick={() => setGifFor('avatar')}>
-                Escolher GIF
-              </Button>
-            )}
-            {avatarSrc && (
-              <Button size="sm" variant="ghost" onClick={() => setAvatar({ kind: 'none' })}>
-                Remover
-              </Button>
-            )}
-          </div>
-          {recent.length > 0 && (
-            <div className="profile-recent" role="group" aria-label="Fotos recentes">
-              <span className="muted small">Recentes</span>
-              <div>
-                {recent.map((r) => (
-                  <button
-                    key={r.entry}
-                    type="button"
-                    className="profile-recent-item"
-                    aria-pressed={avatar.kind === 'recent' && avatar.entry === r.entry}
-                    aria-label="Usar esta foto de novo"
-                    data-tip="Usar de novo"
-                    onClick={() =>
-                      setAvatar({
-                        kind: 'recent',
-                        entry: r.entry,
-                        url: r.url.startsWith('/') && base ? `${base}${r.url}` : r.url,
-                      })
-                    }
-                  >
-                    <Avatar
-                      id={me.id}
-                      name={me.displayName}
-                      size={44}
-                      src={r.url.startsWith('/') && base ? `${base}${r.url}` : r.url}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <button
+            type="button"
+            className="profile-tile profile-tile-avatar"
+            aria-label="Trocar foto de perfil"
+            onClick={() => setPickFor('avatar')}
+          >
+            <AvatarOverride id={me.id} src={avatarSrc}>
+              <Avatar id={me.id} name={me.displayName} size={72} />
+            </AvatarOverride>
+            <span className="profile-tile-edit" aria-hidden>
+              <Icon name="edit" size={16} />
+            </span>
+          </button>
         </section>
 
         <section>
           <h3>Banner</h3>
-          <div className="profile-editor-row">
-            <Button size="sm" icon="upload" onClick={() => bannerInput.current?.click()}>
-              Enviar imagem
-            </Button>
-            {gifCfg && (
-              <Button size="sm" variant="ghost" icon="image" onClick={() => setGifFor('banner')}>
-                Escolher GIF
-              </Button>
-            )}
-            {bannerSrc && (
-              <Button size="sm" variant="ghost" onClick={() => setBanner({ kind: 'none' })}>
-                Remover
-              </Button>
-            )}
-          </div>
-          <span className="muted small">
-            PNG, JPEG, WebP ou GIF animado (até 4 MB). Sem banner, vale a primeira cor.
-          </span>
+          <button
+            type="button"
+            className="profile-tile profile-tile-banner"
+            aria-label="Trocar banner"
+            onClick={() => setPickFor('banner')}
+            style={previewStyle}
+          >
+            {bannerSrc ? <img src={bannerSrc} alt="" draggable={false} /> : <span className="profile-tile-empty" />}
+            <span className="profile-tile-edit" aria-hidden>
+              <Icon name="edit" size={16} />
+            </span>
+          </button>
         </section>
 
         <section>
@@ -290,8 +266,8 @@ export function ProfileEditor({ me }: { me: Me }) {
             onChange={(c) => setColor(1, c)}
           />
           <div className="profile-editor-row">
-            <HexField label="Cor de cima (#rrggbb)" value={shownColors?.[0] ?? ''} onChange={(c) => setColor(0, c)} />
-            <HexField label="Cor de baixo (#rrggbb)" value={shownColors?.[1] ?? ''} onChange={(c) => setColor(1, c)} />
+            <HexField label="Cima (#rrggbb)" value={shownColors?.[0] ?? ''} onChange={(c) => setColor(0, c)} />
+            <HexField label="Baixo (#rrggbb)" value={shownColors?.[1] ?? ''} onChange={(c) => setColor(1, c)} />
           </div>
           {shownColors && (
             <Button size="sm" variant="ghost" onClick={() => setColors(null)}>
@@ -299,25 +275,10 @@ export function ProfileEditor({ me }: { me: Me }) {
             </Button>
           )}
         </section>
-
-        <section>
-          <h3>Bio</h3>
-          <TextArea
-            aria-label="Sobre mim"
-            value={draft.bio}
-            onChange={(e) => setBio(e.target.value)}
-            maxLength={BIO_MAX}
-            rows={4}
-            placeholder="Conte um pouco sobre você. Dá para usar **negrito**, links e emojis."
-          />
-          <span className="muted small profile-bio-count">
-            {draft.bio.length}/{BIO_MAX}
-          </span>
-        </section>
       </div>
 
       <div className="profile-editor-preview">
-        <span className="muted small">Como os outros veem</span>
+        <span className="muted small">Como os outros veem · clique na foto ou no banner para trocar</span>
         <div className="profile-preview" data-themed={shownColors ? 'true' : undefined} style={previewStyle}>
           <AvatarOverride id={me.id} src={avatarSrc}>
             <ProfileCardHead
@@ -326,10 +287,43 @@ export function ProfileEditor({ me }: { me: Me }) {
               bannerSrc={bannerSrc}
               name={me.displayName}
               subtitle={`@${me.username}`}
+              onEditAvatar={() => setPickFor('avatar')}
+              onEditBanner={() => setPickFor('banner')}
+              bioEditor={<BioField value={draft.bio} onChange={setBio} />}
+              statusEditor={<StatusBubble value={statusDraft} onChange={setStatus} />}
             />
           </AvatarOverride>
         </div>
       </div>
+
+      {pickFor && (
+        <ImageSourceDialog
+          kind={pickFor}
+          canGif={Boolean(gifCfg)}
+          canRemove={pickFor === 'avatar' ? Boolean(avatarSrc) : Boolean(bannerSrc)}
+          recent={pickFor === 'avatar' ? recent.map((r) => ({ ...r, url: recentUrl(r) })) : []}
+          meId={me.id}
+          meName={me.displayName}
+          onClose={() => setPickFor(null)}
+          onUpload={() => {
+            setPickFor(null);
+            (pickFor === 'avatar' ? avatarInput : bannerInput).current?.click();
+          }}
+          onGif={() => {
+            setGifFor(pickFor);
+            setPickFor(null);
+          }}
+          onRecent={(r) => {
+            setAvatar({ kind: 'recent', entry: r.entry, url: r.url });
+            setPickFor(null);
+          }}
+          onRemove={() => {
+            if (pickFor === 'avatar') setAvatar({ kind: 'none' });
+            else setBanner({ kind: 'none' });
+            setPickFor(null);
+          }}
+        />
+      )}
 
       {dirty && (
         <div className="profile-editor-bar" role="status">
@@ -388,6 +382,168 @@ export function ProfileEditor({ me }: { me: Me }) {
         />
       )}
     </div>
+  );
+}
+
+/** Bio editada no próprio cartão (seção "Bio" abaixo do nome): clique para escrever. */
+function BioField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <section className="pc-section">
+      <h4>Bio</h4>
+      {editing ? (
+        <div className="pc-bio-editing">
+          <TextArea
+            bare
+            autoFocus
+            aria-label="Bio"
+            value={value}
+            maxLength={BIO_MAX}
+            rows={3}
+            placeholder="Conte um pouco sobre você. Dá para usar **negrito**, links e emojis."
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={() => setEditing(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                setEditing(false);
+              }
+            }}
+          />
+          <span className="pc-bio-count">
+            {value.length}/{BIO_MAX}
+          </span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="pc-bio pc-inline-edit"
+          data-empty={value ? undefined : 'true'}
+          aria-label={value ? 'Editar bio' : 'Escrever bio'}
+          onClick={() => setEditing(true)}
+        >
+          {value ? renderRich(value, () => 'alguém') : 'Escreva algo sobre você'}
+        </button>
+      )}
+    </section>
+  );
+}
+
+/** Balão ao lado da foto: o status com texto (o mesmo do menu do usuário), editado ali mesmo. */
+function StatusBubble({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  if (editing)
+    return (
+      <div className="pc-status pc-status-editing">
+        <TextField
+          autoFocus
+          aria-label="Status"
+          value={value}
+          maxLength={80}
+          placeholder="O que você está fazendo?"
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={() => setEditing(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              setEditing(false);
+            }
+          }}
+        />
+      </div>
+    );
+  return (
+    <button
+      type="button"
+      className="pc-status pc-inline-edit"
+      data-empty={value ? undefined : 'true'}
+      aria-label={value ? 'Editar status' : 'Escrever status'}
+      onClick={() => setEditing(true)}
+    >
+      {value || (
+        <>
+          <Icon name="plus-circle" size={14} /> O que você está fazendo?
+        </>
+      )}
+    </button>
+  );
+}
+
+/** Escolher de onde vem a foto ou o banner: enviar do computador, um GIF do KLIPY ou (foto) uma das recentes. */
+function ImageSourceDialog({
+  kind,
+  canGif,
+  canRemove,
+  recent,
+  meId,
+  meName,
+  onClose,
+  onUpload,
+  onGif,
+  onRecent,
+  onRemove,
+}: {
+  kind: 'avatar' | 'banner';
+  canGif: boolean;
+  canRemove: boolean;
+  recent: RecentAvatar[];
+  meId: string;
+  meName: string;
+  onClose: () => void;
+  onUpload: () => void;
+  onGif: () => void;
+  onRecent: (r: RecentAvatar) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <Dialog title={kind === 'avatar' ? 'Escolher foto' : 'Escolher banner'} onClose={onClose}>
+      <div className="image-source">
+        <div className="image-source-tiles">
+          <button type="button" className="image-source-tile" onClick={onUpload}>
+            <Icon name="upload" size={28} />
+            <strong>Enviar imagem</strong>
+            <span className="muted small">
+              {kind === 'avatar' ? 'PNG, JPEG, WebP ou GIF' : 'PNG, JPEG, WebP ou GIF animado, até 4 MB'}
+            </span>
+          </button>
+          {canGif && (
+            <button type="button" className="image-source-tile image-source-gif" onClick={onGif}>
+              <span className="gif-btn-label">GIF</span>
+              <strong>Escolher GIF</strong>
+              <span className="muted small">Busque no KLIPY</span>
+            </button>
+          )}
+        </div>
+        {recent.length > 0 && (
+          <div className="image-source-recent">
+            <strong className="small">Fotos recentes</strong>
+            <span className="muted small">As últimas {recent.length} que você usou.</span>
+            <div>
+              {recent.map((r) => (
+                <button
+                  key={r.entry}
+                  type="button"
+                  className="profile-recent-item"
+                  aria-label="Usar esta foto de novo"
+                  data-tip="Usar de novo"
+                  onClick={() => onRecent(r)}
+                >
+                  <Avatar id={meId} name={meName} size={52} src={r.url} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {canRemove && (
+          <div className="form-actions">
+            <Button size="sm" variant="ghost" icon="trash" onClick={onRemove}>
+              {kind === 'avatar' ? 'Remover foto' : 'Remover banner'}
+            </Button>
+          </div>
+        )}
+      </div>
+    </Dialog>
   );
 }
 
