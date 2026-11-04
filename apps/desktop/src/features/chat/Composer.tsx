@@ -193,6 +193,7 @@ export function Composer({
   }, [serverId, draft, serverCommands]);
   const [pollOpen, setPollOpen] = useState(false);
   const replyToId = useUi((s) => s.replyTo[targetKey] ?? null);
+  const privateReply = useUi((s) => s.privateReply[targetKey] ?? null);
   const replyTo = useMessages((s) =>
     replyToId ? s.timelines[targetKey]?.messages.find((m) => m.id === replyToId) : undefined,
   );
@@ -324,10 +325,13 @@ export function Composer({
       body,
       replyToId ?? undefined,
       attachmentIds.length ? attachmentIds : undefined,
+      // resposta comum na DM tem prioridade (a faixa da resposta no privado some enquanto isso)
+      replyToId ? undefined : privateReply?.messageId,
     );
     setDraft('');
     setUploads([]);
     useUi.getState().setReplyTo(targetKey, null);
+    useUi.getState().setPrivateReply(targetKey, null);
     typingSent.current = 0;
     void useSession
       .getState()
@@ -367,8 +371,17 @@ export function Composer({
     try {
       const file = new File([blob], 'Mensagem de voz.webm', { type: 'audio/webm' });
       const up = await api().upload<{ attachment: Attachment }>('/attachments', file);
-      void sendMessage(targetKey, target, crypto.randomUUID(), '', replyToId ?? undefined, [up.attachment.id]);
+      void sendMessage(
+        targetKey,
+        target,
+        crypto.randomUUID(),
+        '',
+        replyToId ?? undefined,
+        [up.attachment.id],
+        replyToId ? undefined : privateReply?.messageId,
+      );
       useUi.getState().setReplyTo(targetKey, null);
+      useUi.getState().setPrivateReply(targetKey, null);
     } catch (e) {
       useUi.getState().toast('error', `Não deu para enviar a mensagem de voz: ${describeError(e)}`);
     } finally {
@@ -440,6 +453,7 @@ export function Composer({
       send();
     } else if (e.key === 'Escape') {
       if (replyToId) useUi.getState().setReplyTo(targetKey, null);
+      else if (privateReply) useUi.getState().setPrivateReply(targetKey, null);
       // Esc com o composer focado marca o canal como lido
       else void markTargetRead(targetKey);
     } else if (e.key === 'ArrowUp' && !draft) {
@@ -534,6 +548,22 @@ export function Composer({
             className="icon-btn icon-btn-sm"
             aria-label="Cancelar resposta"
             onClick={() => useUi.getState().setReplyTo(targetKey, null)}
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+      )}
+      {privateReply && !replyTo && (
+        <div className="composer-reply composer-private-reply">
+          <span className="truncate">
+            <Icon name="mail" size={14} /> Respondendo no privado a <strong>{privateReply.authorName}</strong>
+            {privateReply.channelName && ` em #${privateReply.channelName}`}
+            <span className="muted"> · {privateReply.bodyPreview}</span>
+          </span>
+          <button
+            className="icon-btn icon-btn-sm"
+            aria-label="Cancelar resposta no privado"
+            onClick={() => useUi.getState().setPrivateReply(targetKey, null)}
           >
             <Icon name="close" size={16} />
           </button>

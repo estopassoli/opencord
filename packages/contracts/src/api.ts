@@ -686,6 +686,15 @@ export const MessageReplyRef = z.object({
   deleted: z.boolean(),
 });
 
+/** Mensagem de canal citada numa resposta no privado (ADR-0042). */
+export const PrivateReplyRef = MessageReplyRef.extend({
+  channelId: Id,
+  channelName: z.string(),
+  serverId: Id,
+  serverName: z.string(),
+});
+export type PrivateReplyRef = z.infer<typeof PrivateReplyRef>;
+
 export const Message = z.object({
   id: Id,
   channelId: Id.nullable(),
@@ -696,6 +705,8 @@ export const Message = z.object({
   editedAt: IsoDate.nullable(),
   deleted: z.boolean(),
   replyTo: MessageReplyRef.nullable(),
+  /** só em DM: a mensagem de canal respondida no privado (ADR-0042); API antiga não manda */
+  privateReplyTo: PrivateReplyRef.nullable().optional(),
   reactions: z.array(ReactionSummary),
   attachments: z.array(Attachment),
   mentions: z.array(Id),
@@ -851,6 +862,8 @@ export const CreateMessageRequest = z
     requestId: z.uuid(),
     body: MessageBody.default(''),
     replyToId: Id.optional(),
+    /** só em DM 1:1 com o autor: responde no privado a uma mensagem de canal (ADR-0042) */
+    privateReplyToId: Id.optional(),
     attachmentIds: z.array(Id).max(10).optional(),
     /** só bots e webhooks (ADR-0034) */
     embeds: z.array(Embed).max(EMBED_LIMITS.perMessage).optional(),

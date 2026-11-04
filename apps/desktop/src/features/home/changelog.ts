@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-03',
+    time: '21:10',
+    kind: 'novo',
+    icon: 'mail',
+    title: 'Responder no privado',
+    body: 'Gostou (ou não) de algo que alguém escreveu num canal? Use "Responder no privado" no menu da mensagem: abre a conversa direta com a pessoa já marcando a mensagem dela. Na DM, a citação mostra de qual canal veio e leva até a mensagem original com um clique.',
+  },
+  {
+    date: '2026-11-03',
     time: '17:15',
     kind: 'melhoria',
     icon: 'image',

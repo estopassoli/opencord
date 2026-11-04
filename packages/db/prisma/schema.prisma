@@ -448,6 +448,8 @@ model Message {
   mentions       String[]      @db.Uuid
   mentionEveryone Boolean      @default(false)
   replyToId      String?       @db.Uuid
+  /// responder no privado (ADR-0042): mensagem de DM que cita uma mensagem de canal
+  privateReplyToId String?     @db.Uuid
   createdAt      DateTime      @default(now()) @db.Timestamptz(3)
   editedAt       DateTime?     @db.Timestamptz(3)
   deletedAt      DateTime?     @db.Timestamptz(3)
@@ -463,6 +465,8 @@ model Message {
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   replyTo        Message?      @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies        Message[]     @relation("Replies")
+  privateReplyTo Message?      @relation("PrivateReplies", fields: [privateReplyToId], references: [id], onDelete: SetNull)
+  privateReplies Message[]     @relation("PrivateReplies")
   attachments    Attachment[]
   reactions      Reaction[]
   boardCard      BoardCard?

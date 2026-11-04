@@ -389,12 +389,15 @@ export async function sendMessage(
   body: string,
   replyToId?: string,
   attachmentIds?: string[],
+  /** responder no privado (ADR-0042): mensagem de canal citada nesta DM */
+  privateReplyToId?: string,
 ) {
   const store = useMessages.getState();
   store.addPending(key, requestId, {
     body,
     createdAt: new Date().toISOString(),
     ...(replyToId ? { replyToId } : {}),
+    ...(privateReplyToId ? { privateReplyToId } : {}),
     ...(attachmentIds ? { attachmentIds } : {}),
   });
   const rt = useSession.getState().realtime;
@@ -405,6 +408,7 @@ export async function sendMessage(
         body,
         ...(target.channelId ? { channelId: target.channelId } : { conversationId: target.conversationId }),
         ...(replyToId ? { replyToId } : {}),
+        ...(privateReplyToId ? { privateReplyToId } : {}),
         ...(attachmentIds?.length ? { attachmentIds } : {}),
       });
     } else {
@@ -412,6 +416,7 @@ export async function sendMessage(
         requestId,
         body,
         ...(replyToId ? { replyToId } : {}),
+        ...(privateReplyToId ? { privateReplyToId } : {}),
         ...(attachmentIds?.length ? { attachmentIds } : {}),
       });
       store.upsert(m);
@@ -427,7 +432,7 @@ export async function sendMessage(
 
 function retry(key: TargetKey, target: ChatTarget, requestId: string) {
   const p = useMessages.getState().get(key).pending[requestId];
-  if (p) void sendMessage(key, target, requestId, p.body, p.replyToId, p.attachmentIds);
+  if (p) void sendMessage(key, target, requestId, p.body, p.replyToId, p.attachmentIds, p.privateReplyToId);
 }
 
 /** Linhas cinzas no formato das mensagens enquanto a conversa carrega (variação fixa para não "piscar"). */

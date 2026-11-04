@@ -75,12 +75,21 @@ export interface MediaItem {
   createdAt: string;
 }
 
+export interface PrivateReplyDraft {
+  messageId: string;
+  authorName: string;
+  bodyPreview: string;
+  channelName: string;
+}
+
 interface UiState {
   view: View;
   /** último canal visitado por servidor (navegação lembra o contexto) */
   lastChannel: Record<string, string>;
   drafts: Record<TargetKey, string>;
   replyTo: Record<TargetKey, string | null>;
+  /** responder no privado (ADR-0042): mensagem de canal citada no próximo envio da DM */
+  privateReply: Record<TargetKey, PrivateReplyDraft | null>;
   modal: Modal;
   /** visualizador de mídia: imagens da conversa e a aberta agora */
   media: { items: MediaItem[]; index: number } | null;
@@ -121,6 +130,7 @@ interface UiState {
   goForward(): void;
   setDraft(key: TargetKey, text: string): void;
   setReplyTo(key: TargetKey, id: string | null): void;
+  setPrivateReply(key: TargetKey, draft: PrivateReplyDraft | null): void;
   openModal(m: Modal): void;
   toggleMembers(): void;
   setPanel(p: UiState['panel']): void;
@@ -144,6 +154,7 @@ export const useUi = create<UiState>()((set) => ({
   lastChannel: {},
   drafts: {},
   replyTo: {},
+  privateReply: {},
   modal: null,
   media: null,
   openMedia: (items, index) => set({ media: { items, index } }),
@@ -205,6 +216,7 @@ export const useUi = create<UiState>()((set) => ({
     })),
   setDraft: (key, text) => set((s) => ({ drafts: { ...s.drafts, [key]: text } })),
   setReplyTo: (key, id) => set((s) => ({ replyTo: { ...s.replyTo, [key]: id } })),
+  setPrivateReply: (key, draft) => set((s) => ({ privateReply: { ...s.privateReply, [key]: draft } })),
   openModal: (m) => set({ modal: m }),
   toggleMembers: () => set((s) => ({ showMembers: !s.showMembers })),
   setPanel: (panel) => set({ panel }),

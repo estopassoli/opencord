@@ -303,7 +303,14 @@ export interface Timeline {
   /** mensagens otimistas ainda sem confirmação, por requestId */
   pending: Record<
     string,
-    { body: string; createdAt: string; failed?: boolean; replyToId?: string; attachmentIds?: string[] }
+    {
+      body: string;
+      createdAt: string;
+      failed?: boolean;
+      replyToId?: string;
+      privateReplyToId?: string;
+      attachmentIds?: string[];
+    }
   >;
 }
 
@@ -351,6 +358,7 @@ export function normalizeMessage(m: LooseMessage): Message {
     poll: m.poll ?? null,
     reactionRoles: m.reactionRoles ?? [],
     replyCount: m.replyCount ?? 0,
+    privateReplyTo: m.privateReplyTo ?? null,
     embeds: m.embeds ?? [],
     components: m.components ?? [],
   };

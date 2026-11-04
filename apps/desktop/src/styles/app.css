@@ -1071,6 +1071,31 @@ textarea:focus-visible {
   color: var(--text-muted);
   min-width: 0;
 }
+/* responder no privado (ADR-0042): citação clicável da mensagem do canal */
+.msg-private-reply {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+.msg-private-reply:hover strong,
+.msg-private-reply:focus-visible strong {
+  text-decoration: underline;
+}
+.msg-private-where {
+  flex-shrink: 0;
+  max-width: 40%;
+  color: var(--text-2);
+}
+.composer-private-reply > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
 .msg-head {
   grid-column: 2;
   display: flex;

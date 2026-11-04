@@ -18,6 +18,7 @@ import type { ChatTarget } from './ChatView';
 import { nameFor } from '../../lib/names';
 import { messageAppsMenu } from './messageApps';
 import { ChatImage } from './ChatImage';
+import { canReplyPrivately, openQuotedMessage, startPrivateReply } from './privateReply';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 
@@ -92,6 +93,14 @@ export const MessageItem = memo(function MessageItem({
     ),
   );
 
+  const channelName = useData((s) =>
+    serverId && target.channelId
+      ? (s.details[serverId]?.channels.find((c) => c.id === target.channelId)?.name ?? '')
+      : '',
+  );
+  const privateOk = canReplyPrivately(m, meId);
+  const replyPrivately = () => void startPrivateReply(m, nameOf(m.author.id), channelName);
+
   const react = (emoji: string, on: boolean) => {
     const rt = useSession.getState().realtime;
     setPicker(false);
@@ -154,6 +163,7 @@ export const MessageItem = memo(function MessageItem({
           icon: 'reply' as const,
           onSelect: () => useUi.getState().setReplyTo(keyOf(target), m.id),
         },
+        ...(privateOk ? [{ label: 'Responder no privado', icon: 'mail' as const, onSelect: replyPrivately }] : []),
         ...(!m.deleted
           ? [
               {
@@ -232,6 +242,35 @@ export const MessageItem = memo(function MessageItem({
             </>
           )}
         </div>
+      )}
+      {m.privateReplyTo && (
+        <button
+          type="button"
+          className="msg-reply msg-private-reply"
+          aria-label={`Ver a mensagem respondida em #${m.privateReplyTo.channelName}`}
+          onClick={() => {
+            const q = m.privateReplyTo!;
+            if (!q.deleted) openQuotedMessage(q.serverId, q.channelId, q.id);
+          }}
+        >
+          <Icon name="mail" size={14} />
+          <span className="muted">Respondeu no privado em</span>
+          <span className="msg-private-where truncate">
+            #{m.privateReplyTo.channelName} · {m.privateReplyTo.serverName}
+          </span>
+          {m.privateReplyTo.deleted ? (
+            <em className="muted">mensagem excluída</em>
+          ) : (
+            <>
+              <strong>
+                {m.privateReplyTo.author
+                  ? nameFor(m.privateReplyTo.author.id, m.privateReplyTo.author.displayName)
+                  : null}
+              </strong>
+              <span className="truncate">{m.privateReplyTo.bodyPreview || 'Anexo'}</span>
+            </>
+          )}
+        </button>
       )}
       {!grouped && (
         <div className="msg-avatar">
@@ -413,6 +452,16 @@ export const MessageItem = memo(function MessageItem({
         >
           <Icon name="reply" size={18} />
         </button>
+        {privateOk && (
+          <button
+            className="icon-btn icon-btn-sm"
+            aria-label="Responder no privado"
+            data-tip="Responder no privado"
+            onClick={replyPrivately}
+          >
+            <Icon name="mail" size={18} />
+          </button>
+        )}
         {canEdit && (
           <button className="icon-btn icon-btn-sm" aria-label="Editar" onClick={() => setEditing(true)}>
             <Icon name="edit" size={18} />

@@ -60,6 +60,7 @@ export const ClientCommands = {
     conversationId: Id.optional(),
     body: MessageBody,
     replyToId: Id.optional(),
+    privateReplyToId: Id.optional(),
     attachmentIds: z.array(Id).max(10).optional(),
   }),
   'chat:message:edit': z.object({ messageId: Id, body: MessageBody }),

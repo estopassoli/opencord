@@ -15,6 +15,7 @@ import {
   type Message,
   type MessagePage,
   type Poll,
+  type PrivateReplyRef,
   type ReactionSummary,
   type SearchMessagesResponse,
   type Highlight,
@@ -60,6 +61,15 @@ const MESSAGE_INCLUDE = {
   attachments: { orderBy: { createdAt: 'asc' } },
   reactions: { select: { emoji: true, userId: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
   replyTo: { select: { id: true, body: true, deletedAt: true, author: { select: USER_PUBLIC_SELECT } } },
+  privateReplyTo: {
+    select: {
+      id: true,
+      body: true,
+      deletedAt: true,
+      author: { select: USER_PUBLIC_SELECT },
+      channel: { select: { id: true, name: true, server: { select: { id: true, name: true } } } },
+    },
+  },
   reactionRoles: { select: { emoji: true, roleId: true }, orderBy: { createdAt: 'asc' } },
   _count: { select: { replies: true } },
   poll: {
@@ -187,6 +197,7 @@ export class MessagesService {
             deleted: m.replyTo.deletedAt !== null,
           }
         : null,
+      privateReplyTo: this.privateReplyRef(m),
       reactions: deleted ? [] : this.reactions(m.reactions, me),
       attachments: deleted ? [] : m.attachments.map((a) => this.attachments.serialize(a)),
       mentions: deleted ? [] : m.mentions,
@@ -196,6 +207,22 @@ export class MessagesService {
       replyCount: m._count.replies,
       embeds: deleted ? [] : parseEmbeds(m.embeds),
       components: deleted ? [] : parseComponents(m.components),
+    };
+  }
+
+  /** citação da mensagem de canal respondida no privado (ADR-0042); sem canal (excluído) vira null */
+  private privateReplyRef(m: MessageRow): PrivateReplyRef | null {
+    const p = m.privateReplyTo;
+    if (!p?.channel || m.deletedAt) return null;
+    return {
+      id: p.id,
+      author: userPublic(p.author),
+      bodyPreview: p.deletedAt ? '' : p.body.slice(0, 200),
+      deleted: p.deletedAt !== null,
+      channelId: p.channel.id,
+      channelName: p.channel.name,
+      serverId: p.channel.server.id,
+      serverName: p.channel.server.name,
     };
   }
 
@@ -252,6 +279,28 @@ export class MessagesService {
     };
   }
 
+  /**
+   * Responder no privado (ADR-0042): só numa DM 1:1 entre quem responde e o autor da mensagem citada, que precisa ser
+   * de um canal que quem responde consegue ler. Assim a citação só aparece para quem já podia vê-la.
+   */
+  private async assertPrivateReply(userId: string, a: TargetAccess, messageId: string, alsoReply: boolean) {
+    if (alsoReply) throw new BadRequestException('escolha entre responder na conversa ou no privado');
+    if (!a.conversationId || !a.memberIds)
+      throw new BadRequestException('resposta no privado só vale em mensagem direta');
+    const parent = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { channelId: true, authorId: true, deletedAt: true },
+    });
+    if (!parent?.channelId || parent.deletedAt) throw notFound('mensagem');
+    const ch = await this.perms.channel(parent.channelId, userId).catch(() => {
+      throw notFound('mensagem');
+    });
+    if (!hasPermission(ch.perms, Permission.VIEW_CHANNEL | Permission.READ_HISTORY)) throw notFound('mensagem');
+    const members = new Set(a.memberIds);
+    if (parent.authorId === userId || members.size !== 2 || !members.has(parent.authorId))
+      throw new BadRequestException('resposta no privado só na conversa com quem escreveu a mensagem');
+  }
+
   async create(
     userId: string,
     target: Target,
@@ -259,6 +308,8 @@ export class MessagesService {
       requestId: string;
       body: string;
       replyToId?: string | undefined;
+      /** responder no privado (ADR-0042): mensagem de canal citada numa DM 1:1 com o autor dela */
+      privateReplyToId?: string | undefined;
       attachmentIds?: string[] | undefined;
       /** enquete (ADR-0018): criada na mesma transação da mensagem */
       poll?: { question: string; options: string[]; multiple: boolean; endsAt: Date | null } | undefined;
@@ -299,6 +350,7 @@ export class MessagesService {
       if (!parent || parent.channelId !== a.channelId || parent.conversationId !== a.conversationId)
         throw new BadRequestException('resposta a mensagem de outro destino');
     }
+    if (dto.privateReplyToId) await this.assertPrivateReply(userId, a, dto.privateReplyToId, Boolean(dto.replyToId));
     // moderação por IA (ADR-0036): bloqueia ou retém ANTES de existir mensagem; 422 explica ao autor
     if (!opts.skipModeration && !dto.poll)
       await this.moderate(userId, a, {
@@ -323,6 +375,7 @@ export class MessagesService {
             conversationId: a.conversationId,
             body,
             replyToId: dto.replyToId ?? null,
+            privateReplyToId: dto.privateReplyToId ?? null,
             mentions,
             mentionEveryone,
             embeds: toJson(embeds),
