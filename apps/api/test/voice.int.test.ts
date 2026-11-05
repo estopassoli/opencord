@@ -25,6 +25,7 @@ import { decodeJwt } from 'jose';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import type { Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { VoiceService } from '../src/voice/voice.service.js';
 import { TEST_API_PORT, TEST_ENV } from './env.js';
 import {
   bootstrapOwner,
@@ -336,7 +337,27 @@ describe('voz com LiveKit real', () => {
     expect(await participants(j1.body.roomName)).not.toContain(alice.id);
   });
 
-  it('mute/deafen próprios refletidos para os demais; deafen implica mute', async () => {
+  it('tempo da chamada: quem entra herda o início; não zera quando quem abriu sai; canal vazio recomeça', async () => {
+    const { alice, owner, voiceId } = await setup();
+    const voice = app.get(VoiceService);
+    const startOf = async (id: string) => (await voice.stateOf(id))?.callStartedAt;
+    await http.req('POST', `/voice/channels/${voiceId}/join`, { token: owner.token });
+    const start = await startOf(owner.id);
+    expect(start).toBeTruthy();
+    await sleep(30);
+    await http.req('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    expect(await startOf(alice.id)).toBe(start);
+    await http.req('POST', '/voice/leave', { token: owner.token });
+    await sleep(30);
+    await http.req('POST', `/voice/channels/${voiceId}/join`, { token: owner.token });
+    expect(await startOf(owner.id)).toBe(start);
+    await http.req('POST', '/voice/leave', { token: owner.token });
+    await http.req('POST', '/voice/leave', { token: alice.token });
+    await http.req('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    expect((await startOf(alice.id))! > start!).toBe(true);
+  });
+
+    it('mute/deafen próprios refletidos para os demais; deafen implica mute', async () => {
     const { alice, owner, voiceId } = await setup();
     const so = await sock(owner.token);
     await http.req('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });

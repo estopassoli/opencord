@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '09:30',
+    kind: 'novo',
+    icon: 'clock',
+    title: 'Tempo da chamada nos canais de voz',
+    body: 'Canais de voz com gente mostram, ao lado do nome, há quanto tempo a chamada está rolando. O tempo conta desde que o canal deixou de estar vazio e não zera quando quem entrou primeiro sai: só recomeça quando todo mundo sai.',
+  },
+  {
+    date: '2026-11-05',
     time: '09:00',
     kind: 'melhoria',
     icon: 'microphone',

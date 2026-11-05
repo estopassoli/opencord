@@ -14,6 +14,7 @@ import { ProfileButton } from './ProfileButton';
 import { MusicHint } from '../voice/MusicPlayer';
 import { Tooltip } from '../../components/Tooltip';
 import { moveToVoice } from './voiceMove';
+import { CallTimer } from './CallTimer';
 import { CHANNEL_ICON, CHANNEL_ORDER } from '../../lib/channels';
 import { useBannerStyle } from '../../lib/serverBanner';
 import { useAliases } from '../../lib/names';
@@ -434,6 +435,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                           }
                         />
                       )}
+                      {c.kind === 'voice' && inVoice.length > 0 && <CallTimer members={inVoice} />}
                       {c.temporary && c.userLimit !== null && (
                         <span className="small muted room-count">
                           {inVoice.length}/{c.userLimit}

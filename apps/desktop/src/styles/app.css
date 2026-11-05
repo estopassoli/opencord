@@ -8478,6 +8478,18 @@ html[data-wallpaper='true'] .chat-scroll {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
+/* tempo da chamada ao lado do canal de voz com gente */
+.call-timer {
+  margin-left: auto;
+  flex: none;
+  color: var(--success, #3ba55d);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.call-timer + .room-count {
+  margin-left: 6px;
+}
 
 /* catálogo do Spotify na música da chamada */
 .spotify-results {

@@ -1744,6 +1744,8 @@ export const VoiceMemberState = z.object({
   /** quando a prévia da live foi atualizada (GET /voice/members/:userId/stream-preview); null sem prévia */
   previewAt: IsoDate.nullable().optional(),
   joinedAt: IsoDate,
+  /** desde quando o canal tem gente sem parar: quem entra herda dos que já estavam (contador da chamada) */
+  callStartedAt: IsoDate.optional(),
 });
 export type VoiceMemberState = z.infer<typeof VoiceMemberState>;
 

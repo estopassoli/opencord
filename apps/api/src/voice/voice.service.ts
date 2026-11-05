@@ -259,6 +259,22 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     return buf;
   }
 
+  /**
+   * Início da chamada no canal: quem já estava continua com o seu; quem chega herda o mais antigo dos presentes;
+   * canal vazio começa agora. Assim o contador não zera quando quem abriu a chamada sai.
+   */
+  private async callStartFor(channelId: string, current: StoredState | null): Promise<string> {
+    if (current?.channelId === channelId) return current.callStartedAt ?? current.joinedAt;
+    let start: string | null = null;
+    for (const uid of await this.r.smembers(`voice:channel:${channelId}`)) {
+      const o = uid === current?.userId ? null : await this.stateOf(uid);
+      if (o?.channelId !== channelId) continue;
+      const t = o.callStartedAt ?? o.joinedAt;
+      if (!start || t < start) start = t;
+    }
+    return start ?? new Date().toISOString();
+  }
+
   private publicState(s: StoredState): VoiceMemberState {
     const { roomName: _r, confirmed: _c, ...pub } = s;
     return pub;
@@ -334,6 +350,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       streaming: false,
       previewAt: null,
       joinedAt: current?.channelId === channelId ? current.joinedAt : new Date().toISOString(),
+      callStartedAt: await this.callStartFor(channelId, current),
       roomName,
       confirmed: current?.channelId === channelId ? current.confirmed : false,
     };
@@ -418,6 +435,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       streaming: false,
       previewAt: null,
       joinedAt: same ? current.joinedAt : new Date().toISOString(),
+      callStartedAt: await this.callStartFor(conversationId, current),
       roomName,
       confirmed: same ? current.confirmed : false,
     };
