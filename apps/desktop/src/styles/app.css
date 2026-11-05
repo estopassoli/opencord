@@ -2907,12 +2907,6 @@ body {
   overflow-x: hidden;
   min-width: 0;
 }
-.dialog-fullscreen .settings-layout[data-wide='true'] {
-  grid-template-columns: minmax(218px, 1fr) minmax(0, 1100px) minmax(80px, 1fr);
-}
-.fullscreen-body:has(.settings-layout[data-wide='true']) .fullscreen-close {
-  right: max(21px, calc((100vw - 1100px - 218px * 2) / 2));
-}
 .fullscreen-close {
   position: absolute;
   top: 60px;

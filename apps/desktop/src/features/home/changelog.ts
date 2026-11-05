@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '07:00',
+    kind: 'melhoria',
+    icon: 'settings',
+    title: 'Configurações do servidor com cara nova',
+    body: 'As configurações do servidor ganharam uma barra lateral com a imagem e o nome do servidor, seções com ícone e contadores (canais, emojis, membros e cargos), um topo que explica cada seção e o conteúdo organizado em cartões. No celular, as seções viram uma faixa de abas no alto.',
+  },
+  {
+    date: '2026-11-05',
     time: '06:00',
     kind: 'melhoria',
     icon: 'hashtag',

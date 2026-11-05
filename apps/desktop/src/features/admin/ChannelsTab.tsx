@@ -76,7 +76,6 @@ export function ChannelsTab({ detail }: { detail: ServerDetail }) {
     <div className="ch-admin">
       <header className="ch-toolbar">
         <div className="ch-toolbar-title">
-          <h3>Canais</h3>
           <span className="muted small">
             {total} {total === 1 ? 'canal' : 'canais'} · {detail.categories.length}{' '}
             {detail.categories.length === 1 ? 'categoria' : 'categorias'}

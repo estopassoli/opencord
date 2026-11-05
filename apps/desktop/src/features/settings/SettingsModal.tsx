@@ -61,7 +61,6 @@ export function TabbedLayout<K extends string>({
   onChange,
   label,
   footer,
-  wide,
   children,
 }: {
   tabs: readonly TabDef<K>[];
@@ -69,8 +68,6 @@ export function TabbedLayout<K extends string>({
   onChange: (id: K) => void;
   label: string;
   footer?: ReactNode;
-  /** abas com tabela ou duas colunas: a coluna de conteúdo vai até 1100 px em tela cheia */
-  wide?: boolean;
   children: ReactNode;
 }) {
   const base = useId();
@@ -94,7 +91,7 @@ export function TabbedLayout<K extends string>({
   };
 
   return (
-    <div className="settings-layout" data-wide={wide ? 'true' : undefined}>
+    <div className="settings-layout">
       <nav className="settings-nav">
         <div role="tablist" aria-orientation="vertical" aria-label={label} onKeyDown={onKeyDown}>
           {tabs.map((t, i) => [

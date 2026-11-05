@@ -1,0 +1,151 @@
+/* Configurações do servidor no formato do painel admin (ADR-0050): o shell é o mesmo (adm-*, admin.css); aqui só o que
+   muda — ícone do servidor na marca, largura do conteúdo por aba e as seções antigas virando cartões. */
+
+.srv-brand-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: calc(10px * var(--radius-scale, 1));
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.srv-brand-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.srv-dialog .adm-brand {
+  min-width: 0;
+}
+.srv-dialog .adm-brand-text {
+  min-width: 0;
+}
+
+/* formulários numa coluna de leitura; tabelas e listas com painel usam a largura toda */
+.srv-content {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  max-width: 880px;
+}
+.srv-content[data-wide='true'] {
+  max-width: 1280px;
+}
+.srv-content > * {
+  min-width: 0;
+}
+
+/* cada <Section> vira um cartão */
+.srv-content .settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: calc(12px * var(--radius-scale, 1));
+  background: var(--elevated);
+}
+.srv-content .settings-section:first-child {
+  padding-top: 16px;
+}
+.srv-content .settings-section:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.srv-content .settings-section > * + * {
+  margin-top: 0;
+}
+.srv-content .settings-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.srv-content .settings-desc {
+  margin: -6px 0 0;
+}
+/* seções dentro de seções (ex.: perfil do servidor) não viram cartão dentro de cartão */
+.srv-content .settings-section .settings-section {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* tabelas no cartão, cabeçalho como o do painel */
+.srv-content .admin-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: calc(12px * var(--radius-scale, 1));
+  background: var(--elevated);
+}
+.srv-content .admin-table th {
+  padding: 9px 12px;
+  background: color-mix(in srgb, var(--interactive) 35%, transparent);
+  letter-spacing: 0.04em;
+}
+.srv-content .admin-table td {
+  padding: 8px 12px;
+  border-bottom-color: color-mix(in srgb, var(--border) 60%, transparent);
+}
+.srv-content .admin-table tbody tr:hover {
+  background: color-mix(in srgb, var(--interactive) 70%, transparent);
+}
+.srv-content .admin-filters {
+  margin-bottom: 0;
+}
+.srv-content > .muted.small {
+  margin: -6px 0 0;
+}
+
+/* listas soltas (banidos) e o par lista + editor (cargos, canais) como cartões */
+.srv-content > .admin-list,
+.srv-content .split-list,
+.srv-content .split-detail,
+.srv-content .ch-list,
+.srv-content .ch-editor,
+.srv-content .ch-newcat {
+  border: 1px solid var(--border);
+  border-radius: calc(12px * var(--radius-scale, 1));
+  background: var(--elevated);
+}
+.srv-content > .admin-list {
+  padding: 4px 8px;
+}
+.srv-content .split {
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  align-items: start;
+}
+.srv-content .split-list {
+  padding: 10px;
+}
+.srv-content .split-detail {
+  padding: 16px 18px;
+}
+.srv-content .ch-list {
+  padding: 8px;
+}
+@media (max-width: 860px) {
+  .srv-content .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* vidro */
+html[data-layout='vidro'] .srv-content .settings-section,
+html[data-layout='vidro'] .srv-content .admin-table-wrap,
+html[data-layout='vidro'] .srv-content > .admin-list,
+html[data-layout='vidro'] .srv-content .split-list,
+html[data-layout='vidro'] .srv-content .split-detail,
+html[data-layout='vidro'] .srv-content .ch-list,
+html[data-layout='vidro'] .srv-content .ch-editor {
+  border-color: var(--vidro-line);
+  background: var(--vidro-card);
+  box-shadow: var(--vidro-card-edge);
+}
