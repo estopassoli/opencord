@@ -23,10 +23,24 @@ export class AuditService {
     });
   }
 
-  async list(serverId: string, userId: string, limit = 100): Promise<AuditEntry[]> {
+  /** filtros (ADR-0050): autor, tipo de ação (ex.: `role` pega `role.create`, `role.update`…) e antes de uma data */
+  async list(
+    serverId: string,
+    userId: string,
+    limit = 100,
+    filter: { actorId?: string; action?: string; before?: string } = {},
+  ): Promise<AuditEntry[]> {
     await this.perms.requireServer(serverId, userId, Permission.VIEW_AUDIT_LOG);
+    const uuid = /^[0-9a-f-]{36}$/i;
+    const action = filter.action && /^[a-z_.-]{1,40}$/.test(filter.action) ? filter.action : undefined;
+    const before = filter.before ? new Date(filter.before) : null;
     const rows = await this.prisma.auditLog.findMany({
-      where: { serverId },
+      where: {
+        serverId,
+        ...(filter.actorId && uuid.test(filter.actorId) ? { actorId: filter.actorId } : {}),
+        ...(action ? { OR: [{ action }, { action: { startsWith: `${action}.` } }] } : {}),
+        ...(before && !Number.isNaN(before.getTime()) ? { createdAt: { lt: before } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: Math.min(limit, 200),
     });

@@ -1216,3 +1216,46 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* tabelas e filtros das configurações do servidor (ADR-0050) */
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.admin-filters > * {
+  min-width: 180px;
+}
+.admin-filters > .admin-filter-grow {
+  flex: 1;
+  min-width: 220px;
+}
+.admin-table-wrap {
+  overflow-x: auto;
+}
+.admin-cell-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-cell-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-table tr[data-spent='true'] td {
+  color: var(--text-muted);
+}
+.members-table .chips {
+  flex-wrap: wrap;
+}
+.admin-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}

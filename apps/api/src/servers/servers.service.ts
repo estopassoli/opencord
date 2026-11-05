@@ -16,6 +16,8 @@ import {
   type AdminServerEntry,
   type Invite,
   type InvitePreview,
+  type MemberJoin,
+  type ServerInvite,
   type ServerSummary,
 } from '@opencord/contracts';
 import { randomInt } from 'node:crypto';
@@ -25,7 +27,16 @@ import { PrismaService } from '../common/prisma.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DomainEvents } from '../common/domain-events.js';
 import { forbidden, notFound } from '../common/errors.js';
-import { category, channel, member, MEMBER_INCLUDE, parseTraits, role, serverSummary } from '../common/serialize.js';
+import {
+  category,
+  channel,
+  member,
+  MEMBER_INCLUDE,
+  parseTraits,
+  role,
+  serverSummary,
+  userPublic,
+} from '../common/serialize.js';
 import { PresenceService } from '../realtime/presence.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -542,13 +553,87 @@ export class ServersService {
 
   // ---------- Convites ----------
   /** Convite do membro para o servidor: reaproveita o que ele já criou (um link por pessoa e servidor). */
-  async createInvite(serverId: string, userId: string): Promise<Invite> {
+  /**
+   * Convite para o servidor (qualquer membro). Sem validade nem limite devolve sempre o convite permanente da pessoa;
+   * com um dos dois (ADR-0050) cria um convite novo.
+   */
+  async createInvite(
+    serverId: string,
+    userId: string,
+    opts: { maxAgeSec?: number | null; maxUses?: number | null } = {},
+  ): Promise<Invite> {
     await this.perms.server(serverId, userId); // 404 para quem não é membro
-    const existing = await this.prisma.invite.findFirst({ where: { serverId, creatorId: userId } });
-    if (existing) return this.inviteDto(existing.code, serverId);
-    const invite = await this.prisma.invite.create({ data: { code: inviteCode(), serverId, creatorId: userId } });
-    await this.audit.log(userId, serverId, 'invite.create', invite.code, {});
+    const custom = Boolean(opts.maxAgeSec || opts.maxUses);
+    if (!custom) {
+      const existing = await this.prisma.invite.findFirst({
+        where: { serverId, creatorId: userId, expiresAt: null, maxUses: null },
+      });
+      if (existing) return this.inviteDto(existing.code, serverId);
+    }
+    const invite = await this.prisma.invite.create({
+      data: {
+        code: inviteCode(),
+        serverId,
+        creatorId: userId,
+        expiresAt: opts.maxAgeSec ? new Date(Date.now() + opts.maxAgeSec * 1000) : null,
+        maxUses: opts.maxUses ?? null,
+      },
+    });
+    await this.audit.log(userId, serverId, 'invite.create', invite.code, {
+      maxAgeSec: opts.maxAgeSec ?? null,
+      maxUses: opts.maxUses ?? null,
+    });
     return this.inviteDto(invite.code, serverId);
+  }
+
+  /** Convites do servidor para quem gerencia (ADR-0050): criador, usos, limite e validade; os mais novos primeiro. */
+  async listInvites(serverId: string, userId: string): Promise<ServerInvite[]> {
+    await this.perms.requireServer(serverId, userId, Permission.MANAGE_SERVER);
+    const rows = await this.prisma.invite.findMany({
+      where: { serverId },
+      include: { creator: true },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    return rows.map((r) => ({
+      ...this.inviteDto(r.code, serverId),
+      creator: r.creator ? userPublic(r.creator) : null,
+      uses: r.uses,
+      maxUses: r.maxUses,
+      expiresAt: r.expiresAt?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  /** Apaga um convite: quem gerencia o servidor ou quem criou. */
+  async deleteInvite(code: string, userId: string) {
+    if (!INVITE_CODE.test(code)) throw notFound('convite');
+    const inv = await this.prisma.invite.findUnique({ where: { code } });
+    if (!inv) throw notFound('convite');
+    if (inv.creatorId !== userId) await this.perms.requireServer(inv.serverId, userId, Permission.MANAGE_SERVER);
+    else await this.perms.server(inv.serverId, userId);
+    await this.prisma.invite.delete({ where: { code } });
+    await this.audit.log(userId, inv.serverId, 'invite.delete', code, {});
+  }
+
+  /** Por qual convite (e de quem) cada membro entrou (ADR-0050), para a tabela de membros. */
+  async memberJoins(serverId: string, userId: string): Promise<MemberJoin[]> {
+    await this.perms.requireServer(serverId, userId, Permission.MANAGE_SERVER);
+    const rows = await this.prisma.serverMember.findMany({
+      where: { serverId, hidden: false, inviteCode: { not: null } },
+      select: { userId: true, inviteCode: true },
+    });
+    const codes = [...new Set(rows.map((r) => r.inviteCode!))];
+    const invites = await this.prisma.invite.findMany({
+      where: { code: { in: codes } },
+      select: { code: true, creatorId: true },
+    });
+    const inviter = new Map(invites.map((i) => [i.code, i.creatorId]));
+    return rows.map((r) => ({
+      userId: r.userId,
+      inviteCode: r.inviteCode,
+      inviterId: inviter.get(r.inviteCode!) ?? null,
+    }));
   }
 
   private inviteDto(code: string, serverId: string): Invite {
@@ -558,6 +643,7 @@ export class ServersService {
 
   async previewInvite(code: string, userId: string): Promise<InvitePreview> {
     const inv = await this.findInvite(code);
+    if (this.inviteSpent(inv)) throw notFound('convite');
     const [memberCount, me] = await Promise.all([
       this.prisma.serverMember.count({ where: { serverId: inv.serverId, hidden: false } }),
       this.prisma.serverMember.findUnique({ where: { serverId_userId: { serverId: inv.serverId, userId } } }),
@@ -620,8 +706,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
   async acceptInvite(code: string, userId: string): Promise<ServerDetail> {
     const inv = await this.findInvite(code);
     if (inv.server.invitesPaused) throw new BadRequestException('os convites deste servidor estão pausados');
-    if (inv.expiresAt && inv.expiresAt < new Date()) throw notFound('convite');
-    if (inv.maxUses !== null && inv.uses >= inv.maxUses) throw notFound('convite');
+    if (this.inviteSpent(inv)) throw notFound('convite');
     const already = await this.prisma.serverMember.findUnique({
       where: { serverId_userId: { serverId: inv.serverId, userId } },
     });
@@ -631,6 +716,11 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       await this.prisma.invite.update({ where: { code: inv.code }, data: { uses: { increment: 1 } } });
     }
     return this.addMember(inv.serverId, userId, { via: 'invite', code: inv.code });
+  }
+
+  /** vencido ou com os usos esgotados (ADR-0050) */
+  private inviteSpent(inv: { expiresAt: Date | null; maxUses: number | null; uses: number }) {
+    return (inv.expiresAt !== null && inv.expiresAt < new Date()) || (inv.maxUses !== null && inv.uses >= inv.maxUses);
   }
 
   private async findInvite(code: string) {

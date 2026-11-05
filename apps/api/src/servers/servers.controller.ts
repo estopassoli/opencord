@@ -31,6 +31,7 @@ import {
   UpdateCategoryRequest,
   UpdateChannelRequest,
   UpdateRoleRequest,
+  CreateInviteRequest,
   UpdateServerRequest,
   AdminJoinRequest,
   SetMemberHiddenRequest,
@@ -204,10 +205,33 @@ export class ServersController {
     return this.servers.adminSetVerified(id, u.userId, body.verified);
   }
 
-  /** Convite para o servidor (qualquer membro); devolve o mesmo código a cada pedido da mesma pessoa. */
+  /**
+   * Convite para o servidor (qualquer membro). Sem corpo devolve o mesmo código a cada pedido da mesma pessoa; com
+   * validade ou limite de usos cria um novo (ADR-0050).
+   */
   @Post('servers/:id/invites')
-  createInvite(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
-    return this.servers.createInvite(id, u.userId);
+  createInvite(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(CreateInviteRequest)) dto: z.infer<typeof CreateInviteRequest>,
+  ) {
+    return this.servers.createInvite(id, u.userId, dto);
+  }
+
+  @Get('servers/:id/invites')
+  listInvites(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    return this.servers.listInvites(id, u.userId);
+  }
+
+  @Delete('invites/:code')
+  @HttpCode(204)
+  async deleteInvite(@CurrentUser() u: AuthUser, @Param('code') code: string) {
+    await this.servers.deleteInvite(code, u.userId);
+  }
+
+  @Get('servers/:id/members/joins')
+  memberJoins(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
+    return this.servers.memberJoins(id, u.userId);
   }
 
   /** Página do link de convite com meta tags (cartão no Discord/WhatsApp); redireciona quem abre para o app. */
@@ -280,8 +304,15 @@ export class ServersController {
   }
 
   @Get('servers/:id/audit-log')
-  auditLog(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string, @Query('limit') limit?: string) {
-    return this.audit.list(id, u.userId, limit ? Number(limit) || 100 : 100);
+  auditLog(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Query('limit') limit?: string,
+    @Query('actorId') actorId?: string,
+    @Query('action') action?: string,
+    @Query('before') before?: string,
+  ) {
+    return this.audit.list(id, u.userId, limit ? Number(limit) || 100 : 100, { actorId, action, before });
   }
 
   // ----- membros -----

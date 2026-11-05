@@ -757,6 +757,39 @@ export const Invite = z.object({
   url: z.string().nullable(),
 });
 export type Invite = z.infer<typeof Invite>;
+/** validades e limites de uso que dá para escolher ao criar um convite (ADR-0050) */
+export const INVITE_MAX_AGES = [1800, 3600, 21600, 43200, 86400, 604800] as const;
+export const INVITE_MAX_USES = [1, 5, 10, 25, 50, 100] as const;
+/** POST /servers/:id/invites: sem campos devolve o convite permanente da pessoa; com validade ou limite cria um novo */
+export const CreateInviteRequest = z
+  .object({
+    maxAgeSec: z
+      .number()
+      .int()
+      .refine((v) => (INVITE_MAX_AGES as readonly number[]).includes(v), 'validade não suportada')
+      .nullable()
+      .optional(),
+    maxUses: z
+      .number()
+      .int()
+      .refine((v) => (INVITE_MAX_USES as readonly number[]).includes(v), 'limite não suportado')
+      .nullable()
+      .optional(),
+  })
+  .default({});
+export type CreateInviteRequest = z.input<typeof CreateInviteRequest>;
+/** GET /servers/:id/invites (MANAGE_SERVER): convites do servidor com criador, usos, limite e validade */
+export const ServerInvite = Invite.extend({
+  creator: UserPublic.nullable(),
+  uses: z.number().int(),
+  maxUses: z.number().int().nullable(),
+  expiresAt: IsoDate.nullable(),
+  createdAt: IsoDate,
+});
+export type ServerInvite = z.infer<typeof ServerInvite>;
+/** GET /servers/:id/members/joins (MANAGE_SERVER): por qual convite (e de quem) cada membro entrou */
+export const MemberJoin = z.object({ userId: Id, inviteCode: z.string().nullable(), inviterId: Id.nullable() });
+export type MemberJoin = z.infer<typeof MemberJoin>;
 export const InvitePreview = z.object({
   code: z.string(),
   server: z.object({

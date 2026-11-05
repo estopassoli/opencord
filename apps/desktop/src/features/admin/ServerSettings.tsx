@@ -6,13 +6,14 @@ import {
   type Category,
   type Channel,
   type Member,
+  type MemberJoin,
   type PermissionName,
   type Role,
   type ServerDetail,
   type ServerSummary,
 } from '@opencord/contracts';
-import { Button, Checkbox, ColorSwatches, Icon, Select, TextField } from '@opencord/ui';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Avatar, Button, Checkbox, ColorSwatches, Icon, Select, TextField } from '@opencord/ui';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CHANNEL_ICON, CHANNEL_LABEL } from '../../lib/channels';
 import { Dialog } from '../../components/Dialog';
@@ -31,11 +32,13 @@ import { SlackTab } from './SlackTab';
 import { WebhooksTab } from './WebhooksTab';
 import { ServerIconPicker } from './ServerIconPicker';
 import { EngagementTab, ServerProfileSection } from './ServerProfile';
+import { InvitesTab } from './InvitesTab';
 
 type ServerTab =
   | 'overview'
   | 'theme'
   | 'engagement'
+  | 'invites'
   | 'roles'
   | 'members'
   | 'channels'
@@ -75,6 +78,10 @@ const PERMISSION_KEYS = Object.keys(Permission) as PermissionName[];
 
 const toastError = (e: unknown) => useUi.getState().toast('error', describeError(e));
 
+const fmtDay = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR', { dateStyle: 'medium' });
+};
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -112,6 +119,7 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
       { id: 'sounds', label: 'Efeitos sonoros', group: 'Expressões' },
       { id: 'members', label: 'Membros', group: 'Pessoas' },
       can(Permission.MANAGE_ROLES) && { id: 'roles', label: 'Cargos', group: 'Pessoas' },
+      can(Permission.MANAGE_SERVER) && { id: 'invites', label: 'Convites', group: 'Pessoas' },
       can(Permission.MANAGE_CHANNELS) && { id: 'webhooks', label: 'Webhooks', group: 'Apps' },
       can(Permission.MANAGE_SERVER) && { id: 'bots', label: 'Bots', group: 'Apps' },
       can(Permission.MANAGE_SERVER) && { id: 'slack', label: 'Slack', group: 'Apps' },
@@ -141,6 +149,7 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
         {active === 'theme' && <ServerThemeSection detail={detail} />}
         {active === 'engagement' && <EngagementTab detail={detail} />}
         {active === 'roles' && <RolesTab detail={detail} />}
+        {active === 'invites' && <InvitesTab detail={detail} />}
         {active === 'members' && <MembersTab detail={detail} myId={me.id} />}
         {active === 'channels' && <ChannelsTab detail={detail} />}
         {active === 'webhooks' && <WebhooksTab detail={detail} />}
@@ -550,24 +559,62 @@ function RoleEditor({ role, onDeleted }: { role: Role; onDeleted: () => void }) 
 // Membros
 // ---------------------------------------------------------------------------
 
+type MemberSort = 'name' | 'newest' | 'oldest';
+const MEMBERS_PAGE = 50;
+
+/** Membros em tabela (ADR-0050): busca, filtro por cargo, ordem, desde quando é membro e por qual convite entrou. */
 function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
   const canRoles = hasPermission(detail.myPermissions, Permission.MANAGE_ROLES);
   const canKick = hasPermission(detail.myPermissions, Permission.KICK_MEMBERS);
+  const canManage = hasPermission(detail.myPermissions, Permission.MANAGE_SERVER);
   const [query, setQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [sort, setSort] = useState<MemberSort>('name');
+  const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [joins, setJoins] = useState<Map<string, MemberJoin> | null>(null);
   const roles = useMemo(() => sortRoles(detail.roles).filter((r) => !r.isEveryone), [detail.roles]);
   const roleById = useMemo(() => new Map(detail.roles.map((r) => [r.id, r])), [detail.roles]);
+  const nameOf = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const x of detail.members) m.set(x.user.id, x.nickname ?? x.user.displayName);
+    return m;
+  }, [detail.members]);
+
+  useEffect(() => {
+    if (!canManage) return;
+    let alive = true;
+    api()
+      .request<MemberJoin[]>('GET', `/servers/${detail.id}/members/joins`)
+      .then(
+        (list) => alive && setJoins(new Map(list.map((j) => [j.userId, j]))),
+        () => undefined,
+      );
+    return () => {
+      alive = false;
+    };
+  }, [canManage, detail.id, detail.members.length]);
 
   const q = query.trim().toLowerCase();
-  const members = detail.members
-    .filter(
+  const members = useMemo(() => {
+    const list = detail.members.filter(
       (m) =>
-        !q ||
-        m.user.displayName.toLowerCase().includes(q) ||
-        m.user.username.toLowerCase().includes(q) ||
-        (m.nickname ?? '').toLowerCase().includes(q),
-    )
-    .sort((a, b) => (a.nickname ?? a.user.displayName).localeCompare(b.nickname ?? b.user.displayName, 'pt-BR'));
+        (roleFilter === 'all' || m.roleIds.includes(roleFilter)) &&
+        (!q ||
+          m.user.displayName.toLowerCase().includes(q) ||
+          m.user.username.toLowerCase().includes(q) ||
+          (m.nickname ?? '').toLowerCase().includes(q)),
+    );
+    const name = (m: Member) => m.nickname ?? m.user.displayName;
+    return list.sort((a, b) =>
+      sort === 'name'
+        ? name(a).localeCompare(name(b), 'pt-BR')
+        : (sort === 'newest' ? -1 : 1) * (Date.parse(a.joinedAt) - Date.parse(b.joinedAt)),
+    );
+  }, [detail.members, roleFilter, q, sort]);
+  const pages = Math.max(1, Math.ceil(members.length / MEMBERS_PAGE));
+  const current = Math.min(page, pages - 1);
+  const shown = members.slice(current * MEMBERS_PAGE, (current + 1) * MEMBERS_PAGE);
 
   const setRoles = async (m: Member, roleIds: string[]) => {
     try {
@@ -597,102 +644,192 @@ function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
     }
   };
 
+  const cols = canManage ? 5 : 4;
   return (
     <>
-      <TextField
-        aria-label="Buscar membros"
-        type="search"
-        leadingIcon="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={`Buscar entre ${detail.members.length} membros`}
-      />
-      <ul className="admin-list">
-        {members.map((m) => {
-          const name = m.nickname ?? m.user.displayName;
-          const isOwner = m.user.id === detail.ownerId;
-          const isAdmin = Boolean(m.user.isInstanceAdmin);
-          const open = expanded === m.user.id;
-          const panelId = `member-roles-${m.user.id}`;
-          return (
-            <li key={m.user.id} className="admin-row admin-row-col">
-              <div className="admin-row-main">
-                <div className="admin-row-text">
-                  <span className="truncate">
-                    {name}
-                    {isOwner && <span className="muted small"> · dono</span>}
-                    {isAdmin && <span className="muted small"> · super admin</span>}
-                  </span>
-                  <span className="muted small truncate">@{m.user.username}</span>
-                </div>
-                <div className="chips">
-                  {m.roleIds.map((id) => {
-                    const r = roleById.get(id);
-                    if (!r) return null;
-                    return (
-                      <span key={id} className="chip">
-                        <span
-                          className="role-dot"
-                          style={{ background: r.color ?? 'var(--text-muted)' }}
-                          aria-hidden="true"
-                        />
-                        {r.name}
-                      </span>
-                    );
-                  })}
-                </div>
-                <div className="admin-row-actions">
-                  {canRoles && (m.user.id === myId || (!isOwner && !isAdmin)) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-expanded={open}
-                      aria-controls={panelId}
-                      onClick={() => setExpanded(open ? null : m.user.id)}
-                    >
-                      Cargos
-                    </Button>
-                  )}
-                  {canKick && !isOwner && !isAdmin && m.user.id !== myId && (
-                    <button
-                      type="button"
-                      className="icon-btn danger"
-                      aria-label={`Expulsar ${name}`}
-                      data-tip="Expulsar"
-                      onClick={() => void kick(m)}
-                    >
-                      <Icon name="user-minus" size={18} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              {canRoles && open && (m.user.id === myId || (!isOwner && !isAdmin)) && (
-                <fieldset id={panelId} className="role-checks">
-                  <legend className="sr-only">Cargos de {name}</legend>
-                  {roles.length === 0 && <p className="muted small">Nenhum cargo criado.</p>}
-                  {roles.map((r) => (
-                    <Checkbox
-                      key={r.id}
-                      label={
-                        <span className="role-check-label">
-                          <span
-                            className="role-dot"
-                            style={{ background: r.color ?? 'var(--text-muted)' }}
-                            aria-hidden="true"
-                          />
-                          {r.name}
+      <div className="admin-filters">
+        <TextField
+          aria-label="Buscar membros"
+          type="search"
+          leadingIcon="search"
+          value={query}
+          fieldClassName="admin-filter-grow"
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(0);
+          }}
+          placeholder={`Buscar entre ${detail.members.length} membros`}
+        />
+        <Select<string>
+          label="Cargo"
+          value={roleFilter}
+          onChange={(v) => {
+            setRoleFilter(v);
+            setPage(0);
+          }}
+          options={[{ value: 'all', label: 'Todos os cargos' }, ...roles.map((r) => ({ value: r.id, label: r.name }))]}
+        />
+        <Select<MemberSort>
+          label="Ordem"
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: 'name', label: 'Nome' },
+            { value: 'newest', label: 'Entrou há menos tempo' },
+            { value: 'oldest', label: 'Entrou há mais tempo' },
+          ]}
+        />
+      </div>
+      <p className="muted small" aria-live="polite">
+        {members.length === detail.members.length
+          ? `${members.length} ${members.length === 1 ? 'membro' : 'membros'}`
+          : `${members.length} de ${detail.members.length} membros`}
+      </p>
+      <div className="admin-table-wrap">
+        <table className="admin-table members-table">
+          <thead>
+            <tr>
+              <th scope="col">Nome</th>
+              <th scope="col">Membro desde</th>
+              {canManage && <th scope="col">Entrou por</th>}
+              <th scope="col">Cargos</th>
+              <th scope="col">
+                <span className="sr-only">Ações</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((m) => {
+              const name = m.nickname ?? m.user.displayName;
+              const isOwner = m.user.id === detail.ownerId;
+              const isAdmin = Boolean(m.user.isInstanceAdmin);
+              const editable = canRoles && (m.user.id === myId || (!isOwner && !isAdmin));
+              const open = expanded === m.user.id && editable;
+              const panelId = `member-roles-${m.user.id}`;
+              const join = joins?.get(m.user.id);
+              return (
+                <Fragment key={m.user.id}>
+                  <tr>
+                    <td>
+                      <span className="admin-cell-user">
+                        <Avatar id={m.user.id} name={m.user.displayName} size={28} />
+                        <span className="admin-cell-names">
+                          <span className="truncate">
+                            {name}
+                            {isOwner && <span className="muted small"> · dono</span>}
+                            {isAdmin && <span className="muted small"> · super admin</span>}
+                          </span>
+                          <span className="muted small truncate">@{m.user.username}</span>
                         </span>
-                      }
-                      checked={m.roleIds.includes(r.id)}
-                      onChange={(v) => void setRoles(m, v ? [...m.roleIds, r.id] : m.roleIds.filter((x) => x !== r.id))}
-                    />
-                  ))}
-                </fieldset>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                      </span>
+                    </td>
+                    <td className="nowrap">{fmtDay(m.joinedAt)}</td>
+                    {canManage && (
+                      <td className="nowrap">
+                        {join?.inviteCode ? (
+                          <span className="admin-cell-names">
+                            <code className="small">{join.inviteCode}</code>
+                            {join.inviterId && (
+                              <span className="muted small">de {nameOf.get(join.inviterId) ?? 'ex-membro'}</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    )}
+                    <td>
+                      <div className="chips">
+                        {m.roleIds.map((id) => {
+                          const r = roleById.get(id);
+                          if (!r) return null;
+                          return (
+                            <span key={id} className="chip">
+                              <span
+                                className="role-dot"
+                                style={{ background: r.color ?? 'var(--text-muted)' }}
+                                aria-hidden="true"
+                              />
+                              {r.name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="cell-actions nowrap">
+                      {editable && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-expanded={open}
+                          aria-controls={panelId}
+                          onClick={() => setExpanded(open ? null : m.user.id)}
+                        >
+                          Cargos
+                        </Button>
+                      )}
+                      {canKick && !isOwner && !isAdmin && m.user.id !== myId && (
+                        <button
+                          type="button"
+                          className="icon-btn danger"
+                          aria-label={`Expulsar ${name}`}
+                          data-tip="Expulsar"
+                          onClick={() => void kick(m)}
+                        >
+                          <Icon name="user-minus" size={18} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr>
+                      <td colSpan={cols}>
+                        <fieldset id={panelId} className="role-checks">
+                          <legend className="sr-only">Cargos de {name}</legend>
+                          {roles.length === 0 && <p className="muted small">Nenhum cargo criado.</p>}
+                          {roles.map((r) => (
+                            <Checkbox
+                              key={r.id}
+                              label={
+                                <span className="role-check-label">
+                                  <span
+                                    className="role-dot"
+                                    style={{ background: r.color ?? 'var(--text-muted)' }}
+                                    aria-hidden="true"
+                                  />
+                                  {r.name}
+                                </span>
+                              }
+                              checked={m.roleIds.includes(r.id)}
+                              onChange={(v) =>
+                                void setRoles(m, v ? [...m.roleIds, r.id] : m.roleIds.filter((x) => x !== r.id))
+                              }
+                            />
+                          ))}
+                        </fieldset>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {shown.length === 0 && <p className="muted">Ninguém encontrado.</p>}
+      {pages > 1 && (
+        <nav className="admin-pager" aria-label="Páginas de membros">
+          <Button size="sm" variant="ghost" disabled={current === 0} onClick={() => setPage(current - 1)}>
+            Anterior
+          </Button>
+          <span className="muted small">
+            Página {current + 1} de {pages}
+          </span>
+          <Button size="sm" variant="ghost" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>
+            Próxima
+          </Button>
+        </nav>
+      )}
     </>
   );
 }
@@ -910,22 +1047,85 @@ const ACTION_LABELS: Record<string, string> = {
   'role.create': 'Criou cargo',
   'role.update': 'Atualizou cargo',
   'role.delete': 'Excluiu cargo',
+  'member.join': 'Entrou no servidor',
+  'invite.create': 'Criou convite',
+  'invite.delete': 'Apagou convite',
+  'bot.add': 'Adicionou bot',
+  'bot.remove': 'Removeu bot',
+  'message.bulk_delete': 'Apagou mensagens em massa',
+  'sound.create': 'Enviou efeito sonoro',
+  'sound.delete': 'Excluiu efeito sonoro',
+  'recording.start': 'Começou gravação',
+  'recording.ready': 'Gravação pronta',
+  'recording.delete': 'Excluiu gravação',
+  'server.import': 'Importou modelo',
+  'server.transfer': 'Transferiu o servidor',
+  'ai.autoblock': 'IA bloqueou automaticamente',
 };
+
+/** tipos para o filtro da auditoria (o prefixo da ação, ex.: `role` pega criar/atualizar/excluir cargo) */
+const AUDIT_KINDS: { value: string; label: string }[] = [
+  { value: 'all', label: 'Todas as ações' },
+  { value: 'server', label: 'Servidor' },
+  { value: 'channel', label: 'Canais' },
+  { value: 'category', label: 'Categorias' },
+  { value: 'role', label: 'Cargos' },
+  { value: 'member', label: 'Membros' },
+  { value: 'invite', label: 'Convites' },
+  { value: 'message', label: 'Mensagens' },
+  { value: 'bot', label: 'Bots' },
+  { value: 'sound', label: 'Efeitos sonoros' },
+  { value: 'recording', label: 'Gravações' },
+  { value: 'ai', label: 'Moderação por IA' },
+];
+const AUDIT_PAGE = 100;
 
 function AuditTab({ detail }: { detail: ServerDetail }) {
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actor, setActor] = useState('all');
+  const [kind, setKind] = useState('all');
+  const [more, setMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const fetchPage = (before?: string) => {
+    const q = new URLSearchParams({ limit: String(AUDIT_PAGE) });
+    if (actor !== 'all') q.set('actorId', actor);
+    if (kind !== 'all') q.set('action', kind);
+    if (before) q.set('before', before);
+    return api().request<AuditEntry[]>('GET', `/servers/${detail.id}/audit-log?${q.toString()}`);
+  };
 
   useEffect(() => {
     let cancelled = false;
-    api()
-      .request<AuditEntry[]>('GET', `/servers/${detail.id}/audit-log`)
-      .then((list) => !cancelled && setEntries(list))
+    setEntries(null);
+    setError(null);
+    fetchPage()
+      .then((list) => {
+        if (cancelled) return;
+        setEntries(list);
+        setMore(list.length === AUDIT_PAGE);
+      })
       .catch((e: unknown) => !cancelled && setError(describeError(e)));
     return () => {
       cancelled = true;
     };
-  }, [detail.id]);
+  }, [detail.id, actor, kind]);
+
+  const loadMore = async () => {
+    const last = entries?.at(-1);
+    if (!last) return;
+    setLoading(true);
+    try {
+      const list = await fetchPage(last.createdAt);
+      setEntries((cur) => [...(cur ?? []), ...list]);
+      setMore(list.length === AUDIT_PAGE);
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const names = useMemo(() => {
     const m = new Map<string, string>();
@@ -937,32 +1137,80 @@ function AuditTab({ detail }: { detail: ServerDetail }) {
     return m;
   }, [detail]);
 
-  if (error) return <p className="form-error">{error}</p>;
-  if (!entries) return <p className="muted">Carregando…</p>;
-  if (entries.length === 0) return <p className="muted">Nenhuma ação registrada.</p>;
+  const people = [...detail.members].sort((a, b) =>
+    (a.nickname ?? a.user.displayName).localeCompare(b.nickname ?? b.user.displayName, 'pt-BR'),
+  );
+  const filters = (
+    <div className="admin-filters">
+      <Select<string>
+        label="Autor"
+        value={actor}
+        onChange={setActor}
+        options={[
+          { value: 'all', label: 'Todas as pessoas' },
+          ...people.map((m) => ({ value: m.user.id, label: m.nickname ?? m.user.displayName })),
+        ]}
+      />
+      <Select<string> label="Tipo de ação" value={kind} onChange={setKind} options={AUDIT_KINDS} />
+    </div>
+  );
+
+  if (error)
+    return (
+      <>
+        {filters}
+        <p className="form-error">{error}</p>
+      </>
+    );
+  if (!entries)
+    return (
+      <>
+        {filters}
+        <p className="muted">Carregando…</p>
+      </>
+    );
+  if (entries.length === 0)
+    return (
+      <>
+        {filters}
+        <p className="muted">
+          {actor === 'all' && kind === 'all' ? 'Nenhuma ação registrada.' : 'Nenhuma ação com esses filtros.'}
+        </p>
+      </>
+    );
 
   return (
-    <table className="admin-table">
-      <thead>
-        <tr>
-          <th scope="col">Data</th>
-          <th scope="col">Autor</th>
-          <th scope="col">Ação</th>
-          <th scope="col">Alvo</th>
-        </tr>
-      </thead>
-      <tbody>
-        {entries.map((e) => (
-          <tr key={e.id}>
-            <td className="nowrap">{fmtDate(e.createdAt)}</td>
-            <td>{names.get(e.actorId) ?? 'Usuário removido'}</td>
-            <td>{ACTION_LABELS[e.action] ?? e.action}</td>
-            <td className="muted">
-              {e.targetId ? (names.get(e.targetId) ?? <code className="small">{e.targetId.slice(0, 8)}</code>) : '—'}
-            </td>
+    <>
+      {filters}
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th scope="col">Data</th>
+            <th scope="col">Autor</th>
+            <th scope="col">Ação</th>
+            <th scope="col">Alvo</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {entries.map((e) => (
+            <tr key={e.id}>
+              <td className="nowrap">{fmtDate(e.createdAt)}</td>
+              <td>{names.get(e.actorId) ?? 'Usuário removido'}</td>
+              <td>{ACTION_LABELS[e.action] ?? e.action}</td>
+              <td className="muted">
+                {e.targetId ? (names.get(e.targetId) ?? <code className="small">{e.targetId.slice(0, 8)}</code>) : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {more && (
+        <div className="admin-pager">
+          <Button size="sm" variant="secondary" disabled={loading} onClick={() => void loadMore()}>
+            {loading ? 'Carregando…' : 'Carregar mais'}
+          </Button>
+        </div>
+      )}
+    </>
   );
 }

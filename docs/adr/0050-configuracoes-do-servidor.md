@@ -10,7 +10,7 @@ O trabalho foi dividido em quatro levas:
 3. Membros, convites, banimentos e auditoria.
 4. Emojis personalizados.
 
-Este ADR cobre as levas 1 e 2 já entregues e fixa o modelo de dados das quatro.
+Este ADR cobre as levas 1 a 3 já entregues e fixa o modelo de dados das quatro.
 
 ## Decisão
 - **Migração aditiva `20261105020000_server_customization`:**
@@ -36,6 +36,14 @@ Este ADR cobre as levas 1 e 2 já entregues e fixa o modelo de dados das quatro.
 - **Tela:**
   - A barra das configurações do servidor fica agrupada em Servidor, Expressões, Pessoas, Apps e Moderação.
   - Abas novas: "Perfil do servidor" (antiga Visão geral, com faixa, características, descrição e prévia ao vivo), "Tema do servidor" e "Engajamento". O Engajamento junta mensagens do sistema, notificação padrão, canal de ausentes e fundo do convite.
+- **Leva 3, sem migração:**
+  - `POST /servers/:id/invites` aceita `maxAgeSec` (30 min a 7 dias, `INVITE_MAX_AGES`) e `maxUses` (1 a 100, `INVITE_MAX_USES`). Com um deles cria um convite novo; sem corpo continua devolvendo o convite permanente da pessoa.
+  - `GET /servers/:id/invites` (MANAGE_SERVER) lista os convites com criador, usos, limite e validade.
+  - `DELETE /invites/:code` pode ser usado por quem criou o convite ou por quem tem MANAGE_SERVER; fica no registro de auditoria.
+  - A prévia de um convite vencido ou esgotado responde 404.
+  - `GET /servers/:id/members/joins` (MANAGE_SERVER) diz por qual convite e de quem cada membro entrou.
+  - `GET /servers/:id/audit-log` filtra por `actorId`, `action` (prefixo: `role` pega `role.*`) e `before`, este último para paginar.
+  - Telas: aba Convites (pausar, criar com validade e limite, lista com copiar e apagar). Membros virou tabela, com busca, filtro por cargo, ordem, data de entrada, convite usado e páginas de 50. Banidos ganhou busca e a Auditoria ganhou filtros por autor e tipo, com "Carregar mais".
 - Tudo exige MANAGE_SERVER e usa o `PATCH /servers/:id`, que já existia. A mudança chega a todos pelo `server:updated`.
 
 ## Alternativas descartadas

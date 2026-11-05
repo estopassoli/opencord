@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '04:30',
+    kind: 'melhoria',
+    icon: 'user-plus',
+    title: 'Convites com validade e membros em tabela',
+    body: 'Em Configurações do servidor, a nova aba Convites mostra todos os convites (quem criou, quantos usos, quando vence), deixa criar um convite que vence ou que só vale para algumas pessoas, apagar convites e pausar a entrada por convite. Membros virou uma tabela com busca, filtro por cargo, data de entrada e o convite que cada um usou; Banidos ganhou busca e o Registro de auditoria ganhou filtros por pessoa e tipo de ação.',
+  },
+  {
+    date: '2026-11-05',
     time: '04:00',
     kind: 'novo',
     icon: 'server',

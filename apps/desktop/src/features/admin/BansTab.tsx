@@ -1,6 +1,6 @@
 import { askConfirm } from '../../components/AskDialog';
 import type { ServerBan, ServerDetail } from '@opencord/contracts';
-import { Avatar, Button } from '@opencord/ui';
+import { Avatar, Button, TextField } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
@@ -14,6 +14,7 @@ const fmtDate = (iso: string) => {
 export function BansTab({ detail }: { detail: ServerDetail }) {
   const [bans, setBans] = useState<ServerBan[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const realtime = useSession((s) => s.realtime);
 
   useEffect(() => {
@@ -63,30 +64,52 @@ export function BansTab({ detail }: { detail: ServerDetail }) {
   if (!bans) return <p className="muted">Carregando…</p>;
   if (bans.length === 0) return <p className="muted">Ninguém banido.</p>;
 
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? bans.filter(
+        (b) =>
+          b.user.displayName.toLowerCase().includes(q) ||
+          b.user.username.toLowerCase().includes(q) ||
+          b.user.id === q ||
+          (b.reason ?? '').toLowerCase().includes(q),
+      )
+    : bans;
+
   return (
-    <ul className="admin-list" aria-label="Banidos">
-      {bans.map((b) => (
-        <li key={b.user.id} className="admin-row">
-          <div className="admin-row-main">
-            <Avatar id={b.user.id} name={b.user.displayName} size={32} />
-            <div className="admin-row-text">
-              <span className="truncate">{b.user.displayName}</span>
-              <span className="muted small truncate">@{b.user.username}</span>
+    <>
+      <TextField
+        aria-label="Buscar banidos"
+        type="search"
+        leadingIcon="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={`Buscar entre ${bans.length} banidos (nome, @usuário, ID ou motivo)`}
+      />
+      {shown.length === 0 && <p className="muted">Ninguém encontrado.</p>}
+      <ul className="admin-list" aria-label="Banidos">
+        {shown.map((b) => (
+          <li key={b.user.id} className="admin-row">
+            <div className="admin-row-main">
+              <Avatar id={b.user.id} name={b.user.displayName} size={32} />
+              <div className="admin-row-text">
+                <span className="truncate">{b.user.displayName}</span>
+                <span className="muted small truncate">@{b.user.username}</span>
+              </div>
+              <div className="admin-row-text ban-meta">
+                <span className="truncate">{b.reason || <span className="muted">Sem motivo</span>}</span>
+                <span className="muted small truncate">
+                  por {b.by?.displayName ?? 'conta removida'} · {fmtDate(b.createdAt)}
+                </span>
+              </div>
+              <div className="admin-row-actions">
+                <Button variant="secondary" size="sm" onClick={() => void unban(b)}>
+                  Desbanir
+                </Button>
+              </div>
             </div>
-            <div className="admin-row-text ban-meta">
-              <span className="truncate">{b.reason || <span className="muted">Sem motivo</span>}</span>
-              <span className="muted small truncate">
-                por {b.by?.displayName ?? 'conta removida'} · {fmtDate(b.createdAt)}
-              </span>
-            </div>
-            <div className="admin-row-actions">
-              <Button variant="secondary" size="sm" onClick={() => void unban(b)}>
-                Desbanir
-              </Button>
-            </div>
-          </div>
-        </li>
-      ))}
-    </ul>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
