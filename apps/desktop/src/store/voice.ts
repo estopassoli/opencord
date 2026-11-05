@@ -135,6 +135,9 @@ function inAfkChannel(): boolean {
   return useData.getState().details[serverId]?.afkChannelId === machine.channelId;
 }
 
+/** microfone de antes de entrar no canal de ausentes; ao sair de lá, volta a ele (null = não está no AFK) */
+let micBeforeAfk: boolean | null = null;
+
 export const useVoice = create<VoiceStore>()((set, get) => {
   const dispatch = (e: VoiceEvent) => set((s) => ({ machine: voiceReducer(s.machine, e) }));
   const sdispatch = (e: StreamEvent) => set((s) => ({ stream: streamReducer(s.stream, e) }));
@@ -259,6 +262,16 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     await disconnectEngine();
   }
 
+  /** saiu do canal de ausentes: o microfone volta ao que era antes (ensurdecido continua mudo); true se mudou */
+  function restoreMicAfterAfk(): boolean {
+    if (micBeforeAfk === null) return false;
+    const selfMute = micBeforeAfk || get().selfDeaf;
+    micBeforeAfk = null;
+    if (selfMute === get().selfMute) return false;
+    set({ selfMute });
+    return true;
+  }
+
   return {
     machine: initialVoiceState,
     stream: initialStreamState,
@@ -295,10 +308,15 @@ export const useVoice = create<VoiceStore>()((set, get) => {
         if (get().machine.generation !== gen) return; // usuário trocou/saiu nesse meio-tempo
         set({ perms: { canSpeak: j.canSpeak, canVideo: j.canVideo, canStream: j.canStream } });
         dispatch({ type: 'AUTHORIZED', generation: gen, channelId: j.channelId });
-        // canal de ausentes (ADR-0049): entra com o microfone desligado (o servidor não deixa falar lá)
-        if (inAfkChannel() && !get().selfMute) set({ selfMute: true });
+        // canal de ausentes (ADR-0049): entra com o microfone desligado (o servidor não deixa falar lá) e guarda
+        // como estava, para devolver ao sair
+        let restored = false;
+        if (inAfkChannel()) {
+          if (micBeforeAfk === null) micBeforeAfk = get().selfMute;
+          if (!get().selfMute) set({ selfMute: true });
+        } else restored = restoreMicAfterAfk();
         await connectWith(j, gen);
-        if (get().selfMute || get().selfDeaf) pushState();
+        if (restored || get().selfMute || get().selfDeaf) pushState();
         syncTray();
       } catch (e) {
         dispatch({ type: 'FAILED', error: describeError(e), generation: gen });
@@ -326,13 +344,14 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       dispatch({ type: 'JOIN', channelId: conversationId });
       const gen = get().machine.generation;
       set({ serverId: null, conversationId, camera: false, stream: initialStreamState });
+      const restored = restoreMicAfterAfk();
       try {
         const j = await api().request<VoiceJoinResponse>('POST', `/voice/conversations/${conversationId}/join`);
         if (get().machine.generation !== gen) return;
         set({ perms: { canSpeak: j.canSpeak, canVideo: j.canVideo, canStream: j.canStream } });
         dispatch({ type: 'AUTHORIZED', generation: gen, channelId: j.channelId });
         await connectWith(j, gen);
-        if (get().selfMute || get().selfDeaf) pushState();
+        if (restored || get().selfMute || get().selfDeaf) pushState();
         syncTray();
       } catch (e) {
         dispatch({ type: 'FAILED', error: describeError(e), generation: gen });
@@ -354,6 +373,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       useActivity.getState().reset();
       useMusic.getState().reset();
       if (wasIn) playSound('leave');
+      restoreMicAfterAfk();
       set({
         serverId: null,
         conversationId: null,
@@ -372,6 +392,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       dispatch({ type: 'FORCED_OUT', reason });
       forgetLastCall();
       playSound('leave');
+      restoreMicAfterAfk();
       set({ serverId: null, conversationId: null, participants: [], camera: false, stream: initialStreamState });
       useUi.getState().toast('error', reason);
       syncTray();

@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '09:00',
+    kind: 'melhoria',
+    icon: 'microphone',
+    title: 'Microfone volta como estava ao sair do canal de ausentes',
+    body: 'O canal de ausentes desliga o microfone, mas agora o app lembra como ele estava antes. Ao ir para outro canal (ou sair da chamada), o microfone volta ligado se estava ligado, ou continua desligado se você já estava mudo.',
+  },
+  {
+    date: '2026-11-05',
     time: '08:30',
     kind: 'correção',
     icon: 'menu',
