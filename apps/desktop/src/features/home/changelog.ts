@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '06:00',
+    kind: 'melhoria',
+    icon: 'hashtag',
+    title: 'Aba Canais redesenhada',
+    body: 'Em Configurações do servidor → Canais, a lista dos canais fica à esquerda, por categoria, com busca e marcas de privado, quadro kanban e criador de salas. Ao escolher um canal, o painel ao lado mostra nome, tópico, categoria, quadro e canal privado, com um só botão Salvar alterações e a exclusão separada. Clicar numa categoria permite renomear ou excluir. Canais, Membros, Convites e Registro de auditoria agora usam uma área mais larga.',
+  },
+  {
+    date: '2026-11-05',
     time: '05:40',
     kind: 'melhoria',
     icon: 'image',

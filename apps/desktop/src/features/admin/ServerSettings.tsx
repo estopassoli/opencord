@@ -3,8 +3,6 @@ import {
   hasPermission,
   Permission,
   type AuditEntry,
-  type Category,
-  type Channel,
   type Member,
   type MemberJoin,
   type PermissionName,
@@ -14,8 +12,6 @@ import {
 } from '@opencord/contracts';
 import { Avatar, Button, Checkbox, ColorSwatches, Icon, Select, TextField } from '@opencord/ui';
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useShallow } from 'zustand/react/shallow';
-import { CHANNEL_ICON, CHANNEL_LABEL } from '../../lib/channels';
 import { Dialog } from '../../components/Dialog';
 import { useData } from '../../store/data';
 import { api, describeError, loadServer } from '../../store/session';
@@ -33,6 +29,7 @@ import { WebhooksTab } from './WebhooksTab';
 import { ServerIconPicker } from './ServerIconPicker';
 import { EngagementTab, ServerProfileSection } from './ServerProfile';
 import { InvitesTab } from './InvitesTab';
+import { ChannelsTab } from './ChannelsTab';
 import { EmojisTab } from './EmojisTab';
 
 type ServerTab =
@@ -51,6 +48,9 @@ type ServerTab =
   | 'moderation'
   | 'bans'
   | 'audit';
+
+/** abas com tabela ou lista + painel: usam a coluna larga */
+const WIDE_TABS = new Set<ServerTab>(['channels', 'members', 'invites', 'audit']);
 
 const PERMISSION_LABELS: Record<PermissionName, string> = {
   VIEW_CHANNEL: 'Ver canais',
@@ -147,7 +147,13 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
 
   return (
     <Dialog title={`Configurações — ${detail.name}`} onClose={onClose} fullscreen>
-      <TabbedLayout tabs={tabs} active={active} onChange={setTab} label="Seções do servidor">
+      <TabbedLayout
+        tabs={tabs}
+        active={active}
+        onChange={setTab}
+        label="Seções do servidor"
+        wide={WIDE_TABS.has(active)}
+      >
         {active === 'overview' && <OverviewTab detail={detail} isOwner={isOwner} onClose={onClose} />}
         {active === 'theme' && <ServerThemeSection detail={detail} />}
         {active === 'engagement' && <EngagementTab detail={detail} />}
@@ -841,190 +847,6 @@ function MembersTab({ detail, myId }: { detail: ServerDetail; myId: string }) {
 // ---------------------------------------------------------------------------
 // Canais
 // ---------------------------------------------------------------------------
-
-function ChannelsTab({ detail }: { detail: ServerDetail }) {
-  const [catName, setCatName] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const groups = useMemo(() => {
-    const cats = [...detail.categories].sort((a, b) => a.position - b.position);
-    const byPos = (a: Channel, b: Channel) => a.position - b.position;
-    const out: { id: string; name: string; channels: Channel[] }[] = [
-      { id: 'none', name: 'Sem categoria', channels: detail.channels.filter((c) => !c.categoryId).sort(byPos) },
-    ];
-    for (const c of cats)
-      out.push({
-        id: c.id,
-        name: c.name,
-        channels: detail.channels.filter((ch) => ch.categoryId === c.id).sort(byPos),
-      });
-    return out.filter((g) => g.id !== 'none' || g.channels.length > 0);
-  }, [detail.categories, detail.channels]);
-
-  const createCategory = async (e: FormEvent) => {
-    e.preventDefault();
-    const n = catName.trim();
-    if (!n) return;
-    setBusy(true);
-    try {
-      const c = await api().request<Category>('POST', `/servers/${detail.id}/categories`, { name: n });
-      useData.getState().upsertCategory(c);
-      setCatName('');
-    } catch (err) {
-      toastError(err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <Section title="Nova categoria">
-        <form className="inline-form" onSubmit={(e) => void createCategory(e)}>
-          <TextField
-            aria-label="Nome da categoria"
-            value={catName}
-            onChange={(e) => setCatName(e.target.value)}
-            placeholder="Nome da categoria"
-            maxLength={64}
-          />
-          <Button type="submit" size="sm" disabled={busy || !catName.trim()}>
-            Criar categoria
-          </Button>
-        </form>
-      </Section>
-      {groups.map((g) => (
-        <Section key={g.id} title={g.name}>
-          {g.channels.length === 0 ? (
-            <p className="muted small">Nenhum canal.</p>
-          ) : (
-            <ul className="admin-list">
-              {g.channels.map((c) => (
-                <ChannelRow key={c.id} channel={c} />
-              ))}
-            </ul>
-          )}
-        </Section>
-      ))}
-    </>
-  );
-}
-
-function ChannelRow({ channel }: { channel: Channel }) {
-  const [name, setName] = useState(channel.name);
-  const [topic, setTopic] = useState(channel.topic ?? '');
-  const [busy, setBusy] = useState(false);
-  const dirty = name.trim() !== channel.name || (channel.kind === 'text' && topic !== (channel.topic ?? ''));
-
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setBusy(true);
-    try {
-      const body = channel.kind === 'text' ? { name: name.trim(), topic: topic.trim() || null } : { name: name.trim() };
-      const c = await api().request<Channel>('PATCH', `/channels/${channel.id}`, body);
-      useData.getState().upsertChannel({ ...c, myPermissions: channel.myPermissions });
-      setName(c.name);
-      setTopic(c.topic ?? '');
-      useUi.getState().toast('success', 'Canal atualizado.');
-    } catch (err) {
-      toastError(err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const remove = async () => {
-    if (
-      !(await askConfirm(`O canal “${channel.name}” e as mensagens dele serão perdidos.`, {
-        title: 'Excluir canal',
-        confirmLabel: 'Excluir',
-        danger: true,
-      }))
-    )
-      return;
-    setBusy(true);
-    try {
-      await api().request('DELETE', `/channels/${channel.id}`);
-      useData.getState().removeChannel(channel.serverId, channel.id);
-    } catch (err) {
-      toastError(err);
-      setBusy(false);
-    }
-  };
-
-  return (
-    <li className="admin-row">
-      <form className="channel-form" onSubmit={(e) => void save(e)}>
-        <Icon name={CHANNEL_ICON[channel.kind]} size={18} label={CHANNEL_LABEL[channel.kind]} />
-        <TextField
-          aria-label="Nome do canal"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          maxLength={64}
-        />
-        {channel.kind === 'text' && (
-          <TextField
-            aria-label={`Tópico de ${channel.name}`}
-            fieldClassName="channel-topic"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="Tópico"
-            maxLength={1024}
-          />
-        )}
-        {channel.kind === 'text' && <BoardFeedSelect channel={channel} />}
-        <Button type="submit" size="sm" disabled={busy || !dirty || !name.trim()}>
-          Salvar
-        </Button>
-        <button
-          type="button"
-          className="icon-btn danger"
-          aria-label={`Excluir canal ${channel.name}`}
-          data-tip="Excluir"
-          disabled={busy}
-          onClick={() => void remove()}
-        >
-          <Icon name="trash" size={18} />
-        </button>
-      </form>
-    </li>
-  );
-}
-
-/** Canal de texto que alimenta um quadro kanban: cada mensagem nova vira card (ADR-0017). Só aparece se há quadros. */
-function BoardFeedSelect({ channel }: { channel: Channel }) {
-  const boards = useData(
-    useShallow((s) => s.details[channel.serverId]?.channels.filter((c) => c.kind === 'board') ?? []),
-  );
-  if (!boards.length) return null;
-  const change = async (boardId: string) => {
-    try {
-      const c = await api().request<Channel>('PATCH', `/channels/${channel.id}`, {
-        boardId: boardId === 'none' ? null : boardId,
-      });
-      useData.getState().upsertChannel({ ...c, myPermissions: channel.myPermissions });
-      useUi
-        .getState()
-        .toast('success', boardId === 'none' ? 'O canal não alimenta mais um quadro.' : 'Canal ligado ao quadro.');
-    } catch (err) {
-      toastError(err);
-    }
-  };
-  return (
-    <Select<string>
-      aria-label={`Quadro alimentado por ${channel.name}`}
-      className="channel-board"
-      value={channel.boardId ?? 'none'}
-      onChange={(v) => void change(v)}
-      options={[
-        { value: 'none', label: 'Sem quadro' },
-        ...boards.map((b) => ({ value: b.id, label: `Vira card em ${b.name}` })),
-      ]}
-    />
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Registro de auditoria
