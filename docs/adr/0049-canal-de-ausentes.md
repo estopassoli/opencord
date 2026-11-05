@@ -15,6 +15,11 @@ O mantenedor pediu um canal de ausentes por servidor: quem fica parado em voz é
   - **Não move se:** ela falou nesse intervalo (quem conversa sem tocar no computador não está ausente), está transmitindo a tela ou já está no canal.
   - **Como move:** entra no canal pelo `join` normal, que respeita CONNECT, silencia o próprio microfone e mostra um aviso.
 - **Configurações do servidor → Visão geral:** seção "Canal de ausentes", com o canal e o limite.
+- **Canal sem áudio (05/11/2026):** no canal de ausentes ninguém publica nada.
+  - A API emite o token da SFU sem fontes (`voiceSources`: sem microfone, câmera nem tela), também para quem entra por conta própria ou é movido por um moderador.
+  - O estado de voz fica com `selfMute` ligado enquanto a pessoa está no canal, e o `PATCH /voice/state` não desliga.
+  - Trocar o canal de ausentes recalcula as permissões de quem já está em voz (`permissions.changed`).
+  - O app não deixa religar o microfone lá e explica com um aviso.
 
 ## Alternativas descartadas
 - **Decidir no servidor:** o servidor não sabe se a pessoa está mexendo no computador. Só a fala seria um sinal ruim, porque quem ouve calado não é ausente.

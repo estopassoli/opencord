@@ -128,6 +128,13 @@ export function readLastCall(): LastCall | null {
 }
 export const forgetLastCall = () => writeLocal(LAST_CALL_KEY, null);
 
+/** a chamada atual é no canal de ausentes do servidor (ADR-0049) */
+function inAfkChannel(): boolean {
+  const { serverId, machine, conversationId } = useVoice.getState();
+  if (!serverId || conversationId || !machine.channelId) return false;
+  return useData.getState().details[serverId]?.afkChannelId === machine.channelId;
+}
+
 export const useVoice = create<VoiceStore>()((set, get) => {
   const dispatch = (e: VoiceEvent) => set((s) => ({ machine: voiceReducer(s.machine, e) }));
   const sdispatch = (e: StreamEvent) => set((s) => ({ stream: streamReducer(s.stream, e) }));
@@ -288,6 +295,8 @@ export const useVoice = create<VoiceStore>()((set, get) => {
         if (get().machine.generation !== gen) return; // usuário trocou/saiu nesse meio-tempo
         set({ perms: { canSpeak: j.canSpeak, canVideo: j.canVideo, canStream: j.canStream } });
         dispatch({ type: 'AUTHORIZED', generation: gen, channelId: j.channelId });
+        // canal de ausentes (ADR-0049): entra com o microfone desligado (o servidor não deixa falar lá)
+        if (inAfkChannel() && !get().selfMute) set({ selfMute: true });
         await connectWith(j, gen);
         if (get().selfMute || get().selfDeaf) pushState();
         syncTray();
@@ -369,6 +378,13 @@ export const useVoice = create<VoiceStore>()((set, get) => {
     },
 
     async toggleMute() {
+      // canal de ausentes (ADR-0049): ninguém fala lá; o servidor também não deixa publicar o microfone
+      if (get().selfMute && inAfkChannel()) {
+        useUi
+          .getState()
+          .toast('info', 'No canal de ausentes o microfone fica desligado. Entre em outro canal para falar.');
+        return;
+      }
       const selfMute = !get().selfMute;
       // desmutar enquanto ensurdecido também remove o ensurdecer
       const selfDeaf = selfMute ? get().selfDeaf : false;
@@ -382,10 +398,11 @@ export const useVoice = create<VoiceStore>()((set, get) => {
 
     async toggleDeafen() {
       const selfDeaf = !get().selfDeaf;
-      set({ selfDeaf, selfMute: selfDeaf ? true : false });
+      const selfMute = selfDeaf || inAfkChannel();
+      set({ selfDeaf, selfMute });
       playSound(selfDeaf ? 'deafen' : 'undeafen');
       await engine?.setDeafen(selfDeaf);
-      await engine?.setSelfMute(selfDeaf);
+      await engine?.setSelfMute(selfMute);
       pushState();
       syncTray();
     },

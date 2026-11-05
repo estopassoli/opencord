@@ -58,6 +58,15 @@ export function sourcesFor(perms: number): TrackSource[] {
 }
 
 /**
+ * O que a pessoa pode publicar no canal: o silenciamento da moderação tira o microfone; o canal de ausentes
+ * (ADR-0049) não tem áudio nem vídeo, ninguém publica nada lá.
+ */
+export function voiceSources(perms: number, opts: { serverMuted: boolean; afk: boolean }): TrackSource[] {
+  if (opts.afk) return [];
+  return sourcesFor(perms).filter((src) => !(opts.serverMuted && src === TrackSource.MICROPHONE));
+}
+
+/**
  * Dados na sala só para quem pode transmitir: a única mensagem do app é a prévia da live (miniatura JPEG, tópico
  * `stream-preview`, ADR-0012). Sem STREAM não há canal de dados (evita mensagens fora da moderação do chat).
  */
@@ -255,6 +264,12 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     return pub;
   }
 
+  /** canal de ausentes do servidor (ADR-0049): sem áudio nem vídeo */
+  private async isAfkChannel(serverId: string, channelId: string): Promise<boolean> {
+    const srv = await this.prisma.server.findUnique({ where: { id: serverId }, select: { afkChannelId: true } });
+    return srv?.afkChannelId === channelId;
+  }
+
   async join(userId: string, channelId: string): Promise<VoiceJoinResponse> {
     const access = await this.perms.requireChannel(channelId, userId, Permission.CONNECT);
     if (access.kind !== 'voice') throw new BadRequestException('não é um canal de voz');
@@ -289,7 +304,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { displayName: true } });
     // o silenciamento da moderação vale no servidor todo e sobrevive a sair e entrar de novo
     const serverMuted = await this.isServerMuted(access.serverId, userId);
-    const sources = sourcesFor(access.perms).filter((src) => !(serverMuted && src === TrackSource.MICROPHONE));
+    const afk = await this.isAfkChannel(access.serverId, channelId);
+    const sources = voiceSources(access.perms, { serverMuted, afk });
     const at = new AccessToken(this.cfg.LIVEKIT_API_KEY, this.cfg.LIVEKIT_API_SECRET, {
       identity: userId,
       name: user.displayName,
@@ -310,7 +326,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       channelId,
       serverId: access.serverId,
       conversationId: null,
-      selfMute: current?.channelId === channelId ? current.selfMute : false,
+      // no canal de ausentes o microfone fica desligado para todo mundo
+      selfMute: afk || (current?.channelId === channelId ? current.selfMute : false),
       selfDeaf: current?.channelId === channelId ? current.selfDeaf : false,
       serverMute: serverMuted,
       video: false,
@@ -527,6 +544,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       s.selfDeaf = dto.selfDeaf;
       if (dto.selfDeaf) s.selfMute = true;
     }
+    // no canal de ausentes ninguém fala: o microfone continua desligado
+    if (s.serverId && (await this.isAfkChannel(s.serverId, s.channelId))) s.selfMute = true;
     await this.save(s);
     this.realtime.emit(this.roomOf(s), 'voice:state:changed', this.publicState(s));
     return this.publicState(s);
@@ -544,7 +563,10 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     if (muted) await this.r.sadd(mutedKey(serverId), targetId);
     else await this.r.srem(mutedKey(serverId), targetId);
     const access = await this.perms.channel(s.channelId, targetId);
-    const sources = sourcesFor(access.perms).filter((src) => !(muted && src === TrackSource.MICROPHONE));
+    const sources = voiceSources(access.perms, {
+      serverMuted: muted,
+      afk: await this.isAfkChannel(serverId, s.channelId),
+    });
     await this.rooms
       .updateParticipant(s.roomName, targetId, {
         permission: permissionFor(sources),
@@ -652,7 +674,10 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
           await this.endSession(s, 'kicked', 'revoked');
           continue;
         }
-        const sources = sourcesFor(perms).filter((src) => !(s.serverMute && src === TrackSource.MICROPHONE));
+        const sources = voiceSources(perms, {
+          serverMuted: s.serverMute,
+          afk: await this.isAfkChannel(serverId, s.channelId),
+        });
         await this.rooms
           .updateParticipant(s.roomName, uid, {
             permission: permissionFor(sources),

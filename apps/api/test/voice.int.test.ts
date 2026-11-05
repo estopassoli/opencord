@@ -113,6 +113,24 @@ describe('voz com LiveKit real', () => {
     expect(r.body).toMatchObject({ canSpeak: true, canVideo: true, canStream: true });
   });
 
+  it('canal de ausentes (ADR-0049): token sem nada para publicar e microfone sempre desligado', async () => {
+    const { owner, serverId, alice, voiceId } = await setup();
+    expect(
+      (await http.req('PATCH', `/servers/${serverId}`, { token: owner.token, body: { afkChannelId: voiceId } })).status,
+    ).toBe(200);
+    const r = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    expect(r.status).toBe(201);
+    const claims = decodeJwt(r.body.token) as { video: Record<string, unknown> };
+    expect(claims.video.canPublish).toBe(false);
+    expect(claims.video.canPublishSources ?? []).toEqual([]);
+    expect(r.body).toMatchObject({ canSpeak: false, canVideo: false, canStream: false });
+    const st = await http.req<VoiceMemberState>('PATCH', '/voice/state', {
+      token: alice.token,
+      body: { selfMute: false },
+    });
+    expect(st.body.selfMute).toBe(true);
+  });
+
   it('sem CONNECT → 403; canal de texto → 400; não membro → 404', async () => {
     const { alice, owner, serverId, voiceId, textId } = await setup();
     expect((await http.req('POST', `/voice/channels/${textId}/join`, { token: alice.token })).status).toBe(400);

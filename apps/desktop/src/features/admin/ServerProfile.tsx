@@ -307,7 +307,7 @@ function AfkSection({ detail }: { detail: ServerDetail }) {
   return (
     <Section
       title="Canal de ausentes"
-      description="Quem ficar numa chamada sem mexer no teclado e no mouse (e sem falar) pelo tempo do limite vai sozinho para este canal, com o microfone silenciado. Vale para quem usa o app para computador."
+      description="Quem ficar numa chamada sem mexer no teclado e no mouse (e sem falar) pelo tempo do limite vai sozinho para este canal. Neste canal ninguém fala, liga câmera ou transmite: o microfone fica desligado para todo mundo que estiver nele. A mudança automática vale para quem usa o app para computador."
     >
       <div className="afk-row">
         <Select<string>

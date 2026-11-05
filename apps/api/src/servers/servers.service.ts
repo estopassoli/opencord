@@ -243,6 +243,8 @@ export class ServersService {
       },
     });
     await this.audit.log(userId, serverId, 'server.update', serverId, dto);
+    // canal de ausentes trocado: quem está em voz tem o que pode publicar recalculado (ADR-0049)
+    if (dto.afkChannelId !== undefined) this.events.emit({ type: 'permissions.changed', serverId });
     this.realtime.emit(rooms.server(serverId), 'server:updated', serverSummary(s));
     return serverSummary(s);
   }

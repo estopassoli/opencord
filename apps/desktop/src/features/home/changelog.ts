@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '08:00',
+    kind: 'melhoria',
+    icon: 'speaker-off',
+    title: 'Canal de ausentes sem áudio',
+    body: 'No canal de ausentes ninguém fala, liga câmera ou transmite: o microfone fica desligado para todo mundo que estiver lá, inclusive para quem entrou por conta própria. Para voltar a falar, é só entrar em outro canal.',
+  },
+  {
+    date: '2026-11-05',
     time: '07:30',
     kind: 'novo',
     icon: 'hashtag',
