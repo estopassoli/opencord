@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '05:20',
+    kind: 'correção',
+    icon: 'edit',
+    title: 'Bio e status no celular',
+    body: 'Ao editar a bio ou o status pelo celular, usar o tradutor, a área de transferência ou a voz do teclado não fecha mais o campo nem joga o texto para fora dele. O campo só fecha quando você toca fora, e o preenchimento automático do aparelho não aparece mais ali.',
+  },
+  {
+    date: '2026-11-05',
     time: '05:00',
     kind: 'novo',
     icon: 'emoji',

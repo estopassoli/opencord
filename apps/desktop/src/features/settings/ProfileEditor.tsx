@@ -11,7 +11,16 @@ import {
   type RecentAvatar,
 } from '@opencord/contracts';
 import { Avatar, AvatarSource, Button, ColorPicker, Icon, TextArea, TextField } from '@opencord/ui';
-import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { Dialog } from '../../components/Dialog';
 import { ImageCropDialog } from '../../components/ImageCropDialog';
 import { ProfileCardHead, profileThemeVars, useBannerUrl } from '../../components/ProfileCardView';
@@ -421,24 +430,46 @@ export function ProfileEditor({ me }: { me: Me }) {
   );
 }
 
+/**
+ * Campos editados no próprio cartão fecham ao tocar fora ou ao ir para outro campo, mas NÃO quando só perdem o foco:
+ * no celular, recursos do teclado (traduzir, área de transferência, voz) tiram o foco do campo por um instante, e
+ * fechar ali jogava o texto do teclado para fora do campo.
+ */
+const closeOnFocusMove = (close: () => void) => (e: FocusEvent<HTMLElement>) => {
+  if (e.relatedTarget) close();
+};
+function useCloseOnOutsideTap(ref: RefObject<HTMLElement | null>, active: boolean, close: () => void) {
+  useEffect(() => {
+    if (!active) return;
+    const down = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close();
+    };
+    document.addEventListener('pointerdown', down);
+    return () => document.removeEventListener('pointerdown', down);
+  }, [ref, active, close]);
+}
+
 /** Bio editada no próprio cartão (seção "Bio" abaixo do nome): clique para escrever. */
 function BioField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useCloseOnOutsideTap(box, editing, () => setEditing(false));
   return (
     <section className="pc-section">
       <h4>Bio</h4>
       {editing ? (
-        <div className="pc-bio-editing">
+        <div className="pc-bio-editing" ref={box}>
           <TextArea
             bare
             autoFocus
+            autoComplete="off"
             aria-label="Bio"
             value={value}
             maxLength={BIO_MAX}
             rows={3}
             placeholder="Conte um pouco sobre você. Dá para usar **negrito**, links e emojis."
             onChange={(e) => onChange(e.target.value)}
-            onBlur={() => setEditing(false)}
+            onBlur={closeOnFocusMove(() => setEditing(false))}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 e.stopPropagation();
@@ -468,17 +499,20 @@ function BioField({ value, onChange }: { value: string; onChange: (v: string) =>
 /** Balão ao lado da foto: o status com texto (o mesmo do menu do usuário), editado ali mesmo. */
 function StatusBubble({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useCloseOnOutsideTap(box, editing, () => setEditing(false));
   if (editing)
     return (
-      <div className="pc-status pc-status-editing">
+      <div className="pc-status pc-status-editing" ref={box}>
         <TextField
           autoFocus
+          autoComplete="off"
           aria-label="Status"
           value={value}
           maxLength={80}
           placeholder="O que você está fazendo?"
           onChange={(e) => onChange(e.target.value)}
-          onBlur={() => setEditing(false)}
+          onBlur={closeOnFocusMove(() => setEditing(false))}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === 'Escape') {
               e.preventDefault();
