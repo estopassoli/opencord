@@ -327,6 +327,9 @@ export const KlipyMediaUrl = z
   .url()
   .max(2000)
   .regex(/^https:\/\/([a-z0-9-]+\.)*klipy\.com\/\S+\.(gif|webp)(\?\S*)?$/i, 'use um GIF do seletor');
+/** POST /servers/:id/icon/gif e /servers/:id/banner/gif (ADR-0050): GIF do seletor para a imagem ou a faixa */
+export const ServerGifRequest = z.object({ url: KlipyMediaUrl });
+export type ServerGifRequest = z.infer<typeof ServerGifRequest>;
 export const ProfileColor = z.string().regex(/^#[0-9a-f]{6}$/i, 'use uma cor #rrggbb');
 /** Aparência do perfil (ADR-0048): vem em UserProfile.appearance (GET /users/:id/profile) */
 export const ProfileAppearance = z.object({

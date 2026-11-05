@@ -19,6 +19,7 @@ import { useData } from '../../store/data';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { Section } from '../settings/SettingsModal';
+import { GifDialog } from '../settings/ProfileEditor';
 import './server-profile.css';
 
 const toastError = (e: unknown) => useUi.getState().toast('error', describeError(e));
@@ -83,6 +84,21 @@ export function ServerProfileSection({ detail }: { detail: ServerDetail }) {
   const [description, setDescription] = useState(detail.description ?? '');
   const [busy, setBusy] = useState(false);
   const image = useImageUpload(detail.id, 'banner');
+  const gifsOn = useData((s) => Boolean(s.instance?.gifs));
+  const [gifOpen, setGifOpen] = useState(false);
+  const [gifBusy, setGifBusy] = useState(false);
+  // GIF do KLIPY para a faixa (ADR-0050): a API baixa e guarda uma cópia
+  const sendGif = async (url: string) => {
+    setGifOpen(false);
+    setGifBusy(true);
+    try {
+      applyServer(await api().request<ServerSummary>('POST', `/servers/${detail.id}/banner/gif`, { url }));
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setGifBusy(false);
+    }
+  };
   const banner = useBannerStyle(detail, { color });
 
   const cleanTraits = traits
@@ -153,6 +169,17 @@ export function ServerProfileSection({ detail }: { detail: ServerDetail }) {
               <Button size="sm" variant="secondary" icon="upload" disabled={image.busy} onClick={image.pick}>
                 {detail.bannerKey ? 'Trocar imagem da faixa' : 'Usar uma imagem'}
               </Button>
+              {gifsOn && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="image"
+                  disabled={image.busy || gifBusy}
+                  onClick={() => setGifOpen(true)}
+                >
+                  {gifBusy ? 'Baixando GIF…' : 'Escolher GIF'}
+                </Button>
+              )}
               {detail.bannerKey && (
                 <Button size="sm" variant="ghost" disabled={image.busy} onClick={() => void image.clear()}>
                   Remover imagem
@@ -165,6 +192,15 @@ export function ServerProfileSection({ detail }: { detail: ServerDetail }) {
                 : 'PNG, JPEG, WebP ou GIF animado, até 4 MB. A imagem já fica salva ao enviar.'}
             </span>
           </div>
+
+          {gifOpen && (
+            <GifDialog
+              title="GIF para a faixa do servidor"
+              note="O OpenCord guarda uma cópia do GIF: ele continua aparecendo mesmo se sair do KLIPY."
+              onClose={() => setGifOpen(false)}
+              onPick={(url) => void sendGif(url)}
+            />
+          )}
 
           <div className="sp-field">
             <span className="oc-label">Características</span>

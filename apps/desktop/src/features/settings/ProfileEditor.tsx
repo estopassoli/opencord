@@ -31,6 +31,7 @@ import { EMPTY_APPEARANCE, useProfiles } from '../../store/profiles';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { GifPicker } from '../chat/GifPicker';
+import type { Gif } from '../../lib/klipy';
 import { renderRich } from '../chat/rich';
 
 /** cores para o degradê: claras, médias e escuras (o texto do cartão se ajusta sozinho) */
@@ -624,17 +625,27 @@ function AvatarOverride({ id, src, children }: { id: string; src: string | null;
   return <AvatarSource.Provider value={resolve}>{children}</AvatarSource.Provider>;
 }
 
-function GifDialog({ title, onClose, onPick }: { title: string; onClose: () => void; onPick: (url: string) => void }) {
+export function GifDialog({
+  title,
+  onClose,
+  onPick,
+  note = 'O GIF continua vindo do KLIPY: quem abre o seu perfil carrega direto de lá.',
+}: {
+  title: string;
+  onClose: () => void;
+  onPick: (url: string, gif: Gif) => void;
+  note?: string;
+}) {
   const cfg = useData((s) => s.instance?.gifs ?? null);
   const anchor = useRef<HTMLDivElement>(null);
   if (!cfg) return null;
   return (
     <Dialog title={title} onClose={onClose} wide>
       <div ref={anchor}>
-        <GifPicker cfg={cfg} anchor={anchor} inline onClose={onClose} onPick={(g) => onPick(g.url)} />
+        <GifPicker cfg={cfg} anchor={anchor} inline onClose={onClose} onPick={(g) => onPick(g.url, g)} />
       </div>
       <p className="muted small">
-        <Icon name="image" size={14} /> O GIF continua vindo do KLIPY: quem abre o seu perfil carrega direto de lá.
+        <Icon name="image" size={14} /> {note}
       </p>
     </Dialog>
   );

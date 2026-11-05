@@ -21,6 +21,8 @@ const AVATAR_LIMITS = { maxBytes: AVATAR_MAX_BYTES, maxSide: MAX_SIDE, label: '1
 const WALLPAPER_LIMITS = { maxBytes: 4 * 1024 * 1024, maxSide: 2560, label: '4 MB' };
 /** emojis personalizados (ADR-0050): GIF animado pequeno; o app reduz os parados para 128 px */
 const EMOJI_LIMITS = { maxBytes: 512 * 1024, maxSide: 512, label: '512 KB' };
+/** GIF do KLIPY como imagem do servidor: um pouco maior que a foto enviada, porque é animado */
+const KLIPY_ICON_LIMITS = { maxBytes: 2 * 1024 * 1024, maxSide: 1024, label: '2 MB' };
 const BANNER_LIMITS = { maxBytes: 4 * 1024 * 1024, maxSide: 2560, label: '4 MB' };
 /** fotos guardadas para voltar a usar (ADR-0048) */
 const RECENT_AVATARS = 6;
@@ -77,6 +79,21 @@ export class AvatarService {
 
   async clearServerWallpaper(serverId: string) {
     return this.applyWallpaper(serverId, null);
+  }
+
+  /**
+   * GIF do KLIPY para a imagem ou a faixa do servidor (ADR-0050): a API baixa e guarda uma cópia, como se tivesse sido
+   * enviada (o servidor não depende do KLIPY para mostrar). Só aceita endereços https do KLIPY, segue no máximo 3
+   * redirecionamentos (cada um conferido de novo) e corta no limite de tamanho.
+   */
+  async setServerGif(serverId: string, kind: 'icon' | 'banner', url: string) {
+    const buf = await fetchKlipy(url, kind === 'icon' ? KLIPY_ICON_LIMITS.maxBytes : WALLPAPER_LIMITS.maxBytes);
+    const file = (async function* () {
+      yield buf;
+    })();
+    if (kind === 'icon')
+      return this.applyServer(serverId, await this.storeImage(file, 'server-icons', KLIPY_ICON_LIMITS));
+    return this.setServerImage(serverId, 'banner', file);
   }
 
   /** Faixa do servidor e fundo do convite (ADR-0050): mesmas regras do papel de parede (até 4 MB, 2560 px). */
@@ -318,4 +335,38 @@ export class AvatarService {
     const mime = Object.entries(TYPES).find(([, e]) => e === m[1])![0];
     return { mime, key: `${folder}/${name}` };
   }
+}
+
+const KLIPY_HOST = /^([a-z0-9-]+\.)*klipy\.com$/i;
+
+/** baixa um arquivo do KLIPY (https, host *.klipy.com em cada salto) com limite de bytes e tempo */
+async function fetchKlipy(url: string, maxBytes: number): Promise<Buffer> {
+  let target = url;
+  for (let hop = 0; hop < 4; hop++) {
+    const u = new URL(target);
+    if (u.protocol !== 'https:' || !KLIPY_HOST.test(u.hostname))
+      throw new BadRequestException('use um GIF do seletor do KLIPY');
+    const res = await fetch(u, { redirect: 'manual', signal: AbortSignal.timeout(15_000) }).catch(() => {
+      throw new BadRequestException('não foi possível baixar o GIF do KLIPY');
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const next = res.headers.get('location');
+      if (!next) break;
+      target = new URL(next, u).toString();
+      continue;
+    }
+    if (!res.ok || !res.body) throw new BadRequestException('não foi possível baixar o GIF do KLIPY');
+    if (Number(res.headers.get('content-length') ?? 0) > maxBytes)
+      throw new PayloadTooLargeException(`o GIF passa de ${Math.round(maxBytes / 1024 / 1024)} MB`);
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const c of res.body as unknown as AsyncIterable<Uint8Array>) {
+      size += c.length;
+      if (size > maxBytes)
+        throw new PayloadTooLargeException(`o GIF passa de ${Math.round(maxBytes / 1024 / 1024)} MB`);
+      chunks.push(Buffer.from(c));
+    }
+    return Buffer.concat(chunks);
+  }
+  throw new BadRequestException('não foi possível baixar o GIF do KLIPY');
 }

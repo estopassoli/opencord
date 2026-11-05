@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '05:40',
+    kind: 'melhoria',
+    icon: 'image',
+    title: 'GIF na imagem e na faixa do servidor',
+    body: 'Em Configurações do servidor → Perfil do servidor, o botão Escolher GIF abre o seletor de GIFs para a imagem do servidor e para a faixa. O OpenCord guarda uma cópia, então o GIF continua animado para todo mundo.',
+  },
+  {
+    date: '2026-11-05',
     time: '05:20',
     kind: 'correção',
     icon: 'edit',

@@ -32,6 +32,7 @@ import {
   UpdateChannelRequest,
   UpdateRoleRequest,
   CreateInviteRequest,
+  ServerGifRequest,
   UpdateServerRequest,
   AdminJoinRequest,
   SetMemberHiddenRequest,
@@ -129,6 +130,26 @@ export class ServersController {
   @Post('servers/:id/banner')
   setBanner(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string, @Req() req: FastifyRequest) {
     return this.uploadServerImage(u, id, 'banner', req);
+  }
+
+  @Post('servers/:id/icon/gif')
+  async setIconGif(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(ServerGifRequest)) dto: z.infer<typeof ServerGifRequest>,
+  ) {
+    await this.perms.requireServer(id, u.userId, Permission.MANAGE_SERVER);
+    return serverSummary(await this.avatars.setServerGif(id, 'icon', dto.url));
+  }
+
+  @Post('servers/:id/banner/gif')
+  async setBannerGif(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(ServerGifRequest)) dto: z.infer<typeof ServerGifRequest>,
+  ) {
+    await this.perms.requireServer(id, u.userId, Permission.MANAGE_SERVER);
+    return serverSummary(await this.avatars.setServerGif(id, 'banner', dto.url));
   }
 
   @Delete('servers/:id/banner')

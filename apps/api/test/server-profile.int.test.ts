@@ -77,6 +77,13 @@ describe('perfil e engajamento do servidor', () => {
     const key = ((await up.json()) as ServerSummary).bannerKey!;
     expect((await fetch(`http://127.0.0.1:${TEST_API_PORT}/server-banners/${key}`)).status).toBe(200);
 
+    // GIF do seletor: só endereços do KLIPY (nada de servidor interno nem outro site)
+    for (const url of ['http://127.0.0.1:5432/x.gif', 'https://exemplo.com/a.gif', 'https://klipy.com.evil.io/a.gif'])
+      for (const kind of ['icon', 'banner'])
+        expect(
+          (await http.req('POST', `/servers/${serverId}/${kind}/gif`, { token: owner.token, body: { url } })).status,
+        ).toBe(400);
+
     // alguém entra pelo convite: boas-vindas com menção no canal do sistema
     const inv = await http.req<Invite>('POST', `/servers/${serverId}/invites`, { token: owner.token });
     const bia = await outsider(http);

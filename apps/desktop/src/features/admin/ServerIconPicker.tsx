@@ -7,6 +7,7 @@ import { ImageCropDialog } from '../../components/ImageCropDialog';
 import { useData } from '../../store/data';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
+import { GifDialog } from '../settings/ProfileEditor';
 
 /** Imagem do servidor em Configurações do servidor → Visão geral (quem pode gerenciar o servidor). */
 export function ServerIconPicker({ detail }: { detail: ServerDetail }) {
@@ -20,6 +21,23 @@ export function ServerIconPicker({ detail }: { detail: ServerDetail }) {
     }));
 
   const [cropping, setCropping] = useState<File | null>(null);
+  const [gifOpen, setGifOpen] = useState(false);
+  const gifsOn = useData((s) => Boolean(s.instance?.gifs));
+
+  // GIF do KLIPY (ADR-0050): a API baixa e guarda uma cópia; a miniatura animada basta para o ícone
+  const sendGif = async (url: string) => {
+    setGifOpen(false);
+    setBusy(true);
+    setError(null);
+    try {
+      apply(await api().request<ServerSummary>('POST', `/servers/${detail.id}/icon/gif`, { url }));
+      useUi.getState().toast('success', 'Imagem do servidor atualizada.');
+    } catch (e) {
+      setError(describeError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const send = async (file: File) => {
     setBusy(true);
@@ -65,13 +83,28 @@ export function ServerIconPicker({ detail }: { detail: ServerDetail }) {
           <Button icon="upload" disabled={busy} onClick={() => input.current?.click()}>
             {busy ? 'Enviando…' : detail.iconKey ? 'Trocar imagem' : 'Enviar imagem'}
           </Button>
+          {gifsOn && (
+            <Button variant="secondary" icon="image" disabled={busy} onClick={() => setGifOpen(true)}>
+              Escolher GIF
+            </Button>
+          )}
           {detail.iconKey && (
             <Button variant="ghost" disabled={busy} onClick={() => void remove()}>
               Remover
             </Button>
           )}
         </div>
-        <span className="muted small">Aparece na barra de servidores de todos. A imagem é recortada em quadrado.</span>
+        <span className="muted small">
+          Aparece na barra de servidores de todos. A imagem é recortada em quadrado; GIF animado também vale.
+        </span>
+        {gifOpen && (
+          <GifDialog
+            title="GIF para a imagem do servidor"
+            note="O OpenCord guarda uma cópia do GIF: ele continua aparecendo mesmo se sair do KLIPY."
+            onClose={() => setGifOpen(false)}
+            onPick={(_, g) => void sendGif(g.preview || g.url)}
+          />
+        )}
         {error && (
           <p className="form-error" role="alert">
             {error}

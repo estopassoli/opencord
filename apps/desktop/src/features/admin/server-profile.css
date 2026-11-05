@@ -117,12 +117,26 @@
   margin-top: -32px;
   border-radius: 18px;
   border: 4px solid var(--sidebar);
-  background: var(--sidebar);
   overflow: hidden;
 }
-.sp-preview-icon > * {
+.sp-preview-icon {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.25rem;
+  background: var(--brand);
+}
+.sp-preview-icon > img {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  border-radius: 14px;
+}
+.sp-field .form-actions,
+.sp-form > .form-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 .sp-preview-name {
   font-size: 1.05rem;
