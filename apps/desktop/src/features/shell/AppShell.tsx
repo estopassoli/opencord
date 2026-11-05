@@ -106,6 +106,8 @@ export function AppShell() {
   const mobile = useIsMobile();
   const detail = useData((s) => (view.kind === 'server' ? s.details[view.serverId] : undefined));
   const sidebarWidth = useData((s) => Math.max(s.settings?.sidebarWidth ?? 300, 300));
+  // lista de canais escondida (só no servidor e fora do celular): o rail abre o painel da chamada
+  const channelsHidden = useUi((s) => s.channelsHidden) && view.kind === 'server' && !mobile;
   useShellBehavior();
 
   // Celular: Esc fecha a gaveta; deslizar da borda esquerda abre a navegação, deslizar para o lado fecha.
@@ -159,6 +161,7 @@ export function AppShell() {
     <div
       className="shell"
       data-panel={mobile ? panel : undefined}
+      data-channels={channelsHidden ? 'hidden' : undefined}
       style={{ ['--sidebar-width' as string]: `${sidebarWidth}px` }}
     >
       <a className="skip-link" href="#main-content">
@@ -169,15 +172,19 @@ export function AppShell() {
         <ErrorBoundary area="a lista de servidores">
           <ServerRail />
         </ErrorBoundary>
-        <aside className="sidebar" aria-label={view.kind === 'server' ? 'Canais' : 'Conversas'}>
-          <ErrorBoundary area="a lista de canais">
-            {view.kind === 'server' ? <ChannelSidebar serverId={view.serverId} /> : <DmSidebar />}
-          </ErrorBoundary>
-        </aside>
+        {!channelsHidden && (
+          <aside className="sidebar" aria-label={view.kind === 'server' ? 'Canais' : 'Conversas'}>
+            <ErrorBoundary area="a lista de canais">
+              {view.kind === 'server' ? <ChannelSidebar serverId={view.serverId} /> : <DmSidebar />}
+            </ErrorBoundary>
+          </aside>
+        )}
         {/* painel do usuário/voz flutua sobre o rodapé do rail + sidebar */}
-        <ErrorBoundary area="o painel do usuário">
-          <UserDock />
-        </ErrorBoundary>
+        {!channelsHidden && (
+          <ErrorBoundary area="o painel do usuário">
+            <UserDock />
+          </ErrorBoundary>
+        )}
       </div>
       {mobile && panel !== 'none' && (
         <button className="mobile-scrim" aria-label="Fechar painel" onClick={() => useUi.getState().setPanel('none')} />

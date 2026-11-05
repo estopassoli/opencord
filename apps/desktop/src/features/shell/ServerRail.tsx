@@ -2,7 +2,7 @@ import type { ServerFolder, ServerLayoutItem, ServerSummary } from '@opencord/co
 import { Avatar, Button, ColorSwatches, Icon, TextField } from '@opencord/ui';
 import { useShallow } from 'zustand/react/shallow';
 import { ServerIcon } from '../../components/ServerIcon';
-import { useMemo, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Dialog } from '../../components/Dialog';
 import { DownloadAppRailItem } from '../../components/DownloadApp';
@@ -25,6 +25,8 @@ import { useData } from '../../store/data';
 import { markServerRead } from '../../store/session';
 import { updateSettings } from '../../store/settings';
 import { useUi } from '../../store/ui';
+import { RailVoiceFlyout } from './RailVoiceFlyout';
+import { useIsMobile } from '../../lib/media';
 
 /**
  * Item do rail com pílula indicadora à esquerda:
@@ -44,6 +46,7 @@ function RailItem({
   className,
   expanded,
   style,
+  data,
   children,
 }: {
   label: string;
@@ -63,6 +66,8 @@ function RailItem({
   /** pasta: aberta/fechada */
   expanded?: boolean;
   style?: CSSProperties;
+  /** atributos data-* do item (ex.: id do servidor, para o painel da chamada se ancorar no ícone) */
+  data?: Record<`data-${string}`, string>;
   children: ReactNode;
 }) {
   return (
@@ -71,6 +76,7 @@ function RailItem({
       data-active={active ? 'true' : undefined}
       data-unread={unread && !active ? 'true' : undefined}
       data-drop={drop}
+      {...data}
       {...dnd}
     >
       <span className="rail-pill" aria-hidden />
@@ -104,6 +110,10 @@ export function ServerRail() {
   const go = useUi((s) => s.go);
   const open = useUi((s) => s.openModal);
   const isAdmin = useData((s) => Boolean(s.me?.isInstanceAdmin));
+  const channelsHidden = useUi((s) => s.channelsHidden);
+  const setChannelsHidden = useUi((s) => s.setChannelsHidden);
+  const railRef = useRef<HTMLElement>(null);
+  const mobile = useIsMobile();
   const homeActive = view.kind === 'home' || view.kind === 'dm';
   const dmUnread = Object.values(unread).reduce((n, u) => n + (u.conversationId ? u.unreadCount : 0), 0);
 
@@ -186,6 +196,7 @@ export function ServerRail() {
         active={active}
         unread={b.any}
         badge={b.mentions}
+        data={{ 'data-server-id': s.id }}
         dnd={dndFor({ type: 'server', id: s.id }, !folder)}
         drop={dropOn(s.id)}
         onClick={() => openServer(s.id)}
@@ -257,6 +268,7 @@ export function ServerRail() {
         expanded={f.open}
         className="rail-folder-li"
         style={style}
+        data={f.open ? undefined : { 'data-folder-servers': inside.map((x) => x.id).join(' ') }}
         dnd={dndFor({ type: 'folder', id: f.id }, true)}
         drop={dropOn(f.id)}
         onClick={toggle}
@@ -302,7 +314,7 @@ export function ServerRail() {
   };
 
   return (
-    <nav className="rail" aria-label="Servidores">
+    <nav className="rail" aria-label="Servidores" ref={railRef}>
       <ul className="rail-list rail-main">
         <RailItem
           label="Mensagens diretas"
@@ -319,6 +331,16 @@ export function ServerRail() {
       </ul>
       {/* ações fixas no pé do rail: a lista de servidores rola acima delas */}
       <ul className="rail-list rail-actions" aria-label="Ações">
+        {view.kind === 'server' && !mobile && (
+          <RailItem
+            label={channelsHidden ? 'Mostrar canais' : 'Esconder canais'}
+            variant="action"
+            active={channelsHidden}
+            onClick={() => setChannelsHidden(!channelsHidden)}
+          >
+            <Icon name={channelsHidden ? 'panel-open' : 'panel-close'} />
+          </RailItem>
+        )}
         <RailItem label="Criar um servidor" variant="action" onClick={() => open({ kind: 'create-server' })}>
           <Icon name="plus" />
         </RailItem>
@@ -333,6 +355,7 @@ export function ServerRail() {
         <DownloadAppRailItem />
         <InstallAppRailItem />
       </ul>
+      <RailVoiceFlyout rail={railRef} />
       {editing && (
         <FolderDialog
           folder={editing}

@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '10:30',
+    kind: 'correção',
+    icon: 'gamepad',
+    title: 'Overlay no jogo mais discreto e completo',
+    body: 'O overlay por cima do jogo agora tem fundo translúcido (o jogo aparece por trás) e mostra o tempo da chamada, a foto de perfil e a cor do cargo de cada pessoa, além do mesmo apelido que aparece na lista de canais.',
+  },
+  {
+    date: '2026-11-05',
+    time: '10:00',
+    kind: 'novo',
+    icon: 'panel-close',
+    title: 'Esconder a lista de canais',
+    body: 'O botão ao lado de "Convidar pessoas" (ou o do pé da barra de servidores) esconde a lista de canais e deixa mais espaço para a chamada ou o chat. Com ela escondida, passar o mouse na barra de servidores abre, junto do ícone do servidor, quem está no seu canal de voz, com o tempo da chamada, os botões de microfone, áudio e sair, e "Mostrar canais" para trazer a lista de volta. No computador.',
+  },
+  {
+    date: '2026-11-05',
     time: '09:30',
     kind: 'novo',
     icon: 'clock',

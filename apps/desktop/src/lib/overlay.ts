@@ -7,6 +7,9 @@
 import type { OverlayCorner, OverlayState } from '../../electron/shared/overlay';
 import { bridge } from './bridge';
 import { useData } from '../store/data';
+import { useSession } from '../store/session';
+import { callStartOf } from '../features/shell/CallTimer';
+import { roleColorOf } from '../features/shell/MemberList';
 import { useGames } from '../store/games';
 import { useUi } from '../store/ui';
 import { isInCall, useVoice } from '../store/voice';
@@ -65,30 +68,58 @@ export function overlayNotice(text: string, kind: Notice['kind'] = 'info') {
   }, NOTICE_MS + 50);
 }
 
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/** foto da pessoa como o app mostra (GIF do KLIPY pronto ou /avatars/:nome no servidor), só http/https */
+function avatarOf(id: string): string | null {
+  const d = useData.getState();
+  const base = useSession.getState().serverUrl.replace(/\/+$/, '');
+  const users = [
+    d.me,
+    ...Object.values(d.details).flatMap((x) => x.members.map((m) => m.user)),
+    ...d.friends.map((f) => f.user),
+    ...d.conversations.flatMap((c) => c.members),
+  ];
+  const u = users.find((x) => x?.id === id);
+  if (!u) return null;
+  const url = u.avatarUrl ?? (u.avatarKey && base ? `${base}/avatars/${encodeURIComponent(u.avatarKey)}` : null);
+  return url && /^https?:\/\//i.test(url) && url.length <= 1000 ? url : null;
+}
+
 function build(): OverlayState {
   const prefs = useOverlayPrefs.getState();
   const v = useVoice.getState();
   const game = useGames.getState().mine;
   const inCall = isInCall(v.machine) && v.machine.status === 'connected';
-  const channel = v.serverId
-    ? useData.getState().details[v.serverId]?.channels.find((c) => c.id === v.machine.channelId)?.name
-    : undefined;
+  const data = useData.getState();
+  const detail = v.serverId ? data.details[v.serverId] : undefined;
+  const channel = detail?.channels.find((c) => c.id === v.machine.channelId)?.name;
+  const aliases = data.settings?.friendNicknames;
+  const inChannel = Object.values(data.voiceStates).filter((x) => x.channelId === v.machine.channelId);
   const live = notices.filter((n) => n.until > Date.now());
   return {
     visible: prefs.enabled && Boolean(game) && (inCall || live.length > 0),
     corner: prefs.corner,
     call: inCall
       ? {
-          channel: channel ?? 'Chamada',
+          channel: (channel ?? 'Chamada').slice(0, 64),
+          startedAt: callStartOf(inChannel),
           muted: v.selfMute,
           deafened: v.selfDeaf,
-          people: v.participants.slice(0, 50).map((p) => ({
-            id: p.identity,
-            name: p.name,
-            speaking: p.speaking,
-            muted: p.micMuted,
-            me: p.isLocal,
-          })),
+          people: v.participants.slice(0, 50).map((p) => {
+            // mesmo nome e cor da lista de canais: apelido que dei > apelido no servidor > nome
+            const m = detail?.members.find((x) => x.user.id === p.identity);
+            const color = detail ? roleColorOf(detail, m) : undefined;
+            return {
+              id: p.identity.slice(0, 64),
+              name: (aliases?.[p.identity] ?? m?.nickname ?? m?.user.displayName ?? p.name).slice(0, 64),
+              speaking: p.speaking,
+              muted: p.micMuted,
+              me: p.isLocal,
+              color: color && HEX.test(color) ? color : null,
+              avatar: avatarOf(p.identity),
+            };
+          }),
         }
       : null,
     notices: live.map(({ id, text, kind }) => ({ id, text, kind })),
@@ -116,6 +147,8 @@ export function startOverlay() {
   useVoice.subscribe(push);
   useGames.subscribe(push);
   useOverlayPrefs.subscribe(push);
+  // nomes, cores, fotos e o início da chamada vêm dos dados do servidor
+  useData.subscribe(push);
   // os avisos do app (clipe salvo, erro) também aparecem no jogo
   let seenToast = 0;
   useUi.subscribe((s) => {

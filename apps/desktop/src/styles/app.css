@@ -8706,3 +8706,98 @@ dialog.dialog:not(.dialog-fullscreen)::backdrop,
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
 }
+
+/* lista de canais escondida: rail | conteúdo | membros; sem o painel do usuário, o rail não reserva o rodapé */
+.shell[data-channels='hidden'] {
+  grid-template-columns: var(--rail-width) minmax(0, 1fr) auto;
+}
+.shell[data-channels='hidden'] .rail {
+  padding-bottom: 8px;
+}
+
+/* painel da chamada ao passar o mouse no rail, ancorado no ícone do servidor */
+.rail-flyout {
+  position: fixed;
+  z-index: 1400;
+  width: 260px;
+  max-height: calc(100vh - 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: calc(10px * var(--radius-scale, 1));
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.45);
+  animation: tip-in 100ms var(--ease);
+}
+.rail-flyout-head {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.rail-flyout-server {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.rail-flyout-channel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text);
+  font-weight: 700;
+}
+.rail-flyout-members {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  min-height: 0;
+}
+.rail-flyout-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: calc(6px * var(--radius-scale, 1));
+  color: var(--text-2);
+}
+.rail-flyout-member > .truncate {
+  flex: 1;
+}
+.rail-flyout-foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.rail-flyout-foot .icon-btn[data-off='true'] {
+  color: var(--danger);
+}
+.rail-flyout-leave:hover {
+  color: var(--danger);
+}
+.rail-flyout-show {
+  margin-left: auto;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: calc(6px * var(--radius-scale, 1));
+  background: var(--interactive);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.rail-flyout-show:hover {
+  background: var(--interactive-hover, var(--brand));
+}

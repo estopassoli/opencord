@@ -51,6 +51,7 @@ function VidroDesktop() {
   const detail = useData((s) => (view.kind === 'server' ? s.details[view.serverId] : undefined));
   const sidebarWidth = useData((s) => Math.max(s.settings?.sidebarWidth ?? 300, 300));
   const myCall = useVoice((v) => v.machine.channelId);
+  const channelsHidden = useUi((s) => s.channelsHidden) && view.kind === 'server';
   const popped = useUi((s) => s.poppedStream);
   const shell = useRef<HTMLDivElement>(null);
   useShellBehavior();
@@ -65,6 +66,7 @@ function VidroDesktop() {
       className="vidro-shell"
       ref={shell}
       data-side={sideOpen ? 'open' : undefined}
+      data-channels={channelsHidden ? 'hidden' : undefined}
       style={{ ['--sidebar-width' as string]: `${sidebarWidth}px` }}
     >
       <a className="skip-link" href="#main-content">
@@ -76,14 +78,18 @@ function VidroDesktop() {
         <ErrorBoundary area="a lista de servidores">
           <ServerRail />
         </ErrorBoundary>
-        <aside className="sidebar" aria-label={view.kind === 'server' ? 'Canais' : 'Conversas'}>
-          <ErrorBoundary area="a lista de canais">
-            {view.kind === 'server' ? <ChannelSidebar serverId={view.serverId} /> : <DmSidebar />}
+        {!channelsHidden && (
+          <aside className="sidebar" aria-label={view.kind === 'server' ? 'Canais' : 'Conversas'}>
+            <ErrorBoundary area="a lista de canais">
+              {view.kind === 'server' ? <ChannelSidebar serverId={view.serverId} /> : <DmSidebar />}
+            </ErrorBoundary>
+          </aside>
+        )}
+        {!channelsHidden && (
+          <ErrorBoundary area="o painel do usuário">
+            <UserDock />
           </ErrorBoundary>
-        </aside>
-        <ErrorBoundary area="o painel do usuário">
-          <UserDock />
-        </ErrorBoundary>
+        )}
       </div>
       <main id="main-content" className="content vidro-panel vidro-main" tabIndex={-1} style={{ ['--i' as string]: 1 }}>
         <InstanceBanner />

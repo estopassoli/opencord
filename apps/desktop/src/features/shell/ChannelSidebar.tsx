@@ -18,6 +18,7 @@ import { CallTimer } from './CallTimer';
 import { CHANNEL_ICON, CHANNEL_ORDER } from '../../lib/channels';
 import { useBannerStyle } from '../../lib/serverBanner';
 import { useAliases } from '../../lib/names';
+import { useIsMobile } from '../../lib/media';
 import { GameBadge } from './Playing';
 import { createLockedRoom, isLockedRoom, isPrivateChannel, knockRoom, roomMenuItems } from './rooms';
 
@@ -59,6 +60,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   const voiceChannel = useVoice((s) => s.machine.channelId);
   const me = useData((s) => s.me?.id);
   const aliases = useAliases();
+  const mobile = useIsMobile();
   const creatorId = useCreatorId(detail);
   // arrastar alguém da voz para outro canal de voz (MOVE_MEMBERS; a si mesmo, qualquer um)
   const [drag, setDrag] = useState<{ userId: string; from: string } | null>(null);
@@ -175,6 +177,17 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
           <span className="truncate">{detail.name}</span>
           <Icon name="chevron-down" size={16} />
         </button>
+        {!mobile && (
+          <Tooltip label="Esconder canais">
+            <button
+              className="icon-btn sidebar-invite"
+              aria-label="Esconder canais"
+              onClick={() => useUi.getState().setChannelsHidden(true)}
+            >
+              <Icon name="panel-close" size={18} />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip label="Convidar pessoas">
           <button
             className="icon-btn sidebar-invite"

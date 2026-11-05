@@ -46,6 +46,7 @@ export type Modal =
 export type FriendsPanelMode = 'open' | 'compact' | 'hidden';
 const FRIENDS_PANEL_KEY = 'oc-friends-panel';
 const DM_PROFILE_KEY = 'oc-dm-profile';
+const CHANNELS_HIDDEN_KEY = 'oc-channels-hidden';
 function readFlag(key: string, fallback: boolean): boolean {
   try {
     const v = localStorage.getItem(key);
@@ -105,6 +106,9 @@ interface UiState {
   friendsPanel: FriendsPanelMode;
   /** painel de perfil da outra pessoa nas DMs (lembrado neste computador) */
   dmProfile: boolean;
+  /** lista de canais do servidor escondida: o rail abre um painel com quem está na minha chamada (lembrado aqui) */
+  channelsHidden: boolean;
+  setChannelsHidden(v: boolean): void;
   setDmProfile(v: boolean): void;
   setFriendsPanel(m: FriendsPanelMode): void;
   /** celular: painel aberto por cima do conteúdo (gaveta de navegação ou de membros) */
@@ -165,6 +169,15 @@ export const useUi = create<UiState>()((set) => ({
   activitiesOpen: false,
   setActivitiesOpen: (on) => set({ activitiesOpen: on }),
   dmProfile: readFlag(DM_PROFILE_KEY, true),
+  channelsHidden: readFlag(CHANNELS_HIDDEN_KEY, false),
+  setChannelsHidden: (v) => {
+    try {
+      localStorage.setItem(CHANNELS_HIDDEN_KEY, v ? '1' : '0');
+    } catch {
+      /* sem armazenamento: vale só nesta sessão */
+    }
+    set({ channelsHidden: v });
+  },
   setDmProfile: (v) => {
     try {
       localStorage.setItem(DM_PROFILE_KEY, v ? '1' : '0');

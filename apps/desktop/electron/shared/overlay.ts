@@ -14,6 +14,8 @@ export const OverlayState = z.object({
   call: z
     .object({
       channel: z.string().max(64),
+      /** início da chamada no canal (ms desde a época), para o contador; null sem a informação */
+      startedAt: z.number().int().nonnegative().nullable(),
       muted: z.boolean(),
       deafened: z.boolean(),
       people: z
@@ -24,6 +26,17 @@ export const OverlayState = z.object({
             speaking: z.boolean(),
             muted: z.boolean(),
             me: z.boolean(),
+            /** cor do cargo mais alto (#rrggbb); null sem cor */
+            color: z
+              .string()
+              .regex(/^#[0-9a-fA-F]{6}$/)
+              .nullable(),
+            /** foto (só http/https); null usa as iniciais */
+            avatar: z
+              .string()
+              .max(1000)
+              .refine((u) => /^https?:\/\//i.test(u))
+              .nullable(),
           }),
         )
         .max(50),

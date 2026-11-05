@@ -79,44 +79,74 @@ export function destroyOverlay() {
   win = null;
 }
 
-const HTML = `<!doctype html><html><head><meta charset="utf-8"><title>OpenCord overlay</title><style>
+// fundo translúcido (o jogo aparece por trás) e texto com sombra para ler sobre qualquer cena; nada de HTML montado
+// com texto: nomes, fotos e cores entram por textContent/atributos, e a CSP só deixa carregar imagens http(s)
+const HTML = `<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: http:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>OpenCord overlay</title><style>
   html,body{margin:0;height:100%;background:transparent;overflow:hidden;font:13px/1.25 "Segoe UI",system-ui,sans-serif;
     color:#f2f3f5;user-select:none}
-  body{display:flex;flex-direction:column;gap:8px;padding:0;box-sizing:border-box}
+  body{display:flex;flex-direction:column;gap:6px;padding:0;box-sizing:border-box}
   body.bottom{justify-content:flex-end}
-  .card{background:rgba(20,22,27,.78);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px;
-    backdrop-filter:blur(6px)}
-  .head{display:flex;align-items:center;gap:8px;font-size:12px;color:#b5bac1;margin-bottom:6px}
+  .card{background:rgba(12,13,16,.38);border-radius:10px;padding:6px 8px;text-shadow:0 1px 2px rgba(0,0,0,.85)}
+  .head{display:flex;align-items:center;gap:6px;font-size:12px;color:#d6d9de;margin:0 0 4px}
   .head b{color:#f2f3f5;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-  .badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;
-    background:#da373c;color:#fff;font-size:10px;font-weight:700}
-  .p{display:flex;align-items:center;gap:8px;padding:3px 0}
-  .av{width:24px;height:24px;border-radius:50%;background:#4d56fd;display:grid;place-items:center;font-size:11px;
-    font-weight:700;color:#fff;box-shadow:0 0 0 2px transparent;transition:box-shadow .12s}
+  .time{color:#3fb27f;font-weight:700;font-variant-numeric:tabular-nums}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;
+    box-sizing:border-box;border-radius:9px;background:rgba(218,55,60,.85);color:#fff;font-size:10px;font-weight:700;
+    text-shadow:none}
+  .p{display:flex;align-items:center;gap:7px;padding:2px 0}
+  .av{position:relative;flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+    font-size:9px;font-weight:700;color:#fff;overflow:hidden;box-shadow:0 0 0 2px transparent;transition:box-shadow .12s}
+  .av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   .p.speaking .av{box-shadow:0 0 0 2px #3fb27f}
-  .p .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .p.speaking .n{color:#fff}
-  .p.muted .n{color:#8b909a}
-  .m{font-size:10px;color:#da373c;font-weight:700}
-  .notice{background:rgba(20,22,27,.9);border-left:3px solid #4d56fd;border-radius:8px;padding:8px 10px;
-    animation:in .15s ease-out}
+  .p .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .p.muted .n{opacity:.7}
+  .m{font-size:10px;color:#ff6b6f;font-weight:700}
+  .notice{background:rgba(12,13,16,.6);border-left:3px solid #4d56fd;border-radius:8px;padding:6px 10px;
+    text-shadow:0 1px 2px rgba(0,0,0,.85);animation:in .15s ease-out}
   .notice.error{border-left-color:#da373c}.notice.success{border-left-color:#3fb27f}
   @keyframes in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.notice{animation:none}.av{transition:none}}
 </style></head><body><div id="call"></div><div id="notices"></div><script>
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
-  const ini = (n) => esc(n.trim().split(/\\s+/).slice(0,2).map((w) => w[0] || '').join('').toUpperCase() || '?');
+  const PALETTE = ['#4d56fd','#7a4fd1','#b4542c','#2d6cb5','#8a6d12','#a3376b','#3f7d3a','#5b5f6b'];
+  const colorOf = (id) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return PALETTE[h % PALETTE.length]; };
+  const ini = (n) => { const p = n.trim().split(/\\s+/).filter(Boolean); return (p.length > 1 ? (p[0][0] || '') + (p[1][0] || '') : (p[0] || '?').slice(0, 2)).toUpperCase(); };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const fmt = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600);
+    const m = String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, '0'), x = String(s % 60).padStart(2, '0');
+    return h ? h + ':' + m + ':' + x : m + ':' + x; };
+  let startedAt = null;
+  const tick = () => { const t = document.getElementById('time'); if (t && startedAt) t.textContent = fmt(Date.now() - startedAt); };
+  setInterval(tick, 1000);
   window.overlay.onState((s) => {
     document.body.classList.toggle('bottom', !!s.bottom);
     const call = document.getElementById('call');
     const notices = document.getElementById('notices');
+    call.replaceChildren();
+    startedAt = s.call ? s.call.startedAt : null;
     if (s.call) {
-      const me = s.call.muted ? '<span class="badge" title="mudo">M</span>' : '';
-      const deaf = s.call.deafened ? '<span class="badge" title="surdo">S</span>' : '';
-      call.innerHTML = '<div class="card"><div class="head"><b>' + esc(s.call.channel) + '</b>' + me + deaf + '</div>' +
-        s.call.people.map((p) => '<div class="p' + (p.speaking ? ' speaking' : '') + (p.muted ? ' muted' : '') + '">' +
-          '<span class="av">' + ini(p.name) + '</span><span class="n">' + esc(p.name) + (p.me ? ' (você)' : '') + '</span>' +
-          (p.muted ? '<span class="m">mudo</span>' : '') + '</div>').join('') + '</div>';
-    } else call.innerHTML = '';
-    notices.innerHTML = s.notices.map((n) => '<div class="notice ' + n.kind + '">' + esc(n.text) + '</div>').join('');
+      const card = el('div', 'card');
+      const head = el('div', 'head');
+      head.append(el('b', null, s.call.channel));
+      if (startedAt) { const t = el('span', 'time'); t.id = 'time'; head.append(t); }
+      if (s.call.muted) head.append(el('span', 'badge', 'mudo'));
+      if (s.call.deafened) head.append(el('span', 'badge', 'surdo'));
+      card.append(head);
+      for (const p of s.call.people) {
+        const row = el('div', 'p' + (p.speaking ? ' speaking' : '') + (p.muted ? ' muted' : ''));
+        const av = el('span', 'av', ini(p.name));
+        av.style.background = colorOf(p.id);
+        if (p.avatar) { const img = el('img'); img.alt = ''; img.onerror = () => img.remove(); img.src = p.avatar; av.append(img); }
+        const n = el('span', 'n', p.name + (p.me ? ' (você)' : ''));
+        if (p.color) n.style.color = p.color;
+        row.append(av, n);
+        if (p.muted) row.append(el('span', 'm', 'mudo'));
+        card.append(row);
+      }
+      call.append(card);
+      tick();
+    }
+    notices.replaceChildren(...s.notices.map((n) => el('div', 'notice ' + n.kind, n.text)));
   });
 </script></body></html>`;

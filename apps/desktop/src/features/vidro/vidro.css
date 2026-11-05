@@ -1200,3 +1200,14 @@ html[data-layout='vidro'] .clips-page-backdrop,
 html[data-layout='vidro'] .clip-viewer-backdrop {
   backdrop-filter: blur(6px);
 }
+
+/* lista de canais escondida: a navegação vira só o rail */
+html[data-layout='vidro'] .vidro-shell[data-channels='hidden'] {
+  grid-template-columns: var(--rail-width) minmax(0, 1fr) auto;
+}
+html[data-layout='vidro'] .vidro-shell[data-channels='hidden'] .vidro-nav {
+  grid-template-columns: var(--rail-width);
+}
+html[data-layout='vidro'] .vidro-shell[data-channels='hidden'] .vidro-nav > .rail {
+  border-right: 0;
+}
