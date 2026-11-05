@@ -122,6 +122,8 @@ const SUBMENU_CLOSE_MS = 300;
 function SubEntry({ sub, close }: { sub: MenuSub; close: () => void }) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<'right' | 'left'>('right');
+  // deslocamento vertical: o submenu sobe quando passaria da borda de baixo da janela
+  const [shift, setShift] = useState(0);
   const wrap = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -139,8 +141,14 @@ function SubEntry({ sub, close }: { sub: MenuSub; close: () => void }) {
   useEffect(() => cancelClose, []);
   useLayoutEffect(() => {
     if (!open || !panel.current || !wrap.current) return;
-    const w = panel.current.offsetWidth;
-    setSide(wrap.current.getBoundingClientRect().right + w + 8 > window.innerWidth ? 'left' : 'right');
+    const r = wrap.current.getBoundingClientRect();
+    // direita se couber; senão esquerda se couber; senão o lado com mais espaço
+    const w = panel.current.offsetWidth + 14;
+    const roomRight = window.innerWidth - r.right;
+    setSide(roomRight >= w || (r.left < w && roomRight >= r.left) ? 'right' : 'left');
+    const top = r.top - 6;
+    const overflow = top + panel.current.offsetHeight - (window.innerHeight - 8);
+    setShift(overflow > 0 ? -Math.min(overflow, top - 8) : 0);
   }, [open]);
   const openAndFocus = () => {
     setOpen(true);
@@ -183,7 +191,14 @@ function SubEntry({ sub, close }: { sub: MenuSub; close: () => void }) {
         <Icon name="chevron-right" size={16} />
       </button>
       {open && (
-        <div ref={panel} className="context-menu context-submenu" data-side={side} role="menu" aria-label={sub.label}>
+        <div
+          ref={panel}
+          className="context-menu context-submenu"
+          data-side={side}
+          role="menu"
+          aria-label={sub.label}
+          style={{ top: -6 + shift }}
+        >
           <Entries items={sub.items} close={close} />
         </div>
       )}
@@ -225,12 +240,20 @@ export function ContextMenuHost() {
   const restoreFocus = useRef<Element | null>(null);
 
   useLayoutEffect(() => {
-    if (!open || !ref.current) return setPos(null);
-    const r = ref.current.getBoundingClientRect();
-    setPos({
-      left: Math.min(open.x, window.innerWidth - r.width - 8),
-      top: Math.min(open.y, window.innerHeight - r.height - 8),
-    });
+    const el = ref.current;
+    if (!open || !el) return setPos(null);
+    // remede se o tamanho mudar depois de abrir (fontes, ícones, item com dica): o menu nunca passa da janela
+    const place = () => {
+      // offset* e não getBoundingClientRect: a animação de entrada encolhe o menu e a medida sairia menor
+      setPos({
+        left: Math.max(8, Math.min(open.x, window.innerWidth - el.offsetWidth - 8)),
+        top: Math.max(8, Math.min(open.y, window.innerHeight - el.offsetHeight - 8)),
+      });
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [open]);
 
   useEffect(() => {

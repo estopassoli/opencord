@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '08:30',
+    kind: 'correção',
+    icon: 'menu',
+    title: 'Menus de clique direito sempre dentro da janela',
+    body: 'Submenus como "Cargos" passavam da borda de baixo da janela quando o menu abria perto do fim da tela. Agora o submenu sobe o necessário para aparecer inteiro, e o menu principal também nunca fica cortado.',
+  },
+  {
+    date: '2026-11-05',
     time: '08:00',
     kind: 'melhoria',
     icon: 'speaker-off',
