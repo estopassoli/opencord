@@ -19,6 +19,8 @@ export const AVATAR_MAX_BYTES = 1024 * 1024;
 const MAX_SIDE = 1024;
 const AVATAR_LIMITS = { maxBytes: AVATAR_MAX_BYTES, maxSide: MAX_SIDE, label: '1 MB' };
 const WALLPAPER_LIMITS = { maxBytes: 4 * 1024 * 1024, maxSide: 2560, label: '4 MB' };
+/** emojis personalizados (ADR-0050): GIF animado pequeno; o app reduz os parados para 128 px */
+const EMOJI_LIMITS = { maxBytes: 512 * 1024, maxSide: 512, label: '512 KB' };
 const BANNER_LIMITS = { maxBytes: 4 * 1024 * 1024, maxSide: 2560, label: '4 MB' };
 /** fotos guardadas para voltar a usar (ADR-0048) */
 const RECENT_AVATARS = 6;
@@ -286,6 +288,14 @@ export class AvatarService {
     return this.storeImage(file, 'badges');
   }
 
+  storeEmojiImage(file: AsyncIterable<Buffer> & { truncated?: boolean }) {
+    return this.storeImage(file, 'emojis', EMOJI_LIMITS);
+  }
+
+  async removeEmojiImage(name: string) {
+    if (AVATAR_NAME.test(name)) await this.storage.remove(`emojis/${name}`).catch(() => undefined);
+  }
+
   async removeBadgeImage(name: string | null) {
     if (name && AVATAR_NAME.test(name)) await this.storage.remove(`badges/${name}`).catch(() => undefined);
   }
@@ -300,7 +310,8 @@ export class AvatarService {
       | 'badges'
       | 'banners'
       | 'server-banners'
-      | 'invite-backgrounds' = 'avatars',
+      | 'invite-backgrounds'
+      | 'emojis' = 'avatars',
   ) {
     const m = AVATAR_NAME.exec(name);
     if (!m) return null;

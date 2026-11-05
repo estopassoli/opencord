@@ -50,6 +50,8 @@ import { MusicService } from './voice/music.service.js';
 import { SpotifyService } from './voice/spotify.service.js';
 import { AccountService } from './users/account.service.js';
 import { AvatarService } from './users/avatar.service.js';
+import { EmojisController } from './servers/emojis.controller.js';
+import { EmojisService } from './servers/emojis.service.js';
 import { BadgesService } from './admin/badges.service.js';
 import { SystemUserService } from './system/system-user.service.js';
 import { SystemNoticesService } from './system/system-notices.service.js';
@@ -79,6 +81,7 @@ export class AppModule {
       module: AppModule,
       controllers: [
         AdminController,
+        EmojisController,
         SoundsController,
         RecordingsController,
         EventsController,
@@ -118,6 +121,7 @@ export class AppModule {
         MusicService,
         SpotifyService,
         AvatarService,
+        EmojisService,
         BadgesService,
         SystemUserService,
         SystemNoticesService,

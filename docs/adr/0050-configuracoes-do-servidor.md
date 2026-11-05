@@ -10,7 +10,7 @@ O trabalho foi dividido em quatro levas:
 3. Membros, convites, banimentos e auditoria.
 4. Emojis personalizados.
 
-Este ADR cobre as levas 1 a 3 já entregues e fixa o modelo de dados das quatro.
+Este ADR cobre as quatro levas, já entregues.
 
 ## Decisão
 - **Migração aditiva `20261105020000_server_customization`:**
@@ -44,6 +44,21 @@ Este ADR cobre as levas 1 a 3 já entregues e fixa o modelo de dados das quatro.
   - `GET /servers/:id/members/joins` (MANAGE_SERVER) diz por qual convite e de quem cada membro entrou.
   - `GET /servers/:id/audit-log` filtra por `actorId`, `action` (prefixo: `role` pega `role.*`) e `before`, este último para paginar.
   - Telas: aba Convites (pausar, criar com validade e limite, lista com copiar e apagar). Membros virou tabela, com busca, filtro por cargo, ordem, data de entrada, convite usado e páginas de 50. Banidos ganhou busca e a Auditoria ganhou filtros por autor e tipo, com "Carregar mais".
+- **Leva 4, emojis personalizados (sem migração; a tabela `ServerEmoji` veio na primeira):**
+  - Cada servidor tem até 50 emojis (`MAX_SERVER_EMOJIS`), com nome de 2 a 24 letras, números ou `_`, único no servidor.
+  - GIF animado vale para todos, até 512 KB e 512 px. O app reduz as imagens paradas para 128 px.
+  - Rotas: `POST /servers/:id/emojis?name=` (multipart, MANAGE_SERVER), `PATCH`/`DELETE /emojis/:id` e `GET /servers/:id/emojis`.
+  - A imagem é pública em `GET /emojis/:id`, para aparecer onde quer que o texto vá.
+  - Lista de cada servidor:
+    - Vai em `ServerSummary.emojis`, por um índice em memória (`serverEmojiIndex`, mesmo padrão das insígnias), recarregado a cada 60 s e após cada mudança.
+    - Chega a todos pelo `server:updated`.
+  - **No texto e nas reações:** o token é `<:nome:id>` ou `<a:nome:id>`. Por isso `Emoji` aceita até 80 caracteres.
+    - No compositor, `:nome:` vira o token ao enviar. Vale o emoji do servidor aberto ou, se não houver, o de qualquer servidor da pessoa: o uso entre servidores não é pago.
+    - O botão de emojis do campo de mensagem lista os emojis por servidor.
+    - As reações oferecem os emojis do servidor.
+    - Mensagem só com emojis mostra grande.
+  - Apagar um emoji apaga a imagem. Onde ele já foi usado, aparece o `:nome:` em texto.
+  - **Limitação:** editar uma mensagem não converte `:nome:`, só o envio converte.
 - Tudo exige MANAGE_SERVER e usa o `PATCH /servers/:id`, que já existia. A mudança chega a todos pelo `server:updated`.
 
 ## Alternativas descartadas

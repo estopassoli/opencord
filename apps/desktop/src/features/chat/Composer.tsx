@@ -1,6 +1,8 @@
 import { enterSends, useTouchKeyboard } from '../../lib/media';
 import { customerId, registerShare, type Gif } from '../../lib/klipy';
 import { GifPicker } from './GifPicker';
+import { EmojiPicker } from './EmojiPicker';
+import { emojiPicker, resolveShortcodes } from '../../lib/customEmoji';
 import type { Attachment, BotCommandChoice, CreateInteractionResponse } from '@opencord/contracts';
 import { Icon, portalTarget, TextArea } from '@opencord/ui';
 import {
@@ -200,6 +202,8 @@ export function Composer({
   const touchKeyboard = useTouchKeyboard();
   const gifCfg = useData((s) => s.instance?.gifs ?? null);
   const [gifOpen, setGifOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const hasEmojis = useData((s) => s.servers.some((x) => (x.emojis?.length ?? 0) > 0));
   const replyTo = useMessages((s) =>
     replyToId ? s.timelines[targetKey]?.messages.find((m) => m.id === replyToId) : undefined,
   );
@@ -309,6 +313,19 @@ export function Composer({
     }
   };
 
+  // :nome: vira o emoji personalizado (ADR-0050): do servidor aberto ou de qualquer servidor da pessoa
+  const withEmojis = (text: string) => {
+    if (!text.includes(':')) return text;
+    const st = useData.getState();
+    return resolveShortcodes(
+      text,
+      emojiPicker(
+        serverId ? st.details[serverId]?.emojis : undefined,
+        st.servers.map((x) => x.emojis),
+      ),
+    );
+  };
+
   const send = () => {
     const body = draft.trim();
     if (timedOut) return;
@@ -328,7 +345,7 @@ export function Composer({
       targetKey,
       target,
       crypto.randomUUID(),
-      body,
+      withEmojis(body),
       replyToId ?? undefined,
       attachmentIds.length ? attachmentIds : undefined,
       // resposta comum na DM tem prioridade (a faixa da resposta no privado some enquanto isso)
@@ -705,6 +722,32 @@ export function Composer({
             onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
             onPaste={onPaste}
           />
+          {hasEmojis && !timedOut && (
+            <button
+              className="icon-btn"
+              aria-label="Emojis personalizados"
+              aria-expanded={emojiOpen}
+              data-tip="Emojis"
+              onClick={() => setEmojiOpen((o) => !o)}
+            >
+              <Icon name="emoji" />
+            </button>
+          )}
+          {emojiOpen && (
+            <EmojiPicker
+              serverId={serverId}
+              anchor={root}
+              onClose={() => setEmojiOpen(false)}
+              onPick={(e) => {
+                const at = Math.min(caret, draft.length);
+                const before = draft.slice(0, at);
+                const ins = `${before && !/\s$/.test(before) ? ' ' : ''}:${e.name}: `;
+                setDraft(before + ins + draft.slice(at));
+                placeCaret(at + ins.length);
+                setEmojiOpen(false);
+              }}
+            />
+          )}
           {gifCfg && !timedOut && (
             <button
               className="icon-btn gif-btn"

@@ -1,5 +1,5 @@
 import { askConfirm } from '../../components/AskDialog';
-import { hasPermission, Permission, type Message } from '@opencord/contracts';
+import { hasPermission, Permission, type CustomEmoji, type Message } from '@opencord/contracts';
 import { Avatar, Button, Icon, TextArea } from '@opencord/ui';
 import { memo, useEffect, useState, type KeyboardEvent } from 'react';
 import { useSession, api, describeError } from '../../store/session';
@@ -22,8 +22,11 @@ import { ChatImage } from './ChatImage';
 import { gifUrlOf } from '../../lib/klipy';
 import { UserBadges } from '../../components/UserBadges';
 import { canReplyPrivately, openQuotedMessage, startPrivateReply } from './privateReply';
+import { CustomEmojiImg, EmojiGlyph } from '../../components/CustomEmoji';
+import { emojiToken, onlyCustomEmojis } from '../../lib/customEmoji';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
+const NO_EMOJIS: CustomEmoji[] = [];
 
 interface Props {
   message: Message;
@@ -102,6 +105,7 @@ export const MessageItem = memo(function MessageItem({
       ? (s.details[serverId]?.channels.find((c) => c.id === target.channelId)?.name ?? '')
       : '',
   );
+  const serverEmojis = useData((s) => (serverId ? s.details[serverId]?.emojis : undefined)) ?? NO_EMOJIS;
   const privateOk = canReplyPrivately(m, meId);
   // mensagem que é só um GIF do KLIPY (ADR-0044): mostra a animação em vez do link
   const gifUrl = m.attachments.length ? null : gifUrlOf(m.body);
@@ -351,6 +355,8 @@ export const MessageItem = memo(function MessageItem({
             />
           ) : gifUrl ? (
             <ChatImage src={gifUrl} alt="GIF" maxWidth={300} maxHeight={300} />
+          ) : onlyCustomEmojis(m.body) ? (
+            <span className="emoji-jumbo">{renderRich(m.body, nameOf)}</span>
           ) : (
             renderRich(m.body, nameOf)
           )}
@@ -438,7 +444,10 @@ export const MessageItem = memo(function MessageItem({
               onClick={() => react(r.emoji, !r.me)}
               data-tip={r.userIds.map(nameOf).join(', ')}
             >
-              <span>{r.emoji}</span> <span>{r.count}</span>
+              <span>
+                <EmojiGlyph value={r.emoji} />
+              </span>{' '}
+              <span>{r.count}</span>
             </button>
           ))}
         </div>
@@ -459,6 +468,16 @@ export const MessageItem = memo(function MessageItem({
                 {QUICK_REACTIONS.map((e) => (
                   <button key={e} role="menuitem" onClick={() => react(e, true)} aria-label={`Reagir com ${e}`}>
                     {e}
+                  </button>
+                ))}
+                {serverEmojis.map((e) => (
+                  <button
+                    key={e.id}
+                    role="menuitem"
+                    onClick={() => react(emojiToken(e), true)}
+                    aria-label={`Reagir com :${e.name}:`}
+                  >
+                    <CustomEmojiImg emoji={e} />
                   </button>
                 ))}
               </div>

@@ -506,9 +506,21 @@ export const ServerSummary = z.object({
   welcomeEnabled: z.boolean().optional(),
   defaultNotify: z.enum(['all', 'mentions']).optional(),
   invitesPaused: z.boolean().optional(),
+  emojis: z.array(z.lazy(() => CustomEmoji)).optional(),
 });
 export type ServerSummary = z.infer<typeof ServerSummary>;
 /** característica do servidor no perfil: emoji + texto curto (até 5) */
+/** Emojis personalizados do servidor (ADR-0050): até 50, animados para todos; no texto viram `<:nome:id>` / `<a:nome:id>` */
+export const MAX_SERVER_EMOJIS = 50;
+export const EMOJI_NAME = /^[A-Za-z0-9_]{2,24}$/;
+/** token no texto e nas reações (grupo 1 = "a" se animado, 2 = nome, 3 = id) */
+export const CUSTOM_EMOJI_TOKEN = /<(a?):([A-Za-z0-9_]{2,24}):([0-9a-f-]{36})>/;
+export const CustomEmoji = z.object({ id: Id, name: z.string().regex(EMOJI_NAME), animated: z.boolean() });
+export type CustomEmoji = z.infer<typeof CustomEmoji>;
+export const RenameEmojiRequest = z.object({
+  name: z.string().trim().regex(EMOJI_NAME, 'use de 2 a 24 letras, números ou _'),
+});
+export type RenameEmojiRequest = z.infer<typeof RenameEmojiRequest>;
 export const ServerTrait = z.object({ emoji: z.string().max(16), label: z.string().trim().min(1).max(24) });
 export type ServerTrait = z.infer<typeof ServerTrait>;
 /** cores prontas da faixa do servidor (o app desenha o degradê de cada uma) */
@@ -812,7 +824,7 @@ export type InvitePreview = z.infer<typeof InvitePreview>;
 
 // ---------- Embeds, componentes e modais (ADR-0034) ----------
 /** emoji unicode ou nome curto (reações, botões, menus) */
-export const Emoji = z.string().min(1).max(64);
+export const Emoji = z.string().min(1).max(80);
 /** URL http(s) curta o bastante para caber num cartão */
 export const HttpUrl = z
   .string()

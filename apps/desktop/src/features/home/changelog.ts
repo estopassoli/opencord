@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '05:00',
+    kind: 'novo',
+    icon: 'emoji',
+    title: 'Emojis personalizados',
+    body: 'Cada servidor pode ter até 50 emojis próprios, animados também, de graça. Quem administra envia em Configurações do servidor → Emoji. No chat, escreva :nome: ou use o novo botão de emojis do campo de mensagem; dá para usar os emojis de qualquer servidor seu em qualquer conversa, e eles também aparecem nas reações.',
+  },
+  {
+    date: '2026-11-05',
     time: '04:30',
     kind: 'melhoria',
     icon: 'user-plus',

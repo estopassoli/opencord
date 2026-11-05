@@ -33,12 +33,14 @@ import { WebhooksTab } from './WebhooksTab';
 import { ServerIconPicker } from './ServerIconPicker';
 import { EngagementTab, ServerProfileSection } from './ServerProfile';
 import { InvitesTab } from './InvitesTab';
+import { EmojisTab } from './EmojisTab';
 
 type ServerTab =
   | 'overview'
   | 'theme'
   | 'engagement'
   | 'invites'
+  | 'emojis'
   | 'roles'
   | 'members'
   | 'channels'
@@ -116,6 +118,7 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
       can(Permission.MANAGE_SERVER) && { id: 'engagement', label: 'Engajamento', group: 'Servidor' },
       can(Permission.MANAGE_CHANNELS) && { id: 'channels', label: 'Canais', group: 'Servidor' },
       // qualquer membro envia efeitos sonoros (ADR-0016)
+      { id: 'emojis', label: 'Emoji', group: 'Expressões' },
       { id: 'sounds', label: 'Efeitos sonoros', group: 'Expressões' },
       { id: 'members', label: 'Membros', group: 'Pessoas' },
       can(Permission.MANAGE_ROLES) && { id: 'roles', label: 'Cargos', group: 'Pessoas' },
@@ -150,6 +153,7 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
         {active === 'engagement' && <EngagementTab detail={detail} />}
         {active === 'roles' && <RolesTab detail={detail} />}
         {active === 'invites' && <InvitesTab detail={detail} />}
+        {active === 'emojis' && <EmojisTab detail={detail} />}
         {active === 'members' && <MembersTab detail={detail} myId={me.id} />}
         {active === 'channels' && <ChannelsTab detail={detail} />}
         {active === 'webhooks' && <WebhooksTab detail={detail} />}

@@ -1,5 +1,6 @@
 import { Fragment, useState, type ReactNode } from 'react';
 import { bridge } from '../../lib/bridge';
+import { CustomEmojiImg } from '../../components/CustomEmoji';
 
 /**
  * Markdown das mensagens, SEGURO (sem innerHTML: cada pedaço vira um elemento React, o resto é texto puro, então não
@@ -28,6 +29,7 @@ const INLINE = new RegExp(
     String.raw`(?<![\p{L}\p{N}_])_([^_\s](?:[^_\n]*?[^_\s])?)_(?![\p{L}\p{N}_])`, // 14 itálico (não pega snake_case)
     /~~([^\n]+?)~~/.source, // 15 tachado
     /\|\|([^\n]+?)\|\|/.source, // 16 spoiler
+    /<(a?):([A-Za-z0-9_]{2,24}):([0-9a-f-]{36})>/.source, // 17, 18, 19 emoji personalizado (ADR-0050)
   ].join('|'),
   'gu',
 );
@@ -81,6 +83,8 @@ function inline(text: string, nameOf: NameOf, key: string): ReactNode[] {
       out.push(<em key={k}>{inline((m[13] ?? m[14])!, nameOf, k)}</em>);
     else if (m[15] !== undefined) out.push(<s key={k}>{inline(m[15], nameOf, k)}</s>);
     else if (m[16] !== undefined) out.push(<Spoiler key={k}>{inline(m[16], nameOf, k)}</Spoiler>);
+    else if (m[18] && m[19])
+      out.push(<CustomEmojiImg key={k} emoji={{ animated: m[17] === 'a', name: m[18], id: m[19] }} />);
     last = i + consumed;
     if (consumed < m[0].length) re.lastIndex = last;
   }

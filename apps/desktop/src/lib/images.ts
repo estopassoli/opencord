@@ -69,3 +69,42 @@ export async function bannerImage(file: File): Promise<File> {
   if (!blob) throw new Error('não foi possível preparar a imagem');
   return new File([blob], `banner.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`, { type: blob.type });
 }
+
+/**
+ * Emoji personalizado (ADR-0050): GIF de até 512 KB e 512 px vai como está (animado); imagem parada é reduzida para
+ * caber em 128 px (WebP, PNG de reserva), mantendo a proporção.
+ */
+export async function emojiImage(file: File): Promise<File> {
+  const bmp = await createImageBitmap(file);
+  if (file.type === 'image/gif') {
+    const ok = file.size <= 512 * 1024 && Math.max(bmp.width, bmp.height) <= 512;
+    bmp.close();
+    if (!ok) throw new Error('GIF animado precisa ter até 512 KB e 512 px de lado.');
+    return file;
+  }
+  const scale = Math.min(1, 128 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(16, Math.round(bmp.width * scale));
+  canvas.height = Math.max(16, Math.round(bmp.height * scale));
+  const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close();
+  const blob =
+    (await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/webp', 0.92))) ??
+    (await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png')));
+  if (!blob) throw new Error('não foi possível preparar a imagem');
+  return new File([blob], `emoji.${blob.type === 'image/webp' ? 'webp' : 'png'}`, { type: blob.type });
+}
+
+/** nome sugerido a partir do arquivo: só letras, números e _ (2 a 24) */
+export function emojiNameFrom(fileName: string): string {
+  const base = fileName
+    .replace(/\.[^.]+$/, '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Za-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 24);
+  return base.length >= 2 ? base : `emoji_${base}`.slice(0, 24);
+}

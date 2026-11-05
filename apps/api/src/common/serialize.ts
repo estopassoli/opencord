@@ -1,6 +1,6 @@
 import { Permission, ServerTrait } from '@opencord/contracts';
 import { z } from 'zod';
-import type { Category, Channel, Member, Role, ServerSummary, UserPublic } from '@opencord/contracts';
+import type { Category, Channel, CustomEmoji, Member, Role, ServerSummary, UserPublic } from '@opencord/contracts';
 
 type UserRow = {
   id: string;
@@ -32,6 +32,8 @@ export const USER_PUBLIC_SELECT = {
 export const userBadgeIndex = new Map<string, string[]>();
 /** as até 3 que a pessoa escolheu destacar */
 export const featuredBadgeIndex = new Map<string, string[]>();
+/** emojis personalizados de cada servidor (ADR-0050), mantido pelo EmojisService */
+export const serverEmojiIndex = new Map<string, CustomEmoji[]>();
 
 /** Conta de avisos do OpenCord (ADR-0045), registrada pelo SystemUserService no boot. */
 export const systemUserIds = new Set<string>();
@@ -96,6 +98,7 @@ export const serverSummary = (s: {
   welcomeEnabled: s.welcomeEnabled ?? false,
   defaultNotify: s.defaultNotify === 'all' ? 'all' : 'mentions',
   invitesPaused: s.invitesPaused ?? false,
+  emojis: serverEmojiIndex.get(s.id) ?? [],
 });
 
 /** características gravadas em JSON: o que não bate com o contrato é descartado */
