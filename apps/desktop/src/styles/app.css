@@ -650,6 +650,34 @@ textarea:focus-visible {
   color: var(--text);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 70%, transparent);
 }
+/* arrastar um canal para reordenar: o canal esmaece; uma linha mostra onde ele entra; a categoria acende */
+.channel-list > li[data-dragging='true'] > .channel-row {
+  opacity: 0.4;
+}
+.channel-list > li[data-drop-line] {
+  position: relative;
+}
+.channel-list > li[data-drop-line]::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--brand);
+  pointer-events: none;
+}
+.channel-list > li[data-drop-line='before']::before {
+  top: -1px;
+}
+.channel-list > li[data-drop-line='after']::before {
+  bottom: -1px;
+}
+.cat-header[data-drop-target='true'] {
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+  color: var(--text);
+}
 .live-pill {
   font-size: 0.625rem;
   font-weight: 800;

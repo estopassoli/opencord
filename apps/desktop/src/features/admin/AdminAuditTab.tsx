@@ -20,6 +20,7 @@ const ACTION_LABELS: Record<string, string> = {
   'server.update': 'Atualizou servidor',
   'channel.create': 'Criou canal',
   'channel.update': 'Atualizou canal',
+  'channel.reorder': 'Reordenou canais',
   'channel.delete': 'Excluiu canal',
   'role.create': 'Criou cargo',
   'role.update': 'Atualizou cargo',

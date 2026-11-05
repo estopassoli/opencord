@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '07:30',
+    kind: 'novo',
+    icon: 'hashtag',
+    title: 'Arraste canais para reordenar',
+    body: 'Quem pode gerenciar canais agora arrasta um canal de texto ou de voz na lista para mudar a ordem. Soltar em outra categoria (ou no nome dela) leva o canal para lá. Uma linha mostra onde ele vai entrar, e todo mundo vê a nova ordem na hora. Por enquanto, só com mouse (no computador ou no navegador).',
+  },
+  {
+    date: '2026-11-05',
     time: '07:00',
     kind: 'melhoria',
     icon: 'settings',

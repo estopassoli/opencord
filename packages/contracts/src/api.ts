@@ -662,6 +662,12 @@ export const UpdateChannelRequest = z.object({
   private: z.boolean().optional(),
 });
 export type UpdateChannelRequest = z.input<typeof UpdateChannelRequest>;
+/** arrastar canais na lista: a ordem final de uma categoria (null = sem categoria); quem vem de outra categoria muda junto */
+export const ReorderChannelsRequest = z.object({
+  categoryId: Id.nullable(),
+  channelIds: z.array(Id).min(1).max(200),
+});
+export type ReorderChannelsRequest = z.infer<typeof ReorderChannelsRequest>;
 
 export const CreateCategoryRequest = z.object({ name: z.string().trim().min(1).max(64) });
 export const UpdateCategoryRequest = z.object({

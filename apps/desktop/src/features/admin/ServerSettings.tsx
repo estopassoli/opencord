@@ -1124,6 +1124,7 @@ const ACTION_LABELS: Record<string, string> = {
   'category.delete': 'Excluiu categoria',
   'channel.create': 'Criou canal',
   'channel.update': 'Atualizou canal',
+  'channel.reorder': 'Reordenou canais',
   'channel.delete': 'Excluiu canal',
   'member.kick': 'Expulsou membro',
   'member.ban': 'Baniu membro',

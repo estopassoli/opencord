@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { useData } from '../../store/data';
 import { whenLabel } from '../../lib/when';
-import { api, describeError, markTargetRead } from '../../store/session';
+import { api, describeError, loadServer, markTargetRead } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { CreatorTag, VerifiedTag, roleColorOf, useCreatorId } from './MemberList';
@@ -62,6 +62,9 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   // arrastar alguém da voz para outro canal de voz (MOVE_MEMBERS; a si mesmo, qualquer um)
   const [drag, setDrag] = useState<{ userId: string; from: string } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
+  // arrastar um canal para mudar a ordem ou a categoria (MANAGE_CHANNELS); só entre canais do mesmo tipo
+  const [chDrag, setChDrag] = useState<Channel | null>(null);
+  const [chDrop, setChDrop] = useState<{ cat: string | null; id: string | null; after: boolean } | null>(null);
 
   const groups = useMemo(() => {
     if (!detail) return [];
@@ -88,6 +91,59 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
     c.id !== drag.from &&
     hasPermission(c.myPermissions, Permission.CONNECT) &&
     (drag.userId === me || canMove);
+  const canDropChannel = (c: Channel) =>
+    chDrag !== null && c.kind === chDrag.kind && !c.temporary && c.id !== chDrag.id;
+  const endChannelDrag = () => {
+    setChDrag(null);
+    setChDrop(null);
+  };
+  /** solta o canal arrastado: antes/depois de outro canal, ou no fim da categoria */
+  const dropChannel = () => {
+    const target = chDrop;
+    const moving = chDrag;
+    endChannelDrag();
+    if (!target || !moving) return;
+    const from = groups.find((g) => g.channels.some((x) => x.id === moving.id));
+    const to = groups.find((g) => g.id === target.cat);
+    if (!from || !to) return;
+    // o canal leva junto as salas temporárias logo abaixo dele (criador de salas)
+    const start = from.channels.findIndex((x) => x.id === moving.id);
+    let end = start + 1;
+    while (from.channels[end]?.temporary) end++;
+    const block = from.channels.slice(start, end);
+    const rest = to.channels.filter((x) => !block.includes(x));
+    let at = rest.length;
+    if (target.id) {
+      at = rest.findIndex((x) => x.id === target.id);
+      if (at < 0) return;
+      if (target.after) {
+        at++;
+        while (rest[at]?.temporary) at++;
+      }
+    }
+    const next = [...rest.slice(0, at), ...block, ...rest.slice(at)].sort(
+      (a, b) => CHANNEL_ORDER[a.kind] - CHANNEL_ORDER[b.kind],
+    );
+    if (from === to && next.every((x, i) => x.id === to.channels[i]?.id)) return;
+    const pos = new Map(next.map((x, i) => [x.id, i]));
+    useData.setState((st) => {
+      const d = st.details[serverId];
+      if (!d) return {};
+      const channels = d.channels.map((x) =>
+        pos.has(x.id) ? { ...x, position: pos.get(x.id)!, categoryId: target.cat } : x,
+      );
+      return { details: { ...st.details, [serverId]: { ...d, channels } } };
+    });
+    api()
+      .request('PUT', `/servers/${serverId}/channels/order`, {
+        categoryId: target.cat,
+        channelIds: next.map((x) => x.id),
+      })
+      .catch((err: unknown) => {
+        useUi.getState().toast('error', describeError(err));
+        void loadServer(serverId).catch(() => undefined);
+      });
+  };
 
   return (
     <>
@@ -181,7 +237,20 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
         {groups.map((g) => (
           <section key={g.id ?? 'none'} className="cat">
             {g.name && (
-              <div className="cat-header">
+              <div
+                className="cat-header"
+                data-drop-target={chDrop && chDrop.cat === g.id && !chDrop.id ? 'true' : undefined}
+                onDragOver={(e) => {
+                  if (!chDrag) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (chDrop?.cat !== g.id || chDrop.id) setChDrop({ cat: g.id, id: null, after: true });
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  dropChannel();
+                }}
+              >
                 <button
                   className="cat-toggle"
                   aria-expanded={!collapsed[g.id as string]}
@@ -215,7 +284,18 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                   <li
                     key={c.id}
                     data-drop-target={dropOn === c.id ? 'true' : undefined}
+                    data-drop-line={chDrop?.id === c.id ? (chDrop.after ? 'after' : 'before') : undefined}
+                    data-dragging={chDrag?.id === c.id ? 'true' : undefined}
                     onDragOver={(e) => {
+                      if (chDrag) {
+                        if (!canDropChannel(c)) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        const row = e.currentTarget.firstElementChild?.getBoundingClientRect();
+                        const after = row ? e.clientY > row.top + row.height / 2 : false;
+                        if (chDrop?.id !== c.id || chDrop.after !== after) setChDrop({ cat: g.id, id: c.id, after });
+                        return;
+                      }
                       if (!canDropOn(c)) return;
                       e.preventDefault();
                       e.dataTransfer.dropEffect = 'move';
@@ -226,6 +306,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                     }}
                     onDrop={(e) => {
                       e.preventDefault();
+                      if (chDrag) return dropChannel();
                       if (drag && canDropOn(c)) moveToVoice(drag.userId, serverId, c.id);
                       setDrag(null);
                       setDropOn(null);
@@ -233,6 +314,14 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                   >
                     <button
                       className="channel-row"
+                      draggable={canManage && !c.temporary ? true : undefined}
+                      onDragStart={(e) => {
+                        if (!canManage || c.temporary) return;
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', c.name);
+                        setChDrag(c);
+                      }}
+                      onDragEnd={endChannelDrag}
                       aria-current={active ? 'page' : undefined}
                       data-unread={hasUnread && !active ? 'true' : undefined}
                       onContextMenu={(e) =>

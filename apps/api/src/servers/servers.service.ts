@@ -1118,6 +1118,40 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     return channel(c, (await this.perms.channelsFor(access, [c])).get(c.id) ?? 0, await this.everyoneId(c.serverId));
   }
 
+  /**
+   * Ordem dos canais de uma categoria (arrastar na lista): cada canal recebe a categoria e a posição pela ordem
+   * enviada. Só mexe em canais que quem arrasta vê; avisa só os que mudaram.
+   */
+  async reorderChannels(
+    serverId: string,
+    actorId: string,
+    dto: { categoryId: string | null; channelIds: string[] },
+  ): Promise<void> {
+    await this.perms.requireServer(serverId, actorId, Permission.MANAGE_CHANNELS);
+    const ids = [...new Set(dto.channelIds)];
+    if (ids.length !== dto.channelIds.length) throw new BadRequestException('canal repetido');
+    if (dto.categoryId) {
+      const cat = await this.prisma.category.findFirst({ where: { id: dto.categoryId, serverId } });
+      if (!cat) throw new BadRequestException('categoria inválida');
+    }
+    const found = await this.prisma.channel.findMany({ where: { id: { in: ids }, serverId } });
+    if (found.length !== ids.length) throw new BadRequestException('canal inválido');
+    for (const id of ids) await this.perms.requireChannel(id, actorId, Permission.VIEW_CHANNEL);
+    const byId = new Map(found.map((c) => [c.id, c]));
+    const changed = ids.filter((id, i) => {
+      const c = byId.get(id)!;
+      return c.position !== i || c.categoryId !== dto.categoryId;
+    });
+    if (changed.length === 0) return;
+    await this.prisma.$transaction(
+      ids.map((id, i) =>
+        this.prisma.channel.update({ where: { id }, data: { position: i, categoryId: dto.categoryId } }),
+      ),
+    );
+    await this.audit.log(actorId, serverId, 'channel.reorder', dto.categoryId ?? serverId, { channelIds: changed });
+    for (const id of changed) await this.emitChannel(serverId, id, 'channel:updated');
+  }
+
   async updateChannel(
     channelId: string,
     actorId: string,

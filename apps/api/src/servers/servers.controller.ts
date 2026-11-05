@@ -30,6 +30,7 @@ import {
   SetMemberRolesRequest,
   UpdateCategoryRequest,
   UpdateChannelRequest,
+  ReorderChannelsRequest,
   UpdateRoleRequest,
   CreateInviteRequest,
   ServerGifRequest,
@@ -425,6 +426,16 @@ export class ServersController {
     @Body(zodPipe(CreateChannelRequest)) dto: z.infer<typeof CreateChannelRequest>,
   ) {
     return this.servers.createChannel(id, u.userId, dto);
+  }
+
+  @Put('servers/:id/channels/order')
+  @HttpCode(204)
+  async reorderChannels(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(ReorderChannelsRequest)) dto: ReorderChannelsRequest,
+  ) {
+    await this.servers.reorderChannels(id, u.userId, dto);
   }
 
   @Patch('channels/:id')
