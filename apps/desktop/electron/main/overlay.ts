@@ -88,7 +88,8 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8">
     color:#f2f3f5;user-select:none}
   body{display:flex;flex-direction:column;gap:6px;padding:0;box-sizing:border-box}
   body.bottom{justify-content:flex-end}
-  .card{background:rgba(12,13,16,.38);border-radius:10px;padding:6px 8px;text-shadow:0 1px 2px rgba(0,0,0,.85)}
+  .card{background:rgba(12,13,16,.5);border-radius:10px;padding:6px 8px;text-shadow:0 1px 2px rgba(0,0,0,.85);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
   .head{display:flex;align-items:center;gap:6px;font-size:12px;color:#d6d9de;margin:0 0 4px}
   .head b{color:#f2f3f5;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
   .time{color:#3fb27f;font-weight:700;font-variant-numeric:tabular-nums}
@@ -103,7 +104,7 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8">
   .p .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
   .p.muted .n{opacity:.7}
   .m{font-size:10px;color:#ff6b6f;font-weight:700}
-  .notice{background:rgba(12,13,16,.6);border-left:3px solid #4d56fd;border-radius:8px;padding:6px 10px;
+  .notice{background:rgba(12,13,16,.5);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-left:3px solid #4d56fd;border-radius:8px;padding:6px 10px;
     text-shadow:0 1px 2px rgba(0,0,0,.85);animation:in .15s ease-out}
   .notice.error{border-left-color:#da373c}.notice.success{border-left-color:#3fb27f}
   @keyframes in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
