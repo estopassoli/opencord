@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { useData } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
-import { Section } from '../settings/SettingsModal';
+import { Section } from '../settings/Section';
 import { ModerationCasesList } from './ModerationCases';
 
 type Filter = 'open' | 'all';

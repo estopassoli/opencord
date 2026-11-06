@@ -2,7 +2,7 @@ import { Icon } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import { MobileNavButton } from '../../components/MobileNavButton';
 import { bridge } from '../../lib/bridge';
-import { CHANGELOG, type ChangeEntry, type ChangeKind } from './changelog';
+import type { ChangeEntry, ChangeKind } from './changelog';
 
 const KIND_LABEL: Record<ChangeKind, string> = { novo: 'Novo', melhoria: 'Melhoria', correção: 'Correção' };
 
@@ -12,6 +12,18 @@ const dayLabel = (date: string) =>
 /** Tela inicial "Novidades": linha do tempo do que entrou no OpenCord (dados em changelog.ts). */
 export function NewsView() {
   const [version, setVersion] = useState<string | null>(null);
+  // a linha do tempo é grande e só serve aqui: carregada sob demanda, fora do bundle principal
+  const [changelog, setChangelog] = useState<ChangeEntry[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void import('./changelog').then(
+      (m) => !cancelled && setChangelog(m.CHANGELOG),
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   useEffect(() => {
     void bridge?.appInfo().then(
       (i) => setVersion(i.version),
@@ -20,7 +32,7 @@ export function NewsView() {
   }, []);
 
   const days = new Map<string, ChangeEntry[]>();
-  for (const e of CHANGELOG) days.set(e.date, [...(days.get(e.date) ?? []), e]);
+  for (const e of changelog) days.set(e.date, [...(days.get(e.date) ?? []), e]);
 
   return (
     <section className="home news" aria-labelledby="news-title">

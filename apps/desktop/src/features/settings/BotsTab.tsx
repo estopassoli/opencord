@@ -11,7 +11,7 @@ import { bridge } from '../../lib/bridge';
 import { agoLabel } from '../../lib/when';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
-import { Section } from './SettingsModal';
+import { Section } from './Section';
 
 const DOCS_URL = 'https://github.com/estopassoli/opencord/blob/main/docs/BOTS.md';
 

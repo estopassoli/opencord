@@ -10,7 +10,7 @@ import { bridge } from '../../lib/bridge';
 import { api } from '../../store/session';
 import { useVoice } from '../../store/voice';
 import type { ChangeKind } from '../home/changelog';
-import { KIND_LABEL, keyOf, newEntries, type Note } from './updateNotes';
+import { KIND_LABEL, keyOf, knownEntries, newEntries, type Note } from './updateNotes';
 
 export function UpdateDialog({
   status,
@@ -24,7 +24,10 @@ export function UpdateDialog({
   useEffect(() => {
     void api()
       .request<{ entries: Note[] }>('GET', '/downloads/desktop/notes', undefined, { auth: false })
-      .then((r) => setNotes(newEntries(r.entries)))
+      .then(async (r) => {
+        const { mine, known } = await knownEntries();
+        setNotes(newEntries(r.entries, mine, known));
+      })
       .catch(() => setNotes([]));
   }, []);
   const ready = status.state === 'ready';

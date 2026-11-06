@@ -9,7 +9,7 @@ import { askConfirm } from '../../components/AskDialog';
 import { Dialog } from '../../components/Dialog';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
-import { Section } from '../settings/SettingsModal';
+import { Section } from '../settings/Section';
 
 const toastError = (e: unknown) => useUi.getState().toast('error', describeError(e));
 

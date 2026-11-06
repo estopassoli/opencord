@@ -12,7 +12,7 @@ import { useGames } from '../../store/games';
 import { updateSettings } from '../../store/settings';
 import { useElapsed } from '../shell/Playing';
 import { useOverlayPrefs } from '../../lib/overlay';
-import { Section } from './SettingsModal';
+import { Section } from './Section';
 
 export function GamesTab({ settings }: { settings: UserSettings }) {
   const g = settings.games;

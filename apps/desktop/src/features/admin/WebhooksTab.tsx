@@ -8,7 +8,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { askConfirm } from '../../components/AskDialog';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
-import { Section } from '../settings/SettingsModal';
+import { Section } from '../settings/Section';
 
 export function WebhooksTab({ detail }: { detail: ServerDetail }) {
   const [list, setList] = useState<Webhook[] | null>(null);

@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { askConfirm } from '../../components/AskDialog';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
-import { Section } from '../settings/SettingsModal';
+import { Section } from '../settings/Section';
 import { applyServer } from './ServerProfile';
 
 const toastError = (e: unknown) => useUi.getState().toast('error', describeError(e));

@@ -18,7 +18,7 @@ import { BANNER_GRADIENTS, BANNER_LABEL, useBannerStyle, useServerImageUrl } fro
 import { useData } from '../../store/data';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
-import { Section } from '../settings/SettingsModal';
+import { Section } from '../settings/Section';
 import { GifDialog } from '../settings/ProfileEditor';
 import './server-profile.css';
 
