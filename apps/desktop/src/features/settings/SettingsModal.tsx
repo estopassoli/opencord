@@ -1,6 +1,19 @@
 import { askConfirm } from '../../components/AskDialog';
 import type { Me, UserSettings } from '@opencord/contracts';
-import { Button, ColorSwatches, RadioGroup, Select, Slider, Switch, TextField, type SelectOption } from '@opencord/ui';
+import {
+  Avatar,
+  Button,
+  ColorSwatches,
+  Icon,
+  RadioGroup,
+  Select,
+  Slider,
+  STATUS_LABEL,
+  Switch,
+  TextField,
+  type IconName,
+  type SelectOption,
+} from '@opencord/ui';
 import {
   Fragment,
   useEffect,
@@ -34,6 +47,9 @@ import { api, describeError, useSession } from '../../store/session';
 import { updateSettings } from '../../store/settings';
 import { useUi } from '../../store/ui';
 import './settings.css';
+import '../admin/admin.css';
+import '../admin/server-settings.css';
+import { Tooltip } from '../../components/Tooltip';
 import { deviceLabel } from '../voice/devices';
 import { PrivacySection } from '../legal/PrivacySection';
 import { SecuritySection } from './SecuritySection';
@@ -42,87 +58,6 @@ import { AvatarPicker } from './AvatarPicker';
 import { BotsTab } from './BotsTab';
 import { GamesTab } from './GamesTab';
 import { ThemeGallery } from './ThemeGallery';
-
-// ---------------------------------------------------------------------------
-// Layout de abas verticais (compartilhado com as configurações do servidor)
-// ---------------------------------------------------------------------------
-
-export interface TabDef<K extends string> {
-  id: K;
-  label: string;
-  /** título do grupo no menu (aparece quando muda em relação à aba anterior) */
-  group?: string;
-}
-
-/** Lista de abas vertical acessível (setas ↑/↓, Home/End) + painel. */
-export function TabbedLayout<K extends string>({
-  tabs,
-  active,
-  onChange,
-  label,
-  footer,
-  children,
-}: {
-  tabs: readonly TabDef<K>[];
-  active: K;
-  onChange: (id: K) => void;
-  label: string;
-  footer?: ReactNode;
-  children: ReactNode;
-}) {
-  const base = useId();
-  const tabId = (id: K) => `${base}-tab-${id}`;
-  const panelId = `${base}-panel`;
-
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const idx = tabs.findIndex((t) => t.id === active);
-    if (idx < 0 || tabs.length === 0) return;
-    let next = idx;
-    if (e.key === 'ArrowDown') next = (idx + 1) % tabs.length;
-    else if (e.key === 'ArrowUp') next = (idx - 1 + tabs.length) % tabs.length;
-    else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = tabs.length - 1;
-    else return;
-    e.preventDefault();
-    const t = tabs[next];
-    if (!t) return;
-    onChange(t.id);
-    document.getElementById(tabId(t.id))?.focus();
-  };
-
-  return (
-    <div className="settings-layout">
-      <nav className="settings-nav">
-        <div role="tablist" aria-orientation="vertical" aria-label={label} onKeyDown={onKeyDown}>
-          {tabs.map((t, i) => [
-            t.group && t.group !== tabs[i - 1]?.group ? (
-              <span key={`g-${t.group}`} className="settings-group" role="presentation">
-                {t.group}
-              </span>
-            ) : null,
-            <button
-              key={t.id}
-              id={tabId(t.id)}
-              type="button"
-              role="tab"
-              className="settings-tab"
-              aria-selected={t.id === active}
-              aria-controls={panelId}
-              tabIndex={t.id === active ? 0 : -1}
-              onClick={() => onChange(t.id)}
-            >
-              {t.label}
-            </button>,
-          ])}
-        </div>
-        {footer}
-      </nav>
-      <div className="settings-panel" role="tabpanel" id={panelId} aria-labelledby={tabId(active)} tabIndex={0}>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 /** Seção com título dentro de um painel. */
 export function Section({
@@ -161,46 +96,288 @@ function ProfileTab() {
 type UserTab =
   'account' | 'profile' | 'voice' | 'games' | 'apps' | 'keybinds' | 'appearance' | 'notifications' | 'about';
 
-const USER_TABS: readonly TabDef<UserTab>[] = [
-  { id: 'account', label: 'Minha conta' },
-  { id: 'profile', label: 'Perfil' },
-  { id: 'voice', label: 'Voz e vídeo' },
-  { id: 'games', label: 'Jogos' },
-  { id: 'apps', label: 'Aplicativos' },
-  { id: 'keybinds', label: 'Atalhos' },
-  { id: 'appearance', label: 'Aparência' },
-  { id: 'notifications', label: 'Notificações' },
-  { id: 'about', label: 'Sobre' },
-];
+interface UserNavItem {
+  id: UserTab;
+  label: string;
+  icon: IconName;
+  description: string;
+  /** palavras extras para a busca da barra lateral */
+  keywords: string;
+}
 
-const isUserTab = (v: unknown): v is UserTab => USER_TABS.some((t) => t.id === v);
+const USER_GROUPS: { label: string; items: UserNavItem[] }[] = [
+  {
+    label: 'Você',
+    items: [
+      {
+        id: 'account',
+        label: 'Minha conta',
+        icon: 'user',
+        description: 'Nome, e-mail, senha, verificação em duas etapas, privacidade e sessão.',
+        keywords: 'nome email senha 2fa segurança privacidade sair sessão dados',
+      },
+      {
+        id: 'profile',
+        label: 'Perfil',
+        icon: 'image',
+        description: 'Foto, faixa, cores e bio: como os outros veem você ao abrir o seu cartão.',
+        keywords: 'foto avatar banner faixa bio cor cartão',
+      },
+    ],
+  },
+  {
+    label: 'App',
+    items: [
+      {
+        id: 'voice',
+        label: 'Voz e vídeo',
+        icon: 'microphone',
+        description: 'Microfone, alto-falante, câmera, supressão de ruído e qualidade da transmissão.',
+        keywords: 'microfone áudio som câmera ruído eco transmissão go live qualidade codec ptt',
+      },
+      {
+        id: 'games',
+        label: 'Jogos',
+        icon: 'gamepad',
+        description: 'Jogos detectados, overlay no jogo e clipes.',
+        keywords: 'jogo overlay clipe gravação atividade',
+      },
+      {
+        id: 'keybinds',
+        label: 'Atalhos',
+        icon: 'keyboard',
+        description: 'Teclas para mutar, ensurdecer, falar e clipar, mesmo com o app em segundo plano.',
+        keywords: 'teclado tecla atalho push to talk ptt mutar',
+      },
+      {
+        id: 'appearance',
+        label: 'Aparência',
+        icon: 'sun',
+        description: 'Tema, layout, fontes, tamanho, sons e movimento.',
+        keywords: 'tema cor escuro claro fonte layout vidro densidade sons animação movimento',
+      },
+      {
+        id: 'notifications',
+        label: 'Notificações',
+        icon: 'bell',
+        description: 'Quando o app avisa você e com quais sons.',
+        keywords: 'aviso som menção notificação',
+      },
+      {
+        id: 'apps',
+        label: 'Aplicativos',
+        icon: 'grid',
+        description: 'Bots e aplicativos que você criou ou autorizou.',
+        keywords: 'bot aplicativo token integração',
+      },
+    ],
+  },
+  {
+    label: 'Sistema',
+    items: [
+      {
+        id: 'about',
+        label: 'Sobre e desempenho',
+        icon: 'settings',
+        description: 'Versão, atualizações, aceleração por placa de vídeo e uso de memória.',
+        keywords: 'versão atualização gpu placa de vídeo memória desempenho',
+      },
+    ],
+  },
+];
+const USER_ITEMS = USER_GROUPS.flatMap((g) => g.items);
+
+const isUserTab = (v: unknown): v is UserTab => USER_ITEMS.some((t) => t.id === v);
+const fold = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Sair (quem entrou só com apelido confirma antes: perde o apelido neste dispositivo). */
+async function confirmLogout(me: Me) {
+  if (
+    me.hasAccount ||
+    (await askConfirm(`Você perde o acesso ao apelido "${me.displayName}" neste dispositivo.`, {
+      title: 'Sair',
+      confirmLabel: 'Sair',
+      danger: true,
+    }))
+  )
+    void useSession.getState().logout();
+}
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const settings = useData((s) => s.settings);
-  const initialTab = useUi((s) => (s.modal?.kind === 'settings' ? s.modal.tab : undefined));
-  const [tab, setTab] = useState<UserTab>(isUserTab(initialTab) ? initialTab : 'account');
-  if (!settings) return null;
+  const me = useData((s) => s.me);
+  if (!settings || !me) return null;
+  return (
+    <Dialog title="Configurações do usuário" onClose={onClose} fullscreen hideClose className="adm-dialog srv-dialog">
+      <UserSettingsDashboard settings={settings} me={me} onClose={onClose} />
+    </Dialog>
+  );
+}
+
+/** Configurações do usuário no formato do painel admin: barra lateral com busca, topo com descrição, seções em cartões. */
+function UserSettingsDashboard({ settings, me, onClose }: { settings: UserSettings; me: Me; onClose: () => void }) {
+  const initial = useUi((s) => (s.modal?.kind === 'settings' ? s.modal.tab : undefined));
+  const [tab, setTab] = useState<UserTab>(isUserTab(initial) ? initial : 'account');
+  const [query, setQuery] = useState('');
+  const myStatus = useData((s) => s.myStatus);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    bridge
+      ?.appInfo()
+      .then((i) => !cancelled && setVersion(i.version))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // o <dialog> foca o primeiro botão ao abrir; o foco vai para a seção aberta
+  const initialTab = useRef(tab);
+  useEffect(() => {
+    const t = setTimeout(() => document.getElementById(`usr-nav-${initialTab.current}`)?.focus(), 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  const q = fold(query.trim());
+  const groups = USER_GROUPS.map((g) => ({
+    ...g,
+    items: q ? g.items.filter((it) => fold(`${it.label} ${it.description} ${it.keywords}`).includes(q)) : g.items,
+  })).filter((g) => g.items.length > 0);
+  const visible = groups.flatMap((g) => g.items);
+  const current = USER_ITEMS.find((i) => i.id === tab) ?? USER_ITEMS[0]!;
+  const group = USER_GROUPS.find((g) => g.items.includes(current))?.label;
+
+  const goTab = (t: UserTab) => {
+    setTab(t);
+    contentRef.current?.scrollTo({ top: 0 });
+  };
+
+  /** ↑/↓/Home/End entre as seções visíveis da barra lateral */
+  const onNavKey = (e: KeyboardEvent<HTMLElement>) => {
+    const i = visible.findIndex((t) => t.id === current.id);
+    const next =
+      e.key === 'ArrowDown'
+        ? visible[(i + 1) % visible.length]
+        : e.key === 'ArrowUp'
+          ? visible[(i - 1 + visible.length) % visible.length]
+          : e.key === 'Home'
+            ? visible[0]
+            : e.key === 'End'
+              ? visible[visible.length - 1]
+              : null;
+    if (!next) return;
+    e.preventDefault();
+    goTab(next.id);
+    document.getElementById(`usr-nav-${next.id}`)?.focus();
+  };
 
   return (
-    <Dialog title="Configurações do usuário" onClose={onClose} fullscreen>
-      <TabbedLayout tabs={USER_TABS} active={tab} onChange={setTab} label="Seções das configurações">
-        {tab === 'account' && <AccountTab />}
-        {tab === 'profile' && <ProfileTab />}
-        {tab === 'voice' && <VoiceTab settings={settings} />}
-        {tab === 'games' && <GamesTab settings={settings} />}
-        {tab === 'apps' && <BotsTab />}
-        {tab === 'keybinds' && <KeybindsTab settings={settings} />}
-        {tab === 'appearance' && <AppearanceTab settings={settings} />}
-        {tab === 'notifications' && <NotificationsTab settings={settings} />}
-        {tab === 'about' && (
-          <>
-            <AboutTab />
-            <HardwareAcceleration />
-            <MemorySection />
-          </>
-        )}
-      </TabbedLayout>
-    </Dialog>
+    <div className="adm-shell usr-shell">
+      <aside className="adm-side">
+        <div className="usr-hero">
+          <Avatar id={me.id} name={me.displayName} size={44} status={myStatus} />
+          <span className="usr-hero-text">
+            <strong className="truncate">{me.displayName}</strong>
+            <span className="muted small truncate">
+              {me.hasAccount ? STATUS_LABEL[myStatus] : 'Entrou só com apelido'}
+            </span>
+          </span>
+          <Tooltip label="Editar perfil" side="bottom">
+            <button type="button" className="icon-btn" aria-label="Editar perfil" onClick={() => goTab('profile')}>
+              <Icon name="edit" size={16} />
+            </button>
+          </Tooltip>
+        </div>
+        <TextField
+          aria-label="Buscar nas configurações"
+          type="search"
+          leadingIcon="search"
+          placeholder="Buscar configuração"
+          fieldClassName="usr-search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter abre o primeiro resultado
+            if (e.key === 'Enter' && visible[0]) {
+              e.preventDefault();
+              goTab(visible[0].id);
+            }
+          }}
+        />
+        <nav className="adm-nav" aria-label="Seções das configurações" onKeyDown={onNavKey}>
+          {groups.map((g) => (
+            <div key={g.label} className="adm-nav-group">
+              <p className="adm-nav-label">{g.label}</p>
+              <ul>
+                {g.items.map((it) => {
+                  const on = it.id === current.id;
+                  return (
+                    <li key={it.id}>
+                      <button
+                        id={`usr-nav-${it.id}`}
+                        type="button"
+                        className="adm-nav-item"
+                        aria-current={on ? 'page' : undefined}
+                        onClick={() => goTab(it.id)}
+                      >
+                        <Icon name={it.icon} size={18} active={on} />
+                        <span className="adm-nav-text">{it.label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          {groups.length === 0 && <p className="muted small usr-empty">Nada encontrado para “{query.trim()}”.</p>}
+        </nav>
+        <div className="adm-side-foot usr-foot">
+          <span className="muted small">{version ? `OpenCord ${version}` : 'OpenCord'}</span>
+          <button type="button" className="usr-logout" onClick={() => void confirmLogout(me)}>
+            <Icon name="logout" size={16} />
+            Sair
+          </button>
+        </div>
+      </aside>
+
+      <div className="adm-main">
+        <header className="adm-top">
+          <div className="adm-top-titles">
+            <p className="adm-crumb">Configurações{group ? ` · ${group}` : ''}</p>
+            <h2>{current.label}</h2>
+            <p className="muted small adm-top-desc">{current.description}</p>
+          </div>
+          <div className="adm-top-actions">
+            <Tooltip label="Fechar (Esc)" side="bottom">
+              <button type="button" className="adm-close" aria-label="Fechar configurações (Esc)" onClick={onClose}>
+                <Icon name="close" size={18} />
+              </button>
+            </Tooltip>
+          </div>
+        </header>
+        <div className="adm-content" ref={contentRef} aria-label={current.label} role="region">
+          <div className="adm-content-inner srv-content usr-content" key={current.id}>
+            {current.id === 'account' && <AccountTab />}
+            {current.id === 'profile' && <ProfileTab />}
+            {current.id === 'voice' && <VoiceTab settings={settings} />}
+            {current.id === 'games' && <GamesTab settings={settings} />}
+            {current.id === 'apps' && <BotsTab />}
+            {current.id === 'keybinds' && <KeybindsTab settings={settings} />}
+            {current.id === 'appearance' && <AppearanceTab settings={settings} />}
+            {current.id === 'notifications' && <NotificationsTab settings={settings} />}
+            {current.id === 'about' && (
+              <>
+                <AboutTab />
+                <HardwareAcceleration />
+                <MemorySection />
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -435,21 +612,7 @@ function AccountTab() {
             : 'Você entrou só com apelido: sua identidade fica neste computador. Crie uma conta acima para não perder o apelido ao sair.'
         }
       >
-        <Button
-          variant="danger"
-          size="sm"
-          onClick={async () => {
-            if (
-              me.hasAccount ||
-              (await askConfirm(`Você perde o acesso ao apelido "${me.displayName}" neste dispositivo.`, {
-                title: 'Sair',
-                confirmLabel: 'Sair',
-                danger: true,
-              }))
-            )
-              void useSession.getState().logout();
-          }}
-        >
+        <Button variant="danger" size="sm" onClick={() => void confirmLogout(me)}>
           Sair
         </Button>
       </Section>

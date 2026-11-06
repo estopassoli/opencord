@@ -149,3 +149,64 @@ html[data-layout='vidro'] .srv-content .ch-editor {
   background: var(--vidro-card);
   box-shadow: var(--vidro-card-edge);
 }
+
+/* ---------- configurações do usuário (mesmo shell) ---------- */
+.usr-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: calc(12px * var(--radius-scale, 1));
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--brand) 28%, transparent), transparent 60%),
+    var(--elevated);
+  overflow: hidden;
+}
+.usr-hero-text {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.usr-hero-text strong {
+  color: var(--text);
+  font-size: 0.9375rem;
+}
+.usr-search {
+  width: 100%;
+}
+.usr-empty {
+  margin: 4px 8px;
+}
+.usr-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 8px;
+}
+.usr-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm, 6px);
+  background: none;
+  color: var(--danger);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.usr-logout:hover,
+.usr-logout:focus-visible {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+html[data-layout='vidro'] .usr-hero {
+  border-color: var(--vidro-line);
+  background-color: var(--vidro-card);
+}

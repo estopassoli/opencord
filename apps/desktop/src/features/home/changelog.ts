@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
+    time: '11:00',
+    kind: 'melhoria',
+    icon: 'settings',
+    title: 'Configurações do usuário com cara nova',
+    body: 'As configurações ganharam uma barra lateral com sua foto e status, seções com ícone agrupadas (Você, App e Sistema), busca para achar uma opção pelo nome e botão de sair no rodapé. Cada seção mostra no topo o que dá para fazer nela, e as opções ficam em cartões.',
+  },
+  {
+    date: '2026-11-05',
     time: '10:30',
     kind: 'correção',
     icon: 'gamepad',
