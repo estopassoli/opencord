@@ -1723,6 +1723,135 @@ textarea:focus-visible {
     transition: none;
   }
 }
+/* encaminhar (ADR-0053) */
+.msg-forwarded {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 2px;
+  color: var(--text-3, var(--text-2));
+  font-size: 12px;
+  font-style: italic;
+}
+.msg-forwarded-from {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-style: normal;
+  cursor: pointer;
+}
+.msg-forwarded-from:hover,
+.msg-forwarded-from:focus-visible {
+  color: var(--text);
+  text-decoration: underline;
+}
+.msg[data-forwarded='true'] > :is(.msg-body, .msg-attachments) {
+  padding-left: 10px;
+  border-left: 3px solid color-mix(in srgb, var(--text-2) 35%, transparent);
+}
+.forward-dialog .forward-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--brand);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+.forward-preview-author {
+  font-weight: 600;
+  font-size: 13px;
+}
+.forward-preview-body {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--text-2);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.forward-preview-files {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.forward-list {
+  list-style: none;
+  margin: 10px 0 6px;
+  padding: 0;
+  height: min(320px, 40vh);
+  overflow: auto;
+}
+.forward-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-2);
+}
+.forward-item[data-active='true'] {
+  background: var(--interactive);
+  color: var(--text);
+}
+.forward-item[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.forward-item-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.forward-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+.forward-icon > * {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 11px;
+  font-weight: 600;
+}
+.forward-check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid color-mix(in srgb, var(--text-2) 60%, transparent);
+  border-radius: 6px;
+  color: #fff;
+}
+.forward-item[aria-selected='true'] .forward-check {
+  border-color: var(--brand);
+  background: var(--brand);
+}
+.forward-empty {
+  padding: 12px;
+}
+.forward-count {
+  margin: 0 0 10px;
+}
+
 /* player dos vídeos da conversa (VideoPlayer.tsx) */
 .video-player {
   --vp-progress: 0;

@@ -1,10 +1,11 @@
 import { createReadStream } from 'node:fs';
-import { appendFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { appendFile, copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
@@ -62,6 +63,23 @@ export class StorageService {
     const p = this.resolve(key);
     await mkdir(path.dirname(p), { recursive: true });
     await writeFile(p, data, { flag: 'wx' });
+  }
+
+  /** Cópia dentro do armazenamento (anexo encaminhado, ADR-0053): no S3 sem passar o arquivo pela API. */
+  async copy(from: string, to: string): Promise<void> {
+    if (this.s3) {
+      await this.s3.send(
+        new CopyObjectCommand({
+          Bucket: this.bucket,
+          CopySource: `${this.bucket}/${this.check(from)}`,
+          Key: this.check(to),
+        }),
+      );
+      return;
+    }
+    const dest = this.resolve(to);
+    await mkdir(path.dirname(dest), { recursive: true });
+    await copyFile(this.resolve(from), dest, 1 /* COPYFILE_EXCL */);
   }
 
   async read(key: string): Promise<Readable> {

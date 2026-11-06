@@ -11,6 +11,7 @@ import { ProfileButton } from '../shell/ProfileButton';
 import { REMIND_OPTIONS, remindMe } from '../../lib/reminders';
 import { renderRich } from './rich';
 import { InviteEmbed, inviteCodesIn } from './InviteEmbed';
+import { ForwardDialog } from './ForwardDialog';
 import { VideoPlayer } from './VideoPlayer';
 import { VoiceNote } from './VoiceNote';
 import { PollCard } from './Poll';
@@ -88,10 +89,13 @@ export const MessageItem = memo(function MessageItem({
   const [picker, setPicker] = useState(false);
   const touchKeyboard = useTouchKeyboard();
   const [rrOpen, setRrOpen] = useState(false);
+  const [forwardOpen, setForwardOpen] = useState(false);
   const mine = m.author.id === meId;
   const canDelete = mine || hasPermission(perms, Permission.MANAGE_MESSAGES);
   // enquete não se edita (ADR-0018)
-  const canEdit = mine && !m.poll;
+  // cópia encaminhada (ADR-0053) é o conteúdo de outra pessoa: não se edita
+  const canEdit = mine && !m.poll && !m.forwarded;
+  const canForward = !m.deleted && Boolean(m.body.trim() || m.attachments.length || m.embeds.length);
   const canReact = hasPermission(perms, Permission.ADD_REACTIONS);
   // na DM qualquer participante fixa; no canal, quem gerencia mensagens
   const canPin = Boolean(target.conversationId) || hasPermission(perms, Permission.MANAGE_MESSAGES);
@@ -111,6 +115,17 @@ export const MessageItem = memo(function MessageItem({
   );
   const serverEmojis = useData((s) => (serverId ? s.details[serverId]?.emojis : undefined)) ?? NO_EMOJIS;
   const privateOk = canReplyPrivately(m, meId);
+  // origem da cópia encaminhada: nome e link só se a pessoa conhece aquele canal
+  const fwdChannelId = m.forwarded?.channelId ?? null;
+  const fwdServer = useData((s) =>
+    fwdChannelId ? Object.values(s.details).find((d) => d.channels.some((c) => c.id === fwdChannelId)) : undefined,
+  );
+  const fwdChannel = fwdServer?.channels.find((c) => c.id === fwdChannelId);
+  const forwardedFrom =
+    fwdServer && fwdChannel
+      ? { serverId: fwdServer.id, serverName: fwdServer.name, channelName: fwdChannel.name }
+      : null;
+
   // mensagem que é só um GIF do KLIPY (ADR-0044): mostra a animação em vez do link
   const gifUrl = m.attachments.length ? null : gifUrlOf(m.body);
   const replyPrivately = () => void startPrivateReply(m, nameOf(m.author.id), channelName);
@@ -178,6 +193,9 @@ export const MessageItem = memo(function MessageItem({
           onSelect: () => useUi.getState().setReplyTo(keyOf(target), m.id),
         },
         ...(privateOk ? [{ label: 'Responder no privado', icon: 'mail' as const, onSelect: replyPrivately }] : []),
+        ...(canForward
+          ? [{ label: 'Encaminhar', icon: 'forward' as const, onSelect: () => setForwardOpen(true) }]
+          : []),
         ...(!m.deleted
           ? [
               {
@@ -255,6 +273,7 @@ export const MessageItem = memo(function MessageItem({
       data-msg-id={m.id}
       data-pinned={m.pinnedAt ? 'true' : undefined}
       data-mention={mentionsMe ? 'true' : undefined}
+      data-forwarded={m.forwarded ? 'true' : undefined}
       aria-label={`${m.author.displayName}, ${time.toLocaleString()}`}
     >
       {m.replyTo && (
@@ -331,6 +350,25 @@ export const MessageItem = memo(function MessageItem({
         <time dateTime={m.createdAt} className="msg-time-hover" aria-hidden>
           {time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
         </time>
+      )}
+      {m.forwarded && (
+        <div className="msg-forwarded">
+          <Icon name="forward" size={14} />
+          <span>Encaminhada</span>
+          {forwardedFrom && m.forwarded.channelId && (
+            <button
+              type="button"
+              className="msg-forwarded-from truncate"
+              aria-label={`Ver a original em #${forwardedFrom.channelName}`}
+              onClick={() => {
+                const f = m.forwarded;
+                if (f?.channelId) openQuotedMessage(forwardedFrom.serverId, f.channelId, f.messageId);
+              }}
+            >
+              de #{forwardedFrom.channelName} · {forwardedFrom.serverName}
+            </button>
+          )}
+        </div>
       )}
       {editing ? (
         <div className="msg-edit emoji-field">
@@ -451,6 +489,13 @@ export const MessageItem = memo(function MessageItem({
       {m.reactionRoles.length > 0 && (
         <ReactionRoleChips message={m} serverId={serverId} canReact={canReact} react={react} />
       )}
+      {forwardOpen && (
+        <ForwardDialog
+          message={m}
+          authorName={nameFor(m.author.id, m.author.displayName)}
+          onClose={() => setForwardOpen(false)}
+        />
+      )}
       {rrOpen && serverId && <ReactionRolesDialog message={m} serverId={serverId} onClose={() => setRrOpen(false)} />}
       {m.replyCount > 0 && !m.deleted && (
         <button className="msg-thread" onClick={() => useUi.getState().openThread(keyOf(target), m.id)}>
@@ -524,6 +569,16 @@ export const MessageItem = memo(function MessageItem({
             onClick={replyPrivately}
           >
             <Icon name="mail" size={18} />
+          </button>
+        )}
+        {canForward && (
+          <button
+            className="icon-btn icon-btn-sm"
+            aria-label="Encaminhar"
+            data-tip="Encaminhar"
+            onClick={() => setForwardOpen(true)}
+          >
+            <Icon name="forward" size={18} />
           </button>
         )}
         {canEdit && (

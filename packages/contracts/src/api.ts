@@ -1047,6 +1047,11 @@ export const Message = z.object({
   replyTo: MessageReplyRef.nullable(),
   /** só em DM: a mensagem de canal respondida no privado (ADR-0042); API antiga não manda */
   privateReplyTo: PrivateReplyRef.nullable().optional(),
+  /**
+   * encaminhada (ADR-0053): de qual mensagem e canal veio (channelId null = de uma DM). Só ids: o app mostra o nome do
+   * canal e o link se a pessoa já conhece aquele canal. API antiga não manda.
+   */
+  forwarded: z.object({ messageId: Id, channelId: Id.nullable() }).nullable().optional(),
   reactions: z.array(ReactionSummary),
   attachments: z.array(Attachment),
   mentions: z.array(Id),
@@ -1232,6 +1237,28 @@ export const CreateMessageRequest = z
     path: ['body'],
   });
 export type CreateMessageRequest = z.input<typeof CreateMessageRequest>;
+
+/** limite de destinos por encaminhamento (ADR-0053) */
+export const FORWARD_MAX_TARGETS = 5;
+
+/** Encaminhar mensagem (ADR-0053): copia texto e anexos para até 5 canais/conversas, com um comentário opcional. */
+export const ForwardMessageRequest = z.object({
+  /** idempotência: cada destino deriva o próprio requestId deste */
+  requestId: z.uuid(),
+  targets: z
+    .array(z.union([z.object({ channelId: Id }).strict(), z.object({ conversationId: Id }).strict()]))
+    .min(1)
+    .max(FORWARD_MAX_TARGETS),
+  /** comentário enviado logo depois, como mensagem comum */
+  note: MessageBody.optional(),
+});
+export type ForwardMessageRequest = z.input<typeof ForwardMessageRequest>;
+
+export const ForwardMessageResponse = z.object({
+  /** um item por destino, na ordem pedida: a cópia ou o motivo de não ter ido */
+  results: z.array(z.object({ messageId: Id.nullable(), error: z.string().nullable() })),
+});
+export type ForwardMessageResponse = z.infer<typeof ForwardMessageResponse>;
 
 /** Só o que veio muda; `components: []` tira os botões. Texto vazio só com embeds. */
 export const EditMessageRequest = z

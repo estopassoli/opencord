@@ -1,5 +1,5 @@
 import { BadRequestException, HttpException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   decodeCursor,
   encodeCursor,
@@ -14,6 +14,7 @@ import {
   Permission,
   rooms,
   type ForumPostPage,
+  type ForwardMessageResponse,
   type Message,
   type MessagePage,
   type Poll,
@@ -223,6 +224,8 @@ export class MessagesService {
           }
         : null,
       privateReplyTo: this.privateReplyRef(m),
+      forwarded:
+        !deleted && m.forwardedFromId ? { messageId: m.forwardedFromId, channelId: m.forwardedChannelId } : null,
       reactions: deleted ? [] : this.reactions(m.reactions, me),
       attachments: deleted ? [] : m.attachments.map((a) => this.attachments.serialize(a)),
       mentions: deleted ? [] : m.mentions,
@@ -343,6 +346,8 @@ export class MessagesService {
       embeds?: Embeds | undefined;
       /** botões e menus (ADR-0034): só bots */
       components?: Components | undefined;
+      /** cópia encaminhada (ADR-0053): de onde veio; sem menções (não notifica de novo) e com os embeds da original */
+      forward?: { messageId: string; channelId: string | null } | undefined;
     },
     /** publicação de um caso aprovado (ADR-0036): sem nova análise; anexos presos ao caso */
     opts: { skipModeration?: boolean; caseId?: string } = {},
@@ -354,7 +359,8 @@ export class MessagesService {
     const attachmentIds = dto.attachmentIds ?? [];
     if (attachmentIds.length && !hasPermission(a.perms, Permission.ATTACH_FILES))
       throw forbidden('sem permissão para anexar arquivos');
-    await this.assertRichAllowed(userId, dto);
+    // os embeds de uma cópia encaminhada já passaram pela regra quando a original foi enviada
+    if (!dto.forward) await this.assertRichAllowed(userId, dto);
     const embeds = dto.embeds ?? [];
     const components = dto.components ?? [];
     const body = dto.body.trim();
@@ -391,7 +397,7 @@ export class MessagesService {
         attachmentIds,
         editing: false,
       });
-    const parsed = extractMentions(body);
+    const parsed = dto.forward ? { everyone: false, userIds: [] } : extractMentions(body);
     const mentionEveryone = parsed.everyone && hasPermission(a.perms, Permission.MENTION_EVERYONE);
     const mentions = await this.validMentions(a, parsed.userIds);
 
@@ -407,6 +413,8 @@ export class MessagesService {
             body,
             replyToId: dto.replyToId ?? null,
             privateReplyToId: dto.privateReplyToId ?? null,
+            forwardedFromId: dto.forward?.messageId ?? null,
+            forwardedChannelId: dto.forward?.channelId ?? null,
             title,
             mentions,
             mentionEveryone,
@@ -453,6 +461,67 @@ export class MessagesService {
     // canal que alimenta um quadro kanban: a mensagem vira card (ADR-0017)
     if (a.channelId) await this.boards.fromMessage(row);
     return { message: this.serialize(row, userId), duplicate: false };
+  }
+
+  /**
+   * Encaminhar (ADR-0053): copia o texto, os anexos (arquivos novos) e os embeds de uma mensagem que a pessoa consegue
+   * ler para cada destino, como mensagem dela marcada "encaminhada". Cada cópia passa pelo `create` comum
+   * (permissão de enviar e de anexar, castigo, bloqueio, modo lento, moderação), mas sem menções. O comentário vai
+   * logo depois, como mensagem comum. Um destino que falha não impede os outros: a resposta diz o que houve em cada um.
+   */
+  async forward(
+    userId: string,
+    messageId: string,
+    dto: { requestId: string; targets: Target[]; note?: string | undefined },
+  ): Promise<ForwardMessageResponse> {
+    const src = await this.prisma.message.findUnique({ where: { id: messageId }, include: { attachments: true } });
+    if (!src || src.deletedAt) throw notFound('mensagem');
+    const a = await this.access(userId, this.targetOf(src)).catch(() => {
+      throw notFound('mensagem');
+    });
+    if (!hasPermission(a.perms, Permission.VIEW_CHANNEL | Permission.READ_HISTORY)) throw notFound('mensagem');
+    const embeds = parseEmbeds(src.embeds);
+    // enquete sozinha não tem o que copiar (votos são da mensagem original)
+    if (!src.body.trim() && !src.attachments.length && !embeds.length)
+      throw new BadRequestException('esta mensagem não tem texto nem anexos para encaminhar');
+    const note = dto.note?.trim() ?? '';
+    const results: ForwardMessageResponse['results'] = [];
+    for (const [i, target] of dto.targets.entries()) {
+      try {
+        const requestId = derivedRequestId(dto.requestId, i, 'copy');
+        const existing = await this.prisma.message.findUnique({
+          where: { authorId_requestId: { authorId: userId, requestId } },
+          select: { id: true },
+        });
+        let copyId = existing?.id;
+        if (!copyId) {
+          const ids = await this.attachments.duplicate(userId, src.attachments);
+          try {
+            const r = await this.create(userId, target, {
+              requestId,
+              body: src.body,
+              attachmentIds: ids,
+              embeds,
+              forward: { messageId: src.id, channelId: src.channelId },
+            });
+            copyId = r.message.id;
+          } catch (e) {
+            for (const id of ids) await this.attachments.discard(id);
+            throw e;
+          }
+        }
+        if (note)
+          await this.create(userId, target, { requestId: derivedRequestId(dto.requestId, i, 'note'), body: note });
+        results.push({ messageId: copyId, error: null });
+      } catch (e) {
+        if (!(e instanceof HttpException)) this.log.warn(`encaminhar ${messageId}: ${String(e)}`);
+        results.push({
+          messageId: null,
+          error: e instanceof HttpException ? e.message : 'não foi possível encaminhar',
+        });
+      }
+    }
+    return { results };
   }
 
   /**
@@ -729,6 +798,7 @@ export class MessagesService {
     });
     if (m.authorId !== userId) throw forbidden('só o autor pode editar');
     if (m.poll) throw new BadRequestException('enquetes não podem ser editadas');
+    if (m.forwardedFromId) throw new BadRequestException('mensagens encaminhadas não podem ser editadas');
     if (m.deletedAt) throw notFound('mensagem');
     if (dto.body === undefined && dto.embeds === undefined && dto.components === undefined)
       throw new BadRequestException('nada para editar');
@@ -1342,4 +1412,10 @@ export class MessagesService {
     }
     return { missed, truncated };
   }
+}
+
+/** requestId estável por destino de um encaminhamento (reenvio do mesmo pedido não duplica) */
+export function derivedRequestId(base: string, index: number, kind: 'copy' | 'note'): string {
+  const h = createHash('sha256').update(`${base}:${index}:${kind}`).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${((parseInt(h[16] ?? '0', 16) & 3) | 8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }

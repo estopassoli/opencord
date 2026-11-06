@@ -226,6 +226,48 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
     if (r.count !== unique.length) throw new BadRequestException('anexo inválido ou já utilizado');
   }
 
+  /**
+   * Cópias dos anexos de uma mensagem encaminhada (ADR-0053), de quem encaminha e ainda sem mensagem: o `create`
+   * comum as vincula. Arquivo novo no armazenamento (cada anexo tem a própria chave, e apagar um não pode levar o
+   * outro). Se algo falhar no meio, as cópias feitas são desfeitas.
+   */
+  async duplicate(
+    userId: string,
+    sources: (AttachmentRow & { storageKey: string; sha256: string })[],
+  ): Promise<string[]> {
+    const ids: string[] = [];
+    try {
+      for (const a of sources) {
+        const id = randomUUID();
+        const d = new Date();
+        const key = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${id}`;
+        await this.storage.copy(a.storageKey, key);
+        try {
+          const row = await this.prisma.attachment.create({
+            data: {
+              uploaderId: userId,
+              storageKey: key,
+              mime: a.mime,
+              sizeBytes: a.sizeBytes,
+              originalName: a.originalName,
+              sha256: a.sha256,
+              width: a.width,
+              height: a.height,
+            },
+          });
+          ids.push(row.id);
+        } catch (e) {
+          await this.storage.remove(key).catch(() => undefined);
+          throw e;
+        }
+      }
+    } catch (e) {
+      for (const id of ids) await this.discard(id);
+      throw e;
+    }
+    return ids;
+  }
+
   /** Apaga um anexo nunca publicado (reprovado pela moderação, ADR-0036). */
   async discard(id: string): Promise<void> {
     const a = await this.prisma.attachment.findUnique({ where: { id }, select: { storageKey: true, messageId: true } });

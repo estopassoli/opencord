@@ -498,6 +498,9 @@ model Message {
   privateReplyToId String?     @db.Uuid
   /// título do post (ADR-0052): só em mensagem raiz de canal de fórum
   title          String?
+  /// encaminhada (ADR-0053): de qual mensagem e canal veio; sem FK de propósito (a original pode sumir)
+  forwardedFromId    String?   @db.Uuid
+  forwardedChannelId String?   @db.Uuid
   createdAt      DateTime      @default(now()) @db.Timestamptz(3)
   editedAt       DateTime?     @db.Timestamptz(3)
   deletedAt      DateTime?     @db.Timestamptz(3)

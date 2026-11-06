@@ -6,6 +6,7 @@ import {
   CreatePollRequest,
   EditMessageRequest,
   Emoji,
+  ForwardMessageRequest,
   ListMessagesQuery,
   SearchMessagesQuery,
   HighlightsQuery,
@@ -29,6 +30,7 @@ type ListQ = z.infer<typeof ListMessagesQuery>;
 type SearchQ = z.infer<typeof SearchMessagesQuery>;
 type HighlightsQ = z.infer<typeof HighlightsQuery>;
 type CreateM = z.infer<typeof CreateMessageRequest>;
+type ForwardM = z.infer<typeof ForwardMessageRequest>;
 type CreatePoll = z.infer<typeof CreatePollRequest>;
 type VotePoll = z.infer<typeof VotePollRequest>;
 
@@ -161,6 +163,17 @@ export class MessagesController {
   }
 
   /** uma mensagem pelo id (quem vê o destino) */
+  /** encaminhar (ADR-0053): copia a mensagem para até 5 canais/conversas */
+  @Post('messages/:id/forward')
+  @HttpCode(200)
+  forward(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) mid: string,
+    @Body(zodPipe(ForwardMessageRequest)) dto: ForwardM,
+  ) {
+    return this.messages.forward(u.userId, mid, dto);
+  }
+
   @Get('messages/:id')
   get(@CurrentUser() u: AuthUser, @Param('id', id) mid: string) {
     return this.messages.get(u.userId, mid);

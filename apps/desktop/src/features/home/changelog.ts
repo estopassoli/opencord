@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '12:10',
+    kind: 'novo',
+    icon: 'forward',
+    title: 'Encaminhar mensagem',
+    body: 'Passe o mouse numa mensagem (ou clique com o botão direito) e escolha Encaminhar para mandá-la, com os anexos, para até 5 conversas, amigos ou canais de texto de uma vez, com um comentário se quiser. A cópia aparece como "Encaminhada" e, se você tiver acesso ao canal de origem, mostra de onde veio com um link para a original.',
+  },
+  {
+    date: '2026-11-06',
     time: '10:55',
     kind: 'melhoria',
     icon: 'play',
