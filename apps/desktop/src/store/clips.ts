@@ -1,6 +1,7 @@
 import type { UserSettings } from '@opencord/contracts';
 import { create } from 'zustand';
 import type { ClipInfo } from '../../electron/shared/ipc';
+import { reportError } from '../components/ErrorBoundary';
 import { encodeStream, webCodecsAvailable, type EncodeSession } from '../clips/encode';
 import { ClipAudio } from '../clips/audio';
 import { muxClip } from '../clips/mux';
@@ -19,6 +20,8 @@ import { useUi } from './ui';
  */
 /** depois de fechar o jogo, segura a captura um pouco (trocar de partida, reabrir) antes de liberar memória */
 const STOP_GRACE_MS = 30_000;
+/** captura caiu com o jogo aberto: espera a tela assentar antes de religar */
+const RESTART_MS = 3_000;
 
 type ClipSettings = Pick<
   UserSettings['games'],
@@ -117,13 +120,29 @@ let fpsNow = 60;
 let running: string | null = null;
 let starting: Promise<void> | null = null;
 let stopTimer: ReturnType<typeof setTimeout> | null = null;
+/** por que a gravação não começou (vai no aviso do atalho e no crash-log.txt) */
+let startError: string | null = null;
+/** religadas seguidas da captura (zera quando ela fica de pé por um minuto) */
+let restarts = 0;
+
+const reasonOf = (e: unknown) => (e instanceof Error ? e.message || e.name : String(e));
+/** registra no crash-log.txt (só o motivo técnico; nada da tela) */
+const logClips = (msg: string) => reportError('clips', new Error(msg));
 
 async function start() {
-  if (stream || starting || !bridge || !webCodecsAvailable()) return;
+  if (stream || starting || !bridge) return;
+  if (!webCodecsAvailable()) {
+    startError = 'este computador não tem o codificador de vídeo do navegador (WebCodecs)';
+    return;
+  }
   starting = (async () => {
     try {
       const cfg = settingsOf();
-      if (!(await bridge!.clips.prepareCapture())) return;
+      if (!(await bridge!.clips.prepareCapture())) {
+        startError = 'nenhuma tela encontrada para gravar';
+        logClips(`clipes: ${startError}`);
+        return;
+      }
       const max = MAX_SIZE[cfg.clipResolution];
       const s = await navigator.mediaDevices.getDisplayMedia({
         video: {
@@ -165,12 +184,30 @@ async function start() {
         {
           video: (c) => ring.pushVideo(c),
           audio: (c, i) => ring.pushAudio(c, i),
+          // mudou a resolução ou a placa caiu e voltou: o trecho de antes não cabe no mesmo arquivo
+          restart: () => ring.resetVideo(),
+          error: (reason) => logClips(`clipes: codificador de vídeo falhou (${reason}); recriando`),
         },
       );
-      // a captura caiu (monitor desligado, permissão): fica inativo até o próximo jogo
-      v?.addEventListener('ended', () => void stop());
+      startError = null;
+      // a captura caiu (jogo entrando em tela cheia, troca de resolução, monitor desligado): religa com o jogo aberto
+      const startedAt = Date.now();
+      v?.addEventListener('ended', () => {
+        // caindo logo depois de começar, várias vezes seguidas: desiste até o próximo jogo
+        restarts = Date.now() - startedAt > 60_000 ? 0 : restarts + 1;
+        if (restarts > 5) {
+          startError = 'a captura da tela parou várias vezes seguidas';
+          logClips(`clipes: ${startError}; parado até o próximo jogo`);
+          void stop();
+          return;
+        }
+        logClips('clipes: a captura da tela parou; religando');
+        void stop().then(() => setTimeout(syncClips, RESTART_MS));
+      });
       useClips.setState({ active: true });
-    } catch {
+    } catch (e) {
+      startError = reasonOf(e);
+      logClips(`clipes: a gravação não começou (${startError})`);
       await stop();
     }
   })().finally(() => {
@@ -250,8 +287,16 @@ async function thumbnail(video: StoredChunk[]): Promise<Uint8Array<ArrayBuffer> 
 export async function saveClip() {
   const ui = useUi.getState();
   if (!bridge) return;
+  const game = useGames.getState().mine;
+  logClips(`clipes: atalho recebido (gravando: ${session ? 'sim' : 'não'}; jogo: ${game?.name ?? 'nenhum'})`);
   if (!session) {
-    ui.toast('info', 'Os clipes funcionam com um jogo aberto (Configurações → Jogos).');
+    if (!game) ui.toast('info', 'Os clipes funcionam com um jogo aberto (Configurações → Jogos).');
+    else if (starting) ui.toast('info', 'A gravação do clipe está começando; tente de novo em alguns segundos.');
+    else {
+      // jogo aberto, mas a gravação caiu ou não começou: avisa o motivo e tenta de novo
+      ui.toast('error', `Os clipes não estão gravando${startError ? ` (${startError})` : ''}. Tentando de novo…`);
+      syncClips();
+    }
     return;
   }
   if (useClips.getState().saving) return;
@@ -280,8 +325,9 @@ export async function saveClip() {
         if (c) useClips.getState().open(c);
       },
     });
-  } catch {
-    ui.toast('error', 'Não consegui salvar o clipe.');
+  } catch (e) {
+    logClips(`clipes: não salvou (${reasonOf(e)})`);
+    ui.toast('error', `Não consegui salvar o clipe (${reasonOf(e)}).`);
   } finally {
     useClips.setState({ saving: false });
   }
@@ -294,7 +340,9 @@ export function wireClips() {
   wired = true;
   void useClips.getState().loadLibrary();
   useGames.subscribe((s, prev) => {
-    if (s.mine?.name !== prev.mine?.name) syncClips();
+    if (s.mine?.name === prev.mine?.name) return;
+    restarts = 0;
+    syncClips();
   });
 }
 

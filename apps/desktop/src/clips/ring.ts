@@ -97,6 +97,11 @@ export class ChunkRing {
     return { base, video, audio: mix, extra };
   }
 
+  /** o codificador recomeçou com outra configuração: o vídeo de antes não entra no mesmo arquivo do de depois */
+  resetVideo() {
+    while (this.gops.length) this.dropGop();
+  }
+
   clear() {
     this.gops = [];
     this.audio = [];

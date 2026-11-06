@@ -19,6 +19,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-06',
+    time: '04:40',
+    kind: 'correção',
+    icon: 'film',
+    title: 'Clipes não param no meio da partida',
+    body: 'Quando o jogo entra em tela cheia ou muda a resolução, a gravação dos clipes volta sozinha em poucos segundos em vez de parar até você trocar de jogo. Se a placa de vídeo falhar, o OpenCord recria a gravação (no processador, se precisar). E, se o clipe não sair, o aviso no jogo diz o motivo.',
+  },
+  {
     date: '2026-11-05',
     time: '11:00',
     kind: 'melhoria',

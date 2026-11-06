@@ -26,6 +26,13 @@ export interface EncodeSink {
   video(c: StoredChunk): void;
   /** `track`: posição da trilha de áudio no stream (0 = a primeira) */
   audio(c: StoredChunk, track: number): void;
+  /**
+   * O codificador de vídeo foi recriado (mudou a resolução ou a placa falhou): o que veio antes não combina com o que
+   * vem depois no mesmo arquivo.
+   */
+  restart?(): void;
+  /** falha do codificador (diagnóstico); a captura segue e ele é recriado no próximo quadro */
+  error?(reason: string): void;
 }
 
 export interface EncodeSession {
@@ -46,10 +53,16 @@ export const webCodecsAvailable = () =>
 
 const even = (n: number) => Math.max(2, Math.floor(n / 2) * 2);
 
-async function videoConfig(width: number, height: number, o: EncodeOptions): Promise<VideoEncoderConfig> {
-  // High 5.1 cobre até 4K60; o Baseline fica de reserva
+async function videoConfig(
+  width: number,
+  height: number,
+  o: EncodeOptions,
+  software = false,
+): Promise<VideoEncoderConfig> {
+  // High 5.1 cobre até 4K60; o Baseline fica de reserva. Depois de a placa falhar, só o codificador do processador
+  const modes = software ? (['prefer-software'] as const) : (['prefer-hardware', 'no-preference'] as const);
   for (const codec of ['avc1.640033', 'avc1.4D0033', 'avc1.42E033']) {
-    for (const hardwareAcceleration of ['prefer-hardware', 'no-preference'] as const) {
+    for (const hardwareAcceleration of modes) {
       const cfg: VideoEncoderConfig = {
         codec,
         width,
@@ -119,6 +132,15 @@ export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: Encode
   const runVideo = async () => {
     const reader = new Processor<VideoFrame>({ track: vTrack }).readable.getReader();
     let configuring: Promise<void> | null = null;
+    // a placa de vídeo pode derrubar o codificador (jogo entrando em tela cheia, troca de resolução, driver)
+    let broken = false;
+    let failures = 0;
+    const fail = (e: unknown) => {
+      if (stopped) return;
+      failures++;
+      if (!broken) sink.error?.(e instanceof Error ? `${e.name}: ${e.message}` : String(e));
+      broken = true;
+    };
     for (;;) {
       const { value: frame, done } = await reader.read();
       if (done || stopped) {
@@ -129,11 +151,20 @@ export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: Encode
       const w = even(frame.displayWidth);
       const h = even(frame.displayHeight);
       // primeira imagem (ou mudou a resolução): configura o codificador para ela
-      if (!vEnc || w !== session.width || h !== session.height) {
+      if (!vEnc || broken || w !== session.width || h !== session.height) {
+        // nem no processador: desiste (o vídeo para; quem chama vê pelo erro)
+        if (failures > 6) {
+          frame.close();
+          break;
+        }
         if (!configuring) {
           configuring = (async () => {
-            const cfg = await videoConfig(w, h, o);
+            // falhou duas vezes na placa: segue no processador
+            const cfg = await videoConfig(w, h, o, failures >= 2);
             if (vEnc && vEnc.state !== 'closed') vEnc.close();
+            if (vEnc) sink.restart?.();
+            vConfig = undefined;
+            broken = false;
             vEnc = new VideoEncoder({
               output: (chunk, meta) => {
                 if (meta?.decoderConfig) vConfig = meta.decoderConfig;
@@ -146,15 +177,17 @@ export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: Encode
                   ...(key && vConfig ? { config: vConfig } : {}),
                 });
               },
-              error: () => undefined,
+              error: fail,
             });
             vEnc.configure(cfg);
             session.width = w;
             session.height = h;
             forceKey = true;
-          })().finally(() => {
-            configuring = null;
-          });
+          })()
+            .catch(fail)
+            .finally(() => {
+              configuring = null;
+            });
         }
         frame.close();
         continue;
@@ -169,7 +202,11 @@ export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: Encode
         lastKey = frame.timestamp;
         forceKey = false;
       }
-      vEnc.encode(frame, { keyFrame: key });
+      try {
+        vEnc.encode(frame, { keyFrame: key });
+      } catch (e) {
+        fail(e);
+      }
       frame.close();
     }
   };

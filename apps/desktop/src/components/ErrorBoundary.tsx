@@ -1,6 +1,6 @@
 import { Button, Icon } from '@opencord/ui';
 import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
-import type { UpdateStatus } from '../../electron/shared/ipc';
+import type { ErrorReport, UpdateStatus } from '../../electron/shared/ipc';
 import { bridge } from '../lib/bridge';
 
 /** Erro do React minificado ("Minified React error #310") em português, com o número para o suporte. */
@@ -17,7 +17,7 @@ export function describeCrash(e: Error): string {
 }
 
 /** Registra no crash-log.txt do app (sem conteúdo do usuário). */
-export function reportError(where: 'boundary' | 'window' | 'promise', e: unknown, componentStack?: string | null) {
+export function reportError(where: ErrorReport['where'], e: unknown, componentStack?: string | null) {
   const err = e instanceof Error ? e : new Error(String(e));
   void bridge
     ?.reportError({

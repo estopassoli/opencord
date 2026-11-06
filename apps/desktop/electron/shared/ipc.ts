@@ -197,7 +197,7 @@ export type ClipExportArgs = z.infer<typeof ClipExportArgs>;
 
 /** Erro da janela registrado no crash-log.txt (sem conteúdo do usuário). */
 export const ErrorReport = z.object({
-  where: z.enum(['boundary', 'window', 'promise']),
+  where: z.enum(['boundary', 'window', 'promise', 'clips']),
   message: z.string().max(2000),
   stack: z.string().max(8000).optional(),
   componentStack: z.string().max(8000).optional(),

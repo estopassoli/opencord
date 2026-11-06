@@ -63,4 +63,23 @@ describe('memória dos clipes: teto', () => {
     expect(r.bytes).toBe(4000);
     expect(r.snapshot()?.video).toHaveLength(4);
   });
+  it('codificador recriado: o clipe começa no primeiro quadro-chave novo (resolução antiga fora do arquivo)', () => {
+    const r = new ChunkRing(60 * S);
+    for (let s = 1; s <= 10; s++) {
+      r.pushVideo(v(s, s % 2 === 1));
+      r.pushAudio(a(s));
+    }
+    r.resetVideo();
+    expect(r.snapshot()).toBeNull();
+    // o codificador novo só entrega a partir de um quadro-chave
+    r.pushVideo(v(11));
+    expect(r.snapshot()).toBeNull();
+    r.pushVideo(v(12, true));
+    r.pushAudio(a(12));
+    r.pushVideo(v(13));
+    const snap = r.snapshot()!;
+    expect(snap.base).toBe(12 * S);
+    expect(snap.video).toHaveLength(2);
+    expect(snap.audio.every((c) => c.ts >= 12 * S)).toBe(true);
+  });
 });
