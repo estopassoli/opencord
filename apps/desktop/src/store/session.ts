@@ -22,6 +22,12 @@ import { RealtimeClient } from '../lib/realtime';
 import { keyOf, useData, useMessages, type FriendWithPresence } from './data';
 import { useUi } from './ui';
 
+/** servidor mais antigo que o app: campos novos das configurações (lembretes, palavras-chave...) chegam vazios */
+function withDefaults(s: UserSettings): UserSettings {
+  const d = defaultUserSettings();
+  return { ...d, ...s, notifications: { ...d.notifications, ...s.notifications } };
+}
+
 export type SessionStatus = 'loading' | 'anonymous' | 'authenticated';
 
 interface SessionState {
@@ -279,7 +285,10 @@ async function bootstrap() {
   const a = api();
   const [me, settings, servers, conversations, unreads, instance] = await Promise.all([
     a.request<Me & { presence: Exclude<PresenceStatus, 'offline'>; statusText?: string | null }>('GET', '/me'),
-    a.request<UserSettings>('GET', '/me/settings').catch(() => defaultUserSettings()),
+    a
+      .request<UserSettings>('GET', '/me/settings')
+      .then(withDefaults)
+      .catch(() => defaultUserSettings()),
     a.request<ServerSummary[]>('GET', '/servers'),
     a.request<Conversation[]>('GET', '/conversations'),
     a.request<UnreadState[]>('GET', '/me/unreads'),

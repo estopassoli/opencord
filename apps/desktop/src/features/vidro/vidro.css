@@ -323,7 +323,7 @@ html[data-layout='vidro'] .chat-header {
 }
 html[data-layout='vidro'] .members {
   background: transparent;
-  width: 260px;
+  width: var(--members-width, 260px);
 }
 html[data-layout='vidro'] .thread-panel {
   width: 340px;
@@ -1237,4 +1237,99 @@ html[data-layout='vidro'] .vidro-shell[data-channels='hidden'] .vidro-nav {
 }
 html[data-layout='vidro'] .vidro-shell[data-channels='hidden'] .vidro-nav > .rail {
   border-right: 0;
+}
+
+/* ---------- vidro líquido: cartões, diálogos, menus e dicas ----------
+   O mesmo efeito de vidro "molhado" em tudo o que flutua ou agrupa: tinta mais clara, um brilho diagonal (como luz
+   batendo numa lâmina curva), borda acesa em cima e à esquerda e um reflexo fraco embaixo. Só CSS (gradientes e
+   sombras internas, desfoque onde já havia): nada de WebGL nem captura da tela, então não pesa. */
+html[data-layout='vidro'] {
+  --liquid-sheen: linear-gradient(
+    150deg,
+    rgb(255 255 255 / 0.13),
+    rgb(255 255 255 / 0.04) 28%,
+    rgb(255 255 255 / 0) 55%,
+    rgb(255 255 255 / 0.05) 100%
+  );
+  --liquid-tint: rgb(16 19 27 / 0.5);
+  --liquid-float: rgb(18 21 30 / 0.62);
+  --liquid-rim:
+    inset 0 1px 0 rgb(255 255 255 / 0.28), inset 1px 0 0 rgb(255 255 255 / 0.1), inset 0 -1px 0 rgb(255 255 255 / 0.07),
+    inset -1px 0 0 rgb(255 255 255 / 0.04), inset 0 0 24px rgb(255 255 255 / 0.035);
+  --liquid-line: rgb(255 255 255 / 0.14);
+  --liquid-field: rgb(255 255 255 / 0.045);
+  --liquid-field-edge: inset 0 1px 2px rgb(0 0 0 / 0.25), inset 0 -1px 0 rgb(255 255 255 / 0.06);
+}
+html[data-layout='vidro'][data-theme='light'],
+html[data-layout='vidro'][data-theme='light'][data-palette] {
+  --liquid-sheen: linear-gradient(
+    150deg,
+    rgb(255 255 255 / 0.7),
+    rgb(255 255 255 / 0.25) 30%,
+    rgb(255 255 255 / 0.1) 60%,
+    rgb(255 255 255 / 0.35)
+  );
+  --liquid-tint: rgb(255 255 255 / 0.35);
+  --liquid-float: rgb(255 255 255 / 0.62);
+  --liquid-rim:
+    inset 0 1px 0 rgb(255 255 255 / 0.9), inset 1px 0 0 rgb(255 255 255 / 0.5), inset 0 -1px 0 rgb(0 0 0 / 0.05),
+    inset 0 0 24px rgb(255 255 255 / 0.25);
+  --liquid-line: rgb(0 0 0 / 0.08);
+  --liquid-field: rgb(255 255 255 / 0.45);
+  --liquid-field-edge: inset 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+/* cartões (seções das configurações, blocos do painel) */
+html[data-layout='vidro'] .settings-section,
+html[data-layout='vidro'] .settings-section:first-child,
+html[data-layout='vidro'] .settings-section:last-child {
+  background: var(--liquid-sheen), var(--liquid-tint);
+  border-color: var(--liquid-line);
+  box-shadow:
+    var(--liquid-rim),
+    0 14px 34px -20px rgb(0 0 0 / 0.75);
+}
+/* dentro do cartão: campos e blocos de dados são vidro raso, não poços pretos */
+html[data-layout='vidro'] .settings-section :is(.oc-input, .oc-textarea, .oc-select-trigger),
+html[data-layout='vidro'] .settings-kv,
+html[data-layout='vidro'] .security-devices li {
+  background: var(--liquid-field);
+  border-color: var(--liquid-line);
+  box-shadow: var(--liquid-field-edge);
+}
+html[data-layout='vidro'] .settings-section :is(.oc-input, .oc-textarea):focus {
+  background: color-mix(in srgb, var(--brand) 6%, var(--liquid-field));
+}
+
+/* flutuantes: diálogo, menu de contexto (vidro no ::before), menus, dicas e avisos */
+html[data-layout='vidro'] :is(.dialog-body, .context-menu, .profile-card)::before {
+  background: var(--liquid-sheen), var(--liquid-float);
+  backdrop-filter: blur(28px) saturate(1.8) brightness(1.05);
+  box-shadow: var(--liquid-rim);
+}
+html[data-layout='vidro'] :is(.dialog-body, .context-menu, .profile-card) {
+  border-color: var(--liquid-line);
+}
+html[data-layout='vidro'] :is(.menu, .tooltip, .toast, .pins-panel, .oc-listbox) {
+  background: var(--liquid-sheen), var(--liquid-float);
+  backdrop-filter: blur(28px) saturate(1.8) brightness(1.05);
+  border: 1px solid var(--liquid-line);
+  box-shadow:
+    var(--liquid-rim),
+    0 18px 44px -18px rgb(0 0 0 / 0.7);
+}
+html[data-layout='vidro'] .tooltip {
+  border-radius: calc(10px * var(--radius-scale, 1));
+}
+
+/* alças de largura: no meio do vão entre os painéis */
+html[data-layout='vidro'] .panel-resizer[data-panel='channels'] {
+  left: calc(12px + var(--rail-width) + var(--sidebar-width, 300px) + 1px);
+  bottom: 12px;
+  width: 10px;
+}
+html[data-layout='vidro'] .panel-resizer[data-panel='members'] {
+  right: calc(12px + var(--members-width, 260px) + 1px);
+  bottom: 12px;
+  width: 10px;
 }

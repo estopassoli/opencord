@@ -36,6 +36,7 @@ import { PopoutPortal } from '../voice/popout';
 import { PopoutStage, VoiceStage } from '../voice/VoiceStage';
 import { Backdrop } from './Backdrop';
 import { startReducedMotionWatch } from './parallax';
+import { PanelResizer, panelWidth } from '../shell/PanelResizer';
 
 export function VidroShell() {
   const mobile = useIsMobile();
@@ -50,7 +51,8 @@ function VidroDesktop() {
   const dmPeer = useDmPeer(view.kind === 'dm' ? view.conversationId : null);
   const dmProfileShown = dmProfileOpen && Boolean(dmPeer);
   const detail = useData((s) => (view.kind === 'server' ? s.details[view.serverId] : undefined));
-  const sidebarWidth = useData((s) => Math.max(s.settings?.sidebarWidth ?? 300, 300));
+  const sidebarWidth = useData((s) => panelWidth('channels', s.settings) ?? 300);
+  const membersWidth = useData((s) => panelWidth('members', s.settings));
   const myCall = useVoice((v) => v.machine.channelId);
   const channelsHidden = useUi((s) => s.channelsHidden) && view.kind === 'server';
   const popped = useUi((s) => s.poppedStream);
@@ -68,11 +70,18 @@ function VidroDesktop() {
       ref={shell}
       data-side={sideOpen ? 'open' : undefined}
       data-channels={channelsHidden ? 'hidden' : undefined}
-      style={{ ['--sidebar-width' as string]: `${sidebarWidth}px` }}
+      style={{
+        ['--sidebar-width' as string]: `${sidebarWidth}px`,
+        ['--members-width' as string]: membersWidth ? `${membersWidth}px` : undefined,
+      }}
     >
       <a className="skip-link" href="#main-content">
         Pular para o conteúdo
       </a>
+      {!channelsHidden && <PanelResizer panel="channels" width={sidebarWidth} />}
+      {view.kind === 'server' && channel?.kind === 'text' && showMembers && !thread && (
+        <PanelResizer panel="members" width={membersWidth} />
+      )}
       <Backdrop />
       <TitleBar />
       <div className="vidro-panel vidro-nav" style={{ ['--i' as string]: 0 }}>

@@ -28,6 +28,7 @@ import { MediaViewer } from '../chat/MediaViewer';
 import { FriendsPanel } from './FriendsPanel';
 import { DmProfilePanel, useDmPeer } from './DmProfilePanel';
 import { ConnectionBanner } from './ConnectionBanner';
+import { PanelResizer, panelWidth } from './PanelResizer';
 
 /**
  * Comportamentos comuns aos dois layouts (clássico e Vidro): canal padrão ao abrir um servidor, contador na bandeja,
@@ -106,7 +107,8 @@ export function AppShell() {
   const panel = useUi((s) => s.panel);
   const mobile = useIsMobile();
   const detail = useData((s) => (view.kind === 'server' ? s.details[view.serverId] : undefined));
-  const sidebarWidth = useData((s) => Math.max(s.settings?.sidebarWidth ?? 300, 300));
+  const sidebarWidth = useData((s) => panelWidth('channels', s.settings) ?? 300);
+  const membersWidth = useData((s) => panelWidth('members', s.settings));
   // lista de canais escondida (só no servidor e fora do celular): o rail abre o painel da chamada
   const channelsHidden = useUi((s) => s.channelsHidden) && view.kind === 'server' && !mobile;
   useShellBehavior();
@@ -163,11 +165,18 @@ export function AppShell() {
       className="shell"
       data-panel={mobile ? panel : undefined}
       data-channels={channelsHidden ? 'hidden' : undefined}
-      style={{ ['--sidebar-width' as string]: `${sidebarWidth}px` }}
+      style={{
+        ['--sidebar-width' as string]: `${sidebarWidth}px`,
+        ['--members-width' as string]: membersWidth ? `${membersWidth}px` : undefined,
+      }}
     >
       <a className="skip-link" href="#main-content">
         Pular para o conteúdo
       </a>
+      {!channelsHidden && !mobile && <PanelResizer panel="channels" width={sidebarWidth} />}
+      {view.kind === 'server' && channel?.kind === 'text' && !mobile && showMembers && (
+        <PanelResizer panel="members" width={membersWidth} />
+      )}
       <TitleBar />
       <div className="slot" id="mobile-nav" inert={off('nav')}>
         <ErrorBoundary area="a lista de servidores">

@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '08:30',
+    kind: 'melhoria',
+    icon: 'settings',
+    title: 'Largura das listas de canais e de membros',
+    body: 'Arraste a borda da lista de canais ou da lista de membros para deixá-las mais largas ou mais estreitas; o tamanho fica salvo na sua conta. Clique duas vezes na borda para voltar ao padrão. Também dá pelo teclado: Tab até a borda e setas.',
+  },
+  {
+    date: '2026-11-06',
+    time: '08:20',
+    kind: 'melhoria',
+    icon: 'sun',
+    title: 'Vidro mais vivo no modo Vidro',
+    body: 'Os cartões das configurações, as janelas, os menus de clique direito e as dicas ganharam o mesmo vidro do resto do modo Vidro: mais claro, com brilho nas bordas, e os campos de texto deixaram de ser caixas pretas. O item escolhido no menu agora acende em vidro em vez de um bloco de cor.',
+  },
+  {
+    date: '2026-11-06',
     time: '08:00',
     kind: 'novo',
     icon: 'bell',

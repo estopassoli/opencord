@@ -2024,7 +2024,7 @@ textarea:focus-visible {
 
 /* membros */
 .members {
-  width: 240px;
+  width: var(--members-width, 240px);
   background: var(--sidebar);
   overflow-y: auto;
   padding: 8px;
@@ -3749,13 +3749,14 @@ body {
 
 /* lista de membros: só quando sobra espaço para o chat (rail + sidebar + chat ≥ 640 px + membros) */
 @media (max-width: 1240px) {
-  .members {
+  .members,
+  .panel-resizer[data-panel='members'] {
     display: none;
   }
 }
 @media (min-width: 1800px) {
   .members {
-    width: 280px;
+    width: var(--members-width, 280px);
   }
 }
 
@@ -3766,6 +3767,9 @@ body {
   }
   .dock {
     width: calc(var(--rail-width) + 240px - 16px);
+  }
+  .shell .panel-resizer[data-panel='channels'] {
+    display: none;
   }
   .search-trigger {
     font-size: 0.8125rem;
@@ -8848,4 +8852,49 @@ dialog.dialog:not(.dialog-fullscreen)::backdrop,
 .unread-bar button:focus-visible {
   outline: 2px solid var(--text-on-brand);
   outline-offset: -2px;
+}
+
+/* ---------- alças de largura (lista de canais e de membros) ---------- */
+.panel-resizer {
+  position: absolute;
+  z-index: 30;
+  top: 32px;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.panel-resizer[data-panel='channels'] {
+  left: calc(var(--rail-width) + var(--sidebar-width, 300px) - 4px);
+}
+.panel-resizer[data-panel='members'] {
+  right: calc(var(--members-width, 240px) - 4px);
+}
+/* a linha acende ao passar o mouse, ao arrastar ou com o foco do teclado */
+.panel-resizer::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--brand);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.panel-resizer:hover::after,
+.panel-resizer:focus-visible::after,
+html[data-resizing] .panel-resizer::after {
+  opacity: 0.8;
+}
+.panel-resizer:focus-visible {
+  outline: none;
+}
+/* durante o arrasto: sem seleção de texto e o cursor certo em qualquer lugar */
+html[data-resizing],
+html[data-resizing] * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }

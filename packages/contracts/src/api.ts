@@ -1982,6 +1982,8 @@ export const UserSettingsV1 = z.object({
     .max(500)
     .default([]),
   sidebarWidth: z.number().int().min(200).max(480).default(240),
+  /** largura da lista de membros (arrastada pela borda); sem valor = padrão do layout */
+  membersWidth: z.number().int().min(200).max(420).optional(),
   /** GIFs favoritos (ADR-0044), mais recente primeiro; a URL é guardada como o KLIPY entregou */
   gifFavorites: z.array(GifFavorite).max(GIF_FAVORITES_MAX).default([]),
 });
