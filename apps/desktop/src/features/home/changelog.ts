@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '08:00',
+    kind: 'novo',
+    icon: 'bell',
+    title: 'Novidades também no fórum #novidades',
+    body: 'Tudo o que entra no OpenCord agora também é publicado pela conta @opencord no canal #novidades do servidor oficial, em formato de fórum: cada novidade é um post, e dá para responder, tirar dúvidas e reagir em cada uma.',
+  },
+  {
+    date: '2026-11-06',
     time: '07:10',
     kind: 'novo',
     icon: 'chats',
