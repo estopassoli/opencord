@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '05:00',
+    kind: 'melhoria',
+    icon: 'gamepad',
+    title: 'Overlay mais fácil de ler',
+    body: 'O fundo dos nomes e dos avisos no overlay do jogo ficou mais escuro, para ler melhor por cima de qualquer cena.',
+  },
+  {
+    date: '2026-11-06',
     time: '04:40',
     kind: 'correção',
     icon: 'film',
