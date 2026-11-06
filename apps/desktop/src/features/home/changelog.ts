@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '09:00',
+    kind: 'novo',
+    icon: 'emoji',
+    title: 'Seletor de emojis em todas as caixas de texto',
+    body: 'O botão de emoji agora aparece em toda caixa de conversa (canais, DMs, respostas em thread, edição de mensagem, post de fórum) e na bio do perfil. Ele traz todos os emojis com busca em português ("gato", "coração", "festa"), os que você usou por último e os emojis personalizados dos seus servidores. Shift+clique escolhe vários sem fechar.',
+  },
+  {
+    date: '2026-11-06',
+    time: '08:50',
+    kind: 'correção',
+    icon: 'sun',
+    title: 'Dicas sem a setinha estranha no modo Vidro',
+    body: 'As dicas que aparecem ao passar o mouse (como o nome do servidor na barra da esquerda) não mostram mais aquele losango por cima da borda no modo Vidro.',
+  },
+  {
+    date: '2026-11-06',
     time: '08:40',
     kind: 'correção',
     icon: 'chats',

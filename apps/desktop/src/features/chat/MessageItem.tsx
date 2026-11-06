@@ -1,7 +1,8 @@
 import { askConfirm } from '../../components/AskDialog';
 import { hasPermission, Permission, type CustomEmoji, type Message } from '@opencord/contracts';
 import { Avatar, Button, Icon, TextArea } from '@opencord/ui';
-import { memo, useEffect, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { EmojiButton } from '../../components/EmojiButton';
 import { useSession, api, describeError } from '../../store/session';
 import { useUi, type MediaItem } from '../../store/ui';
 import { keyOf, normalizeMessage, useData, useMessages, type TargetKey } from '../../store/data';
@@ -78,6 +79,7 @@ export const MessageItem = memo(function MessageItem({
   // edição controlada pelo store: permite "seta para cima" no composer abrir a edição da última mensagem
   const editing = useUi((st) => st.editing === m.id);
   const setEditing = (on: boolean) => useUi.getState().setEditing(on ? m.id : null);
+  const editBox = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState(m.body);
   useEffect(() => {
     if (editing) setDraft(m.body);
@@ -330,14 +332,22 @@ export const MessageItem = memo(function MessageItem({
         </time>
       )}
       {editing ? (
-        <div className="msg-edit">
+        <div className="msg-edit emoji-field">
           <TextArea
+            ref={editBox}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={editKeys}
             autoFocus
             maxLength={4000}
             aria-label="Editar mensagem"
+          />
+          <EmojiButton
+            className="emoji-field-btn"
+            target={editBox}
+            value={draft}
+            onChange={setDraft}
+            serverId={serverId ?? undefined}
           />
           {touchKeyboard ? (
             <span className="msg-edit-actions">

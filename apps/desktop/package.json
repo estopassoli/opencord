@@ -48,6 +48,7 @@
     "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "5.2.0",
     "electron": "44.7.1",
+    "emojibase-data": "17.0.0",
     "esbuild": "0.28.2",
     "eslint-plugin-react-hooks": "7.1.1",
     "jsdom": "27.4.0",

@@ -206,7 +206,6 @@ export function Composer({
   const gifCfg = useData((s) => s.instance?.gifs ?? null);
   const [gifOpen, setGifOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const hasEmojis = useData((s) => s.servers.some((x) => (x.emojis?.length ?? 0) > 0));
   const replyTo = useMessages((s) =>
     replyToId ? s.timelines[targetKey]?.messages.find((m) => m.id === replyToId) : undefined,
   );
@@ -734,10 +733,10 @@ export function Composer({
             onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
             onPaste={onPaste}
           />
-          {hasEmojis && !timedOut && (
+          {!timedOut && (
             <button
               className="icon-btn"
-              aria-label="Emojis personalizados"
+              aria-label="Emojis"
               aria-expanded={emojiOpen}
               data-tip="Emojis"
               onClick={() => setEmojiOpen((o) => !o)}
@@ -750,13 +749,13 @@ export function Composer({
               serverId={serverId}
               anchor={root}
               onClose={() => setEmojiOpen(false)}
-              onPick={(e) => {
+              onPick={(text, keepOpen) => {
                 const at = Math.min(caret, draft.length);
                 const before = draft.slice(0, at);
-                const ins = `${before && !/\s$/.test(before) ? ' ' : ''}:${e.name}: `;
+                const ins = text.startsWith(':') ? `${before && !/\s$/.test(before) ? ' ' : ''}${text} ` : text;
                 setDraft(before + ins + draft.slice(at));
                 placeCaret(at + ins.length);
-                setEmojiOpen(false);
+                if (!keepOpen) setEmojiOpen(false);
               }}
             />
           )}

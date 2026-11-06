@@ -22,6 +22,7 @@ import {
   type RefObject,
 } from 'react';
 import { Dialog } from '../../components/Dialog';
+import { EmojiButton } from '../../components/EmojiButton';
 import { ImageCropDialog } from '../../components/ImageCropDialog';
 import { ProfileCardHead, profileThemeVars, useBannerUrl } from '../../components/ProfileCardView';
 import { bannerImage, keepsAnimation, squareImage } from '../../lib/images';
@@ -437,13 +438,15 @@ export function ProfileEditor({ me }: { me: Me }) {
  * fechar ali jogava o texto do teclado para fora do campo.
  */
 const closeOnFocusMove = (close: () => void) => (e: FocusEvent<HTMLElement>) => {
-  if (e.relatedTarget) close();
+  // o seletor de emojis abre fora do campo (por cima de tudo): ir para ele não fecha
+  if (e.relatedTarget && !(e.relatedTarget as Element).closest('.emoji-panel')) close();
 };
 function useCloseOnOutsideTap(ref: RefObject<HTMLElement | null>, active: boolean, close: () => void) {
   useEffect(() => {
     if (!active) return;
     const down = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) close();
+      const t = e.target as Element;
+      if (!ref.current?.contains(t) && !t.closest?.('.emoji-panel')) close();
     };
     document.addEventListener('pointerdown', down);
     return () => document.removeEventListener('pointerdown', down);
@@ -454,6 +457,7 @@ function useCloseOnOutsideTap(ref: RefObject<HTMLElement | null>, active: boolea
 function BioField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const area = useRef<HTMLTextAreaElement>(null);
   useCloseOnOutsideTap(box, editing, () => setEditing(false));
   return (
     <section className="pc-section">
@@ -461,6 +465,7 @@ function BioField({ value, onChange }: { value: string; onChange: (v: string) =>
       {editing ? (
         <div className="pc-bio-editing" ref={box}>
           <TextArea
+            ref={area}
             bare
             autoFocus
             autoComplete="off"
@@ -478,6 +483,7 @@ function BioField({ value, onChange }: { value: string; onChange: (v: string) =>
               }
             }}
           />
+          <EmojiButton className="pc-bio-emoji" target={area} value={value} onChange={onChange} />
           <span className="pc-bio-count">
             {value.length}/{BIO_MAX}
           </span>

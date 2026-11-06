@@ -13,6 +13,7 @@ import {
 } from '@opencord/contracts';
 import { Avatar, Button, Icon, TextArea, TextField } from '@opencord/ui';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { EmojiButton } from '../../components/EmojiButton';
 import { MobileNavButton } from '../../components/MobileNavButton';
 import { nameFor } from '../../lib/names';
 import { noteSent } from '../../lib/slowmode';
@@ -202,6 +203,7 @@ function NewPost({ channel, onDone }: { channel: Channel; onDone: (posted: boole
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => titleRef.current?.focus(), []);
 
   const submit = async (e: FormEvent) => {
@@ -233,18 +235,28 @@ function NewPost({ channel, onDone }: { channel: Channel; onDone: (posted: boole
         placeholder="Sobre o que é o post?"
         onChange={(e) => setTitle(e.target.value)}
       />
-      <TextArea
-        label="Mensagem"
-        value={body}
-        rows={4}
-        maxLength={4000}
-        placeholder="Conte os detalhes; as respostas ficam penduradas no post."
-        onChange={(e) => setBody(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void submit(e);
-          if (e.key === 'Escape') onDone(false);
-        }}
-      />
+      <div className="emoji-field">
+        <TextArea
+          ref={bodyRef}
+          label="Mensagem"
+          value={body}
+          rows={4}
+          maxLength={4000}
+          placeholder="Conte os detalhes; as respostas ficam penduradas no post."
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void submit(e);
+            if (e.key === 'Escape') onDone(false);
+          }}
+        />
+        <EmojiButton
+          className="emoji-field-btn"
+          target={bodyRef}
+          value={body}
+          onChange={setBody}
+          serverId={channel.serverId}
+        />
+      </div>
       {error && (
         <p className="form-error" role="alert">
           {error}

@@ -1333,3 +1333,8 @@ html[data-layout='vidro'] .panel-resizer[data-panel='members'] {
   bottom: 12px;
   width: 10px;
 }
+/* a setinha das dicas herdava o vidro (translúcido, com brilho) e virava um losango por cima da borda: no vidro a
+   dica flutua sem ela */
+html[data-layout='vidro'] :is(.tooltip-left, .tooltip-right)::before {
+  display: none;
+}

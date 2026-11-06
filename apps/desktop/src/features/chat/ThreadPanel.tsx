@@ -6,6 +6,7 @@
 import type { Message } from '@opencord/contracts';
 import { Avatar, Icon, TextArea } from '@opencord/ui';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { EmojiButton } from '../../components/EmojiButton';
 import { useAliases } from '../../lib/names';
 import { mergeMessages, useData, useMessages, type TargetKey } from '../../store/data';
 import { api, describeError } from '../../store/session';
@@ -37,6 +38,7 @@ export function ThreadPanel({ thread }: { thread: { key: TargetKey; rootId: stri
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const list = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
 
   const nameOf = (id: string) => {
     const m = detail?.members.find((x) => x.user.id === id);
@@ -146,6 +148,7 @@ export function ThreadPanel({ thread }: { thread: { key: TargetKey; rootId: stri
       </div>
       <div className="thread-composer">
         <TextArea
+          ref={box}
           bare
           rows={1}
           value={draft}
@@ -155,6 +158,7 @@ export function ThreadPanel({ thread }: { thread: { key: TargetKey; rootId: stri
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKey}
         />
+        <EmojiButton target={box} value={draft} onChange={setDraft} serverId={detail?.id} />
         <button
           className="icon-btn"
           aria-label="Enviar resposta"
