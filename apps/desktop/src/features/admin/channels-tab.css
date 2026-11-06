@@ -233,7 +233,12 @@
 .ch-editor-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* cada campo na altura dele: um campo com mais texto não estica os vizinhos */
+  align-items: start;
   gap: 12px;
+}
+.ch-editor-hint {
+  margin: -4px 0 0;
 }
 .ch-editor-switches {
   display: flex;

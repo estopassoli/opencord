@@ -338,7 +338,6 @@ function ChannelEditor({ channel, detail, canEdit }: { channel: Channel; detail:
           {(isText || channel.kind === 'forum') && (
             <Select<string>
               label="Modo lento"
-              hint="Tempo entre duas mensagens da mesma pessoa. Quem gerencia mensagens não espera."
               value={String(channel.slowmodeSec)}
               disabled={!canEdit || busy}
               onChange={(v) => {
@@ -365,6 +364,11 @@ function ChannelEditor({ channel, detail, canEdit }: { channel: Channel; detail:
             />
           )}
         </div>
+        {(isText || channel.kind === 'forum') && (
+          <p className="muted small ch-editor-hint">
+            Modo lento: tempo entre duas mensagens da mesma pessoa. Quem gerencia mensagens não espera.
+          </p>
+        )}
 
         {canEdit && channel.kind !== 'board' && (
           <div className="ch-editor-switches">
