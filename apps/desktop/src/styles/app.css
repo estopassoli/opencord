@@ -3140,6 +3140,9 @@ body {
 .titlebar-update {
   color: var(--success);
 }
+.titlebar-streamer {
+  color: var(--danger);
+}
 .titlebar-update:hover:not(:disabled) {
   color: var(--success);
 }

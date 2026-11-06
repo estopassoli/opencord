@@ -1,3 +1,4 @@
+import { useStreamer } from '../../lib/streamer';
 import { Icon } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import type { UpdateStatus, WindowControl } from '../../../electron/shared/ipc';
@@ -49,6 +50,24 @@ export function UpdateButton() {
         </button>
       </Tooltip>
     </>
+  );
+}
+
+/** Modo streamer ligado: aviso na barra de título; o clique abre as opções dele. */
+function StreamerButton() {
+  const active = useStreamer((x) => x.active);
+  if (!active) return null;
+  const label = 'Modo streamer ligado: e-mail, convites e texto das notificações escondidos. Clique para ajustar';
+  return (
+    <Tooltip label={label} side="bottom">
+      <button
+        className="titlebar-btn titlebar-streamer"
+        aria-label={label}
+        onClick={() => useUi.getState().openModal({ kind: 'settings', tab: 'streamer' })}
+      >
+        <Icon name="screen" size={16} />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -141,6 +160,7 @@ export function TitleBar() {
         <span className="truncate">{text}</span>
       </div>
       <div className="titlebar-actions">
+        <StreamerButton />
         <UpdateButton />
         <WindowControls />
       </div>
