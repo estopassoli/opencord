@@ -7,6 +7,7 @@ import { ClipAudio } from '../clips/audio';
 import { muxClip } from '../clips/mux';
 import { ChunkRing, type StoredChunk } from '../clips/ring';
 import { bridge } from '../lib/bridge';
+import { clipNotice } from '../lib/overlay';
 import { playSound } from '../lib/sounds';
 import { useData } from './data';
 import { useGames } from './games';
@@ -291,9 +292,12 @@ export async function saveClip() {
   logClips(`clipes: atalho recebido (gravando: ${session ? 'sim' : 'não'}; jogo: ${game?.name ?? 'nenhum'})`);
   if (!session) {
     if (!game) ui.toast('info', 'Os clipes funcionam com um jogo aberto (Configurações → Jogos).');
-    else if (starting) ui.toast('info', 'A gravação do clipe está começando; tente de novo em alguns segundos.');
-    else {
+    else if (starting) {
+      clipNotice('A gravação ainda está começando', false);
+      ui.toast('info', 'A gravação do clipe está começando; tente de novo em alguns segundos.');
+    } else {
       // jogo aberto, mas a gravação caiu ou não começou: avisa o motivo e tenta de novo
+      clipNotice('Os clipes não estão gravando', false);
       ui.toast('error', `Os clipes não estão gravando${startError ? ` (${startError})` : ''}. Tentando de novo…`);
       syncClips();
     }
@@ -301,7 +305,10 @@ export async function saveClip() {
   }
   if (useClips.getState().saving) return;
   const snap = ring.snapshot();
-  if (!snap) return ui.toast('info', 'Ainda não há nada gravado; tente de novo em alguns segundos.');
+  if (!snap) {
+    clipNotice('Ainda não há nada gravado', false);
+    return ui.toast('info', 'Ainda não há nada gravado; tente de novo em alguns segundos.');
+  }
   useClips.setState({ saving: true });
   try {
     const data = await muxClip(session, fpsNow, snap, audioNames);
@@ -318,7 +325,9 @@ export async function saveClip() {
     });
     playSound('clip');
     await useClips.getState().loadLibrary();
-    ui.toast('success', `Clipe de ${Math.round(durationMs / 1000)} s salvo.`, {
+    const secs = Math.round(durationMs / 1000);
+    clipNotice(`Clipe de ${secs} ${secs === 1 ? 'segundo' : 'segundos'} salvo`, true);
+    ui.toast('success', `Clipe de ${secs} s salvo.`, {
       label: 'Abrir',
       run: () => {
         const c = useClips.getState().library.find((x) => x.file === file);
@@ -327,6 +336,7 @@ export async function saveClip() {
     });
   } catch (e) {
     logClips(`clipes: não salvou (${reasonOf(e)})`);
+    clipNotice('Não consegui salvar o clipe', false);
     ui.toast('error', `Não consegui salvar o clipe (${reasonOf(e)}).`);
   } finally {
     useClips.setState({ saving: false });

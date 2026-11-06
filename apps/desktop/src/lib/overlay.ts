@@ -50,22 +50,36 @@ export const useOverlayPrefs = create<OverlayPrefs & { set(p: Partial<OverlayPre
 interface Notice {
   id: number;
   text: string;
-  kind: 'info' | 'error' | 'success';
+  kind: 'info' | 'error' | 'success' | 'clip' | 'clip-error';
   until: number;
+  /** aparece mesmo com o overlay desligado nas preferências (resposta ao atalho de clipe) */
+  force?: boolean;
 }
 let notices: Notice[] = [];
 let seq = 0;
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 /** Aviso curto no overlay (some sozinho). */
-export function overlayNotice(text: string, kind: Notice['kind'] = 'info') {
-  notices = [...notices.slice(-4), { id: ++seq, text, kind, until: Date.now() + NOTICE_MS }];
+export function overlayNotice(text: string, kind: Notice['kind'] = 'info', force = false) {
+  notices = [...notices.slice(-4), { id: ++seq, text, kind, until: Date.now() + NOTICE_MS, force }];
   push();
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => {
     notices = notices.filter((n) => n.until > Date.now());
     push();
   }, NOTICE_MS + 50);
+}
+
+/** o próximo aviso do app não se repete no overlay: é o mesmo do aviso de clipe que acabou de sair */
+let skipNextToast = false;
+
+/**
+ * Aviso de clipe por cima do jogo: cartão próprio, mesmo com o overlay desligado (o atalho pede uma resposta). Chamar
+ * logo antes do ui.toast equivalente.
+ */
+export function clipNotice(text: string, ok: boolean) {
+  skipNextToast = true;
+  overlayNotice(text, ok ? 'clip' : 'clip-error', true);
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -96,32 +110,34 @@ function build(): OverlayState {
   const channel = detail?.channels.find((c) => c.id === v.machine.channelId)?.name;
   const aliases = data.settings?.friendNicknames;
   const inChannel = Object.values(data.voiceStates).filter((x) => x.channelId === v.machine.channelId);
-  const live = notices.filter((n) => n.until > Date.now());
+  // overlay desligado: só os avisos de clipe (pedidos pelo atalho) aparecem
+  const live = notices.filter((n) => n.until > Date.now() && (prefs.enabled || n.force));
   return {
-    visible: prefs.enabled && Boolean(game) && (inCall || live.length > 0),
+    visible: Boolean(game) && ((prefs.enabled && inCall) || live.length > 0),
     corner: prefs.corner,
-    call: inCall
-      ? {
-          channel: (channel ?? 'Chamada').slice(0, 64),
-          startedAt: callStartOf(inChannel),
-          muted: v.selfMute,
-          deafened: v.selfDeaf,
-          people: v.participants.slice(0, 50).map((p) => {
-            // mesmo nome e cor da lista de canais: apelido que dei > apelido no servidor > nome
-            const m = detail?.members.find((x) => x.user.id === p.identity);
-            const color = detail ? roleColorOf(detail, m) : undefined;
-            return {
-              id: p.identity.slice(0, 64),
-              name: (aliases?.[p.identity] ?? m?.nickname ?? m?.user.displayName ?? p.name).slice(0, 64),
-              speaking: p.speaking,
-              muted: p.micMuted,
-              me: p.isLocal,
-              color: color && HEX.test(color) ? color : null,
-              avatar: avatarOf(p.identity),
-            };
-          }),
-        }
-      : null,
+    call:
+      prefs.enabled && inCall
+        ? {
+            channel: (channel ?? 'Chamada').slice(0, 64),
+            startedAt: callStartOf(inChannel),
+            muted: v.selfMute,
+            deafened: v.selfDeaf,
+            people: v.participants.slice(0, 50).map((p) => {
+              // mesmo nome e cor da lista de canais: apelido que dei > apelido no servidor > nome
+              const m = detail?.members.find((x) => x.user.id === p.identity);
+              const color = detail ? roleColorOf(detail, m) : undefined;
+              return {
+                id: p.identity.slice(0, 64),
+                name: (aliases?.[p.identity] ?? m?.nickname ?? m?.user.displayName ?? p.name).slice(0, 64),
+                speaking: p.speaking,
+                muted: p.micMuted,
+                me: p.isLocal,
+                color: color && HEX.test(color) ? color : null,
+                avatar: avatarOf(p.identity),
+              };
+            }),
+          }
+        : null,
     notices: live.map(({ id, text, kind }) => ({ id, text, kind })),
   };
 }
@@ -155,6 +171,10 @@ export function startOverlay() {
     for (const t of s.toasts) {
       if (t.id <= seenToast) continue;
       seenToast = t.id;
+      if (skipNextToast) {
+        skipNextToast = false;
+        continue;
+      }
       overlayNotice(t.text, t.kind);
     }
   });

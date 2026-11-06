@@ -43,7 +43,13 @@ export const OverlayState = z.object({
     })
     .nullable(),
   notices: z
-    .array(z.object({ id: z.number().int(), text: z.string().max(200), kind: z.enum(['info', 'error', 'success']) }))
+    .array(
+      z.object({
+        id: z.number().int(),
+        text: z.string().max(200),
+        kind: z.enum(['info', 'error', 'success', 'clip', 'clip-error']),
+      }),
+    )
     .max(5),
 });
 export type OverlayState = z.infer<typeof OverlayState>;

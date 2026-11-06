@@ -106,8 +106,16 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8">
   .notice{background:rgba(12,13,16,.7);border-left:3px solid #4d56fd;border-radius:8px;padding:6px 10px;
     text-shadow:0 1px 2px rgba(0,0,0,.85);animation:in .15s ease-out}
   .notice.error{border-left-color:#da373c}.notice.success{border-left-color:#3fb27f}
+  .clip{display:flex;align-items:center;gap:10px;background:rgba(12,13,16,.8);border:1px solid rgba(63,178,127,.55);
+    border-radius:12px;padding:10px 14px 10px 10px;box-shadow:0 8px 24px rgba(0,0,0,.45);animation:pop .22s ease-out}
+  .clip .ic{flex:none;width:32px;height:32px;border-radius:9px;background:#3fb27f;display:grid;place-items:center}
+  .clip .ic svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  .clip b{display:block;font-size:14px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.85)}
+  .clip small{display:block;margin-top:1px;font-size:11px;color:#c9ccd1}
+  .clip.clip-error{border-color:rgba(218,55,60,.6)}.clip.clip-error .ic{background:#da373c}
+  @keyframes pop{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
   @keyframes in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
-  @media (prefers-reduced-motion:reduce){.notice{animation:none}.av{transition:none}}
+  @media (prefers-reduced-motion:reduce){.notice,.clip{animation:none}.av{transition:none}}
 </style></head><body><div id="call"></div><div id="notices"></div><script>
   const PALETTE = ['#4d56fd','#7a4fd1','#b4542c','#2d6cb5','#8a6d12','#a3376b','#3f7d3a','#5b5f6b'];
   const colorOf = (id) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return PALETTE[h % PALETTE.length]; };
@@ -116,6 +124,20 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8">
   const fmt = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600);
     const m = String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, '0'), x = String(s % 60).padStart(2, '0');
     return h ? h + ':' + m + ':' + x : m + ':' + x; };
+  // ícones montados pelo DOM (sem innerHTML): claquete com visto / alerta
+  const SVG = 'http://www.w3.org/2000/svg';
+  const icon = (paths) => { const s = document.createElementNS(SVG, 'svg'); s.setAttribute('viewBox', '0 0 24 24');
+    for (const d of paths) { const p = document.createElementNS(SVG, 'path'); p.setAttribute('d', d); s.append(p); } return s; };
+  const clipCard = (n) => {
+    const ok = n.kind === 'clip';
+    const card = el('div', 'clip ' + n.kind);
+    const ic = el('span', 'ic');
+    ic.append(icon(ok ? ['M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 'M4 8l2-4h12l2 4', 'M9 14l2 2 4-4'] : ['M12 8v5', 'M12 16.5v.5', 'M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z']));
+    const txt = el('span');
+    txt.append(el('b', null, n.text), el('small', null, ok ? 'Veja em Clipes, no OpenCord' : 'Detalhes no OpenCord'));
+    card.append(ic, txt);
+    return card;
+  };
   let startedAt = null;
   const tick = () => { const t = document.getElementById('time'); if (t && startedAt) t.textContent = fmt(Date.now() - startedAt); };
   setInterval(tick, 1000);
@@ -147,6 +169,6 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8">
       call.append(card);
       tick();
     }
-    notices.replaceChildren(...s.notices.map((n) => el('div', 'notice ' + n.kind, n.text)));
+    notices.replaceChildren(...s.notices.map((n) => (n.kind === 'clip' || n.kind === 'clip-error' ? clipCard(n) : el('div', 'notice ' + n.kind, n.text))));
   });
 </script></body></html>`;

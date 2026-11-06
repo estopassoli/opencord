@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '09:10',
+    kind: 'melhoria',
+    icon: 'film',
+    title: 'Aviso de clipe por cima do jogo',
+    body: 'Ao apertar o atalho de clipe, aparece por cima do jogo um cartão "Clipe de 30 segundos salvo" (com a duração real), mesmo com o overlay desligado. Se não deu para salvar (a gravação ainda está começando, ou não está gravando), o cartão avisa em vermelho. Funciona com o jogo em janela ou em tela cheia sem borda.',
+  },
+  {
+    date: '2026-11-06',
     time: '09:00',
     kind: 'novo',
     icon: 'emoji',
