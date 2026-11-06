@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -63,8 +64,10 @@ describe('download do app desktop (para quem usa pelo navegador)', () => {
 
   it('link externo configurado tem prioridade', async () => {
     const h = await start({ DESKTOP_DOWNLOAD_URL: 'https://downloads.exemplo.com/OpenCord.exe', DOWNLOADS_DIR: DIR });
-    const r = await h.req<{ windows: { url: string } }>('GET', '/downloads/desktop');
+    const r = await h.req<{ windows: { url: string; sha256: string | null } }>('GET', '/downloads/desktop');
     expect(r.body.windows.url).toBe('https://downloads.exemplo.com/OpenCord.exe');
+    // link externo: a API não tem o arquivo para calcular o hash
+    expect(r.body.windows.sha256).toBeNull();
     // as demais plataformas continuam vindo da pasta
     const files = (r.body as unknown as { files: { platform: string; url: string }[] }).files;
     expect(files.filter((f) => f.platform === 'windows').map((f) => f.url)).toEqual([
@@ -96,7 +99,13 @@ describe('download do app desktop (para quem usa pelo navegador)', () => {
       'GET',
       '/downloads/desktop',
     );
-    expect(r.body.windows).toMatchObject({ version: '0.2.0', sizeBytes: 2048, fileName: 'OpenCord Setup 0.2.0.exe' });
+    expect(r.body.windows).toMatchObject({
+      version: '0.2.0',
+      sizeBytes: 2048,
+      fileName: 'OpenCord Setup 0.2.0.exe',
+      // o app confere o hash antes de instalar sozinho
+      sha256: createHash('sha256').update(Buffer.alloc(2048, 2)).digest('hex'),
+    });
     const res = await fetch(r.body.windows.url);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-disposition')).toContain('attachment');

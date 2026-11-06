@@ -38,7 +38,7 @@ export function UpdateDialog({
       actions={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancelar
+            {ready ? 'Depois' : 'Cancelar'}
           </Button>
           <Button
             icon="download"
@@ -47,7 +47,7 @@ export function UpdateDialog({
               void bridge?.updates.install();
             }}
           >
-            {ready ? 'Atualizar' : 'Baixar'}
+            {ready ? 'Reiniciar e atualizar agora' : 'Baixar'}
           </Button>
         </>
       }
@@ -73,7 +73,9 @@ export function UpdateDialog({
         )}
         <p className="update-warn small">
           {ready
-            ? `Atualizar fecha e abre o OpenCord de novo${inCall ? ' e encerra a chamada' : ''}. Leva alguns segundos.`
+            ? `Agora: fecha e abre o OpenCord de novo${inCall ? ' e encerra a chamada' : ''}, em alguns segundos. ` +
+              'Se preferir, ela é instalada sozinha quando você fechar o OpenCord ou ficar um tempo longe do ' +
+              'computador — nunca durante uma chamada.'
             : 'O instalador da versão nova será baixado pelo navegador.'}
         </p>
       </div>

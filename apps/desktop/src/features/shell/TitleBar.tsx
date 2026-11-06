@@ -28,7 +28,7 @@ export function UpdateButton() {
     s.state === 'downloading'
       ? `Baixando atualização ${s.version}… ${s.progress}%`
       : s.state === 'ready'
-        ? `Atualização pronta! Clique para reiniciar e atualizar para a versão ${s.version}`
+        ? `Atualização ${s.version} pronta: instala sozinha ao fechar o OpenCord. Clique para reiniciar e atualizar agora`
         : `Atualização ${s.version} disponível. Clique para baixar`;
   const install = () => {
     if (!bridge || s.state === 'downloading') return;

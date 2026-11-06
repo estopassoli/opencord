@@ -1,6 +1,7 @@
 /**
- * Atualização "avisar e baixar": com um instalador mais novo publicado no servidor, o app baixa e mostra
- * "Atualização pronta" na barra de título. O instalador aqui é falso e NUNCA é executado (o teste não clica).
+ * Atualização: com um instalador mais novo publicado no servidor, o app baixa, confere o SHA-256 e mostra
+ * "Atualização pronta" na barra de título. O instalador aqui é falso e NUNCA é executado: o teste não clica e,
+ * sem empacotar, a instalação automática (ocioso/ao encerrar) fica desligada (ADR-0051).
  * Requer a API de dev com DOWNLOADS_DIR apontando para `release/` do app (ver .env de dev).
  */
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
@@ -33,7 +34,7 @@ test('versão nova publicada → baixa e mostra "Atualização pronta"', async (
   await page.evaluate(() =>
     (window as unknown as { opencord: { updates: { check(): Promise<unknown> } } }).opencord.updates.check(),
   );
-  const btn = page.getByRole('button', { name: /^Atualização pronta! .* 9\.9\.9$/ });
+  const btn = page.getByRole('button', { name: /^Atualização 9\.9\.9 pronta/ });
   await expect(btn).toBeVisible({ timeout: 20_000 });
   await btn.hover();
   await page.screenshot({ path: path.join(__dirname, 'results', '40-atualizacao-pronta.png') });
@@ -47,16 +48,16 @@ test('versão nova publicada → baixa e mostra "Atualização pronta"', async (
   await page.evaluate(() =>
     (window as unknown as { opencord: { updates: { check(): Promise<unknown> } } }).opencord.updates.check(),
   );
-  await expect(page.getByRole('button', { name: /^Atualização pronta! .* 9\.9\.10$/ })).toBeVisible({
+  await expect(page.getByRole('button', { name: /^Atualização 9\.9\.10 pronta/ })).toBeVisible({
     timeout: 20_000,
   });
   expect(statSync(dl('9.9.10')).size).toBe(32 * 1024);
   expect(existsSync(dl('9.9.9'))).toBe(false);
-  // clicar abre o diálogo com as novidades e a escolha; Cancelar não instala nada
-  await page.getByRole('button', { name: /^Atualização pronta! .* 9\.9\.10$/ }).click();
+  // clicar abre o diálogo com as novidades e a escolha; Depois não instala nada
+  await page.getByRole('button', { name: /^Atualização 9\.9\.10 pronta/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Atualização 9.9.10' });
-  await expect(dialog.getByRole('button', { name: 'Atualizar' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Reiniciar e atualizar agora' })).toBeVisible();
   await page.screenshot({ path: path.join(__dirname, 'results', '41-dialogo-atualizacao.png') });
-  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await dialog.getByRole('button', { name: 'Depois' }).click();
   await expect(dialog).toHaveCount(0);
 });

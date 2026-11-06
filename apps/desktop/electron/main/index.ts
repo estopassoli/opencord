@@ -66,7 +66,18 @@ import { OverlayState } from '../shared/overlay';
 import { secureAvailable, secureDelete, secureGet, secureSet } from './secure-store';
 import { appIcon, badgeIcon, trayIcon } from './icons';
 import { readAppPrefs, writeAppPrefs } from './app-prefs';
-import { checkForUpdate, checkIfStale, installUpdate, startUpdater, updateStatus } from './updater';
+import {
+  autoInstallIfSafe,
+  checkForUpdate,
+  checkIfStale,
+  consumeRelaunchMarker,
+  installOnQuit,
+  installUpdate,
+  markSessionEnding,
+  relaunchIntoUpdate,
+  startUpdater,
+  updateStatus,
+} from './updater';
 import { GameDetector } from './games';
 import { logRendererError } from './crash-log';
 import {
@@ -222,7 +233,14 @@ function createWindow() {
     }
   });
   win.removeMenu();
-  win.once('ready-to-show', () => win?.show());
+  // reaberto pelo instalador depois de atualizar sozinho com a janela escondida: continua na bandeja
+  const startHidden = consumeRelaunchMarker();
+  win.once('ready-to-show', () => {
+    if (!startHidden) win?.show();
+  });
+  // desligando o Windows: não começar a instalação da atualização (seria cortada no meio)
+  win.on('query-session-end', () => markSessionEnding());
+  win.on('session-end', () => markSessionEnding());
   win.on('focus', () => checkIfStale());
 
   const wc = win.webContents;
@@ -285,7 +303,10 @@ const quitForUpdate = () => {
 function updateMenuItem(): Electron.MenuItemConstructorOptions {
   const u = updateStatus();
   if (u.state === 'ready' || u.state === 'available')
-    return { label: `Instalar atualização ${u.version}`, click: () => void installUpdate(quitForUpdate) };
+    return {
+      label: u.state === 'ready' ? `Reiniciar e atualizar agora (${u.version})` : `Baixar atualização ${u.version}`,
+      click: () => void installUpdate(quitForUpdate),
+    };
   if (u.state === 'downloading') return { label: `Baixando atualização ${u.version}… ${u.progress}%`, enabled: false };
   return { label: 'Procurar atualização', click: () => void checkForUpdate().then(buildTrayMenu) };
 }
@@ -461,6 +482,8 @@ function registerIpc() {
     if (s.success) updateOverlay(s.data);
   });
   handle(IPC.appRelaunch, [], () => {
+    // com atualização pronta, o instalador reabre o app já na versão nova
+    if (relaunchIntoUpdate(quitForUpdate)) return;
     quitting = true;
     app.relaunch();
     app.quit();
@@ -495,6 +518,22 @@ app.whenReady().then(() => {
   });
   // ausente automático: a janela decide a partir do tempo sem teclado/mouse no sistema
   setInterval(() => send(IPC.evIdle, powerMonitor.getSystemIdleTime()), 30_000).unref();
+  // instalação automática: a cada minuto confere se a pessoa está longe e fora de chamada/jogo (ADR-0051)
+  setInterval(
+    () =>
+      void autoInstallIfSafe(
+        () => ({
+          platform: process.platform,
+          ready: updateStatus().state === 'ready',
+          inVoice: voice.inVoice,
+          gameRunning: games.game !== null,
+          windowVisible: Boolean(win && win.isVisible() && !win.isMinimized()),
+          idleSeconds: powerMonitor.getSystemIdleTime(),
+        }),
+        quitForUpdate,
+      ),
+    60_000,
+  ).unref();
   startUpdater((s) => {
     send(IPC.evUpdate, s);
     // o menu da bandeja acompanha (rebaixa o progresso só a cada mudança de estado/10%)
@@ -506,6 +545,8 @@ app.on('before-quit', () => {
   quitting = true;
 });
 app.on('will-quit', () => {
+  // atualização pronta: instala em silêncio ao encerrar (a próxima abertura já é a versão nova)
+  installOnQuit();
   globalShortcut.unregisterAll();
   games.stop();
   stopAllOutputs();

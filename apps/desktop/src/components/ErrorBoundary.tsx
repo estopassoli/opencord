@@ -107,7 +107,7 @@ function Fatal({ error, details }: { error: Error; details: string }) {
         {bridge &&
           (ready ? (
             <Button icon="download" onClick={() => void bridge?.updates.install()}>
-              Atualizar agora
+              {update?.state === 'ready' ? 'Reiniciar e atualizar agora' : 'Baixar a versão nova'}
             </Button>
           ) : (
             <Button icon="download" disabled={checking || update?.state === 'downloading'} onClick={() => void check()}>

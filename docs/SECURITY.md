@@ -52,7 +52,7 @@ Testar IDOR, permissões por canal, tokens expirados, reuso de convites, rate li
 | IPC | allowlist + Zod + verificação do remetente; E2E prova sem `require`/`process` no renderer e rejeição de argumento inválido |
 | Electron fuses | REA `inspect_electron_fuses` no build empacotado: RunAsNode, NODE_OPTIONS e inspect desativados; ASAR integrity e onlyLoadAppFromAsar ativados |
 | Revogação de mídia | `voice.int.test.ts` + E2E: kick ou perda de CONNECT remove da SFU em < 5 s |
-| Atualização | sem auto-update silencioso: o app baixa o instalador novo do próprio servidor (mesma origem, https, nome validado) e só executa no clique "Atualização pronta"; instalador não assinado (SmartScreen avisará) |
+| Atualização | Windows: atualização automática (ADR-0051) — o app só aceita instalador do próprio servidor (mesma origem, https, nome validado), confere tamanho e SHA-256 publicado pela API (refeito antes de executar) e instala em silêncio ao encerrar ou com a pessoa longe do PC, nunca em chamada; falha na conferência = nada roda. Instalador não assinado: o hash não protege contra servidor comprometido (assinatura própria/certificado pendentes). macOS/Linux: só avisa e abre o download |
 
 Pendências: auditoria por terceiros, teste de abuso de banda com clientes reais, assinatura de código, política de retenção.
 

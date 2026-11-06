@@ -98,7 +98,8 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 - [x] F5.3 Settings voz/vídeo, atalhos, perfil, aparência e persistência.
   - Persistência versionada (int test); E2E abre as configurações e navega por teclado.
 - [ ] F5.4 Instalador Windows, versionamento e atualização assinada quando disponível.
-  - `OpenCord Setup 0.1.0.exe` (NSIS) gerado e app empacotado testado. **Não assinado** (sem certificado); auto-update desativado. Instalação manual pelo usuário não testada.
+  - `OpenCord Setup 0.1.0.exe` (NSIS) gerado e app empacotado testado. **Não assinado** (sem certificado). Instalação manual pelo usuário não testada.
+  - 2026-11-06 (ADR-0051): atualização automática no Windows — baixa, confere SHA-256 (novo `sha256` em `/downloads/desktop`) e instala em silêncio ao encerrar ou ocioso fora de chamada/jogo; "Reiniciar e atualizar agora" mantido. Evidência: `vitest run` desktop (update-core: `shouldAutoInstall`, `hashMatches`, `installerArgs`, marca de reabertura), int `downloads.int.test.ts` (hash publicado), typecheck/lint. **BLOQUEADO PARA VALIDAÇÃO** em Windows real: `/S --updated [--force-run]`, reabertura escondida, recusa no desligamento e ausência de SmartScreen não foram executados.
 - [ ] F5.5 Acessibilidade, layout responsivo desktop e reduced motion.
   - Foco visível, roles/labels, tabs por teclado, contraste AA, reduced motion. **Sem auditoria** em 1280×720/1920×1080/2560×1440 nem leitor de tela.
 **Gate F5:** instalador e experiência de uso diária testados.
@@ -175,6 +176,7 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-05 | Tempo da chamada ao lado do canal de voz com gente: `callStartedAt` no estado de voz (quem entra herda dos presentes; não zera quando quem abriu sai) | int `voice.int.test.ts` 18/18 (LiveKit real); desktop typecheck/lint verdes | verde | sem migração (Redis); API antiga sem o campo: app usa a entrada mais antiga |
 | 2026-11-05 | Esconder a lista de canais (lembrado no aparelho; desktop): rail encolhe o grid, painel ao passar o mouse no rail ancorado no ícone do servidor com quem está na minha chamada, tempo, mic/áudio/sair e "Mostrar canais"; vale no layout vidro | desktop 229/229; typecheck/lint verdes; render headless do rail + painel | verde | conferir no app real |
 | 2026-11-05 | Overlay no jogo: fundo translúcido com sombra no texto, tempo da chamada, foto (só http/https, CSP `img-src https: http:`), cor do cargo e apelido; HTML montado por DOM (sem innerHTML) | typecheck electron; render headless do HTML do overlay | verde | precisa da atualização do app; conferir num jogo real |
+| 2026-11-06 | F5.4 atualização automática no Windows (ADR-0051): SHA-256 na API e no download, instala ao encerrar/ocioso fora de chamada e jogo, "Reiniciar e atualizar agora" | desktop `pnpm typecheck`, `eslint electron src test`, `vitest run` (update-core 20 testes); api int `downloads.int.test.ts` 6/6 | verde | instalação silenciosa e reabertura não testadas em Windows real |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

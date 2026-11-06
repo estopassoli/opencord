@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -18,6 +19,8 @@ export interface DesktopFile {
   fileName: string | null;
   version: string | null;
   sizeBytes: number | null;
+  /** SHA-256 (hex) do arquivo; o app desktop confere antes de instalar. null = link externo (sem como calcular). */
+  sha256: string | null;
 }
 
 export interface DesktopDownload {
@@ -74,7 +77,7 @@ export function cleanNotes(raw: unknown, version: string): ReleaseNotes {
 }
 
 /** Plataforma/arquitetura pelo nome (padrão do electron-builder.yml; "OpenCord Setup x.y.z.exe" antigo = x64). */
-export function classify(name: string): Omit<DesktopFile, 'url' | 'sizeBytes'> | null {
+export function classify(name: string): Omit<DesktopFile, 'url' | 'sizeBytes' | 'sha256'> | null {
   const m = SAFE_NAME.exec(name);
   if (!m) return null;
   const f = FORMATS[m[1]!.toLowerCase()]!;
@@ -87,9 +90,38 @@ export function classify(name: string): Omit<DesktopFile, 'url' | 'sizeBytes'> |
   };
 }
 
+/** SHA-256 de um arquivo, lido em fluxo (instaladores têm ~100 MB). */
+function hashFile(file: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const h = createHash('sha256');
+    createReadStream(file)
+      .on('data', (c) => h.update(c))
+      .on('error', reject)
+      .on('end', () => resolve(h.digest('hex')));
+  });
+}
+
 @Controller('downloads')
 export class DownloadsController {
+  /**
+   * Hash por nome+tamanho+data: calculado uma vez por instalador publicado (a 1ª consulta depois de publicar espera
+   * a leitura do arquivo; consultas simultâneas aguardam o mesmo cálculo). Só guarda os arquivos da listagem atual.
+   */
+  private readonly hashes = new Map<string, Promise<string>>();
+
   constructor(@Inject(APP_CONFIG) private readonly cfg: AppConfig) {}
+
+  private sha256(file: string, size: number, mtime: number): Promise<string | null> {
+    const key = `${file}|${size}|${mtime}`;
+    let p = this.hashes.get(key);
+    if (!p) {
+      p = hashFile(file);
+      this.hashes.set(key, p);
+      // falhou (arquivo trocado no meio): tenta de novo na próxima consulta
+      p.catch(() => this.hashes.delete(key));
+    }
+    return p.catch(() => null);
+  }
 
   private async latestFiles(): Promise<DesktopFile[]> {
     const dir = this.cfg.DOWNLOADS_DIR;
@@ -108,17 +140,24 @@ export class DownloadsController {
         ...c,
         url: `${this.cfg.PUBLIC_API_URL}/downloads/files/${encodeURIComponent(name)}`,
         sizeBytes: st.size,
+        sha256: null,
         mtime: st.mtimeMs,
       });
     }
-    return [...best.values()]
-      .map(({ mtime: _mtime, ...f }) => f)
-      .sort(
-        (a, b) =>
-          ORDER.indexOf(a.platform) - ORDER.indexOf(b.platform) ||
-          a.arch.localeCompare(b.arch) ||
-          a.format.localeCompare(b.format),
-      );
+    const keep = new Set([...best.values()].map((f) => `${path.join(dir, f.fileName!)}|${f.sizeBytes}|${f.mtime}`));
+    for (const k of this.hashes.keys()) if (!keep.has(k)) this.hashes.delete(k);
+    const files = await Promise.all(
+      [...best.values()].map(async ({ mtime, ...f }) => ({
+        ...f,
+        sha256: await this.sha256(path.join(dir, f.fileName!), f.sizeBytes!, mtime),
+      })),
+    );
+    return files.sort(
+      (a, b) =>
+        ORDER.indexOf(a.platform) - ORDER.indexOf(b.platform) ||
+        a.arch.localeCompare(b.arch) ||
+        a.format.localeCompare(b.format),
+    );
   }
 
   /** Para os botões "Baixar para Windows/macOS/Linux" exibidos a quem usa pelo navegador. */
@@ -135,6 +174,7 @@ export class DownloadsController {
         fileName: null,
         version: null,
         sizeBytes: null,
+        sha256: null,
       };
       return { windows, files: [windows, ...files.filter((f) => f.platform !== 'windows')] };
     }
