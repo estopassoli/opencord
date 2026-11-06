@@ -1784,6 +1784,32 @@ export const GifFavorite = z.object({
 });
 export type GifFavorite = z.infer<typeof GifFavorite>;
 
+/**
+ * Notificação de um servidor ou canal só para mim. `level` null = herda (canal → servidor → padrão do servidor);
+ * `mutedUntil` null = não silenciado, 0 = silenciado até eu reativar, outro = silenciado até esse instante (ms).
+ */
+export const NotifyOverride = z.object({
+  level: z.enum(['all', 'mentions', 'none']).nullable().default(null),
+  mutedUntil: z.number().int().nonnegative().nullable().default(null),
+});
+export type NotifyOverride = z.infer<typeof NotifyOverride>;
+export const KEYWORDS_MAX = 20;
+
+/** Lembrete de mensagem: na hora, notificação com o trecho e um atalho para a mensagem. */
+export const MessageReminder = z.object({
+  id: z.string().min(1).max(64),
+  /** quando avisar (ms desde 1970) */
+  at: z.number().int().positive(),
+  messageId: Id,
+  channelId: Id.nullable().default(null),
+  serverId: Id.nullable().default(null),
+  conversationId: Id.nullable().default(null),
+  author: z.string().max(64).default(''),
+  excerpt: z.string().max(200).default(''),
+});
+export type MessageReminder = z.infer<typeof MessageReminder>;
+export const REMINDERS_MAX = 50;
+
 export const UserSettingsV1 = z.object({
   version: z.literal(1),
   audio: z
@@ -1869,8 +1895,28 @@ export const UserSettingsV1 = z.object({
       /** conjunto de sons (padrao, classico, suave, retro, madeira, telefone, discreto) */
       soundPack: z.string().max(32).default('padrao'),
       dnd: z.boolean().default(false),
+      /** preferências por servidor e por canal (só eu vejo; o canal vale por cima do servidor) */
+      servers: z.record(z.string().max(64), NotifyOverride).default({}),
+      channels: z.record(z.string().max(64), NotifyOverride).default({}),
+      /** palavras que avisam como uma menção, em qualquer canal que eu vejo (sem acento e sem caixa) */
+      keywords: z.array(z.string().trim().min(2).max(40)).max(KEYWORDS_MAX).default([]),
     })
     .prefault({}),
+  /**
+   * Modo streamer: esconde e-mail, links de convite e o texto das notificações e desliga os sons de aviso enquanto
+   * transmito. 'auto' liga sozinho com Go Live ou com OBS/Streamlabs aberto.
+   */
+  streamer: z
+    .object({
+      mode: z.enum(['off', 'auto', 'on']).default('auto'),
+      hideEmail: z.boolean().default(true),
+      hideInvites: z.boolean().default(true),
+      hideNotificationContent: z.boolean().default(true),
+      muteSounds: z.boolean().default(false),
+    })
+    .prefault({}),
+  /** lembretes de mensagem ("me lembre disto"), mais próximos primeiro */
+  reminders: z.array(MessageReminder).max(REMINDERS_MAX).default([]),
   perUserVolume: z.record(z.string(), z.number().min(0).max(2)).default({}),
   /** apelido que EU dei a alguém (só eu vejo; vale em todo lugar, inclusive acima do apelido do servidor) */
   friendNicknames: z.record(z.string(), z.string().trim().min(1).max(32)).default({}),

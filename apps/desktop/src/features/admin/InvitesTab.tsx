@@ -1,3 +1,4 @@
+import { maskInvite, useStreamerHides } from '../../lib/streamer';
 /**
  * Configurações do servidor › Convites (ADR-0050): pausar a entrada por convite, criar convite com validade e limite de
  * usos, e a lista dos convites (quem criou, usos, quando vence) com apagar.
@@ -45,6 +46,8 @@ const spent = (i: ServerInvite) =>
   (i.maxUses !== null && i.uses >= i.maxUses);
 
 export function InvitesTab({ detail }: { detail: ServerDetail }) {
+  // modo streamer: e-mail e código do convite mascarados na tela (copiar continua funcionando)
+  const hide = useStreamerHides();
   const [invites, setInvites] = useState<ServerInvite[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [age, setAge] = useState('0');
@@ -147,7 +150,7 @@ export function InvitesTab({ detail }: { detail: ServerDetail }) {
           </Button>
           {created && (
             <Button size="sm" variant="secondary" icon="copy" onClick={() => copy(created)}>
-              Copiar {created.code}
+              Copiar {hide.invites ? maskInvite(created.code) : created.code}
             </Button>
           )}
         </div>
@@ -190,7 +193,7 @@ export function InvitesTab({ detail }: { detail: ServerDetail }) {
                       </span>
                     </td>
                     <td>
-                      <code>{i.code}</code>
+                      <code>{hide.invites ? maskInvite(i.code) : i.code}</code>
                     </td>
                     <td className="nowrap">{i.maxUses ? `${i.uses} / ${i.maxUses}` : i.uses}</td>
                     <td className="nowrap">{expiryLabel(i.expiresAt)}</td>

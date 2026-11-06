@@ -57,6 +57,7 @@ export const IPC = {
   evUpdate: 'ev:update',
   evWindowState: 'ev:window-state',
   evGame: 'ev:game',
+  evStreamingApp: 'ev:streaming-app',
   evWinAudio: 'ev:win-audio',
   evRemoteInputStop: 'ev:remote-input-stop',
 } as const;

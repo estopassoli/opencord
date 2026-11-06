@@ -3,6 +3,8 @@ import { hasPermission, Permission, type Channel } from '@opencord/contracts';
 import { Avatar, Icon } from '@opencord/ui';
 import { useMemo, useState } from 'react';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
+import { isMuted } from '../../lib/notifyPrefs';
+import { notifyMenuItems } from './notifyMenu';
 import { useData } from '../../store/data';
 import { whenLabel } from '../../lib/when';
 import { api, describeError, loadServer, markTargetRead } from '../../store/session';
@@ -43,6 +45,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   const detail = useData((s) => s.details[serverId]);
   const banner = useBannerStyle(detail);
   const unread = useData((s) => s.unread);
+  const settings = useData((s) => s.settings);
   const voiceStates = useData((s) => s.voiceStates);
   const view = useUi((s) => s.view);
   const go = useUi((s) => s.go);
@@ -289,7 +292,9 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
               {g.channels.map((c) => {
                 const active = view.kind === 'server' && view.channelId === c.id;
                 const u = unread[`c:${c.id}`];
-                const hasUnread = (u?.unreadCount ?? 0) > 0;
+                const muted = isMuted(settings, serverId, c.id);
+                // silenciado: some o destaque de "não lido" (menções continuam)
+                const hasUnread = (u?.unreadCount ?? 0) > 0 && (!muted || (u?.mentionCount ?? 0) > 0);
                 // recolhida: some tudo, menos o canal aberto, os não lidos e a voz em que estou conectado
                 const keep = active || hasUnread || (c.kind === 'voice' && voiceChannel === c.id);
                 if (collapsed[g.id as string] && !keep) return null;
@@ -338,6 +343,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                       onDragEnd={endChannelDrag}
                       aria-current={active ? 'page' : undefined}
                       data-unread={hasUnread && !active ? 'true' : undefined}
+                      data-muted={muted ? 'true' : undefined}
                       onContextMenu={(e) =>
                         openContextMenu(
                           e,
@@ -350,6 +356,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                                     disabled: !hasUnread,
                                     onSelect: () => void markTargetRead(`c:${c.id}`),
                                   },
+                                  ...notifyMenuItems('channels', c.id, serverId),
                                 ]
                               : c.kind === 'board'
                                 ? []

@@ -7,6 +7,7 @@ import { useUi, type MediaItem } from '../../store/ui';
 import { keyOf, normalizeMessage, useData, useMessages, type TargetKey } from '../../store/data';
 import { openContextMenu } from '../../components/ContextMenu';
 import { ProfileButton } from '../shell/ProfileButton';
+import { REMIND_OPTIONS, remindMe } from '../../lib/reminders';
 import { renderRich } from './rich';
 import { InviteEmbed, inviteCodesIn } from './InviteEmbed';
 import { VoiceNote } from './VoiceNote';
@@ -180,6 +181,19 @@ export const MessageItem = memo(function MessageItem({
                 label: m.replyCount ? `Abrir thread (${m.replyCount})` : 'Abrir thread',
                 icon: 'chats' as const,
                 onSelect: () => useUi.getState().openThread(keyOf(target), m.id),
+              },
+            ]
+          : []),
+        ...(!m.deleted
+          ? [
+              {
+                kind: 'submenu' as const,
+                label: 'Lembrar-me',
+                icon: 'clock' as const,
+                items: REMIND_OPTIONS.map((o) => ({
+                  label: o.label,
+                  onSelect: () => remindMe(m, o.at(), nameFor(m.author.id, m.author.displayName)),
+                })),
               },
             ]
           : []),

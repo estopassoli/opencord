@@ -336,4 +336,6 @@ export interface OpenCordBridge {
   on(event: 'win-audio', cb: (chunk: WinAudioChunk) => void): () => void;
   /** o controle remoto parou deste lado (atalho de emergência, botão da faixa, oc-input encerrado) */
   on(event: 'remote-input-stop', cb: (reason: RemoteInputStop) => void): () => void;
+  /** OBS/Streamlabs abriu ou fechou (modo streamer automático) */
+  on(event: 'streaming-app', cb: (open: boolean) => void): () => void;
 }

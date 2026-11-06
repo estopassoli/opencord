@@ -18,6 +18,7 @@ import {
   sameGame,
   type CustomGame,
   type DetectedGame,
+  hasStreamingApp,
 } from '../shared/games-core';
 
 const POLL_MS = 15_000;
@@ -116,7 +117,17 @@ export class GameDetector {
   private custom: CustomGame[] = [];
   private busy = false;
 
-  constructor(private readonly onChange: (u: GameUpdate) => void) {}
+  /** OBS/Streamlabs aberto (modo streamer automático) */
+  private streamApp = false;
+
+  constructor(
+    private readonly onChange: (u: GameUpdate) => void,
+    private readonly onStreamApp: (open: boolean) => void = () => undefined,
+  ) {}
+
+  get streamingApp() {
+    return this.streamApp;
+  }
 
   get game() {
     return this.current;
@@ -152,6 +163,11 @@ export class GameDetector {
     try {
       const [exes, steam] = await Promise.all([runningExes(), steamGame()]);
       this.set(pickGame(exes, this.custom, steam.id, steam.name));
+      const stream = hasStreamingApp(exes);
+      if (stream !== this.streamApp) {
+        this.streamApp = stream;
+        this.onStreamApp(stream);
+      }
     } finally {
       this.busy = false;
     }

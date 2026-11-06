@@ -5,7 +5,7 @@ import { Icon } from '@opencord/ui';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useBots } from '../../store/bots';
 import { keyOf, useData, useMessages, type TargetKey } from '../../store/data';
-import { api, describeError, useSession } from '../../store/session';
+import { api, describeError, markTargetRead, useSession } from '../../store/session';
 import { ApiError } from '../../lib/api';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
@@ -52,7 +52,14 @@ export function ChatView({ target }: { target: ChatTarget }) {
   const mobile = useIsMobile();
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
-  const [firstUnreadId] = useState(() => (unread && unread.unreadCount > 0 ? unread.lastReadMessageId : null));
+  // retrato do "não lido" ao abrir: a linha "Novas" e a faixa do topo não mudam enquanto leio
+  const [opened] = useState(() =>
+    unread && unread.unreadCount > 0 && unread.lastReadMessageId
+      ? { lastRead: unread.lastReadMessageId, count: unread.unreadCount }
+      : null,
+  );
+  const firstUnreadId = opened?.lastRead ?? null;
+  const [unreadBar, setUnreadBar] = useState(Boolean(opened));
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // comandos dos bots do servidor (barra e "Apps" nos menus): prontos antes do primeiro "/" ou botão direito
@@ -112,6 +119,23 @@ export function ChatView({ target }: { target: ChatTarget }) {
     const t = setTimeout(() => void load(false), 5000);
     return () => clearTimeout(t);
   }, [loadError, load]);
+
+  // faixa "N mensagens novas": some quando a linha "Novas" aparece na tela
+  const dividerRef = useRef<HTMLDivElement>(null);
+  const firstUnread = firstUnreadId ? timeline?.messages.find((x) => x.id > firstUnreadId) : undefined;
+  useEffect(() => {
+    const el = dividerRef.current;
+    if (!unreadBar || !el) return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e?.isIntersecting) setUnreadBar(false);
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [unreadBar, firstUnread?.id]);
+  const jumpToUnread = () => {
+    if (dividerRef.current) dividerRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    else useUi.getState().toast('info', 'As primeiras novas são antigas: role a conversa para cima para chegar nelas.');
+  };
 
   // marcar como lido ao ver o fim da conversa
   const last = timeline?.messages.at(-1);
@@ -261,6 +285,24 @@ export function ChatView({ target }: { target: ChatTarget }) {
         )}
       </header>
       {target.conversationId && <DmCallBar conversationId={target.conversationId} />}
+      {unreadBar && opened && firstUnread && (
+        <div className="unread-bar" role="status">
+          <button className="unread-bar-jump" onClick={jumpToUnread}>
+            {opened.count} {opened.count === 1 ? 'mensagem nova' : 'mensagens novas'}{' '}
+            desde {new Date(firstUnread.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </button>
+          <button
+            className="unread-bar-read"
+            onClick={() => {
+              setUnreadBar(false);
+              void markTargetRead(key);
+            }}
+          >
+            Marcar como lido
+            <Icon name="check" size={14} />
+          </button>
+        </div>
+      )}
       <div
         className="chat-scroll"
         ref={scroller}
@@ -297,7 +339,9 @@ export function ChatView({ target }: { target: ChatTarget }) {
               new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < GROUP_MS &&
               !prev.deleted,
             );
-            const unreadLine = firstUnreadId && prev?.id === firstUnreadId;
+            // ids são uuid v7 (crescem com o tempo): a linha vai antes da primeira mensagem depois da última lida,
+            // mesmo que a lida já tenha saído da página carregada
+            const unreadLine = Boolean(firstUnreadId && m.id > firstUnreadId && (!prev || prev.id <= firstUnreadId));
             return (
               <li key={m.id}>
                 {newDay && (
@@ -312,7 +356,7 @@ export function ChatView({ target }: { target: ChatTarget }) {
                   </div>
                 )}
                 {unreadLine && (
-                  <div className="unread-divider" role="separator">
+                  <div className="unread-divider" role="separator" ref={dividerRef}>
                     <span>Novas</span>
                   </div>
                 )}

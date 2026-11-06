@@ -15,6 +15,7 @@ const EVENT_CHANNELS = {
   update: IPC.evUpdate,
   'window-state': IPC.evWindowState,
   game: IPC.evGame,
+  'streaming-app': IPC.evStreamingApp,
   'win-audio': IPC.evWinAudio,
   'remote-input-stop': IPC.evRemoteInputStop,
 } as const;

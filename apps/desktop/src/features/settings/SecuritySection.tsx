@@ -1,3 +1,4 @@
+import { maskEmail, useStreamerHides } from '../../lib/streamer';
 /**
  * Configurações → Minha conta → Segurança (ADR-0046): verificação em duas etapas (app autenticador + códigos de
  * recuperação) e aparelhos conectados, com "sair deste aparelho" e "sair de todos os outros".
@@ -337,6 +338,8 @@ function EnableEmailDialog({ onClose }: { onClose: () => void }) {
 
 /** E-mail da conta (ADR-0047): adicionar/trocar (com a senha) e confirmar por código. */
 function EmailBlock({ me, Section }: { me: Me; Section: SectionComp }) {
+  // modo streamer: e-mail e código do convite mascarados na tela (copiar continua funcionando)
+  const hide = useStreamerHides();
   const [dialog, setDialog] = useState<'set' | 'verify' | null>(null);
   return (
     <Section
@@ -346,7 +349,7 @@ function EmailBlock({ me, Section }: { me: Me; Section: SectionComp }) {
       <div className="security-row">
         {me.email ? (
           <>
-            <span className="truncate">{me.email}</span>
+            <span className="truncate">{hide.email ? maskEmail(me.email) : me.email}</span>
             <span className="admin-pill" data-tone={me.emailVerified ? 'brand' : undefined}>
               {me.emailVerified ? 'confirmado' : 'não confirmado'}
             </span>

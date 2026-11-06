@@ -360,6 +360,7 @@ function wireRealtime(rt: RealtimeClient) {
             .catch(() => undefined);
       } else {
         d().bumpUnread(key, msg.id, msg.mentions.includes(me()), mine);
+        if (!mine && msg.channelId) void import('./notify').then(({ messageNotify }) => messageNotify(msg));
       }
       d().setTyping(key, msg.author.id, false);
       if (msg.conversationId && !d().conversations.some((c) => c.id === msg.conversationId)) {

@@ -106,6 +106,10 @@ export function parseRegString(out: string, value: string): string | null {
 }
 
 /** Saída de `tasklist /fo csv /nh` → nomes de executáveis em minúsculas, sem repetir. */
+/** programas de transmissão: com um deles aberto, o modo streamer automático liga */
+const STREAM_APPS = /^(obs64|obs32|obs|streamlabs obs|streamlabs desktop|xsplit\.core|twitchstudio|prismlivestudio|meld studio)\.exe$/;
+export const hasStreamingApp = (exes: readonly string[]) => exes.some((e) => STREAM_APPS.test(e));
+
 export function parseTasklist(out: string): string[] {
   const names = new Set<string>();
   for (const line of out.split(/\r?\n/)) {

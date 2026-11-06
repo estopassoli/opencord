@@ -42,6 +42,8 @@ export function applySettingsSideEffects(s: UserSettings) {
   void import('./voice').then(({ useVoice }) => useVoice.getState().applySettings(s));
   void import('./games').then(({ configureGames }) => configureGames(s));
   void import('../lib/overlay').then(({ startOverlay }) => startOverlay());
+  void import('../lib/streamer').then(({ startStreamer }) => startStreamer());
+  void import('../lib/reminders').then(({ startReminders }) => startReminders());
   void import('../lib/event-reminders').then(({ startEventReminders }) => startEventReminders());
   void import('../lib/afk').then(({ startAfk }) => startAfk());
   void import('../lib/auto-idle').then(({ startAutoIdle }) => {

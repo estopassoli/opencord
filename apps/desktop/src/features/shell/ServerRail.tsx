@@ -4,6 +4,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { ServerIcon } from '../../components/ServerIcon';
 import { useMemo, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
 import { openContextMenu, type MenuEntry } from '../../components/ContextMenu';
+import { isMuted } from '../../lib/notifyPrefs';
+import { notifyMenuItems } from './notifyMenu';
 import { Dialog } from '../../components/Dialog';
 import { DownloadAppRailItem } from '../../components/DownloadApp';
 import { InstallAppRailItem } from '../../components/InstallApp';
@@ -105,6 +107,7 @@ function RailItem({
 export function ServerRail() {
   const servers = useData((s) => s.servers);
   const unread = useData((s) => s.unread);
+  const settings = useData((s) => s.settings);
   const details = useData((s) => s.details);
   const view = useUi((s) => s.view);
   const go = useUi((s) => s.go);
@@ -210,6 +213,7 @@ export function ServerRail() {
                 disabled: !b.any,
                 onSelect: () => void markServerRead(s.id),
               },
+              ...notifyMenuItems('servers', s.id, s.id),
               {
                 label: 'Convidar pessoas',
                 icon: 'user-plus',
@@ -307,7 +311,8 @@ export function ServerRail() {
       const u = unread[`c:${c.id}`];
       if (u) {
         mentions += u.mentionCount;
-        if (u.unreadCount > 0) any = true;
+        // silenciado: só as menções contam (sem a bolinha de "tem coisa nova")
+        if (u.unreadCount > 0 && !isMuted(settings, serverId, c.id)) any = true;
       }
     }
     return { mentions, any };

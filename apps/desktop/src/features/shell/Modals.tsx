@@ -1,3 +1,4 @@
+import { maskInvite, useStreamerHides } from '../../lib/streamer';
 import { ClipsPage } from '../clips/ClipsPage';
 import type {
   Category,
@@ -277,6 +278,8 @@ function ImportDiscord({ onClose }: { onClose: () => void }) {
 /** Servidores são abertos a todos (ADR-0007): lista e entra com um clique, sem convite. */
 /** Convidar pessoas: link do convite (abre no navegador, mesmo sem conta) ou, sem interface web, o código. */
 function InviteDialog({ serverId, onClose }: { serverId: string; onClose: () => void }) {
+  // modo streamer: e-mail e código do convite mascarados na tela (copiar continua funcionando)
+  const hide = useStreamerHides();
   const name = useData((s) => s.details[serverId]?.name ?? s.servers.find((x) => x.id === serverId)?.name ?? '');
   const [invite, setInvite] = useState<Invite | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -313,7 +316,7 @@ function InviteDialog({ serverId, onClose }: { serverId: string; onClose: () => 
       <div className="invite-code-row">
         <TextField
           label={invite?.url ? 'Link de convite' : 'Código de convite'}
-          value={value ?? 'Gerando…'}
+          value={value ? (hide.invites ? maskInvite(value) : value) : 'Gerando…'}
           readOnly
           onFocus={(e) => e.currentTarget.select()}
         />

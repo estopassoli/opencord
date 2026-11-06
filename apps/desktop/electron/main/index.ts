@@ -339,7 +339,10 @@ function boostMediaPriority() {
   }
 }
 
-const games = new GameDetector(({ game }) => send(IPC.evGame, game));
+const games = new GameDetector(
+  ({ game }) => send(IPC.evGame, game),
+  (open) => send(IPC.evStreamingApp, open),
+);
 
 function registerIpc() {
   handle(IPC.captureListSources, [], () => listSources());

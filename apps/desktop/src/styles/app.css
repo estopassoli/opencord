@@ -589,6 +589,10 @@ textarea:focus-visible {
   color: var(--text);
   font-weight: 700;
 }
+/* silenciado só para mim: apagado (a menção ainda destaca) */
+.channel-row[data-muted='true']:not([aria-current]) {
+  opacity: 0.5;
+}
 .voice-members {
   list-style: none;
   margin: 2px 0 6px;
@@ -8800,4 +8804,45 @@ dialog.dialog:not(.dialog-fullscreen)::backdrop,
 }
 .rail-flyout-show:hover {
   background: var(--interactive-hover, var(--brand));
+}
+
+/* faixa "N mensagens novas desde HH:MM" no topo da conversa */
+.unread-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px;
+  padding: 0 4px 0 12px;
+  min-height: 28px;
+  border-radius: 0 0 8px 8px;
+  background: var(--brand);
+  color: var(--text-on-brand);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.unread-bar button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+.unread-bar-jump {
+  flex: 1;
+  text-align: start;
+}
+.unread-bar-read {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.unread-bar button:hover,
+.unread-bar button:focus-visible {
+  background: rgb(255 255 255 / 0.16);
+}
+.unread-bar button:focus-visible {
+  outline: 2px solid var(--text-on-brand);
+  outline-offset: -2px;
 }

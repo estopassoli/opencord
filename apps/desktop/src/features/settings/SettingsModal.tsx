@@ -17,6 +17,7 @@ import { VoiceTab } from './VoiceTab';
 import { KeybindsTab } from './KeybindsTab';
 import { AppearanceTab } from './AppearanceTab';
 import { NotificationsTab } from './NotificationsTab';
+import { StreamerTab } from './StreamerTab';
 import { AboutTab, HardwareAcceleration, MemorySection } from './AboutTab';
 
 // ---------------------------------------------------------------------------
@@ -24,7 +25,16 @@ import { AboutTab, HardwareAcceleration, MemorySection } from './AboutTab';
 // ---------------------------------------------------------------------------
 
 type UserTab =
-  'account' | 'profile' | 'voice' | 'games' | 'apps' | 'keybinds' | 'appearance' | 'notifications' | 'about';
+  | 'account'
+  | 'profile'
+  | 'voice'
+  | 'games'
+  | 'apps'
+  | 'keybinds'
+  | 'appearance'
+  | 'notifications'
+  | 'streamer'
+  | 'about';
 
 interface UserNavItem {
   id: UserTab;
@@ -90,8 +100,15 @@ const USER_GROUPS: { label: string; items: UserNavItem[] }[] = [
         id: 'notifications',
         label: 'Notificações',
         icon: 'bell',
-        description: 'Quando o app avisa você e com quais sons.',
-        keywords: 'aviso som menção notificação',
+        description: 'Quando o app avisa você, palavras-chave, silenciados, lembretes e sons.',
+        keywords: 'aviso som menção notificação palavra chave silenciar silenciado lembrete lembrar',
+      },
+      {
+        id: 'streamer',
+        label: 'Modo streamer',
+        icon: 'screen',
+        description: 'Esconde dados pessoais e convites enquanto você transmite.',
+        keywords: 'live obs twitch transmissão esconder email convite privacidade',
       },
       {
         id: 'apps',
@@ -284,6 +301,7 @@ function UserSettingsDashboard({ settings, me, onClose }: { settings: UserSettin
             {current.id === 'keybinds' && <KeybindsTab settings={settings} />}
             {current.id === 'appearance' && <AppearanceTab settings={settings} />}
             {current.id === 'notifications' && <NotificationsTab settings={settings} />}
+            {current.id === 'streamer' && <StreamerTab settings={settings} />}
             {current.id === 'about' && (
               <>
                 <AboutTab />
