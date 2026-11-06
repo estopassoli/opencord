@@ -11,6 +11,7 @@ import { useData } from '../../store/data';
 import { api, describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { jumpTo } from '../chat/PinnedMessages';
+import { VideoPlayer } from '../chat/VideoPlayer';
 
 const PERIODS = [
   { days: 7, label: 'Esta semana' },
@@ -84,7 +85,7 @@ export function HighlightsDialog({ serverId, onClose }: { serverId: string; onCl
             return (
               <li key={h.message.id} className="highlight-card" data-rank={i < 3 ? i + 1 : undefined}>
                 <div className="highlight-media">
-                  {video && <video src={video.url} controls preload="metadata" className="attachment-video" />}
+                  {video && <VideoPlayer attachment={video} fill />}
                   {i < 3 && (
                     <span className="highlight-medal" aria-label={`${i + 1}º lugar`}>
                       {MEDALS[i]}

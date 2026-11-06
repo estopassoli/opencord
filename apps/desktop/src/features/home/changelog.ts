@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '10:55',
+    kind: 'melhoria',
+    icon: 'play',
+    title: 'Player de vídeo novo na conversa',
+    body: 'Clipes e vídeos enviados em canais e conversas tocam num player do OpenCord: clique para tocar ou pausar, barra que dá para arrastar, volume (lembrado), velocidade, tela cheia com duplo clique e o nome do arquivo com botão de baixar. Os controles somem enquanto o vídeo toca. Com o player em foco: espaço ou K toca, setas avançam 5 s e mexem no volume, M silencia e F põe em tela cheia.',
+  },
+  {
+    date: '2026-11-06',
     time: '09:10',
     kind: 'melhoria',
     icon: 'film',

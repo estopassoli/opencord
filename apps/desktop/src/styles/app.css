@@ -1723,9 +1723,275 @@ textarea:focus-visible {
     transition: none;
   }
 }
-.attachment-video {
-  max-width: min(480px, 100%);
+/* player dos vídeos da conversa (VideoPlayer.tsx) */
+.video-player {
+  --vp-progress: 0;
+  --vp-buffered: 0;
+  position: relative;
+  max-width: 100%;
+  overflow: hidden;
+  background: #000;
   border-radius: var(--radius);
+  color: #fff;
+  isolation: isolate;
+  outline: none;
+  container-type: inline-size;
+}
+.video-player:focus-visible {
+  box-shadow: 0 0 0 2px var(--brand);
+}
+.video-player-fill {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 0;
+}
+.video-player > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  cursor: pointer;
+}
+.video-player[data-idle='true'],
+.video-player[data-idle='true'] > video {
+  cursor: none;
+}
+.video-player[data-fullscreen='true'] {
+  width: 100% !important;
+  height: 100%;
+  aspect-ratio: auto !important;
+  border-radius: 0;
+}
+.video-player-top,
+.video-player-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.video-player-top {
+  top: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 20px 12px;
+  background: linear-gradient(rgb(0 0 0 / 0.7), transparent);
+  font-size: 13px;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.video-player-name {
+  min-width: 0;
+  font-weight: 600;
+}
+.video-player-size {
+  flex: none;
+  margin-right: auto;
+  color: rgb(255 255 255 / 0.7);
+  font-size: 12px;
+}
+.video-player-bar {
+  bottom: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 24px 8px 4px;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.75));
+}
+/* parado: só a barra de baixo; tocando: tudo some com o mouse parado */
+.video-player:is(:hover, :focus-within) .video-player-top {
+  opacity: 1;
+  transform: none;
+}
+.video-player[data-playing='true']:not(:hover, :focus-within) .video-player-bar,
+.video-player[data-idle='true'] :is(.video-player-top, .video-player-bar) {
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+}
+.video-player[data-idle='true'] .video-player-top {
+  transform: translateY(-4px);
+}
+.video-player-big {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  translate: -50% -50%;
+  padding: 0 0 0 3px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
+}
+.video-player-big:hover {
+  background: var(--brand);
+  transform: scale(1.06);
+}
+.video-player-track {
+  position: relative;
+  height: 14px;
+  margin: 0 4px;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+.video-player-track > span {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 4px;
+  translate: 0 -50%;
+  border-radius: 2px;
+  transition: height 0.12s ease;
+}
+.video-player-track::before {
+  content: '';
+  position: absolute;
+  inset: 5px 0;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.22);
+}
+.video-player-buffered {
+  width: calc(var(--vp-buffered) * 100%);
+  background: rgb(255 255 255 / 0.32);
+}
+.video-player-played {
+  width: calc(var(--vp-progress) * 100%);
+  background: var(--brand);
+}
+.video-player-thumb {
+  left: calc(var(--vp-progress) * 100%) !important;
+  width: 12px;
+  height: 12px !important;
+  margin-left: -6px;
+  border-radius: 50% !important;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  scale: 0;
+  transition: scale 0.12s ease !important;
+}
+.video-player-track:is(:hover, :focus-visible) > span:not(.video-player-thumb) {
+  height: 6px;
+}
+.video-player-track:is(:hover, :focus-visible) .video-player-thumb {
+  scale: 1;
+}
+.video-player-track:focus-visible::before {
+  box-shadow: 0 0 0 2px var(--brand);
+}
+.video-player-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.video-player-spacer {
+  flex: 1;
+}
+.video-player-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(255 255 255 / 0.9);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.video-player-btn:hover,
+.video-player-btn:focus-visible {
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+}
+.video-player-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+.video-player-speed {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.video-player-time {
+  padding: 0 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.video-player-dur {
+  color: rgb(255 255 255 / 0.65);
+}
+.video-player-volume {
+  display: flex;
+  align-items: center;
+}
+.video-player-vol {
+  position: relative;
+  width: 0;
+  height: 16px;
+  opacity: 0;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+  transition:
+    width 0.15s ease,
+    opacity 0.15s ease,
+    margin 0.15s ease;
+}
+.video-player-vol::before,
+.video-player-vol::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 0;
+  height: 4px;
+  border-radius: 2px;
+}
+.video-player-vol::before {
+  right: 0;
+  background: rgb(255 255 255 / 0.25);
+}
+.video-player-vol::after {
+  width: calc(var(--vp-vol) * 100%);
+  background: #fff;
+}
+.video-player-vol:focus-visible::before {
+  box-shadow: 0 0 0 2px var(--brand);
+}
+.video-player-volume:is(:hover, :focus-within) .video-player-vol {
+  width: 64px;
+  margin: 0 8px 0 2px;
+  opacity: 1;
+}
+/* cartão estreito: some a velocidade e o total do tempo */
+@container (max-width: 300px) {
+  .video-player-speed,
+  .video-player-dur {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .video-player-top,
+  .video-player-bar,
+  .video-player-big,
+  .video-player-track > span,
+  .video-player-vol {
+    transition: none !important;
+  }
 }
 .attachment-file {
   display: flex;
@@ -7898,12 +8164,6 @@ html[data-wallpaper='true'] .chat-scroll {
 }
 .highlight-media {
   position: relative;
-}
-.highlight-media .attachment-video {
-  width: 100%;
-  max-width: none;
-  aspect-ratio: 16 / 9;
-  background: #000;
 }
 .highlight-medal {
   position: absolute;

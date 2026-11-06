@@ -11,6 +11,7 @@ import { ProfileButton } from '../shell/ProfileButton';
 import { REMIND_OPTIONS, remindMe } from '../../lib/reminders';
 import { renderRich } from './rich';
 import { InviteEmbed, inviteCodesIn } from './InviteEmbed';
+import { VideoPlayer } from './VideoPlayer';
 import { VoiceNote } from './VoiceNote';
 import { PollCard } from './Poll';
 import { EmbedCards } from './Embeds';
@@ -423,7 +424,7 @@ export const MessageItem = memo(function MessageItem({
                 />
               </a>
             ) : a.mime.startsWith('video/') ? (
-              <video key={a.id} src={a.url} controls className="attachment-video" preload="metadata" />
+              <VideoPlayer key={a.id} attachment={a} />
             ) : a.mime.startsWith('audio/') ? (
               <VoiceNote key={a.id} attachment={a} />
             ) : (
