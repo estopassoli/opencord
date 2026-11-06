@@ -35,8 +35,10 @@ export function assertNotTimedOut(a: { timeoutUntil: Date | null }) {
 
 export interface ChannelAccess extends ServerAccess {
   channelId: string;
-  kind: 'text' | 'voice' | 'board';
+  kind: 'text' | 'voice' | 'board' | 'forum';
   perms: number;
+  /** modo lento (ADR-0052), em segundos (0 = desligado) */
+  slowmodeSec: number;
 }
 
 type OverrideRow = { subjectType: 'role' | 'member'; subjectId: string; allow: number; deny: number };
@@ -106,7 +108,7 @@ export class PermissionsService {
   async channel(channelId: string, userId: string): Promise<ChannelAccess> {
     const ch = await this.prisma.channel.findUnique({
       where: { id: channelId },
-      select: { id: true, serverId: true, kind: true, overrides: true },
+      select: { id: true, serverId: true, kind: true, overrides: true, slowmodeSec: true },
     });
     if (!ch) throw notFound('canal');
     const access = await this.server(ch.serverId, userId).catch(() => {
@@ -114,7 +116,7 @@ export class PermissionsService {
     });
     const perms = computeChannelPermissions(access.ctx, ch.overrides.map(toOverride));
     if (perms === 0) throw notFound('canal');
-    return { ...access, channelId: ch.id, kind: ch.kind, perms };
+    return { ...access, channelId: ch.id, kind: ch.kind, perms, slowmodeSec: ch.slowmodeSec };
   }
 
   async requireChannel(channelId: string, userId: string, bit: number): Promise<ChannelAccess> {

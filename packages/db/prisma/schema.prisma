@@ -315,6 +315,8 @@ enum ChannelKind {
   voice
   /// quadro kanban (ADR-0017): colunas de cards, sem mensagens
   board
+  /// fórum (ADR-0052): cada mensagem raiz é um post com título; as respostas apontam para ele
+  forum
 }
 
 model Channel {
@@ -334,6 +336,8 @@ model Channel {
   ownerId    String?                     @db.Uuid
   /// limite de vagas da sala temporária (null = o máximo do canal)
   userLimit  Int?
+  /// modo lento (ADR-0052): segundos entre duas mensagens da mesma pessoa (0 = desligado)
+  slowmodeSec Int                        @default(0)
   server     Server                      @relation(fields: [serverId], references: [id], onDelete: Cascade)
   category   Category?                   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   overrides  ChannelPermissionOverride[]
@@ -492,6 +496,8 @@ model Message {
   replyToId      String?       @db.Uuid
   /// responder no privado (ADR-0042): mensagem de DM que cita uma mensagem de canal
   privateReplyToId String?     @db.Uuid
+  /// título do post (ADR-0052): só em mensagem raiz de canal de fórum
+  title          String?
   createdAt      DateTime      @default(now()) @db.Timestamptz(3)
   editedAt       DateTime?     @db.Timestamptz(3)
   deletedAt      DateTime?     @db.Timestamptz(3)

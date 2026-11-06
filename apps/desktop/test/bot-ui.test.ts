@@ -105,6 +105,7 @@ describe('selectChoices', () => {
         userLimit: null,
         locked: false,
         private: false,
+        slowmodeSec: 0,
       },
       {
         id: 'c1',
@@ -123,6 +124,7 @@ describe('selectChoices', () => {
         userLimit: null,
         locked: false,
         private: false,
+        slowmodeSec: 0,
       },
       {
         id: 'c0',
@@ -141,6 +143,7 @@ describe('selectChoices', () => {
         userLimit: null,
         locked: false,
         private: false,
+        slowmodeSec: 0,
       },
     ],
   };

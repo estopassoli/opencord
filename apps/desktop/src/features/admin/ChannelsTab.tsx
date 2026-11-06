@@ -3,7 +3,15 @@
  * criador de salas) e, à direita, o painel do canal ou da categoria escolhida, com salvar só quando algo mudou e a
  * exclusão separada numa zona de perigo.
  */
-import { hasPermission, Permission, type Category, type Channel, type ServerDetail } from '@opencord/contracts';
+import {
+  hasPermission,
+  Permission,
+  SLOWMODE_OPTIONS,
+  type Category,
+  type Channel,
+  type ServerDetail,
+} from '@opencord/contracts';
+import { formatSlowmode } from '../forum/ForumView';
 import { Button, Icon, Select, Switch, TextArea, TextField } from '@opencord/ui';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { askConfirm } from '../../components/AskDialog';
@@ -303,7 +311,7 @@ function ChannelEditor({ channel, detail, canEdit }: { channel: Channel; detail:
           maxLength={64}
           onChange={(e) => setName(e.target.value)}
         />
-        {isText && (
+        {(isText || channel.kind === 'forum') && (
           <TextArea
             label="Tópico"
             hint="Aparece no topo do canal."
@@ -327,6 +335,24 @@ function ChannelEditor({ channel, detail, canEdit }: { channel: Channel; detail:
                 .map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
+          {(isText || channel.kind === 'forum') && (
+            <Select<string>
+              label="Modo lento"
+              hint="Tempo entre duas mensagens da mesma pessoa. Quem gerencia mensagens não espera."
+              value={String(channel.slowmodeSec)}
+              disabled={!canEdit || busy}
+              onChange={(v) => {
+                const sec = Number(v);
+                void send({ slowmodeSec: sec }, sec ? `Modo lento: ${formatSlowmode(sec)}.` : 'Modo lento desligado.');
+              }}
+              options={[
+                ...((SLOWMODE_OPTIONS as readonly number[]).includes(channel.slowmodeSec)
+                  ? []
+                  : [{ value: String(channel.slowmodeSec), label: formatSlowmode(channel.slowmodeSec) }]),
+                ...SLOWMODE_OPTIONS.map((n) => ({ value: String(n), label: n ? formatSlowmode(n) : 'Desligado' })),
+              ]}
+            />
+          )}
           {isText && boards.length > 0 && (
             <Select<string>
               label="Quadro kanban"

@@ -1058,7 +1058,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     actorId: string,
     dto: {
       name: string;
-      kind: 'text' | 'voice' | 'board';
+      kind: 'text' | 'voice' | 'board' | 'forum';
       categoryId?: string | null | undefined;
       topic?: string | null | undefined;
       roomHub?: boolean | undefined;
@@ -1166,6 +1166,7 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
       boardId?: string | null | undefined;
       roomHub?: boolean | undefined;
       private?: boolean | undefined;
+      slowmodeSec?: number | undefined;
     },
   ): Promise<Channel> {
     const existing = await this.prisma.channel.findUnique({ where: { id: channelId } });
@@ -1194,10 +1195,13 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
         throw forbidden('MANAGE_ROLES necessário para ligar o canal a um quadro');
       await this.perms.requireChannel(dto.boardId, actorId, Permission.VIEW_CHANNEL);
     }
+    if (dto.slowmodeSec !== undefined && existing.kind !== 'text' && existing.kind !== 'forum')
+      throw new BadRequestException('modo lento só em canais de texto e fóruns');
     await this.prisma.$transaction(async (tx) => {
       await tx.channel.update({
         where: { id: channelId },
         data: {
+          ...(dto.slowmodeSec !== undefined ? { slowmodeSec: dto.slowmodeSec } : {}),
           ...(dto.boardId !== undefined ? { boardId: dto.boardId } : {}),
           ...(dto.roomHub !== undefined ? { roomHub: dto.roomHub } : {}),
           ...(dto.name ? { name: dto.name } : {}),

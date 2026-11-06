@@ -348,7 +348,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                         openContextMenu(
                           e,
                           [
-                            ...(c.kind === 'text'
+                            ...(c.kind === 'text' || c.kind === 'forum'
                               ? [
                                   {
                                     label: 'Marcar como lido',

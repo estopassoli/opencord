@@ -364,7 +364,11 @@ export type ProfileUpdateResponse = z.infer<typeof ProfileUpdateResponse>;
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>;
 
 // ---------- Servidores, cargos, canais ----------
-export const ChannelKind = z.enum(['text', 'voice', 'board']);
+export const ChannelKind = z.enum(['text', 'voice', 'board', 'forum']);
+/** modo lento (ADR-0052): opções do seletor, em segundos (0 = desligado); a API aceita qualquer valor até 6 h */
+export const SLOWMODE_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600] as const;
+export const SLOWMODE_MAX_SEC = 21600;
+export const FORUM_TITLE_MAX = 100;
 export type ChannelKind = z.infer<typeof ChannelKind>;
 
 export const Role = z.object({
@@ -414,6 +418,8 @@ export const Channel = z.object({
   locked: z.boolean().default(false),
   /** canal privado: o @everyone não vê */
   private: z.boolean().default(false),
+  /** modo lento (ADR-0052): segundos entre duas mensagens da mesma pessoa; quem gerencia mensagens não espera */
+  slowmodeSec: z.number().int().min(0).max(SLOWMODE_MAX_SEC).default(0),
 });
 export type Channel = z.infer<typeof Channel>;
 
@@ -660,6 +666,8 @@ export const UpdateChannelRequest = z.object({
   roomHub: z.boolean().optional(),
   /** canal privado (ADR-0040): liga/desliga o "ninguém vê" do @everyone, mantendo as liberações */
   private: z.boolean().optional(),
+  /** canal de texto ou fórum: modo lento em segundos (0 desliga) */
+  slowmodeSec: z.number().int().min(0).max(SLOWMODE_MAX_SEC).optional(),
 });
 export type UpdateChannelRequest = z.input<typeof UpdateChannelRequest>;
 /** arrastar canais na lista: a ordem final de uma categoria (null = sem categoria); quem vem de outra categoria muda junto */
@@ -1053,12 +1061,27 @@ export const Message = z.object({
   reactionRoles: z.array(z.object({ emoji: z.string(), roleId: Id })).default([]),
   /** quantas mensagens respondem a esta (thread leve: GET /messages/:id/replies) */
   replyCount: z.number().int().nonnegative().default(0),
+  /** post de fórum (ADR-0052): título; null fora do fórum */
+  title: z.string().nullable().default(null),
   /** cartões ricos (ADR-0034); só bots e webhooks enviam */
   embeds: z.array(Embed).max(EMBED_LIMITS.perMessage).default([]),
   /** botões e menus (ADR-0034); só bots enviam; clique vira interação `component` */
   components: MessageComponents.default([]),
 });
 export type Message = z.infer<typeof Message>;
+
+/** Fórum (ADR-0052): post com a atividade mais recente (ele ou a última resposta) para ordenar a lista. */
+export const ForumPost = z.object({
+  message: Message,
+  lastActivityAt: IsoDate,
+});
+export type ForumPost = z.infer<typeof ForumPost>;
+export const ForumPostPage = z.object({
+  posts: z.array(ForumPost),
+  /** passe como `before` para a próxima página (null = acabou) */
+  nextBefore: IsoDate.nullable(),
+});
+export type ForumPostPage = z.infer<typeof ForumPostPage>;
 
 // ---------- Cargos por reação (ADR-0019) ----------
 export const MAX_REACTION_ROLES = 20;
@@ -1196,6 +1219,8 @@ export const CreateMessageRequest = z
     replyToId: Id.optional(),
     /** só em DM 1:1 com o autor: responde no privado a uma mensagem de canal (ADR-0042) */
     privateReplyToId: Id.optional(),
+    /** canal de fórum (ADR-0052): título do post novo (obrigatório na mensagem raiz; proibido em respostas) */
+    title: z.string().trim().min(1).max(FORUM_TITLE_MAX).optional(),
     attachmentIds: z.array(Id).max(10).optional(),
     /** só bots e webhooks (ADR-0034) */
     embeds: z.array(Embed).max(EMBED_LIMITS.perMessage).optional(),

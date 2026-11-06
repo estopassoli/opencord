@@ -12,6 +12,7 @@ import { useIsMobile } from '../../lib/media';
 import { useData } from '../../store/data';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
+import { ForumView } from '../forum/ForumView';
 import { BoardView } from '../board/BoardView';
 import { ChatView } from '../chat/ChatView';
 import { MediaViewer } from '../chat/MediaViewer';
@@ -113,6 +114,7 @@ function VidroDesktop() {
               <ChatView key={channel.id} target={{ channelId: channel.id }} />
             )}
             {view.kind === 'server' && channel?.kind === 'board' && <BoardView key={channel.id} channel={channel} />}
+            {view.kind === 'server' && channel?.kind === 'forum' && <ForumView key={channel.id} channel={channel} />}
             {view.kind === 'server' && channel?.kind === 'voice' && (
               <VoiceStage channelId={channel.id} serverId={view.serverId} />
             )}

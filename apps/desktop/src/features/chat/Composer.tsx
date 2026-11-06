@@ -19,6 +19,7 @@ import { createPortal } from 'react-dom';
 import { useAnchoredAbove } from '../../components/anchored';
 import { ApiError } from '../../lib/api';
 import { fmtTimeoutUntil, useTimedOut } from '../../lib/moderation';
+import { useSlowmodeLeft } from '../../lib/slowmode';
 import {
   autocompleteBody,
   choiceSuggestions,
@@ -188,6 +189,8 @@ export function Composer({
     serverId ? (s.details[serverId]?.members.find((m) => m.user.id === s.me?.id)?.timeoutUntil ?? null) : null,
   );
   const timedOut = useTimedOut(myTimeoutUntil);
+  // modo lento (ADR-0052): segundos até poder mandar de novo neste canal
+  const slowLeft = useSlowmodeLeft(target.channelId);
 
   useEffect(() => {
     if (serverId && draft.startsWith('/') && !serverCommands)
@@ -329,6 +332,8 @@ export function Composer({
   const send = () => {
     const body = draft.trim();
     if (timedOut) return;
+    if (slowLeft > 0 && !body.startsWith('/'))
+      return useUi.getState().toast('info', `Modo lento: espere ${slowLeft} s para mandar outra mensagem.`);
     if (uploads.some((u) => u.status === 'uploading'))
       return useUi.getState().toast('info', 'Aguarde o envio dos anexos.');
     const attachmentIds = uploads
@@ -583,6 +588,13 @@ export function Composer({
           </div>,
           portalTarget(root.current),
         )}
+      {slowLeft > 0 && (
+        <div className="composer-reply composer-slowmode" role="status">
+          <span>
+            <Icon name="clock" size={14} /> Modo lento: você pode mandar outra mensagem em {slowLeft} s
+          </span>
+        </div>
+      )}
       {replyTo && (
         <div className="composer-reply">
           <span>

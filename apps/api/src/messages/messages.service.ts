@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   decodeCursor,
@@ -6,12 +6,14 @@ import {
   Embed,
   EMBED_LIMITS,
   extractMentions,
+  FORUM_TITLE_MAX,
   hasPermission,
   MAX_PINS,
   MessageComponents,
   REACTION_ROLE_FORBIDDEN,
   Permission,
   rooms,
+  type ForumPostPage,
   type Message,
   type MessagePage,
   type Poll,
@@ -94,6 +96,10 @@ interface TargetAccess {
   /** super admin invisível no servidor (ADR-0013): não anuncia "digitando" */
   hidden: boolean;
   memberIds?: string[];
+  /** canal de fórum (ADR-0052): mensagem raiz é post com título */
+  forum?: boolean;
+  /** modo lento (ADR-0052), em segundos; 0 ou ausente = desligado */
+  slowmodeSec?: number;
 }
 
 @Injectable()
@@ -133,7 +139,7 @@ export class MessagesService {
     }
     if (target.channelId) {
       const a = await this.perms.channel(target.channelId, userId);
-      if (a.kind !== 'text') throw new BadRequestException('este canal não aceita mensagens');
+      if (a.kind !== 'text' && a.kind !== 'forum') throw new BadRequestException('este canal não aceita mensagens');
       return {
         room: rooms.channel(a.channelId),
         channelId: a.channelId,
@@ -142,6 +148,8 @@ export class MessagesService {
         perms: a.perms,
         timeoutUntil: a.timeoutUntil,
         hidden: a.hidden,
+        forum: a.kind === 'forum',
+        slowmodeSec: a.slowmodeSec,
       };
     }
     const conv = await this.prisma.conversation.findUnique({
@@ -222,6 +230,7 @@ export class MessagesService {
       poll: deleted || !m.poll ? null : this.serializePoll(m.poll, me),
       reactionRoles: deleted ? [] : m.reactionRoles,
       replyCount: m._count.replies,
+      title: m.title ?? null,
       embeds: deleted ? [] : parseEmbeds(m.embeds),
       components: deleted ? [] : parseComponents(m.components),
     };
@@ -359,6 +368,8 @@ export class MessagesService {
     if (existing) return { message: this.serialize(existing, userId), duplicate: true };
 
     if (a.conversationId && a.memberIds) await this.assertNotBlocked(userId, a.memberIds);
+    const title = await this.forumTitle(a, dto);
+    await this.assertSlowmode(userId, a);
     // DM com a conta de avisos do OpenCord (ADR-0045): só ela escreve
     if (a.memberIds?.some((m) => systemUserIds.has(m)) && !systemUserIds.has(userId))
       throw forbidden('esta conversa é só de avisos e não recebe respostas');
@@ -396,6 +407,7 @@ export class MessagesService {
             body,
             replyToId: dto.replyToId ?? null,
             privateReplyToId: dto.privateReplyToId ?? null,
+            title,
             mentions,
             mentionEveryone,
             embeds: toJson(embeds),
@@ -880,7 +892,11 @@ export class MessagesService {
     if ('serverId' in scope) {
       const access = await this.perms.server(scope.serverId, userId);
       const channels = await this.prisma.channel.findMany({
-        where: { serverId: scope.serverId, kind: 'text', ...(q.channelId ? { id: q.channelId } : {}) },
+        where: {
+          serverId: scope.serverId,
+          kind: { in: ['text', 'forum'] },
+          ...(q.channelId ? { id: q.channelId } : {}),
+        },
         select: { id: true, overrides: true },
       });
       const need = Permission.VIEW_CHANNEL | Permission.READ_HISTORY;
@@ -937,7 +953,7 @@ export class MessagesService {
   async highlights(userId: string, serverId: string, q: { days: number; limit: number }): Promise<Highlight[]> {
     const access = await this.perms.server(serverId, userId);
     const channels = await this.prisma.channel.findMany({
-      where: { serverId, kind: 'text' },
+      where: { serverId, kind: { in: ['text', 'forum'] } },
       select: { id: true, name: true, overrides: true },
     });
     const need = Permission.VIEW_CHANNEL | Permission.READ_HISTORY;
@@ -964,6 +980,92 @@ export class MessagesService {
       }))
       .sort((a, b) => b.score - a.score || b.message.createdAt.localeCompare(a.message.createdAt))
       .slice(0, q.limit);
+  }
+
+  /**
+   * Fórum (ADR-0052): post novo (sem replyToId) precisa de título; resposta não leva título e só responde a um post
+   * (as respostas ficam todas penduradas no post, como uma thread). Fora do fórum, título não existe.
+   */
+  private async forumTitle(a: TargetAccess, dto: { title?: string | undefined; replyToId?: string | undefined }) {
+    const title = dto.title?.trim() || null;
+    if (!a.forum) {
+      if (title) throw new BadRequestException('título só em posts de fórum');
+      return null;
+    }
+    if (!dto.replyToId) {
+      if (!title) throw new BadRequestException('o post do fórum precisa de um título');
+      return title.slice(0, FORUM_TITLE_MAX);
+    }
+    if (title) throw new BadRequestException('respostas não têm título');
+    const parent = await this.prisma.message.findUnique({
+      where: { id: dto.replyToId },
+      select: { replyToId: true, deletedAt: true },
+    });
+    if (!parent || parent.replyToId || parent.deletedAt) throw new BadRequestException('responda a um post do fórum');
+    return null;
+  }
+
+  /**
+   * Modo lento (ADR-0052): a mesma pessoa só escreve de novo no canal depois de `slowmodeSec`. Quem gerencia mensagens
+   * ou o canal não espera. Conta também mensagens apagadas (apagar não fura a fila). 429 com `retryAfterSec`.
+   */
+  private async assertSlowmode(userId: string, a: TargetAccess) {
+    const sec = a.slowmodeSec ?? 0;
+    if (!sec || !a.channelId) return;
+    if (hasPermission(a.perms, Permission.MANAGE_MESSAGES) || hasPermission(a.perms, Permission.MANAGE_CHANNELS))
+      return;
+    const last = await this.prisma.message.findFirst({
+      where: { channelId: a.channelId, authorId: userId },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    if (!last) return;
+    const wait = Math.ceil(sec - (Date.now() - last.createdAt.getTime()) / 1000);
+    if (wait > 0)
+      throw new HttpException(
+        {
+          statusCode: 429,
+          error: 'Too Many Requests',
+          code: 'slowmode',
+          retryAfterSec: wait,
+          message: `Modo lento: espere ${wait} s para mandar outra mensagem neste canal.`,
+        },
+        429,
+      );
+  }
+
+  /**
+   * Fórum (ADR-0052): posts do canal, do mais movimentado para o menos (a atividade é o post ou a última resposta).
+   * `before` pagina pela atividade.
+   */
+  async forumPosts(userId: string, channelId: string, q: { before?: string; limit: number }): Promise<ForumPostPage> {
+    const a = await this.access(userId, { channelId });
+    if (!a.forum) throw new BadRequestException('não é um fórum');
+    if (!hasPermission(a.perms, Permission.READ_HISTORY)) throw forbidden('sem acesso ao histórico');
+    const before = q.before ? new Date(q.before) : null;
+    const rows = await this.prisma.$queryRaw<{ id: string; activity: Date }[]>`
+      SELECT m.id, GREATEST(m."createdAt", COALESCE(MAX(r."createdAt"), m."createdAt")) AS activity
+      FROM "Message" m
+      LEFT JOIN "Message" r ON r."replyToId" = m.id AND r."deletedAt" IS NULL
+      WHERE m."channelId" = ${channelId}::uuid AND m."replyToId" IS NULL AND m."deletedAt" IS NULL
+      GROUP BY m.id
+      HAVING ${before}::timestamptz IS NULL
+        OR GREATEST(m."createdAt", COALESCE(MAX(r."createdAt"), m."createdAt")) < ${before}::timestamptz
+      ORDER BY activity DESC, m.id DESC
+      LIMIT ${q.limit + 1}`;
+    const page = rows.slice(0, q.limit);
+    const full = await this.prisma.message.findMany({
+      where: { id: { in: page.map((r) => r.id) } },
+      include: MESSAGE_INCLUDE,
+    });
+    const byId = new Map(full.map((m) => [m.id, m]));
+    return {
+      posts: page.flatMap((r) => {
+        const m = byId.get(r.id);
+        return m ? [{ message: this.serialize(m, userId), lastActivityAt: r.activity.toISOString() }] : [];
+      }),
+      nextBefore: rows.length > q.limit ? page.at(-1)!.activity.toISOString() : null,
+    };
   }
 
   /** Thread leve: as respostas diretas a uma mensagem, em ordem cronológica (quem vê o histórico do destino). */
@@ -1166,7 +1268,7 @@ export class MessagesService {
   async unreads(userId: string): Promise<UnreadState[]> {
     const visible = await this.perms.visibleRooms(userId);
     const textChannels = await this.prisma.channel.findMany({
-      where: { id: { in: visible.channelIds }, kind: 'text' },
+      where: { id: { in: visible.channelIds }, kind: { in: ['text', 'forum'] } },
       select: { id: true },
     });
     const states = await this.prisma.readState.findMany({ where: { userId } });

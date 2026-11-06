@@ -177,6 +177,10 @@ A pesquisa planejada sobre o comportamento de outro aplicativo não foi feita (n
 | 2026-11-05 | Esconder a lista de canais (lembrado no aparelho; desktop): rail encolhe o grid, painel ao passar o mouse no rail ancorado no ícone do servidor com quem está na minha chamada, tempo, mic/áudio/sair e "Mostrar canais"; vale no layout vidro | desktop 229/229; typecheck/lint verdes; render headless do rail + painel | verde | conferir no app real |
 | 2026-11-05 | Overlay no jogo: fundo translúcido com sombra no texto, tempo da chamada, foto (só http/https, CSP `img-src https: http:`), cor do cargo e apelido; HTML montado por DOM (sem innerHTML) | typecheck electron; render headless do HTML do overlay | verde | precisa da atualização do app; conferir num jogo real |
 | 2026-11-06 | F5.4 atualização automática no Windows (ADR-0051): SHA-256 na API e no download, instala ao encerrar/ocioso fora de chamada e jogo, "Reiniciar e atualizar agora" | desktop `pnpm typecheck`, `eslint electron src test`, `vitest run` (update-core 20 testes); api int `downloads.int.test.ts` 6/6 | verde | instalação silenciosa e reabertura não testadas em Windows real |
+| 2026-11-06 | Clipes: captura religa sozinha, codificador recriado após falha, motivo no aviso/crash-log | desktop 230/230 (`clips-ring` resetVideo) | verde | validar no LoL (Windows 10) do mantenedor |
+| 2026-11-06 | Notificações por servidor/canal, palavras-chave, lembretes, modo streamer, faixa de novas mensagens | desktop 251/251 (`notify-prefs.test.ts` 8) ; typecheck/lint | verde | validar com pessoas reais; detecção de OBS só no Windows |
+| 2026-11-06 | Refatoração: SettingsModal 1775→299 e ServerSettings 1312→388 linhas, Novidades em chunk próprio | typecheck/lint/230 testes; `vite build` (changelog 73 kB à parte) | verde | — |
+| 2026-11-06 | Modo lento e fórum (ADR-0052) | int `forum-slowmode.int.test.ts` 2/2; migração aplicada em produção pelo Rick (backup opencord-pre-migration-20261106052812.dump, 38 migrações) | verde | validar com pessoas reais |
 
 ## Backlog futuro
 Federação, Linux/macOS, mobile, bots, overlay, screen-share avançado, E2EE auditado, gravação opt-in.

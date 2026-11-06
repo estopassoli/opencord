@@ -140,12 +140,13 @@ export const channel = (
     id: string;
     serverId: string;
     categoryId: string | null;
-    kind: 'text' | 'voice' | 'board';
+    kind: 'text' | 'voice' | 'board' | 'forum';
     boardId?: string | null;
     roomHub?: boolean;
     temporary?: boolean;
     ownerId?: string | null;
     userLimit?: number | null;
+    slowmodeSec?: number;
     name: string;
     topic: string | null;
     position: number;
@@ -172,6 +173,7 @@ export const channel = (
     temporary: c.temporary ?? false,
     ownerId: c.ownerId ?? null,
     userLimit: c.userLimit ?? null,
+    slowmodeSec: c.slowmodeSec ?? 0,
     locked: Boolean(c.temporary && ev && ev.deny & Permission.CONNECT),
     private: Boolean(ev && ev.deny & Permission.VIEW_CHANNEL),
     overrides: hideOverrides

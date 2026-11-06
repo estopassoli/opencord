@@ -1,4 +1,5 @@
 import { InstanceBanner } from '../../components/InstanceBanner';
+import { ForumView } from '../forum/ForumView';
 import { BoardView } from '../board/BoardView';
 import { useEffect } from 'react';
 import { bridge } from '../../lib/bridge';
@@ -210,6 +211,7 @@ export function AppShell() {
             <ChatView key={channel.id} target={{ channelId: channel.id }} />
           )}
           {view.kind === 'server' && channel?.kind === 'board' && <BoardView key={channel.id} channel={channel} />}
+          {view.kind === 'server' && channel?.kind === 'forum' && <ForumView key={channel.id} channel={channel} />}
           {view.kind === 'server' && channel?.kind === 'voice' && (
             <VoiceStage channelId={channel.id} serverId={view.serverId} />
           )}

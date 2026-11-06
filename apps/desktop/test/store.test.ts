@@ -8,6 +8,7 @@ const msg = (id: string, createdAt: string, extra: Partial<Message> = {}): Messa
   conversationId: null,
   author: { id: 'u1', username: 'ana', displayName: 'Ana', avatarKey: null, bot: false },
   replyCount: 0,
+  title: null,
   body: id,
   createdAt,
   editedAt: null,

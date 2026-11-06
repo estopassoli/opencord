@@ -20,6 +20,11 @@ import { MessagesService, type Target } from './messages.service.js';
 const id = new ParseUUIDPipe();
 const RepliesQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).default(100) });
 type RepliesQ = z.infer<typeof RepliesQuery>;
+const ForumPostsQuery = z.object({
+  before: z.iso.datetime({ offset: true }).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(25),
+});
+type ForumPostsQ = z.infer<typeof ForumPostsQuery>;
 type ListQ = z.infer<typeof ListMessagesQuery>;
 type SearchQ = z.infer<typeof SearchMessagesQuery>;
 type HighlightsQ = z.infer<typeof HighlightsQuery>;
@@ -238,6 +243,16 @@ export class MessagesController {
     @Query(zodPipe(SearchMessagesQuery)) q: SearchQ,
   ) {
     return this.messages.search(u.userId, { conversationId: cid }, q);
+  }
+
+  /** fórum (ADR-0052): posts do canal, do mais movimentado para o menos */
+  @Get('channels/:id/posts')
+  forumPosts(
+    @CurrentUser() u: AuthUser,
+    @Param('id', id) cid: string,
+    @Query(zodPipe(ForumPostsQuery)) q: ForumPostsQ,
+  ) {
+    return this.messages.forumPosts(u.userId, cid, q);
   }
 
   /** thread leve: respostas diretas a uma mensagem */

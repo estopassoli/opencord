@@ -7,6 +7,7 @@ import { useBots } from '../../store/bots';
 import { keyOf, useData, useMessages, type TargetKey } from '../../store/data';
 import { api, describeError, markTargetRead, useSession } from '../../store/session';
 import { ApiError } from '../../lib/api';
+import { noteRefused, noteSent } from '../../lib/slowmode';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { DmCallBar } from './DmCallBar';
@@ -288,8 +289,8 @@ export function ChatView({ target }: { target: ChatTarget }) {
       {unreadBar && opened && firstUnread && (
         <div className="unread-bar" role="status">
           <button className="unread-bar-jump" onClick={jumpToUnread}>
-            {opened.count} {opened.count === 1 ? 'mensagem nova' : 'mensagens novas'}{' '}
-            desde {new Date(firstUnread.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            {opened.count} {opened.count === 1 ? 'mensagem nova' : 'mensagens novas'} desde{' '}
+            {new Date(firstUnread.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           </button>
           <button
             className="unread-bar-read"
@@ -478,7 +479,14 @@ export async function sendMessage(
       store.upsert(m);
     }
     store.resolvePending(key, requestId);
+    if (target.channelId) noteSent(target.channelId);
   } catch (e) {
+    // modo lento (ADR-0052): a caixa mostra a espera; a mensagem fica como "falhou" para reenviar depois
+    if (target.channelId && noteRefused(target.channelId, describeError(e))) {
+      store.resolvePending(key, requestId, true);
+      useUi.getState().toast('info', describeError(e));
+      return;
+    }
     store.resolvePending(key, requestId, true);
     // retida/bloqueada pela moderação por IA (ADR-0036): o motivo já vem na mensagem
     if (e instanceof ApiError && e.status === 422) useUi.getState().toast('info', describeError(e));

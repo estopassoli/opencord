@@ -637,6 +637,7 @@ function CreateChannel({ modal, onClose }: { modal: Extract<Modal, { kind: 'crea
             { value: 'text', label: 'Texto', icon: 'hashtag', description: 'Mensagens, imagens e arquivos' },
             { value: 'voice', label: 'Voz', icon: 'speaker', description: 'Voz, vídeo e transmissão de tela' },
             { value: 'board', label: 'Quadro', icon: 'kanban', description: 'Kanban com colunas e cards' },
+            { value: 'forum', label: 'Fórum', icon: 'chats', description: 'Posts com título e respostas em cada um' },
           ]}
         />
         <TextField

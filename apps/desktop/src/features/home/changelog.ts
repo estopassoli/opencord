@@ -20,6 +20,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '07:10',
+    kind: 'novo',
+    icon: 'chats',
+    title: 'Canal de fórum',
+    body: 'Crie um canal do tipo Fórum: cada post tem título e as respostas ficam penduradas nele, sem se misturar com outros assuntos. A lista mostra quantas respostas cada post tem e sobe para o topo o que está mais movimentado.',
+  },
+  {
+    date: '2026-11-06',
+    time: '07:00',
+    kind: 'novo',
+    icon: 'clock',
+    title: 'Modo lento',
+    body: 'Quem gerencia o servidor pode ligar o modo lento num canal de texto ou fórum (de 5 segundos a 6 horas entre duas mensagens da mesma pessoa). Acima da caixa de mensagem aparece quanto falta para poder escrever de novo; moderadores não esperam.',
+  },
+  {
+    date: '2026-11-06',
     time: '06:30',
     kind: 'novo',
     icon: 'download',
