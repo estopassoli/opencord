@@ -27,6 +27,8 @@ export function ThreadPanel({ thread }: { thread: { key: TargetKey; rootId: stri
       ? Object.values(s.details).find((d) => d.channels.some((c) => c.id === target.channelId))
       : undefined,
   );
+  // no fórum o post é a própria conversa: não há timeline para onde pular
+  const forum = detail?.channels.find((c) => c.id === target.channelId)?.kind === 'forum';
   const conv = useData((s) =>
     target.conversationId ? s.conversations.find((c) => c.id === target.conversationId) : undefined,
   );
@@ -89,6 +91,7 @@ export function ThreadPanel({ thread }: { thread: { key: TargetKey; rootId: stri
             {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
           </time>
         </div>
+        {isRoot && m.title && <h4 className="thread-title">{m.title}</h4>}
         {m.deleted ? (
           <p className="muted small">mensagem apagada</p>
         ) : (
@@ -105,19 +108,21 @@ export function ThreadPanel({ thread }: { thread: { key: TargetKey; rootId: stri
     <aside className="members thread-panel" aria-label="Thread">
       <header className="thread-head">
         <Icon name="chats" size={18} />
-        <h3>Thread</h3>
+        <h3>{forum ? 'Post' : 'Thread'}</h3>
         <span className="muted small">{replies.length === 1 ? '1 resposta' : `${replies.length} respostas`}</span>
         <span className="spacer" />
-        <button
-          className="icon-btn"
-          aria-label="Ir para a mensagem na conversa"
-          data-tip="Ver na conversa"
-          onClick={() => {
-            if (!jumpTo(rootId)) useUi.getState().toast('info', 'Role a conversa para cima para chegar nela.');
-          }}
-        >
-          <Icon name="spotlight" size={16} />
-        </button>
+        {!forum && (
+          <button
+            className="icon-btn"
+            aria-label="Ir para a mensagem na conversa"
+            data-tip="Ver na conversa"
+            onClick={() => {
+              if (!jumpTo(rootId)) useUi.getState().toast('info', 'Role a conversa para cima para chegar nela.');
+            }}
+          >
+            <Icon name="spotlight" size={16} />
+          </button>
+        )}
         <button
           className="icon-btn"
           aria-label="Fechar thread"

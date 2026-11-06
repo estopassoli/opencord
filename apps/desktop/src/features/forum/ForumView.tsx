@@ -166,7 +166,7 @@ export function ForumView({ channel }: { channel: Channel }) {
                   >
                     <span className="forum-post-title">{m.title ?? 'Sem título'}</span>
                     <span className="forum-post-excerpt">
-                      {renderRich(m.body.slice(0, 220), (id) => nameFor(id, 'alguém'))}
+                      {renderRich(m.body.slice(0, 600), (id) => nameFor(id, 'alguém'))}
                     </span>
                     <span className="forum-post-meta">
                       <Avatar id={m.author.id} name={author} size={18} />

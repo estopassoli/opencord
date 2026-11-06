@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '08:40',
+    kind: 'correção',
+    icon: 'chats',
+    title: 'Post do fórum aparece inteiro',
+    body: 'Ao abrir um post de fórum, o texto aparece completo no painel ao lado (antes era cortado com "..."), com o título do post em cima. O botão "Ver na conversa", que no fórum só mostrava avisos, saiu dali, e o resumo na lista de posts não corta mais no meio da palavra.',
+  },
+  {
+    date: '2026-11-06',
     time: '08:30',
     kind: 'melhoria',
     icon: 'settings',

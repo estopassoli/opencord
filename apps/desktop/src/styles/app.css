@@ -8898,3 +8898,17 @@ html[data-resizing] * {
   cursor: col-resize !important;
   user-select: none !important;
 }
+
+/* thread: a mensagem inteira (o corte em 6 linhas é das fixadas); no fórum, o título do post em cima */
+.thread-msg .pin-body {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+.thread-title {
+  margin: 2px 0 4px;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
