@@ -496,24 +496,6 @@
 .update-check p {
   margin: 0;
 }
-.avatar-picker {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-.avatar-picker-actions {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-.avatar-picker-buttons {
-  display: flex;
-  gap: 8px;
-}
-.avatar-picker .form-error {
-  margin: 0;
-}
 .settings-restart {
   display: flex;
   align-items: center;
@@ -1310,4 +1292,40 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* foto do servidor (ServerIconPicker) */
+.avatar-picker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.avatar-picker-actions {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.avatar-picker-buttons {
+  display: flex;
+  gap: 8px;
+}
+.avatar-picker .form-error {
+  margin: 0;
+}
+
+/* Perfil › Meus dados: @ e e-mail à esquerda, "Trocar @" à direita */
+.mydata-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.mydata-user-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
 }

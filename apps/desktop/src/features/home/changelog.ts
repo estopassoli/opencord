@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-07',
+    time: '18:50',
+    kind: 'novo',
+    icon: 'user',
+    title: 'Trocar o seu @',
+    body: 'Em Configurações › Perfil, na parte nova "Meus dados", dá para trocar o seu @ uma vez a cada 30 dias. O apelido e o e-mail também ficam ali, logo abaixo da personalização do perfil.',
+  },
+  {
+    date: '2026-11-07',
     time: '10:00',
     version: '0.2.342',
     kind: 'novo',

@@ -21,6 +21,7 @@ import {
   type Me,
   type RegisterRequest,
   type TokenPair,
+  USERNAME_CHANGE_DAYS,
 } from '@opencord/contracts';
 import { joinAllServers, Prisma } from '@opencord/db';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
@@ -37,6 +38,17 @@ import { maskEmail } from '../mail/mail.service.js';
 import { featuredBadgeIndex, userBadgeIndex } from '../common/serialize.js';
 
 // Argon2id (algorithm 2) com parâmetros OWASP (m=19 MiB, t=2, p=1).
+/** @ que imitam o OpenCord, a equipe ou menções do sistema (o @opencord oficial já existe e não troca por aqui) */
+const RESERVED_USERNAME =
+  /^(opencord|admin|administrador|moderador|moderacao|suporte|support|staff|system|sistema|everyone|here)([._]|$)/;
+
+/** Data em que o @ pode ser trocado de novo, ou null se já pode. */
+export function usernameAvailableAt(changedAt: Date | null, now = Date.now()): Date | null {
+  if (!changedAt) return null;
+  const next = new Date(changedAt.getTime() + USERNAME_CHANGE_DAYS * 86_400_000);
+  return next.getTime() > now ? next : null;
+}
+
 const ARGON = { algorithm: 2, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
 
 /** tentativas por conta e por IP na janela: um estranho não tranca a conta de alguém de outro IP */
@@ -88,6 +100,7 @@ export class AuthService {
     totpEnabledAt?: Date | null;
     twoFactorEmailAt?: Date | null;
     emailVerifiedAt?: Date | null;
+    usernameChangedAt?: Date | null;
   }): Me {
     return {
       id: u.id,
@@ -105,6 +118,7 @@ export class AuthService {
       twoFactorEnabled: Boolean(u.totpEnabledAt || u.twoFactorEmailAt),
       twoFactorMethod: u.totpEnabledAt ? 'totp' : u.twoFactorEmailAt ? 'email' : null,
       emailVerified: Boolean(u.email && u.emailVerifiedAt),
+      usernameChangeAvailableAt: usernameAvailableAt(u.usernameChangedAt ?? null)?.toISOString() ?? null,
       // bots e webhooks não aceitam termos; contas anteriores à ADR-0039 aceitam no app
       termsAccepted: u.termsAcceptedAt !== null || Boolean(u.isBot) || Boolean(u.isWebhook),
       createdAt: u.createdAt.toISOString(),
@@ -262,6 +276,32 @@ export class AuthService {
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')
         throw new ConflictException('esse apelido já está em uso');
+      throw e;
+    }
+  }
+
+  /**
+   * Troca o @ (uma vez a cada USERNAME_CHANGE_DAYS dias). O login é pelo apelido ou e-mail e as menções guardam o id,
+   * então nada mais muda. Nomes que imitam o OpenCord ou cargos do sistema ficam reservados.
+   */
+  async changeUsername(userId: string, username: string) {
+    const u = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (u.username === username) return u;
+    if (u.isBot || u.isWebhook) throw new BadRequestException('bots não trocam o @ por aqui');
+    const next = usernameAvailableAt(u.usernameChangedAt);
+    if (next)
+      throw new BadRequestException(
+        `você só pode trocar o @ de novo em ${next.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
+      );
+    if (RESERVED_USERNAME.test(username)) throw new BadRequestException('esse @ é reservado');
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: { username, usernameChangedAt: new Date() },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')
+        throw new ConflictException('esse @ já está em uso');
       throw e;
     }
   }

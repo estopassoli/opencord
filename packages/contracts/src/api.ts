@@ -206,6 +206,8 @@ export const Me = UserPublic.extend({
   twoFactorMethod: z.enum(['totp', 'email']).nullable().default(null),
   /** e-mail confirmado por código (ADR-0047) */
   emailVerified: z.boolean().default(false),
+  /** quando o @ pode ser trocado de novo (uma vez a cada 30 dias); null = pode agora */
+  usernameChangeAvailableAt: IsoDate.nullable().default(null),
 });
 export type Me = z.infer<typeof Me>;
 
@@ -318,7 +320,9 @@ export function maskIp(ip: string | null | undefined): string | null {
   return null;
 }
 
-export const UpdateProfileRequest = z.object({ displayName: Nickname.optional() });
+/** o @ (nome de usuário) pode ser trocado uma vez a cada tantos dias */
+export const USERNAME_CHANGE_DAYS = 30;
+export const UpdateProfileRequest = z.object({ displayName: Nickname.optional(), username: Username.optional() });
 
 // ---------- Personalização do perfil (ADR-0048) ----------
 export const BIO_MAX = 190;

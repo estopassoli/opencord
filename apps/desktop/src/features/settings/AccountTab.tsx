@@ -7,7 +7,6 @@ import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { PrivacySection } from '../legal/PrivacySection';
 import { SecuritySection } from './SecuritySection';
-import { AvatarPicker } from './AvatarPicker';
 import { Section } from './Section';
 
 // ---------------------------------------------------------------------------
@@ -108,10 +107,6 @@ function ClaimAccount() {
 
 export function AccountTab() {
   const me = useData((s) => s.me);
-  const [displayName, setDisplayName] = useState(me?.displayName ?? '');
-  const [savingName, setSavingName] = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
-
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -119,23 +114,6 @@ export function AccountTab() {
   const [pwError, setPwError] = useState<string | null>(null);
 
   if (!me) return null;
-
-  const saveName = async (e: FormEvent) => {
-    e.preventDefault();
-    const name = displayName.trim();
-    if (name.length < 2) return setNameError('O apelido precisa de ao menos 2 caracteres.');
-    setSavingName(true);
-    setNameError(null);
-    try {
-      const updated = await api().request<Me>('PATCH', '/me', { displayName: name });
-      useData.setState((s) => ({ me: s.me ? { ...s.me, ...updated } : updated }));
-      useUi.getState().toast('success', 'Apelido atualizado.');
-    } catch (err) {
-      setNameError(describeError(err));
-    } finally {
-      setSavingName(false);
-    }
-  };
 
   const changePassword = async (e: FormEvent) => {
     e.preventDefault();
@@ -158,40 +136,6 @@ export function AccountTab() {
 
   return (
     <>
-      <Section title="Perfil">
-        <AvatarPicker me={me} />
-        <dl className="settings-kv">
-          <dt>Usuário</dt>
-          <dd>@{me.username}</dd>
-          {me.email && (
-            <>
-              <dt>E-mail</dt>
-              <dd>{me.email}</dd>
-            </>
-          )}
-        </dl>
-        <form className="form" onSubmit={(e) => void saveName(e)}>
-          <TextField
-            label="Apelido"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            required
-            minLength={2}
-            maxLength={32}
-          />
-          {nameError && (
-            <p className="form-error" role="alert">
-              {nameError}
-            </p>
-          )}
-          <div className="form-actions">
-            <Button type="submit" size="sm" disabled={savingName || displayName.trim() === me.displayName}>
-              Salvar
-            </Button>
-          </div>
-        </form>
-      </Section>
-
       {!me.hasAccount && <ClaimAccount />}
 
       {me.hasAccount && (

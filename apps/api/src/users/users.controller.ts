@@ -76,10 +76,13 @@ export class UsersController {
     @CurrentUser() u: AuthUser,
     @Body(zodPipe(UpdateProfileRequest)) dto: z.infer<typeof UpdateProfileRequest>,
   ) {
-    if (!dto.displayName) return this.auth.toMe(await this.prisma.user.findUniqueOrThrow({ where: { id: u.userId } }));
-    const user = await this.auth.rename(u.userId, dto.displayName);
+    if (!dto.displayName && !dto.username)
+      return this.auth.toMe(await this.prisma.user.findUniqueOrThrow({ where: { id: u.userId } }));
+    // o @ primeiro: se ele for recusado (prazo, em uso), o apelido também não muda
+    let user = dto.username ? await this.auth.changeUsername(u.userId, dto.username) : null;
+    if (dto.displayName) user = await this.auth.rename(u.userId, dto.displayName);
     await this.avatars.announce(u.userId);
-    return this.auth.toMe(user);
+    return this.auth.toMe(user!);
   }
 
   /** Foto de perfil (multipart, campo "file"): PNG/JPEG/WebP/GIF até 1 MB e 1024 px de lado. */
