@@ -987,13 +987,51 @@ ${meta('og:description', description)}${meta('og:image', image)}${meta('og:url',
     return category(u);
   }
 
-  async deleteCategory(categoryId: string, actorId: string) {
+  /**
+   * Exclui a categoria. Com `withChannels`, os canais dela somem junto (tudo ou nada: quem não pode gerenciar algum
+   * canal dela, inclusive um que nem vê, recebe 403 e nada é apagado); sem, eles ficam sem categoria.
+   */
+  async deleteCategory(categoryId: string, actorId: string, withChannels = false) {
     const c = await this.prisma.category.findUnique({ where: { id: categoryId } });
     if (!c) throw notFound('categoria');
     await this.perms.requireServer(c.serverId, actorId, Permission.MANAGE_CHANNELS);
-    await this.prisma.category.delete({ where: { id: categoryId } });
-    await this.audit.log(actorId, c.serverId, 'category.delete', categoryId, { name: c.name });
+    const channels = withChannels
+      ? await this.prisma.channel.findMany({ where: { categoryId }, select: { id: true, name: true } })
+      : [];
+    for (const ch of channels)
+      await this.perms.requireChannel(ch.id, actorId, Permission.MANAGE_CHANNELS).catch(() => {
+        throw forbidden('sem permissão para excluir todos os canais desta categoria');
+      });
+    for (const ch of channels) {
+      this.events.emit({ type: 'channel.deleted', serverId: c.serverId, channelId: ch.id });
+      this.realtime.emit(rooms.server(c.serverId), 'channel:deleted', { serverId: c.serverId, channelId: ch.id });
+    }
+    await this.prisma.$transaction([
+      this.prisma.channel.deleteMany({ where: { id: { in: channels.map((ch) => ch.id) } } }),
+      this.prisma.category.delete({ where: { id: categoryId } }),
+    ]);
+    await this.audit.log(actorId, c.serverId, 'category.delete', categoryId, {
+      name: c.name,
+      ...(channels.length ? { channels: channels.map((ch) => ch.name) } : {}),
+    });
     this.realtime.emit(rooms.server(c.serverId), 'category:deleted', { serverId: c.serverId, categoryId });
+  }
+
+  /** Ordem das categorias (arrastar na lista): a lista precisa ter todas as categorias do servidor. */
+  async reorderCategories(serverId: string, actorId: string, categoryIds: string[]): Promise<void> {
+    await this.perms.requireServer(serverId, actorId, Permission.MANAGE_CHANNELS);
+    const all = await this.prisma.category.findMany({ where: { serverId } });
+    const ids = new Set(categoryIds);
+    if (ids.size !== categoryIds.length || all.length !== ids.size || all.some((c) => !ids.has(c.id)))
+      throw new BadRequestException('a lista precisa ter todas as categorias do servidor, uma vez cada');
+    const byId = new Map(all.map((c) => [c.id, c]));
+    const changed = categoryIds.filter((id, i) => byId.get(id)!.position !== i);
+    if (changed.length === 0) return;
+    const updated = await this.prisma.$transaction(
+      changed.map((id) => this.prisma.category.update({ where: { id }, data: { position: categoryIds.indexOf(id) } })),
+    );
+    await this.audit.log(actorId, serverId, 'category.reorder', serverId, { categoryIds });
+    for (const u of updated) this.realtime.emit(rooms.server(serverId), 'category:upserted', category(u));
   }
 
   // ---------- Canais ----------

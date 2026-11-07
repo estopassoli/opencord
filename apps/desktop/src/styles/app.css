@@ -9398,3 +9398,30 @@ html[data-resizing] * {
 .pc-bio-editing textarea {
   padding-right: 30px;
 }
+
+/* arrastar categorias na lista de canais (pelo título) */
+.cat[data-drop-line] {
+  position: relative;
+}
+.cat[data-drop-line]::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--brand);
+  pointer-events: none;
+}
+.cat[data-drop-line='before']::before {
+  top: -7px;
+}
+.cat[data-drop-line='after']::before {
+  bottom: -7px;
+}
+.cat[data-dragging='true'] {
+  opacity: 0.4;
+}
+.cat-header[draggable='true'] {
+  cursor: grab;
+}

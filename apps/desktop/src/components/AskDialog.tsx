@@ -1,4 +1,4 @@
-import { Button, TextField } from '@opencord/ui';
+import { Button, Checkbox, TextField } from '@opencord/ui';
 import { useState } from 'react';
 import { create } from 'zustand';
 import { Dialog } from './Dialog';
@@ -23,15 +23,25 @@ interface Ask {
   choices: Choice[];
   /** pergunta com campo de texto (prompt) */
   input?: { label: string; placeholder?: string };
-  resolve: (v: string | null) => void;
+  /** caixa de marcar opcional (ex.: "apagar junto os canais"); a resposta leva se ficou marcada */
+  check?: { label: string; description?: string };
+  resolve: (v: string | null, checked?: boolean) => void;
 }
 
 const useAsk = create<{ queue: Ask[] }>(() => ({ queue: [] }));
 
 let seq = 0;
-function ask(a: Omit<Ask, 'resolve' | 'id'>, signal?: AbortSignal): Promise<string | null> {
+function ask(
+  a: Omit<Ask, 'resolve' | 'id'>,
+  signal?: AbortSignal,
+  onChecked?: (checked: boolean) => void,
+): Promise<string | null> {
   const id = ++seq;
-  return new Promise((resolve) => {
+  return new Promise((done) => {
+    const resolve = (v: string | null, checked?: boolean) => {
+      if (v !== null) onChecked?.(checked ?? false);
+      done(v);
+    };
     if (signal?.aborted) return resolve(null);
     useAsk.setState((s) => ({ queue: [...s.queue, { ...a, id, resolve }] }));
     // a pergunta perdeu o sentido (ex.: quem pediu desistiu): some sem resposta
@@ -83,6 +93,25 @@ export function askText(
   );
 }
 
+/** Confirmação com uma caixa de marcar; devolve null se cancelar, ou se a caixa ficou marcada. */
+export async function askConfirmCheck(
+  message: string,
+  o: ConfirmOptions & { check: string; checkDescription?: string },
+): Promise<{ checked: boolean } | null> {
+  let checked = false;
+  const r = await ask(
+    {
+      title: o.title ?? 'Tem certeza?',
+      message,
+      choices: [{ id: 'ok', label: o.confirmLabel ?? 'Confirmar', danger: o.danger ?? false }],
+      check: { label: o.check, description: o.checkDescription },
+    },
+    o.signal,
+    (c) => (checked = c),
+  );
+  return r === null ? null : { checked };
+}
+
 /** Pergunta com mais de uma resposta possível (além de cancelar); devolve o id da escolhida. */
 export function askChoice<T extends string>(
   message: string,
@@ -99,9 +128,10 @@ export function AskHost() {
 
 function AskView({ a }: { a: Ask }) {
   const [text, setText] = useState('');
+  const [checked, setChecked] = useState(false);
   const done = (v: string | null) => {
     useAsk.setState((s) => ({ queue: s.queue.slice(1) }));
-    a.resolve(v);
+    a.resolve(v, checked);
   };
   const main = a.choices[a.choices.length - 1];
   const answer = (c: Choice) => done(a.input ? text : c.id);
@@ -144,6 +174,9 @@ function AskView({ a }: { a: Ask }) {
             onChange={(e) => setText(e.target.value)}
             autoFocus
           />
+        )}
+        {a.check && (
+          <Checkbox checked={checked} onChange={setChecked} label={a.check.label} description={a.check.description} />
         )}
       </form>
     </Dialog>

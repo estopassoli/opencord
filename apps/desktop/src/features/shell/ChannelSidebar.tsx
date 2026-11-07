@@ -23,6 +23,7 @@ import { useAliases } from '../../lib/names';
 import { useIsMobile } from '../../lib/media';
 import { GameBadge } from './Playing';
 import { createLockedRoom, isLockedRoom, isPrivateChannel, knockRoom, roomMenuItems } from './rooms';
+import { deleteCategory, reorderCategories } from './categories';
 
 /** Categorias recolhidas (por id de categoria), lembradas neste dispositivo. */
 const COLLAPSED_KEY = 'oc:collapsed-categories';
@@ -71,6 +72,9 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   // arrastar um canal para mudar a ordem ou a categoria (MANAGE_CHANNELS); só entre canais do mesmo tipo
   const [chDrag, setChDrag] = useState<Channel | null>(null);
   const [chDrop, setChDrop] = useState<{ cat: string | null; id: string | null; after: boolean } | null>(null);
+  // arrastar uma categoria (pelo título) para mudar a ordem delas (MANAGE_CHANNELS)
+  const [catDrag, setCatDrag] = useState<string | null>(null);
+  const [catDrop, setCatDrop] = useState<{ id: string; after: boolean } | null>(null);
 
   const groups = useMemo(() => {
     if (!detail) return [];
@@ -149,6 +153,24 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
         useUi.getState().toast('error', describeError(err));
         void loadServer(serverId).catch(() => undefined);
       });
+  };
+
+  const endCategoryDrag = () => {
+    setCatDrag(null);
+    setCatDrop(null);
+  };
+  /** solta a categoria arrastada antes/depois de outra */
+  const dropCategory = () => {
+    const target = catDrop;
+    const moving = catDrag;
+    endCategoryDrag();
+    if (!target || !moving || target.id === moving) return;
+    const ids = detail.categories.map((c) => c.id).filter((id) => id !== moving);
+    const at = ids.indexOf(target.id);
+    if (at < 0) return;
+    ids.splice(target.after ? at + 1 : at, 0, moving);
+    if (ids.every((id, i) => id === detail.categories[i]?.id)) return;
+    reorderCategories(serverId, ids);
   };
 
   return (
@@ -252,11 +274,71 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
           <span className="truncate">Melhores momentos</span>
         </button>
         {groups.map((g) => (
-          <section key={g.id ?? 'none'} className="cat">
+          <section
+            key={g.id ?? 'none'}
+            className="cat"
+            data-dragging={catDrag && catDrag === g.id ? 'true' : undefined}
+            data-drop-line={catDrop && catDrop.id === g.id ? (catDrop.after ? 'after' : 'before') : undefined}
+            onDragOver={(e) => {
+              if (!catDrag || !g.id) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              const r = e.currentTarget.getBoundingClientRect();
+              const after = e.clientY > r.top + Math.min(r.height / 2, 24);
+              if (catDrop?.id !== g.id || catDrop.after !== after) setCatDrop({ id: g.id, after });
+            }}
+            onDrop={(e) => {
+              if (!catDrag) return;
+              e.preventDefault();
+              dropCategory();
+            }}
+          >
             {g.name && (
               <div
                 className="cat-header"
                 data-drop-target={chDrop && chDrop.cat === g.id && !chDrop.id ? 'true' : undefined}
+                draggable={canManage ? true : undefined}
+                onDragStart={(e) => {
+                  if (!canManage || !g.id) return;
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', g.name ?? '');
+                  setCatDrag(g.id);
+                }}
+                onDragEnd={endCategoryDrag}
+                onContextMenu={(e) => {
+                  const cat = detail.categories.find((x) => x.id === g.id);
+                  if (!cat) return;
+                  const folded = collapsed[cat.id];
+                  const items: MenuEntry[] = [
+                    {
+                      label: folded ? 'Expandir categoria' : 'Recolher categoria',
+                      icon: folded ? 'chevron-down' : 'chevron-right',
+                      onSelect: () => setCollapsed((c) => ({ ...c, [cat.id]: !c[cat.id] })),
+                    },
+                  ];
+                  if (canManage)
+                    items.push(
+                      'separator',
+                      {
+                        label: 'Criar canal',
+                        icon: 'hashtag',
+                        onSelect: () =>
+                          open({ kind: 'create-channel', serverId, channelKind: 'text', categoryId: cat.id }),
+                      },
+                      {
+                        label: 'Editar categoria',
+                        icon: 'edit',
+                        onSelect: () => open({ kind: 'server-settings', serverId, tab: 'channels' }),
+                      },
+                      {
+                        label: 'Excluir categoria',
+                        icon: 'trash',
+                        danger: true,
+                        onSelect: () => void deleteCategory(detail, cat),
+                      },
+                    );
+                  openContextMenu(e, items, `Opções da categoria ${cat.name}`);
+                }}
                 onDragOver={(e) => {
                   if (!chDrag) return;
                   e.preventDefault();

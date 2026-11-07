@@ -676,6 +676,9 @@ export const ReorderChannelsRequest = z.object({
   channelIds: z.array(Id).min(1).max(200),
 });
 export type ReorderChannelsRequest = z.infer<typeof ReorderChannelsRequest>;
+/** arrastar categorias na lista: a ordem final de todas as categorias do servidor */
+export const ReorderCategoriesRequest = z.object({ categoryIds: z.array(Id).min(1).max(200) });
+export type ReorderCategoriesRequest = z.infer<typeof ReorderCategoriesRequest>;
 
 export const CreateCategoryRequest = z.object({ name: z.string().trim().min(1).max(64) });
 export const UpdateCategoryRequest = z.object({

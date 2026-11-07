@@ -82,4 +82,65 @@ describe('ordem dos canais', () => {
       ).status,
     ).toBe(403);
   });
+
+  it('reordena categorias (lista completa) e exclui categoria com ou sem os canais', async () => {
+    const { owner, serverId } = await bootstrapOwner(http);
+    const mkCat = async (name: string) =>
+      (await http.req<Category>('POST', `/servers/${serverId}/categories`, { token: owner.token, body: { name } }))
+        .body;
+    const cats = (await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token })).body.categories;
+    const x = await mkCat('X');
+    const y = await mkCat('Y');
+    const order = [y.id, ...cats.map((c) => c.id), x.id];
+    expect(
+      (
+        await http.req('PUT', `/servers/${serverId}/categories/order`, {
+          token: owner.token,
+          body: { categoryIds: order },
+        })
+      ).status,
+    ).toBe(204);
+    const after = (await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token })).body.categories;
+    expect([...after].sort((a, b) => a.position - b.position).map((c) => c.id)).toEqual(order);
+    // faltando uma: 400
+    expect(
+      (
+        await http.req('PUT', `/servers/${serverId}/categories/order`, {
+          token: owner.token,
+          body: { categoryIds: [x.id] },
+        })
+      ).status,
+    ).toBe(400);
+
+    const mk = async (name: string, categoryId: string) =>
+      (
+        await http.req<Channel>('POST', `/servers/${serverId}/channels`, {
+          token: owner.token,
+          body: { name, kind: 'text', categoryId },
+        })
+      ).body;
+    const keep = await mk('fica', x.id);
+    const gone = await mk('some', y.id);
+    // membro comum não reordena nem exclui
+    const bia = await outsider(http);
+    const inv = await http.req<{ code: string }>('POST', `/servers/${serverId}/invites`, { token: owner.token });
+    await http.req('POST', `/invites/${inv.body.code}`, { token: bia.token });
+    expect(
+      (
+        await http.req('PUT', `/servers/${serverId}/categories/order`, {
+          token: bia.token,
+          body: { categoryIds: order },
+        })
+      ).status,
+    ).toBe(403);
+    expect((await http.req('DELETE', `/categories/${y.id}?channels=true`, { token: bia.token })).status).toBe(403);
+
+    expect((await http.req('DELETE', `/categories/${x.id}`, { token: owner.token })).status).toBe(204);
+    expect((await http.req('DELETE', `/categories/${y.id}?channels=true`, { token: owner.token })).status).toBe(204);
+    const d = (await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token })).body;
+    expect(d.categories.map((c) => c.id)).not.toContain(x.id);
+    expect(d.categories.map((c) => c.id)).not.toContain(y.id);
+    expect(d.channels.find((c) => c.id === keep.id)?.categoryId).toBeNull();
+    expect(d.channels.some((c) => c.id === gone.id)).toBe(false);
+  });
 });

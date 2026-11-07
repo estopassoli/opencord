@@ -20,6 +20,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
+    time: '13:30',
+    kind: 'melhoria',
+    icon: 'folder',
+    title: 'Arrastar e excluir categorias',
+    body: 'Quem gerencia canais pode arrastar uma categoria pelo título para mudar a ordem na lista. Clicando com o botão direito no título aparecem Recolher, Criar canal, Editar e Excluir categoria; ao excluir, uma caixa permite apagar junto os canais dela (sem marcar, eles ficam sem categoria).',
+  },
+  {
+    date: '2026-11-06',
     time: '12:10',
     kind: 'novo',
     icon: 'forward',

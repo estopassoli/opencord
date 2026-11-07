@@ -15,6 +15,7 @@ import { formatSlowmode } from '../forum/ForumView';
 import { Button, Icon, Select, Switch, TextArea, TextField } from '@opencord/ui';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { askConfirm } from '../../components/AskDialog';
+import { deleteCategory } from '../shell/categories';
 import { CHANNEL_ICON, CHANNEL_LABEL } from '../../lib/channels';
 import { useData } from '../../store/data';
 import { api, describeError } from '../../store/session';
@@ -443,22 +444,8 @@ function CategoryEditor({ category, detail, canEdit }: { category: Category; det
     }
   };
   const remove = async () => {
-    if (
-      !(await askConfirm(`A categoria “${category.name}” some; os ${count} canais dela ficam sem categoria.`, {
-        title: 'Excluir categoria',
-        confirmLabel: 'Excluir',
-        danger: true,
-      }))
-    )
-      return;
     setBusy(true);
-    try {
-      await api().request('DELETE', `/categories/${category.id}`);
-      useData.getState().removeCategory(detail.id, category.id);
-    } catch (err) {
-      toastError(err);
-      setBusy(false);
-    }
+    if (!(await deleteCategory(detail, category))) setBusy(false);
   };
 
   return (
@@ -495,7 +482,7 @@ function CategoryEditor({ category, detail, canEdit }: { category: Category; det
           <section className="ch-danger" aria-label="Zona de perigo">
             <span className="ch-danger-text">
               <strong>Excluir categoria</strong>
-              <span className="muted small">Os canais continuam existindo, só ficam sem categoria.</span>
+              <span className="muted small">Você escolhe se os canais dela vão junto ou ficam sem categoria.</span>
             </span>
             <Button type="button" size="sm" variant="danger" disabled={busy} onClick={() => void remove()}>
               Excluir

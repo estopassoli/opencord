@@ -30,6 +30,7 @@ import {
   SetMemberRolesRequest,
   UpdateCategoryRequest,
   UpdateChannelRequest,
+  ReorderCategoriesRequest,
   ReorderChannelsRequest,
   UpdateRoleRequest,
   CreateInviteRequest,
@@ -414,8 +415,23 @@ export class ServersController {
 
   @Delete('categories/:id')
   @HttpCode(204)
-  async deleteCategory(@CurrentUser() u: AuthUser, @Param('id', anyUuid) id: string) {
-    await this.servers.deleteCategory(id, u.userId);
+  async deleteCategory(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Query('channels') channels?: string,
+  ) {
+    // ?channels=true apaga junto os canais da categoria
+    await this.servers.deleteCategory(id, u.userId, channels === 'true');
+  }
+
+  @Put('servers/:id/categories/order')
+  @HttpCode(204)
+  async reorderCategories(
+    @CurrentUser() u: AuthUser,
+    @Param('id', anyUuid) id: string,
+    @Body(zodPipe(ReorderCategoriesRequest)) dto: ReorderCategoriesRequest,
+  ) {
+    await this.servers.reorderCategories(id, u.userId, dto.categoryIds);
   }
 
   // ----- canais -----
