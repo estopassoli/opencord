@@ -58,6 +58,9 @@ export function NewsView() {
                     <div className="timeline-meta">
                       <span className="timeline-kind">{KIND_LABEL[e.kind]}</span>
                       {e.time && <time className="muted small">{e.time}</time>}
+                      <span className="timeline-version muted small">
+                        {e.version ? `versão ${e.version}` : 'próxima versão'}
+                      </span>
                     </div>
                     <h4>{e.title}</h4>
                     <p>{e.body}</p>

@@ -26,7 +26,7 @@ Você é o agente de implementação do OpenCord. Leia `docs/PRD.md`, `docs/SDD.
 7. Continue com a próxima tarefa desbloqueada, sem pular gates de aceite.
 
 ## Convenções
-- Toda mudança perceptível pelo usuário comum ganha uma entrada na linha do tempo "Novidades" (`apps/desktop/src/features/home/changelog.ts`, mais nova primeiro, texto para quem usa): recursos, melhorias e correções. **Não** entram coisas de super admin/painel admin, SDK/npm/docs, releases, infra ou melhorias internas (pedido do mantenedor, 2026-11-02).
+- **Novidades** (`apps/desktop/src/features/home/changelog.ts`, mais nova primeiro, texto para quem usa): só entra o que for **relevante para quem usa** — recurso novo, melhoria que muda o uso ou correção de um problema que as pessoas sentiam (pedido do mantenedor, 2026-11-07). **Não** entram: ajustes visuais pequenos (alinhamento, espaçamento, setinha, ícone, animação), acertos de detalhe de algo recém-lançado, coisas de super admin/painel admin, SDK/npm/docs, releases, infra ou melhorias internas. Na dúvida, não entra; vários ajustes pequenos de uma mesma área podem virar uma entrada só. Não escreva `version`: o CI carimba a versão do app em que a novidade entrou (`apps/desktop/scripts/changelog-versions.mjs`, a partir das tags de release).
 - pnpm + Turborepo, TypeScript strict, NestJS/Fastify, React/Vite/Electron, Prisma/PostgreSQL, Redis, Socket.IO, LiveKit, coturn.
 - API de domínio tipada; schemas compartilhados em `packages/contracts`.
 - Sem uso de `any` salvo exceção documentada; sem secrets hardcoded.

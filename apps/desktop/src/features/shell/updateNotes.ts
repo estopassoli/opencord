@@ -3,6 +3,7 @@
 export interface Note {
   date: string;
   time?: string;
+  version?: string;
   kind: string;
   title: string;
   body: string;

@@ -72,6 +72,9 @@ jobs:
       APP_VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # histórico e tags: a versão de cada novidade vem das tags de release (changelog-versions.mjs)
+          fetch-depth: 0
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -83,6 +86,10 @@ jobs:
         shell: bash
         working-directory: apps/desktop
         run: npm pkg set version="$APP_VERSION"
+      # versão em que cada novidade entrou (tags de release); as que ainda não estão em tag entram nesta
+      - name: Versão nas novidades
+        shell: bash
+        run: node apps/desktop/scripts/changelog-versions.mjs --current "$APP_VERSION"
       # Dependências pelo turbo; o app fora dele, porque o turbo não repassa VITE_OPENCORD_SERVER_URL ao vite.
       - run: pnpm turbo run build --filter "@opencord/desktop^..."
       - run: pnpm --filter @opencord/desktop build

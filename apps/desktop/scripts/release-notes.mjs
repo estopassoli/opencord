@@ -24,7 +24,7 @@ const flag = (name) => {
 };
 
 /** Lê o changelog de um ref do git (ou do disco, sem ref) e devolve as entradas. */
-async function entriesAt(repo, ref) {
+export async function entriesAt(repo, ref) {
   if (!ref) {
     const { CHANGELOG } = await import('../src/features/home/changelog.ts');
     return CHANGELOG;
@@ -97,9 +97,11 @@ if (!isMain) {
   process.stdout.write(toMarkdown(entries, flag('--title')));
 } else if (args[0] && !args[0].startsWith('--')) {
   const out = args[0];
-  const entries = (await entriesAt()).slice(0, 150).map(({ date, time, kind, title, body }) => ({
+  const entries = (await entriesAt()).slice(0, 150).map(({ date, time, version, kind, title, body }) => ({
     date,
     time,
+    // a que ainda não tem carimbo entra na versão sendo publicada
+    version: version ?? process.env.APP_VERSION,
     kind,
     title,
     body,

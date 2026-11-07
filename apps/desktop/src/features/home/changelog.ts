@@ -11,6 +11,8 @@ export interface ChangeEntry {
   date: string;
   /** HH:MM (opcional, para ordenar entradas do mesmo dia) */
   time?: string;
+  /** versão do app em que entrou (carimbada por scripts/changelog-versions.mjs a partir das tags de release) */
+  version?: string;
   kind: ChangeKind;
   icon: IconName;
   title: string;
@@ -21,6 +23,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-07',
     time: '10:00',
+    version: '0.2.342',
     kind: 'novo',
     icon: 'eye',
     title: 'Visualizada nas mensagens diretas',
@@ -29,6 +32,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '13:30',
+    version: '0.2.341',
     kind: 'melhoria',
     icon: 'folder',
     title: 'Arrastar e excluir categorias',
@@ -37,6 +41,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '12:10',
+    version: '0.2.340',
     kind: 'novo',
     icon: 'forward',
     title: 'Encaminhar mensagem',
@@ -45,6 +50,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '10:55',
+    version: '0.2.338',
     kind: 'melhoria',
     icon: 'play',
     title: 'Player de vídeo novo na conversa',
@@ -53,6 +59,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '09:10',
+    version: '0.2.337',
     kind: 'melhoria',
     icon: 'film',
     title: 'Aviso de clipe por cima do jogo',
@@ -61,6 +68,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '09:00',
+    version: '0.2.336',
     kind: 'novo',
     icon: 'emoji',
     title: 'Seletor de emojis em todas as caixas de texto',
@@ -68,23 +76,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-06',
-    time: '08:50',
-    kind: 'correção',
-    icon: 'sun',
-    title: 'Dicas sem a setinha estranha no modo Vidro',
-    body: 'As dicas que aparecem ao passar o mouse (como o nome do servidor na barra da esquerda) não mostram mais aquele losango por cima da borda no modo Vidro.',
-  },
-  {
-    date: '2026-11-06',
-    time: '08:40',
-    kind: 'correção',
-    icon: 'chats',
-    title: 'Post do fórum aparece inteiro',
-    body: 'Ao abrir um post de fórum, o texto aparece completo no painel ao lado (antes era cortado com "..."), com o título do post em cima. O botão "Ver na conversa", que no fórum só mostrava avisos, saiu dali, e o resumo na lista de posts não corta mais no meio da palavra.',
-  },
-  {
-    date: '2026-11-06',
     time: '08:30',
+    version: '0.2.334',
     kind: 'melhoria',
     icon: 'settings',
     title: 'Largura das listas de canais e de membros',
@@ -92,23 +85,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-06',
-    time: '08:20',
-    kind: 'melhoria',
-    icon: 'sun',
-    title: 'Vidro mais vivo no modo Vidro',
-    body: 'Os cartões das configurações, as janelas, os menus de clique direito e as dicas ganharam o mesmo vidro do resto do modo Vidro: mais claro, com brilho nas bordas, e os campos de texto deixaram de ser caixas pretas. O item escolhido no menu agora acende em vidro em vez de um bloco de cor.',
-  },
-  {
-    date: '2026-11-06',
-    time: '08:00',
-    kind: 'novo',
-    icon: 'bell',
-    title: 'Novidades também no fórum #novidades',
-    body: 'Tudo o que entra no OpenCord agora também é publicado pela conta @opencord no canal #novidades do servidor oficial, em formato de fórum: cada novidade é um post, e dá para responder, tirar dúvidas e reagir em cada uma.',
-  },
-  {
-    date: '2026-11-06',
     time: '07:10',
+    version: '0.2.331',
     kind: 'novo',
     icon: 'chats',
     title: 'Canal de fórum',
@@ -117,6 +95,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '07:00',
+    version: '0.2.331',
     kind: 'novo',
     icon: 'clock',
     title: 'Modo lento',
@@ -125,6 +104,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '06:30',
+    version: '0.2.330',
     kind: 'novo',
     icon: 'download',
     title: 'Atualização automática',
@@ -133,6 +113,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '06:20',
+    version: '0.2.330',
     kind: 'novo',
     icon: 'screen',
     title: 'Modo streamer',
@@ -141,6 +122,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '06:10',
+    version: '0.2.330',
     kind: 'novo',
     icon: 'clock',
     title: 'Lembretes de mensagem',
@@ -149,6 +131,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '06:00',
+    version: '0.2.330',
     kind: 'novo',
     icon: 'at-symbol',
     title: 'Palavras-chave',
@@ -157,6 +140,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '05:50',
+    version: '0.2.330',
     kind: 'novo',
     icon: 'bell-off',
     title: 'Silenciar servidor ou canal',
@@ -165,6 +149,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-06',
     time: '05:40',
+    version: '0.2.330',
     kind: 'melhoria',
     icon: 'chat',
     title: 'Faixa de mensagens novas',
@@ -172,15 +157,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-06',
-    time: '05:00',
-    kind: 'melhoria',
-    icon: 'gamepad',
-    title: 'Overlay mais fácil de ler',
-    body: 'O fundo dos nomes e dos avisos no overlay do jogo ficou mais escuro, para ler melhor por cima de qualquer cena.',
-  },
-  {
-    date: '2026-11-06',
     time: '04:40',
+    version: '0.2.326',
     kind: 'correção',
     icon: 'film',
     title: 'Clipes não param no meio da partida',
@@ -189,6 +167,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '11:00',
+    version: '0.2.325',
     kind: 'melhoria',
     icon: 'settings',
     title: 'Configurações do usuário com cara nova',
@@ -197,6 +176,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '10:30',
+    version: '0.2.323',
     kind: 'correção',
     icon: 'gamepad',
     title: 'Overlay no jogo mais discreto e completo',
@@ -205,6 +185,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '10:00',
+    version: '0.2.323',
     kind: 'novo',
     icon: 'panel-close',
     title: 'Esconder a lista de canais',
@@ -213,6 +194,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '09:30',
+    version: '0.2.322',
     kind: 'novo',
     icon: 'clock',
     title: 'Tempo da chamada nos canais de voz',
@@ -220,31 +202,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-05',
-    time: '09:00',
-    kind: 'melhoria',
-    icon: 'microphone',
-    title: 'Microfone volta como estava ao sair do canal de ausentes',
-    body: 'O canal de ausentes desliga o microfone, mas agora o app lembra como ele estava antes. Ao ir para outro canal (ou sair da chamada), o microfone volta ligado se estava ligado, ou continua desligado se você já estava mudo.',
-  },
-  {
-    date: '2026-11-05',
-    time: '08:30',
-    kind: 'correção',
-    icon: 'menu',
-    title: 'Menus de clique direito sempre dentro da janela',
-    body: 'Submenus como "Cargos" passavam da borda de baixo da janela quando o menu abria perto do fim da tela. Agora o submenu sobe o necessário para aparecer inteiro, e o menu principal também nunca fica cortado.',
-  },
-  {
-    date: '2026-11-05',
-    time: '08:00',
-    kind: 'melhoria',
-    icon: 'speaker-off',
-    title: 'Canal de ausentes sem áudio',
-    body: 'No canal de ausentes ninguém fala, liga câmera ou transmite: o microfone fica desligado para todo mundo que estiver lá, inclusive para quem entrou por conta própria. Para voltar a falar, é só entrar em outro canal.',
-  },
-  {
-    date: '2026-11-05',
     time: '07:30',
+    version: '0.2.318',
     kind: 'novo',
     icon: 'hashtag',
     title: 'Arraste canais para reordenar',
@@ -253,6 +212,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '07:00',
+    version: '0.2.318',
     kind: 'melhoria',
     icon: 'settings',
     title: 'Configurações do servidor com cara nova',
@@ -260,15 +220,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-05',
-    time: '06:00',
-    kind: 'melhoria',
-    icon: 'hashtag',
-    title: 'Aba Canais redesenhada',
-    body: 'Em Configurações do servidor → Canais, a lista dos canais fica à esquerda, por categoria, com busca e marcas de privado, quadro kanban e criador de salas. Ao escolher um canal, o painel ao lado mostra nome, tópico, categoria, quadro e canal privado, com um só botão Salvar alterações e a exclusão separada. Clicar numa categoria permite renomear ou excluir. Canais, Membros, Convites e Registro de auditoria agora usam uma área mais larga.',
-  },
-  {
-    date: '2026-11-05',
     time: '05:40',
+    version: '0.2.316',
     kind: 'melhoria',
     icon: 'image',
     title: 'GIF na imagem e na faixa do servidor',
@@ -277,6 +230,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '05:20',
+    version: '0.2.314',
     kind: 'correção',
     icon: 'edit',
     title: 'Bio e status no celular',
@@ -285,6 +239,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '05:00',
+    version: '0.2.314',
     kind: 'novo',
     icon: 'emoji',
     title: 'Emojis personalizados',
@@ -293,6 +248,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '04:30',
+    version: '0.2.312',
     kind: 'melhoria',
     icon: 'user-plus',
     title: 'Convites com validade e membros em tabela',
@@ -301,6 +257,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '04:00',
+    version: '0.2.311',
     kind: 'novo',
     icon: 'server',
     title: 'Servidores com perfil, faixa e boas-vindas',
@@ -309,6 +266,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '03:00',
+    version: '0.2.311',
     kind: 'novo',
     icon: 'moon',
     title: 'Canal de ausentes',
@@ -316,15 +274,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-05',
-    time: '02:40',
-    kind: 'melhoria',
-    icon: 'window',
-    title: 'Janelas mais legíveis por cima da live',
-    body: 'Janelas, páginas e o visualizador de imagens agora desfocam o que fica atrás deles (a live, o chat, o fundo), e no visual Vidro a página de clipes, o cartão da conta, o seletor de GIFs e o seletor de cor ganharam o mesmo vidro desfocado dos outros menus.',
-  },
-  {
-    date: '2026-11-05',
     time: '02:20',
+    version: '0.2.305',
     kind: 'melhoria',
     icon: 'users',
     title: 'Mais atalhos em quem está na chamada',
@@ -333,6 +284,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '02:00',
+    version: '0.2.305',
     kind: 'novo',
     icon: 'film',
     title: 'Página de clipes',
@@ -341,6 +293,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '01:40',
+    version: '0.2.305',
     kind: 'novo',
     icon: 'user',
     title: 'Sua conta num cartão',
@@ -349,6 +302,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '01:20',
+    version: '0.2.305',
     kind: 'melhoria',
     icon: 'edit',
     title: 'Editar perfil a um clique',
@@ -357,6 +311,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '01:00',
+    version: '0.2.301',
     kind: 'novo',
     icon: 'star',
     title: 'Escolha suas insígnias em destaque',
@@ -365,6 +320,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '00:30',
+    version: '0.2.301',
     kind: 'novo',
     icon: 'search',
     title: 'Zoom nas transmissões',
@@ -373,6 +329,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-05',
     time: '00:10',
+    version: '0.2.301',
     kind: 'novo',
     icon: 'soundboard',
     title: 'Atalhos para os efeitos sonoros',
@@ -380,23 +337,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-04',
-    time: '23:20',
-    kind: 'correção',
-    icon: 'phone',
-    title: 'Aviso certo ao entrar em chamada por outro aparelho',
-    body: 'Se você está numa chamada no computador e entra em outra pelo celular (ou o contrário), o aparelho que sai agora avisa "Você entrou em uma chamada em outro aparelho", em vez de "removido da chamada".',
-  },
-  {
-    date: '2026-11-04',
-    time: '23:00',
-    kind: 'correção',
-    icon: 'music',
-    title: 'Fila de músicas longa cabe no player',
-    body: 'Com muitas músicas na fila, o player da chamada agora fica do tamanho da tela e só a lista rola por dentro. Antes, as últimas músicas apareciam sem fundo, por cima de quem estava ao vivo.',
-  },
-  {
-    date: '2026-11-04',
     time: '22:30',
+    version: '0.2.293',
     kind: 'novo',
     icon: 'user',
     title: 'Seu perfil do seu jeito',
@@ -405,6 +347,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
     time: '21:30',
+    version: '0.2.290',
     kind: 'novo',
     icon: 'mail',
     title: 'Código de acesso por e-mail',
@@ -413,6 +356,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
     time: '20:30',
+    version: '0.2.288',
     kind: 'novo',
     icon: 'shield',
     title: 'Mais segurança na sua conta',
@@ -420,15 +364,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-04',
-    time: '20:10',
-    kind: 'melhoria',
-    icon: 'server',
-    title: 'Botões da barra de servidores no rodapé',
-    body: 'Criar servidor e Explorar servidores agora ficam fixos no pé da barra de servidores. A lista de servidores rola acima deles, então os botões estão sempre à mão, mesmo com muitos servidores.',
-  },
-  {
-    date: '2026-11-04',
     time: '19:50',
+    version: '0.2.284',
     kind: 'novo',
     icon: 'close',
     title: 'Fechar conversas diretas',
@@ -437,6 +374,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
     time: '19:30',
+    version: '0.2.282',
     kind: 'novo',
     icon: 'inbox',
     title: 'Resposta às suas ideias',
@@ -445,6 +383,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
     time: '18:30',
+    version: '0.2.280',
     kind: 'novo',
     icon: 'image',
     title: 'GIFs no chat',
@@ -452,15 +391,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-04',
-    time: '17:30',
-    kind: 'correção',
-    icon: 'keyboard',
-    title: 'Pular linha pelo celular',
-    body: 'No celular, o Enter do teclado agora pula linha, e a mensagem vai pelo botão de enviar, como nos apps de mensagem. Ao editar uma mensagem no celular, aparecem os botões Salvar e Cancelar. No computador nada muda: Enter envia e Shift+Enter pula linha.',
-  },
-  {
-    date: '2026-11-04',
     time: '16:30',
+    version: '0.2.279',
     kind: 'novo',
     icon: 'star',
     title: 'Insígnias no perfil',
@@ -469,6 +401,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-04',
     time: '15:10',
+    version: '0.2.276',
     kind: 'correção',
     icon: 'window',
     title: 'Vidro desfocado de verdade',
@@ -477,6 +410,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-03',
     time: '21:10',
+    version: '0.2.275',
     kind: 'novo',
     icon: 'mail',
     title: 'Responder no privado',
@@ -484,15 +418,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-03',
-    time: '17:15',
-    kind: 'melhoria',
-    icon: 'image',
-    title: 'Chat carrega sem pulos',
-    body: 'Enquanto as mensagens carregam, o chat mostra o formato delas em cinza em vez de um texto solto. As imagens já ocupam o tamanho certo antes de chegar e aparecem suavemente, sem empurrar a conversa nem aparecer quebradas no meio do caminho. Se uma imagem não puder ser carregada, aparece um aviso no lugar.',
-  },
-  {
-    date: '2026-11-03',
     time: '14:00',
+    version: '0.2.269',
     kind: 'novo',
     icon: 'music',
     title: 'Spotify na música da chamada',
@@ -501,6 +428,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-03',
     time: '12:30',
+    version: '0.2.268',
     kind: 'novo',
     icon: 'lock',
     title: 'Salas privadas',
@@ -509,6 +437,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-03',
     time: '11:00',
+    version: '0.2.268',
     kind: 'melhoria',
     icon: 'shield',
     title: 'Moderação automática mais justa',
@@ -517,6 +446,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-03',
     time: '10:00',
+    version: '0.2.265',
     kind: 'novo',
     icon: 'shield',
     title: 'Seus dados, nas suas mãos',
@@ -525,6 +455,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '22:00',
+    version: '0.2.263',
     kind: 'novo',
     icon: 'soundboard',
     title: 'Conjuntos de efeitos sonoros',
@@ -533,6 +464,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '21:30',
+    version: '0.2.260',
     kind: 'novo',
     icon: 'phone',
     title: 'Chamadas privadas',
@@ -541,6 +473,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '21:00',
+    version: '0.2.255',
     kind: 'novo',
     icon: 'shield',
     title: 'Moderação automática',
@@ -549,6 +482,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '20:30',
+    version: '0.2.253',
     kind: 'melhoria',
     icon: 'keyboard',
     title: 'Atalhos com qualquer tecla',
@@ -557,6 +491,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '20:00',
+    version: '0.2.251',
     kind: 'correção',
     icon: 'speaker',
     title: 'Celular: chamada em segundo plano e caminho de volta',
@@ -565,6 +500,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '19:30',
+    version: '0.2.250',
     kind: 'novo',
     icon: 'smartphone',
     title: 'Instale no celular',
@@ -573,6 +509,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '19:00',
+    version: '0.2.250',
     kind: 'correção',
     icon: 'smartphone',
     title: 'Celular: gavetas, listas e chamada arrumadas',
@@ -581,6 +518,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '14:00',
+    version: '0.2.247',
     kind: 'melhoria',
     icon: 'user',
     title: 'Entrar só com apelido em destaque',
@@ -589,6 +527,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '13:30',
+    version: '0.2.247',
     kind: 'novo',
     icon: 'block',
     title: 'Banir e castigo',
@@ -597,6 +536,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '13:20',
+    version: '0.2.247',
     kind: 'novo',
     icon: 'chat',
     title: 'Comandos de barra com subcomandos e autocompletar; menu Apps',
@@ -605,6 +545,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-02',
     time: '13:10',
+    version: '0.2.247',
     kind: 'novo',
     icon: 'grid',
     title: 'Bots com cartões, botões, menus e formulários',
@@ -612,23 +553,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-02',
-    time: '12:00',
-    kind: 'correção',
-    icon: 'verified',
-    title: 'Selo alinhado ao nome no chat',
-    body: 'O selo de verificado no cabeçalho da mensagem estava colado no nome e fora do centro. Agora tem um respiro e fica alinhado na altura do texto.',
-  },
-  {
-    date: '2026-11-02',
-    time: '11:40',
-    kind: 'correção',
-    icon: 'users',
-    title: 'Card de servidores em comum no Vidro',
-    body: 'No painel de perfil da conversa direta, o bloco "servidores em comum" estava com a borda colada no texto e sem cantos arredondados no layout Vidro. Agora tem o mesmo acabamento do bloco "Membro desde".',
-  },
-  {
-    date: '2026-11-02',
     time: '11:30',
+    version: '0.2.163',
     kind: 'novo',
     icon: 'verified',
     title: 'Selo de verificado em perfis',
@@ -637,6 +563,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
     time: '19:00',
+    version: '0.2.157',
     kind: 'novo',
     icon: 'link',
     title: 'Ponte com o Slack',
@@ -645,6 +572,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
     time: '18:30',
+    version: '0.2.157',
     kind: 'novo',
     icon: 'chat',
     title: 'Bots: crie o seu',
@@ -653,6 +581,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
     time: '18:00',
+    version: '0.2.157',
     kind: 'novo',
     icon: 'star',
     title: 'Galeria de temas',
@@ -660,23 +589,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-01',
-    time: '17:30',
-    kind: 'correção',
-    icon: 'screen',
-    title: 'Vidro: a live não "pula" mais quando quem transmite fala',
-    body: 'No visual Vidro, o card da transmissão dava uma encolhida e voltava toda vez que a pessoa parava de falar: a pulsação de fala trocava a animação de entrada do card, que rodava de novo. A pulsação agora é só um brilho na borda, e o card fica parado.',
-  },
-  {
-    date: '2026-11-01',
-    time: '17:00',
-    kind: 'correção',
-    icon: 'star',
-    title: 'Vidro: memória sob controle',
-    body: 'O reflexo da borda dos painéis que acompanhava o mouse fazia a memória do app subir cerca de 1 GB por minuto de uso (o navegador recriava as camadas a cada movimento). O reflexo agora é fixo; o resto do visual continua igual. Medido: memória estável em teste de 1 minuto com o mouse em movimento.',
-  },
-  {
-    date: '2026-11-01',
     time: '16:00',
+    version: '0.2.153',
     kind: 'melhoria',
     icon: 'record',
     title: 'Memória sob controle e visível',
@@ -684,39 +598,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-11-01',
-    time: '15:00',
-    kind: 'melhoria',
-    icon: 'star',
-    title: 'Vidro: configurações em lâminas e aurora sempre viva',
-    body: 'Cada seção das Configurações virou uma lâmina de vidro, com as linhas de dentro planas (a tabela do Sobre, o teste de microfone, os atalhos, a importação de fonte); as listas suspensas ficaram planas, com o item escolhido na cor do servidor. O fundo de luz não para mais com um jogo aberto: só desacelera um pouco. E a tela de configurações desfoca menos o fundo.',
-  },
-  {
-    date: '2026-11-01',
-    time: '14:30',
-    kind: 'correção',
-    icon: 'soundboard',
-    title: 'Soundboard abre em cima do botão',
-    body: 'O painel de efeitos sonoros abria deslocado para a direita, cortado na borda da tela. Agora nasce logo acima do botão que você clicou.',
-  },
-  {
-    date: '2026-11-01',
-    time: '14:00',
-    kind: 'melhoria',
-    icon: 'star',
-    title: 'Vidro com movimento',
-    body: 'Menus e popovers nascem do ponto onde você clicou, diálogos surgem com um leve zoom, avisos deslizam, mensagens novas entram com um deslize, cards e lives aparecem com escala, servidores crescem ao passar o mouse, botões afundam ao clicar e o selo AO VIVO pulsa. Tudo respeita "reduzir movimento" do sistema. E o menu que abria lá embaixo e empurrava o app para cima foi consertado.',
-  },
-  {
-    date: '2026-11-01',
-    time: '13:00',
-    kind: 'correção',
-    icon: 'star',
-    title: 'Ajustes no visual Vidro',
-    body: 'Player de música, soundboard e popovers que ficavam transparentes ou escondidos atrás dos painéis; campos de texto respeitando os cantos arredondados escolhidos em Aparência; o papel de parede do servidor voltou a aparecer (por baixo do vidro do chat). A aba Jogos das configurações ficou mais curta: só o essencial, sem parágrafos.',
-  },
-  {
-    date: '2026-11-01',
     time: '12:00',
+    version: '0.2.141',
     kind: 'novo',
     icon: 'star',
     title: 'Visual novo: Vidro',
@@ -725,6 +608,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
     time: '09:30',
+    version: '0.2.139',
     kind: 'novo',
     icon: 'chats',
     title: 'Threads',
@@ -733,6 +617,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-01',
     time: '09:00',
+    version: '0.2.139',
     kind: 'melhoria',
     icon: 'cursor',
     title: 'Colar texto e mandar arquivo pelo controle remoto',
@@ -741,6 +626,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '17:00',
+    version: '0.2.139',
     kind: 'novo',
     icon: 'trophy',
     title: 'Melhores momentos',
@@ -749,6 +635,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '16:30',
+    version: '0.2.139',
     kind: 'novo',
     icon: 'split',
     title: 'Duas lives lado a lado',
@@ -757,6 +644,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '16:00',
+    version: '0.2.139',
     kind: 'novo',
     icon: 'image',
     title: 'Cor e papel de parede do servidor',
@@ -765,6 +653,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '15:30',
+    version: '0.2.139',
     kind: 'novo',
     icon: 'link',
     title: 'Webhooks: avisos de fora caem no canal',
@@ -773,6 +662,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '15:00',
+    version: '0.2.139',
     kind: 'novo',
     icon: 'plus-circle',
     title: 'Canal de voz que cria salas',
@@ -781,6 +671,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '14:30',
+    version: '0.2.139',
     kind: 'novo',
     icon: 'calendar',
     title: 'Eventos da turma',
@@ -789,6 +680,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '14:00',
+    version: '0.2.131',
     kind: 'novo',
     icon: 'gamepad',
     title: 'Overlay dentro do jogo',
@@ -797,6 +689,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '13:30',
+    version: '0.2.131',
     kind: 'novo',
     icon: 'microphone',
     title: 'Mensagens de voz',
@@ -805,6 +698,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '13:00',
+    version: '0.2.131',
     kind: 'novo',
     icon: 'edit',
     title: 'Status personalizado e ausente automático',
@@ -813,6 +707,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '12:30',
+    version: '0.2.131',
     kind: 'novo',
     icon: 'search',
     title: 'Busca de mensagens',
@@ -821,6 +716,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '12:00',
+    version: '0.2.126',
     kind: 'novo',
     icon: 'cursor',
     title: 'Controlar o computador de quem transmite',
@@ -828,15 +724,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-31',
-    time: '11:00',
-    kind: 'melhoria',
-    icon: 'check',
-    title: 'Confirmações no visual do app',
-    body: 'Apagar um clipe, excluir uma mensagem, um canal ou um card, expulsar alguém, desfazer amizade e outras confirmações agora aparecem numa janela no tema do OpenCord, em vez da caixa cinza do Windows. Enter confirma e Esc cancela.',
-  },
-  {
-    date: '2026-10-31',
     time: '10:30',
+    version: '0.2.124',
     kind: 'melhoria',
     icon: 'music',
     title: 'Música tocando embaixo do canal de voz',
@@ -845,6 +734,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '10:00',
+    version: '0.2.121',
     kind: 'correção',
     icon: 'screen',
     title: 'A live não leva mais as vozes da chamada',
@@ -853,6 +743,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '09:30',
+    version: '0.2.119',
     kind: 'novo',
     icon: 'record',
     title: 'Clipes com o som de todas as saídas do fone',
@@ -861,6 +752,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '09:00',
+    version: '0.2.118',
     kind: 'melhoria',
     icon: 'speaker',
     title: 'Efeitos sonoros de qualquer duração',
@@ -869,6 +761,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '08:30',
+    version: '0.2.117',
     kind: 'correção',
     icon: 'microphone',
     title: 'Sua voz nos dois lados do fone nos clipes',
@@ -877,6 +770,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '08:00',
+    version: '0.2.116',
     kind: 'melhoria',
     icon: 'shield',
     title: 'Mais proteção para a sua conta',
@@ -885,6 +779,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '07:30',
+    version: '0.2.115',
     kind: 'correção',
     icon: 'record',
     title: 'Gravação da chamada em 1080p e lista de gravações visível',
@@ -893,6 +788,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '07:15',
+    version: '0.2.115',
     kind: 'melhoria',
     icon: 'speaker',
     title: 'Volume da transmissão lembrado e "Reconectar" ao abrir o app',
@@ -901,6 +797,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '07:00',
+    version: '0.2.115',
     kind: 'melhoria',
     icon: 'download',
     title: 'Erro não derruba mais o app inteiro, e dá para atualizar pela tela de erro',
@@ -908,23 +805,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-31',
-    time: '06:40',
-    kind: 'correção',
-    icon: 'speaker',
-    title: 'Lista da voz não corta mais nomes e ícones',
-    body: 'Quando alguém na chamada tinha vários selos (verificado, jogo, AO VIVO), a lista de quem está na voz ficava mais larga que a barra e cortava os ícones de todo mundo. Agora o nome encolhe e os selos ficam inteiros.',
-  },
-  {
-    date: '2026-10-31',
-    time: '06:30',
-    kind: 'correção',
-    icon: 'shield',
-    title: 'Revisão de segurança: permissões e moderação mais firmes',
-    body: 'Quem foi silenciado pela moderação continua sem microfone e sem efeitos sonoros mesmo saindo e voltando para a chamada. Canais de voz ocultos não mostram mais quem está neles para quem não os vê. Trocar a senha desconecta na hora as outras sessões abertas. Apagar uma mensagem também apaga o texto copiado para o quadro. Ligar um canal a um quadro passou a exigir "Gerenciar cargos" e acesso ao canal.',
-  },
-  {
-    date: '2026-10-31',
     time: '05:30',
+    version: '0.2.112',
     kind: 'correção',
     icon: 'download',
     title: 'App não quebra mais quando chega uma atualização',
@@ -933,6 +815,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '05:15',
+    version: '0.2.112',
     kind: 'novo',
     icon: 'chat',
     title: 'Markdown nas mensagens',
@@ -940,15 +823,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-31',
-    time: '05:10',
-    kind: 'correção',
-    icon: 'chat',
-    title: 'Selecionar texto só nas mensagens',
-    body: 'Ctrl+A ou arrastar o mouse não pinta mais a interface inteira de azul: só o texto das mensagens e os campos de digitação podem ser selecionados.',
-  },
-  {
-    date: '2026-10-31',
     time: '04:45',
+    version: '0.2.108',
     kind: 'novo',
     icon: 'upload',
     title: 'Compartilhe clipes de até 1 GB e escolha o som',
@@ -957,6 +833,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '04:15',
+    version: '0.2.107',
     kind: 'novo',
     icon: 'film',
     title: 'Seus clipes: ver, cortar e exportar',
@@ -964,15 +841,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-31',
-    time: '03:45',
-    kind: 'melhoria',
-    icon: 'gamepad',
-    title: 'Ícone do jogo de verdade',
-    body: 'Quem está jogando aparece com o ícone do próprio jogo (lido do programa do jogo no computador de quem joga) na lista da voz, na lista de membros, no painel do usuário e no perfil, no lugar do controle genérico.',
-  },
-  {
-    date: '2026-10-31',
     time: '03:30',
+    version: '0.2.106',
     kind: 'melhoria',
     icon: 'download',
     title: 'Veja o que mudou antes de atualizar',
@@ -981,6 +851,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '03:00',
+    version: '0.2.106',
     kind: 'novo',
     icon: 'record',
     title: 'Grave a chamada e baixe por 24 horas',
@@ -989,6 +860,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '02:30',
+    version: '0.2.102',
     kind: 'novo',
     icon: 'record',
     title: 'Clipes do seu jogo com Shift+F10',
@@ -997,6 +869,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '01:30',
+    version: '0.2.101',
     kind: 'novo',
     icon: 'gamepad',
     title: 'Mostre o jogo que você está jogando',
@@ -1005,6 +878,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '00:15',
+    version: '0.2.100',
     kind: 'correção',
     icon: 'speaker',
     title: 'Música segue tocando ao sair da chamada na tela',
@@ -1013,6 +887,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-31',
     time: '00:10',
+    version: '0.2.99',
     kind: 'novo',
     icon: 'folder',
     title: 'Organize a barra de servidores e crie pastas',
@@ -1021,6 +896,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '23:59',
+    version: '0.2.99',
     kind: 'melhoria',
     icon: 'speaker',
     title: 'Todos adicionam músicas à fila',
@@ -1029,6 +905,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '23:58',
+    version: '0.2.99',
     kind: 'melhoria',
     icon: 'speaker',
     title: 'Sons de todos os seus servidores em qualquer chamada',
@@ -1037,6 +914,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '23:55',
+    version: '0.2.99',
     kind: 'novo',
     icon: 'upload',
     title: 'Recorte o som antes de enviar',
@@ -1044,15 +922,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '23:50',
-    kind: 'correção',
-    icon: 'verified',
-    title: 'Selo de verificado do criador em todos os servidores',
-    body: 'O selo de verificado de quem criou o OpenCord aparecia só no servidor oficial. Agora ele aparece em qualquer servidor, na lista de membros e na lista de quem está na voz.',
-  },
-  {
-    date: '2026-10-30',
     time: '23:45',
+    version: '0.2.94',
     kind: 'correção',
     icon: 'chat',
     title: 'Conversa se recupera sozinha quando o servidor reinicia',
@@ -1061,6 +932,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '23:15',
+    version: '0.2.93',
     kind: 'melhoria',
     icon: 'screen',
     title: 'Live em 1440p de verdade',
@@ -1068,15 +940,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '23:00',
-    kind: 'melhoria',
-    icon: 'verified',
-    title: 'Nick colorido também na voz',
-    body: 'Quem está numa sala de voz aparece com a cor do cargo, como na lista de membros. No servidor oficial, o criador do OpenCord aparece ali com o ícone de verificado.',
-  },
-  {
-    date: '2026-10-30',
     time: '22:45',
+    version: '0.2.89',
     kind: 'melhoria',
     icon: 'screen',
     title: 'Live a 60 fps de verdade',
@@ -1084,23 +949,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '22:30',
-    kind: 'correção',
-    icon: 'window-maximize',
-    title: 'Interface sem atraso com a aceleração de hardware',
-    body: 'Passar o mouse pelos canais e botões ficava atrasado com a aceleração de hardware ligada. A causa eram os botões de minimizar, maximizar e fechar do Windows desenhados por cima da barra do app; agora o próprio OpenCord desenha esses botões, e a interface responde na hora.',
-  },
-  {
-    date: '2026-10-30',
-    time: '22:15',
-    kind: 'correção',
-    icon: 'signal',
-    title: 'Lives voltam a usar a placa de vídeo',
-    body: 'O modo "Interface leve, lives na placa de vídeo" (Configurações → Desempenho) fazia o contrário do que dizia: a sua live e as que você assiste passavam a ser processadas pelo processador, com fps bem menor. Ele foi removido e quem o usava volta a "Placa de vídeo para tudo". O selo da live agora avisa se o vídeo estiver sem a placa de vídeo, e o diagnóstico copiado traz o histórico dos últimos 10 minutos.',
-  },
-  {
-    date: '2026-10-30',
     time: '22:00',
+    version: '0.2.84',
     kind: 'novo',
     icon: 'tag',
     title: 'Cargos por reação',
@@ -1108,15 +958,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '21:45',
-    kind: 'correção',
-    icon: 'menu',
-    title: 'Submenus não fecham mais no caminho',
-    body: 'Ao levar o mouse de um item com seta (como "Convidar para o servidor") até o submenu ao lado, ele fechava antes de você chegar. Agora fica aberto enquanto você atravessa.',
-  },
-  {
-    date: '2026-10-30',
     time: '21:30',
+    version: '0.2.83',
     kind: 'novo',
     icon: 'edit',
     title: 'Menu das conversas diretas e apelido de amigo',
@@ -1125,6 +968,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '21:00',
+    version: '0.2.81',
     kind: 'melhoria',
     icon: 'signal',
     title: 'Diagnóstico da live num clique',
@@ -1133,6 +977,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '21:00',
+    version: '0.2.80',
     kind: 'melhoria',
     icon: 'crown',
     title: 'Música com DJ e playlists inteiras',
@@ -1141,6 +986,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '20:30',
+    version: '0.2.79',
     kind: 'novo',
     icon: 'poll',
     title: 'Enquetes',
@@ -1149,6 +995,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '20:30',
+    version: '0.2.78',
     kind: 'novo',
     icon: 'pin',
     title: 'Mensagens fixadas',
@@ -1157,6 +1004,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '20:00',
+    version: '0.2.77',
     kind: 'novo',
     icon: 'kanban',
     title: 'Quadros kanban e canal de relatos',
@@ -1164,23 +1012,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '19:45',
-    kind: 'melhoria',
-    icon: 'verified',
-    title: 'Criador no topo do servidor oficial',
-    body: 'Na lista de membros do servidor OpenCord, quem criou o projeto aparece sempre no topo, com o selo de verificado.',
-  },
-  {
-    date: '2026-10-30',
-    time: '19:30',
-    kind: 'melhoria',
-    icon: 'server',
-    title: 'Servidor oficial de casa nova',
-    body: 'O servidor OpenCord ganhou canais de boas-vindas, regras, anúncios e novidades, espaços para comunidade, ajuda, sugestões, bugs e jogos, e várias salas de voz. Todo mundo que entra no OpenCord já faz parte dele, e ele não pode mais ser deixado.',
-  },
-  {
-    date: '2026-10-30',
     time: '19:15',
+    version: '0.2.76',
     kind: 'melhoria',
     icon: 'camera',
     title: 'Clique na câmera para ampliar',
@@ -1189,6 +1022,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '19:00',
+    version: '0.2.74',
     kind: 'novo',
     icon: 'speaker',
     title: 'Arraste pessoas para outra chamada',
@@ -1197,6 +1031,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '18:30',
+    version: '0.2.74',
     kind: 'melhoria',
     icon: 'users',
     title: 'Menu da pessoa direto no card da chamada',
@@ -1205,6 +1040,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '18:00',
+    version: '0.2.74',
     kind: 'novo',
     icon: 'spotlight',
     title: 'Cenas na transmissão',
@@ -1213,6 +1049,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '16:30',
+    version: '0.2.71',
     kind: 'novo',
     icon: 'user',
     title: 'Perfil completo e grupo a partir da conversa',
@@ -1221,6 +1058,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '15:30',
+    version: '0.2.70',
     kind: 'melhoria',
     icon: 'minimize',
     title: 'Minimizar o player de música',
@@ -1228,15 +1066,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '15:10',
-    kind: 'melhoria',
-    icon: 'activities',
-    title: 'Ícones novos',
-    body: 'Todos os ícones do app foram trocados por um conjunto novo, mais legível: ondas de áudio para a supressão de ruído, megafone para os efeitos sonoros, formas para as atividades e outros. Ao passar o mouse, o traço do ícone fica mais forte.',
-  },
-  {
-    date: '2026-10-30',
     time: '14:45',
+    version: '0.2.69',
     kind: 'correção',
     icon: 'speaker',
     title: 'Dispositivo de áudio mantido ao reabrir',
@@ -1244,23 +1075,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '14:30',
-    kind: 'melhoria',
-    icon: 'soundboard',
-    title: 'Painel da chamada reorganizado',
-    body: 'O cartão "Voz conectada" ganhou quatro botões: câmera, transmitir tela, atividades e efeitos sonoros. A supressão de ruído foi para o topo, ao lado do botão de sair, e a qualidade da conexão aparece ao passar o mouse no ícone de sinal.',
-  },
-  {
-    date: '2026-10-30',
-    time: '14:10',
-    kind: 'melhoria',
-    icon: 'activities',
-    title: 'Painel de atividades arrumado',
-    body: 'Os cards de Assistir juntos e Música ocupam o painel todo, com a mesma altura e o texto em uma linha.',
-  },
-  {
-    date: '2026-10-30',
     time: '14:00',
+    version: '0.2.69',
     kind: 'novo',
     icon: 'emoji',
     title: 'Efeitos sonoros',
@@ -1269,6 +1085,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '12:30',
+    version: '0.2.65',
     kind: 'novo',
     icon: 'speaker',
     title: 'Música na chamada',
@@ -1277,6 +1094,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '11:40',
+    version: '0.2.64',
     kind: 'melhoria',
     icon: 'settings',
     title: 'Modo "Interface leve" para quem joga',
@@ -1284,15 +1102,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '11:10',
-    kind: 'melhoria',
-    icon: 'eye',
-    title: 'Dicas no visual do app',
-    body: 'As dicas que apareciam ao passar o mouse com o balão padrão do sistema (botões da live, do Assistir juntos, da conversa, status e outros) agora usam o mesmo balão escuro do resto do OpenCord, também pelo teclado.',
-  },
-  {
-    date: '2026-10-30',
     time: '10:50',
+    version: '0.2.62',
     kind: 'novo',
     icon: 'server',
     title: 'Cartão do servidor na barra lateral',
@@ -1301,6 +1112,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '10:30',
+    version: '0.2.62',
     kind: 'novo',
     icon: 'user',
     title: 'Perfil ao lado da conversa direta',
@@ -1309,6 +1121,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '05:30',
+    version: '0.2.60',
     kind: 'novo',
     icon: 'settings',
     title: 'Aceleração de hardware',
@@ -1317,6 +1130,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '05:10',
+    version: '0.2.60',
     kind: 'melhoria',
     icon: 'speaker',
     title: 'Canal de voz com fundo animado',
@@ -1325,6 +1139,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '04:45',
+    version: '0.2.57',
     kind: 'melhoria',
     icon: 'screen',
     title: 'Escolha o bitrate da sua live',
@@ -1333,6 +1148,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '04:20',
+    version: '0.2.57',
     kind: 'novo',
     icon: 'screen',
     title: 'Prévia da live no perfil',
@@ -1340,15 +1156,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '04:15',
-    kind: 'correção',
-    icon: 'camera',
-    title: 'Ícone de câmera some ao desligar',
-    body: 'Depois de desligar a webcam, a lista do canal continuava mostrando a câmera ligada. Agora o ícone some na hora.',
-  },
-  {
-    date: '2026-10-30',
     time: '04:10',
+    version: '0.2.54',
     kind: 'correção',
     icon: 'screen',
     title: 'A live sai no FPS e na resolução escolhidos',
@@ -1356,23 +1165,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '04:00',
-    kind: 'novo',
-    icon: 'shield',
-    title: 'Super admin e servidores verificados',
-    body: 'Quem administra o OpenCord vê todos os servidores em Explorar servidores e pode entrar em qualquer um para moderar (a entrada fica registrada e aparece para os membros). Servidores também podem ganhar o selo de verificado sem deixar de ser privados.',
-  },
-  {
-    date: '2026-10-30',
-    time: '03:50',
-    kind: 'correção',
-    icon: 'server',
-    title: 'Imagem do servidor redonda de novo',
-    body: 'A imagem do servidor na barra lateral ficava oval; agora preenche o botão certinho. O visualizador de imagens também não fica mais por baixo dos botões da janela.',
-  },
-  {
-    date: '2026-10-30',
     time: '03:25',
+    version: '0.2.52',
     kind: 'novo',
     icon: 'link',
     title: 'Cartão do convite',
@@ -1381,6 +1175,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '03:10',
+    version: '0.2.52',
     kind: 'melhoria',
     icon: 'upload',
     title: 'Recortar a imagem antes de enviar',
@@ -1389,6 +1184,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '02:55',
+    version: '0.2.52',
     kind: 'correção',
     icon: 'screen',
     title: 'Live volta a capturar com fluidez',
@@ -1397,6 +1193,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '02:35',
+    version: '0.2.49',
     kind: 'melhoria',
     icon: 'screen',
     title: 'Quem transmite vira uma bolha sobre a live',
@@ -1405,6 +1202,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '02:20',
+    version: '0.2.49',
     kind: 'novo',
     icon: 'users',
     title: 'Amigos ao lado das mensagens diretas',
@@ -1413,6 +1211,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '02:05',
+    version: '0.2.49',
     kind: 'novo',
     icon: 'eye',
     title: 'Visualizador de imagens nas conversas',
@@ -1421,6 +1220,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '01:55',
+    version: '0.2.49',
     kind: 'melhoria',
     icon: 'screen',
     title: 'Lives gastam menos internet',
@@ -1428,15 +1228,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '01:50',
-    kind: 'correção',
-    icon: 'settings',
-    title: 'Configurações sem rolagem lateral',
-    body: 'Nomes longos de dispositivos de áudio são cortados com reticências em vez de alargar a tela de Voz e vídeo.',
-  },
-  {
-    date: '2026-10-30',
     time: '01:40',
+    version: '0.2.44',
     kind: 'novo',
     icon: 'screen',
     title: 'Prévias das lives em "Em atividade"',
@@ -1445,6 +1238,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '01:20',
+    version: '0.2.44',
     kind: 'melhoria',
     icon: 'spotlight',
     title: 'Clique na live para destacar',
@@ -1453,6 +1247,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '01:05',
+    version: '0.2.41',
     kind: 'correção',
     icon: 'screen',
     title: 'Live com jogo pesado: captura direto na GPU',
@@ -1460,15 +1255,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '01:00',
-    kind: 'correção',
-    icon: 'server',
-    title: 'Barra de servidores: selo e imagens alinhados',
-    body: 'O número de menções no botão de mensagens diretas não fica mais cortado, e servidores com imagem não mostram mais um aro colorido torto em volta.',
-  },
-  {
-    date: '2026-10-30',
     time: '00:45',
+    version: '0.2.40',
     kind: 'melhoria',
     icon: 'signal',
     title: 'Qualidade recebida no selo da live',
@@ -1476,15 +1264,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-30',
-    time: '00:30',
-    kind: 'melhoria',
-    icon: 'screen',
-    title: 'Prévia da live nítida',
-    body: 'A prévia no card da live ficou nítida (com um leve desfoque) e é atualizada a cada 5 minutos; quem entra na chamada já recebe uma na hora.',
-  },
-  {
-    date: '2026-10-30',
     time: '00:25',
+    version: '0.2.40',
     kind: 'melhoria',
     icon: 'users',
     title: 'Lista de amigos repaginada',
@@ -1493,22 +1274,16 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
     time: '00:10',
+    version: '0.2.38',
     kind: 'melhoria',
     icon: 'link',
     title: 'Convite por link',
     body: '"Convidar pessoas" agora gera um link. Quem abrir entra pelo navegador, mesmo sem conta (só escolhe um apelido), e cai direto no convite do servidor.',
   },
   {
-    date: '2026-10-30',
-    time: '00:05',
-    kind: 'correção',
-    icon: 'microphone',
-    title: 'Nomes de dispositivos sem códigos',
-    body: 'Microfones e saídas de áudio aparecem sem o código do fabricante no fim do nome (ex.: "(046d:0b0b)").',
-  },
-  {
     date: '2026-10-29',
     time: '23:55',
+    version: '0.2.38',
     kind: 'novo',
     icon: 'screen',
     title: 'Prévia das transmissões',
@@ -1517,6 +1292,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '23:45',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'verified',
     title: 'Servidores privados com convite e OpenCord verificado',
@@ -1524,15 +1300,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-29',
-    time: '22:15',
-    kind: 'correção',
-    icon: 'upload',
-    title: 'Envio de foto e imagem do servidor no servidor oficial',
-    body: 'O envio falhava com "não foi possível salvar a imagem" porque a pasta de arquivos do servidor não aceitava gravação. Corrigido na instalação do servidor.',
-  },
-  {
-    date: '2026-10-29',
     time: '22:05',
+    version: '0.2.36',
     kind: 'correção',
     icon: 'screen',
     title: 'Live mais estável com jogo pesado',
@@ -1541,6 +1310,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '21:55',
+    version: '0.2.36',
     kind: 'melhoria',
     icon: 'users',
     title: 'Quadros da chamada em galeria',
@@ -1549,6 +1319,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '21:40',
+    version: '0.2.36',
     kind: 'melhoria',
     icon: 'screen',
     title: 'Chamada mais leve durante a live',
@@ -1557,6 +1328,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '21:25',
+    version: '0.2.36',
     kind: 'melhoria',
     icon: 'upload',
     title: 'Foto de perfil em GIF animado',
@@ -1564,15 +1336,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-29',
-    time: '21:15',
-    kind: 'correção',
-    icon: 'screen',
-    title: 'Seletor de transmissão sem clique acidental',
-    body: 'Enquanto a lista carrega aparecem cards de espera, e um clique dado enquanto os cards surgiam ou trocavam de aba não inicia mais a transmissão errada.',
-  },
-  {
-    date: '2026-10-29',
     time: '21:05',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'server',
     title: 'Imagem do servidor',
@@ -1580,15 +1345,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-29',
-    time: '20:55',
-    kind: 'correção',
-    icon: 'download',
-    title: 'Atualizar sempre leva à versão mais nova',
-    body: 'Se saiu outra versão enquanto a atualização esperava o clique, o app baixa e instala direto a mais nova, em vez de pedir de novo logo depois.',
-  },
-  {
-    date: '2026-10-29',
     time: '20:45',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'shield',
     title: 'Dar e tirar cargos pelo botão direito',
@@ -1597,6 +1355,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '20:30',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'upload',
     title: 'Foto de perfil',
@@ -1604,31 +1363,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-29',
-    time: '20:10',
-    kind: 'melhoria',
-    icon: 'users',
-    title: 'Ocultar/mostrar membros com animação',
-    body: 'A faixa de membros sob a live recolhe e aparece suavemente, e a transmissão cresce junto.',
-  },
-  {
-    date: '2026-10-29',
-    time: '20:05',
-    kind: 'melhoria',
-    icon: 'users',
-    title: 'Card "Em atividade" redesenhado',
-    body: 'Mostra o servidor, o canal, quem está na chamada, quem está transmitindo e o vídeo em "Assistir juntos", com botão para entrar na chamada.',
-  },
-  {
-    date: '2026-10-29',
-    time: '20:00',
-    kind: 'correção',
-    icon: 'chat',
-    title: 'Caixa de mensagem no tom do tema',
-    body: 'A barra de escrever usava um cinza claro de botão; agora segue o tema escolhido, com borda sutil e destaque ao digitar.',
-  },
-  {
-    date: '2026-10-29',
     time: '19:50',
+    version: '0.2.36',
     kind: 'correção',
     icon: 'screen',
     title: 'A live mostra a tela inteira',
@@ -1637,6 +1373,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '19:35',
+    version: '0.2.36',
     kind: 'melhoria',
     icon: 'activities',
     title: 'Assistir juntos: quem coloca o vídeo comanda',
@@ -1645,6 +1382,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '19:15',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'speaker',
     title: 'Volume da transmissão no botão direito',
@@ -1653,6 +1391,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '19:10',
+    version: '0.2.36',
     kind: 'correção',
     icon: 'screen',
     title: 'Ver a live dos outros enquanto você transmite',
@@ -1661,6 +1400,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '18:55',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'bell',
     title: 'Novidades na tela inicial',
@@ -1669,6 +1409,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '18:49',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'activities',
     title: 'Atividades na chamada: Assistir juntos (YouTube)',
@@ -1677,6 +1418,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '18:30',
+    version: '0.2.36',
     kind: 'melhoria',
     icon: 'download',
     title: 'Atualização em um clique',
@@ -1685,6 +1427,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '18:13',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'upload',
     title: 'Importar servidor do Discord',
@@ -1693,6 +1436,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '18:06',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'folder',
     title: 'Criar categoria e menu na lista de canais',
@@ -1700,31 +1444,8 @@ export const CHANGELOG: ChangeEntry[] = [
   },
   {
     date: '2026-10-29',
-    time: '18:04',
-    kind: 'correção',
-    icon: 'chevron-down',
-    title: 'Categorias recolhem de verdade',
-    body: 'Recolher uma categoria esconde também os canais de voz, e o estado fica salvo.',
-  },
-  {
-    date: '2026-10-29',
-    time: '18:00',
-    kind: 'correção',
-    icon: 'maximize',
-    title: 'Arrastar a janela pela barra inteira',
-    body: 'A barra de título arrasta (e desmaximiza) também à esquerda do título.',
-  },
-  {
-    date: '2026-10-29',
-    time: '17:47',
-    kind: 'melhoria',
-    icon: 'refresh',
-    title: 'Atualizações chegam mais rápido',
-    body: 'O app verifica a cada 20 minutos e ao voltar para a janela; há "Verificar atualizações" em Configurações → Sobre.',
-  },
-  {
-    date: '2026-10-29',
     time: '17:40',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'speaker',
     title: 'Efeitos sonoros',
@@ -1733,6 +1454,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '17:31',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'popout',
     title: 'Transmissão em janela separada e seletor novo',
@@ -1741,6 +1463,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '16:58',
+    version: '0.2.36',
     kind: 'melhoria',
     icon: 'screen',
     title: 'Live pela placa de vídeo',
@@ -1749,6 +1472,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '16:29',
+    version: '0.2.36',
     kind: 'correção',
     icon: 'eye',
     title: 'A live parou de piscar',
@@ -1757,6 +1481,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '16:03',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'download',
     title: 'Atualização automática',
@@ -1765,6 +1490,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '15:37',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'users',
     title: 'Perfil e menu nas pessoas da voz',
@@ -1773,6 +1499,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '15:29',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'microphone',
     title: 'Supressão de ruído forte',
@@ -1781,6 +1508,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '15:03',
+    version: '0.2.36',
     kind: 'correção',
     icon: 'speaker',
     title: 'Ouvir quem está na chamada',
@@ -1789,6 +1517,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '14:36',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'download',
     title: 'Apps para Windows, macOS e Linux',
@@ -1797,6 +1526,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '14:06',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'menu',
     title: 'OpenCord no celular',
@@ -1805,6 +1535,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-29',
     time: '06:15',
+    version: '0.2.36',
     kind: 'novo',
     icon: 'server',
     title: 'OpenCord nasce',

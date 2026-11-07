@@ -5165,6 +5165,11 @@ button.live-badge {
   align-items: center;
   gap: 8px;
 }
+/* versão do app em que a novidade entrou, à direita da linha */
+.timeline-version {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
 .timeline-kind {
   padding: 1px 8px;
   border-radius: 999px;
