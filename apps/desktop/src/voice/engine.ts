@@ -1131,9 +1131,7 @@ export class VoiceEngine {
           captureFps = Math.round(r.framesPerSecond);
         if (r.type === 'candidate-pair' && r.nominated) {
           if (typeof r.currentRoundTripTime === 'number') rttMs = Math.round(r.currentRoundTripTime * 1000);
-          const local = typeof r.localCandidateId === 'string' ? vr.get(r.localCandidateId) : undefined;
-          const l = local as { protocol?: string; candidateType?: string } | undefined;
-          if (l?.protocol) transport = `${l.protocol.toUpperCase()}${l.candidateType ? ` ${l.candidateType}` : ''}`;
+          transport = transportOf(vr, r);
         }
         if (r.type === 'outbound-rtp' && r.kind === 'video' && typeof r.bytesSent === 'number')
           videoBytes += r.bytesSent;
@@ -1204,9 +1202,7 @@ export class VoiceEngine {
       if (x.type === 'inbound-rtp' && x.kind === 'video') r = x;
       if (x.type === 'candidate-pair' && x.nominated) {
         if (typeof x.currentRoundTripTime === 'number') rttMs = Math.round(x.currentRoundTripTime * 1000);
-        const l = (typeof x.localCandidateId === 'string' ? rep.get(x.localCandidateId) : undefined) as
-          { protocol?: string; candidateType?: string } | undefined;
-        if (l?.protocol) transport = `${l.protocol.toUpperCase()}${l.candidateType ? ` ${l.candidateType}` : ''}`;
+        transport = transportOf(rep, x);
       }
     });
     const v = r as Record<string, unknown> | null;
@@ -1288,12 +1284,20 @@ async function lockFramerateAndResolution(track: LocalVideoTrack) {
   }
 }
 
-/** Caminho da mídia no par ICE escolhido: "UDP host", "TCP host", "UDP srflx", "UDP relay (TLS)"… */
-function transportOf(rep: RTCStatsReport, pair: Record<string, unknown>): string | null {
-  const local = typeof pair.localCandidateId === 'string' ? rep.get(pair.localCandidateId) : undefined;
-  const l = local as { protocol?: string; candidateType?: string; relayProtocol?: string } | undefined;
+/**
+ * Caminho da mídia no par ICE escolhido: "UDP host IPv4", "TCP host IPv6", "UDP relay (TLS) IPv4"… A família vem do
+ * endereço do servidor (o local de host costuma vir mascarado como .local): IPv6 com rota ruim do provedor até o SFU
+ * dá atraso alto e banda estimada baixa mesmo com internet boa.
+ */
+function transportOf(rep: RTCStatsReport | undefined, pair: Record<string, unknown>): string | null {
+  const get = (id: unknown) => (typeof id === 'string' ? rep?.get(id) : undefined);
+  const l = get(pair.localCandidateId) as
+    { protocol?: string; candidateType?: string; relayProtocol?: string } | undefined;
+  const remote = get(pair.remoteCandidateId) as { address?: string; ip?: string } | undefined;
   if (!l?.protocol) return null;
-  return `${l.protocol.toUpperCase()} ${l.candidateType ?? '?'}${l.relayProtocol ? ` (${l.relayProtocol.toUpperCase()})` : ''}`;
+  const addr = remote?.address ?? remote?.ip;
+  const family = addr ? (addr.includes(':') ? ' IPv6' : ' IPv4') : '';
+  return `${l.protocol.toUpperCase()} ${l.candidateType ?? '?'}${l.relayProtocol ? ` (${l.relayProtocol.toUpperCase()})` : ''}${family}`;
 }
 
 /** Folga do buffer de recepção das lives (ms): cobre o RTT do reenvio de pacotes perdidos. */
