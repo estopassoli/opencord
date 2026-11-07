@@ -1328,11 +1328,20 @@ export class MessagesService {
       // nunca regride o marcador de leitura
       if (prev && prev.createdAt > msg.createdAt) return;
     }
-    await this.prisma.readState.upsert({
+    if (current?.lastReadMessageId === messageId) return;
+    const st = await this.prisma.readState.upsert({
       where,
       create: { userId, channelId, conversationId, lastReadMessageId: messageId },
       update: { lastReadMessageId: messageId },
     });
+    // conversa: os outros membros veem até onde a pessoa leu (marcador "Visualizada")
+    if (conversationId)
+      this.realtime.emit(rooms.conversation(conversationId), 'conversation:read', {
+        conversationId,
+        userId,
+        messageId,
+        at: st.updatedAt.toISOString(),
+      });
   }
 
   async unreads(userId: string): Promise<UnreadState[]> {

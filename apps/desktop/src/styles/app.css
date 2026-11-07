@@ -9425,3 +9425,16 @@ html[data-resizing] * {
 .cat-header[draggable='true'] {
   cursor: grab;
 }
+
+/* DM: "Enviada"/"Visualizada" embaixo da minha última mensagem */
+.read-receipt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 0 56px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.read-receipt[data-seen='true'] {
+  color: var(--brand);
+}

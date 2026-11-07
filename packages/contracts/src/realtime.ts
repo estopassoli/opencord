@@ -196,6 +196,8 @@ export interface ServerEvents {
   'permissions:changed': { serverId: string };
   'friend:changed': z.infer<typeof Friend> | { userId: string; removed: true };
   'conversation:upserted': z.infer<typeof Conversation>;
+  /** alguém da conversa leu até `messageId` (marcador "Visualizada" da DM) */
+  'conversation:read': { conversationId: string; userId: string; messageId: string; at: string };
   'notification:created': {
     /** room_invite / room_knock: salas trancadas (ADR-0040); `userId` é quem pediu ou convidou */
     /** message: mensagem comum num servidor com notificação padrão "todas as mensagens" (ADR-0050); `userId` = autor */

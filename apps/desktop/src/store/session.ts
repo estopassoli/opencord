@@ -531,6 +531,7 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('permissions:changed', (e) => void loadServer(e.serverId).catch(() => undefined));
     rt.on('friend:changed', () => void loadFriends().catch(() => undefined));
     rt.on('conversation:upserted', (c) => d().upsertConversation(c));
+    rt.on('conversation:read', (e) => d().setConversationRead(e));
     rt.on('notification:created', (n) => void import('./notify').then(({ notify }) => notify(n)));
     // moderação por IA (ADR-0036): quem modera vê o envio retido na hora e pode abrir a fila
     rt.on('moderation:case:created', (c) => {

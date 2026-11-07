@@ -78,6 +78,8 @@ interface DataState {
   markRead(key: TargetKey, messageId: string): void;
   setTyping(key: TargetKey, userId: string, active: boolean): void;
   upsertConversation(c: Conversation): void;
+  /** alguém da conversa leu até uma mensagem (marcador "Visualizada") */
+  setConversationRead(e: { conversationId: string; userId: string; messageId: string; at: string }): void;
   /** perfil público mudou (foto/apelido): atualiza onde a pessoa aparece */
   patchUser(u: UserPublic): void;
 }
@@ -310,8 +312,23 @@ export const useData = create<DataState>()((set) => ({
   upsertConversation: (c) =>
     set((s) => ({
       conversations: s.conversations.some((x) => x.id === c.id)
-        ? s.conversations.map((x) => (x.id === c.id ? c : x))
+        ? // sem `reads` (conversa reaberta), mantém os marcadores de leitura já conhecidos
+          s.conversations.map((x) => (x.id === c.id ? { ...c, reads: c.reads ?? x.reads } : x))
         : [c, ...s.conversations],
+    })),
+  setConversationRead: (e) =>
+    set((s) => ({
+      conversations: s.conversations.map((c) =>
+        c.id === e.conversationId
+          ? {
+              ...c,
+              reads: [
+                ...(c.reads ?? []).filter((r) => r.userId !== e.userId),
+                { userId: e.userId, messageId: e.messageId, at: e.at },
+              ],
+            }
+          : c,
+      ),
     })),
 }));
 

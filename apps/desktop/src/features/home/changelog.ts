@@ -19,6 +19,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-07',
+    time: '10:00',
+    kind: 'novo',
+    icon: 'eye',
+    title: 'Visualizada nas mensagens diretas',
+    body: 'Na conversa com uma pessoa, embaixo da sua última mensagem aparece "Enviada" e, quando ela abrir a conversa e vir, "Visualizada" com o horário. Muda na hora, sem recarregar.',
+  },
+  {
     date: '2026-11-06',
     time: '13:30',
     kind: 'melhoria',

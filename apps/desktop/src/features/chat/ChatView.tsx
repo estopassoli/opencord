@@ -25,6 +25,16 @@ export type ChatTarget =
   { channelId: string; conversationId?: undefined } | { conversationId: string; channelId?: undefined };
 
 const GROUP_MS = 7 * 60 * 1000;
+/** "às 14:32" hoje, "ontem às 14:32", ou "em 03/11 às 14:32" */
+function seenWhen(iso: string) {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(new Date()) - day(d)) / 86_400_000);
+  if (diff <= 0) return `às ${time}`;
+  if (diff === 1) return `ontem às ${time}`;
+  return `em ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${time}`;
+}
 const path = (t: ChatTarget) => (t.channelId ? `/channels/${t.channelId}` : `/conversations/${t.conversationId}`);
 
 export function ChatView({ target }: { target: ChatTarget }) {
@@ -138,9 +148,10 @@ export function ChatView({ target }: { target: ChatTarget }) {
     else useUi.getState().toast('info', 'As primeiras novas são antigas: role a conversa para cima para chegar nelas.');
   };
 
-  // marcar como lido ao ver o fim da conversa
+  // marcar como lido ao ver o fim da conversa: quando chega mensagem, ao voltar o foco para a janela e ao rolar até o
+  // fim (na DM, é isso que acende o "Visualizada" para quem mandou)
   const last = timeline?.messages.at(-1);
-  useEffect(() => {
+  const ack = useCallback(() => {
     if (!last || !atBottom.current || !document.hasFocus()) return;
     const u = useData.getState().unread[key];
     if (u && u.lastReadMessageId === last.id && u.unreadCount === 0) return;
@@ -155,6 +166,21 @@ export function ChatView({ target }: { target: ChatTarget }) {
         .request('PUT', `${path(target)}/read`, { messageId: last.id })
         .catch(() => undefined);
   }, [last, key, target]);
+  useEffect(() => {
+    ack();
+    window.addEventListener('focus', ack);
+    return () => window.removeEventListener('focus', ack);
+  }, [ack]);
+
+  // DM: "Visualizada" embaixo da minha última mensagem quando ela é a última da conversa e a outra pessoa já leu
+  const peerRead = useData((s) => {
+    if (!target.conversationId) return undefined;
+    const c = s.conversations.find((x) => x.id === target.conversationId);
+    if (c?.kind !== 'dm') return undefined;
+    return c.reads?.find((r) => r.userId !== meId && c.members.some((m) => m.id === r.userId && !m.system));
+  });
+  const receiptFor = last && last.author.id === meId && conv?.kind === 'dm' && !noReply ? last.id : null;
+  const seen = Boolean(receiptFor && peerRead && peerRead.messageId >= receiptFor);
 
   // manter rolagem: no fim quando chegam mensagens; preservar posição ao carregar antigas
   const prevHeight = useRef(0);
@@ -189,7 +215,9 @@ export function ChatView({ target }: { target: ChatTarget }) {
   const onScroll = () => {
     const el = scroller.current;
     if (!el) return;
+    const was = atBottom.current;
     atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    if (atBottom.current && !was) ack();
     if (el.scrollTop < 200) void load(true);
   };
 
@@ -373,6 +401,12 @@ export function ChatView({ target }: { target: ChatTarget }) {
                     mentionsMe={m.mentions.includes(meId)}
                   />
                 </ErrorBoundary>
+                {m.id === receiptFor && !pending.length && (
+                  <p className="read-receipt" data-seen={seen ? 'true' : undefined} aria-live="polite">
+                    <Icon name={seen ? 'eye' : 'check'} size={14} />
+                    {seen && peerRead ? `Visualizada ${seenWhen(peerRead.at)}` : 'Enviada'}
+                  </p>
+                )}
               </li>
             );
           })}

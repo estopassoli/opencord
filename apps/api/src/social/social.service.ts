@@ -234,6 +234,7 @@ export class SocialService {
     name: string | null;
     members: { user: UserRowLike }[];
     messages?: { id: string }[];
+    readStates?: { userId: string; lastReadMessageId: string | null; updatedAt: Date }[];
   }): Conversation {
     return {
       id: c.id,
@@ -241,6 +242,15 @@ export class SocialService {
       name: c.name,
       members: c.members.map((m) => userPublic(m.user)),
       lastMessageId: c.messages?.[0]?.id ?? null,
+      ...(c.readStates
+        ? {
+            reads: c.readStates.flatMap((r) =>
+              r.lastReadMessageId
+                ? [{ userId: r.userId, messageId: r.lastReadMessageId, at: r.updatedAt.toISOString() }]
+                : [],
+            ),
+          }
+        : {}),
     };
   }
 
@@ -250,6 +260,7 @@ export class SocialService {
       include: {
         members: { include: { user: { select: USER_PUBLIC_SELECT } } },
         messages: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 1, select: { id: true } },
+        readStates: { select: { userId: true, lastReadMessageId: true, updatedAt: true } },
       },
     });
     return rows

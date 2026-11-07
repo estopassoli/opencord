@@ -1729,12 +1729,16 @@ export const UserProfile = z.object({
 });
 export type UserProfile = z.infer<typeof UserProfile>;
 
+export const ConversationRead = z.object({ userId: Id, messageId: Id, at: z.string() });
+export type ConversationRead = z.infer<typeof ConversationRead>;
 export const Conversation = z.object({
   id: Id,
   kind: ConversationKind,
   name: z.string().nullable(),
   members: z.array(UserPublic),
   lastMessageId: Id.nullable(),
+  /** até onde cada membro leu (marcador "Visualizada" da DM); `at` = quando o marcador andou pela última vez */
+  reads: z.array(ConversationRead).optional(),
 });
 export type Conversation = z.infer<typeof Conversation>;
 export const CreateConversationRequest = z.object({
