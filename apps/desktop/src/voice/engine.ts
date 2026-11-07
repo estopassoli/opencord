@@ -1050,13 +1050,17 @@ export class VoiceEngine {
           out.codec = c?.mimeType ?? null;
         }
         if (r.type === 'candidate-pair' && r.nominated)
-          out.uplink = pick(r, ['availableOutgoingBitrate', 'currentRoundTripTime']);
+          out.uplink = {
+            ...pick(r, ['availableOutgoingBitrate', 'currentRoundTripTime']),
+            transport: transportOf(rep, r),
+          };
       });
     }
     const id = [...this.watching][0];
     const pub = id ? this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.ScreenShare) : undefined;
     const track = pub?.track as RemoteTrack | undefined;
     if (track) {
+      out.watchingName = this.room?.remoteParticipants.get(id as string)?.name || id;
       const rep = await track.getRTCStatsReport().catch(() => undefined);
       rep?.forEach((r: Record<string, unknown>) => {
         if (r.type === 'inbound-rtp' && r.kind === 'video')
@@ -1079,7 +1083,8 @@ export class VoiceEngine {
             'jitterBufferEmittedCount',
             'decoderImplementation',
           ]);
-        if (r.type === 'candidate-pair' && r.nominated) out.downlink = pick(r, ['currentRoundTripTime']);
+        if (r.type === 'candidate-pair' && r.nominated)
+          out.downlink = { ...pick(r, ['currentRoundTripTime']), transport: transportOf(rep, r) };
       });
     }
     return out;
@@ -1281,6 +1286,14 @@ async function lockFramerateAndResolution(track: LocalVideoTrack) {
   } catch {
     /* valor não suportado: fica o publicado (maintain-resolution) */
   }
+}
+
+/** Caminho da mídia no par ICE escolhido: "UDP host", "TCP host", "UDP srflx", "UDP relay (TLS)"… */
+function transportOf(rep: RTCStatsReport, pair: Record<string, unknown>): string | null {
+  const local = typeof pair.localCandidateId === 'string' ? rep.get(pair.localCandidateId) : undefined;
+  const l = local as { protocol?: string; candidateType?: string; relayProtocol?: string } | undefined;
+  if (!l?.protocol) return null;
+  return `${l.protocol.toUpperCase()} ${l.candidateType ?? '?'}${l.relayProtocol ? ` (${l.relayProtocol.toUpperCase()})` : ''}`;
 }
 
 /** Folga do buffer de recepção das lives (ms): cobre o RTT do reenvio de pacotes perdidos. */

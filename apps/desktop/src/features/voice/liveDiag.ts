@@ -89,6 +89,8 @@ async function collect(engine: NonNullable<ReturnType<ReturnType<typeof useVoice
           targetMbps: Math.round(num(b.outbound, 'targetBitrate') / 1e5) / 10,
           uplinkEstimateMbps: Math.round(num(b.uplink, 'availableOutgoingBitrate') / 1e5) / 10,
           rttMs: Math.round(num(b.uplink, 'currentRoundTripTime') * 1000),
+          // UDP host = direto; TCP = UDP bloqueado no caminho (estimativa de banda baixa e atraso alto)
+          transport: b.uplink?.transport ?? null,
           resolution: `${num(b.outbound, 'frameWidth')}x${num(b.outbound, 'frameHeight')}`,
           limitation: b.outbound?.qualityLimitationReason,
           limitationSeconds: b.outbound?.qualityLimitationDurations,
@@ -98,6 +100,8 @@ async function collect(engine: NonNullable<ReturnType<ReturnType<typeof useVoice
       : null,
     watching: a.inbound
       ? {
+          streamer: b.watchingName ?? null,
+          transport: b.downlink?.transport ?? null,
           decoder: b.inbound?.decoderImplementation,
           receivedFps: rate('inbound', 'framesReceived'),
           decodedFps: rate('inbound', 'framesDecoded'),
