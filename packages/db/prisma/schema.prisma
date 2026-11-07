@@ -11,34 +11,26 @@ datasource db {
 }
 
 model User {
-  id                 String    @id @default(uuid(7)) @db.Uuid
-  /**
-   * null para usuários que entram só com apelido (ADR-0007).
-   */
-  email              String?   @unique
-  username           String    @unique
-  /// última troca do @ (uma vez a cada 30 dias); null = nunca trocou
-  usernameChangedAt  DateTime? @db.Timestamptz(3)
-  /**
-   * null para usuários só com apelido: não há login por senha.
-   */
-  passwordHash       String?
-  displayName        String
-  /**
-   * Apelido normalizado (minúsculas, sem acento) — único entre todos os usuários.
-   */
-  nickKey            String?   @unique
-  avatarKey          String?
+  id           String    @id @default(uuid(7)) @db.Uuid
+  /** null para usuários que entram só com apelido (ADR-0007). */
+  email        String?   @unique
+  username     String    @unique
+  /** null para usuários só com apelido: não há login por senha. */
+  passwordHash String?
+  displayName  String
+  /** Apelido normalizado (minúsculas, sem acento) — único entre todos os usuários. */
+  nickKey      String?   @unique
+  avatarKey    String?
   /// Super admin da instância: vê todos os servidores e, ao entrar (auditado), tem permissões de dono (ADR-0013).
-  isInstanceAdmin    Boolean   @default(false)
+  isInstanceAdmin Boolean @default(false)
   /// identidade de um webhook de entrada (ADR-0030): autor das mensagens que chegam por ele, sem login
-  isWebhook          Boolean   @default(false)
+  isWebhook    Boolean   @default(false)
   /// usuário de um bot (ADR-0032): autentica por token `ocb_…`, é membro como qualquer pessoa, selo APP
-  isBot              Boolean   @default(false)
+  isBot        Boolean   @default(false)
   /// selo de verificado no perfil, dado pelo super admin (adendo da ADR-0013)
-  verified           Boolean   @default(false)
-  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
-  disabledAt         DateTime? @db.Timestamptz(3)
+  verified     Boolean   @default(false)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  disabledAt   DateTime? @db.Timestamptz(3)
   /// verificação em duas etapas (ADR-0046): segredo TOTP cifrado (AES-GCM, chave derivada do JWT_ACCESS_SECRET)
   totpSecret         String?
   totpEnabledAt      DateTime? @db.Timestamptz(3)
@@ -62,50 +54,46 @@ model User {
   /// últimas fotos usadas ("key:<nome>" ou "url:<https>"), mais recente primeiro, até 6
   recentAvatars      String[]  @default([])
   /// quando aceitou os Termos de uso e a Política de privacidade (ADR-0039); null = ainda precisa aceitar no app
-  termsAcceptedAt    DateTime? @db.Timestamptz(3)
+  termsAcceptedAt DateTime? @db.Timestamptz(3)
   /// conta excluída pela própria pessoa (ADR-0039): linha anonimizada (as mensagens ficam como "Usuário removido")
-  deletedAt          DateTime? @db.Timestamptz(3)
+  deletedAt    DateTime? @db.Timestamptz(3)
 
-  sessions        Session[]
-  ownedServers    Server[]             @relation("ServerOwner")
-  invites         Invite[]
-  sounds          SoundEffect[]
-  recordings      CallRecording[]
-  events          ServerEvent[]
-  eventRsvps      EventRsvp[]
-  webhooksCreated Webhook[]            @relation("WebhookCreator")
-  webhookOf       Webhook?             @relation("WebhookUser")
-  botsOwned       Bot[]                @relation("BotOwner")
-  botOf           Bot?                 @relation("BotUser")
-  boardCards      BoardCard[]
-  badges          UserBadge[]
-  pollVotes       PollVote[]
-  memberships     ServerMember[]
-  bans            ServerBan[]          @relation("BannedUser")
-  moderationCases ModerationCase[]     @relation("ModerationCaseAuthor")
-  messages        Message[]
-  reactions       Reaction[]
-  readStates      ReadState[]
-  settings        UserSettings?
-  friendshipsOut  Friendship[]         @relation("FriendRequester")
-  friendshipsIn   Friendship[]         @relation("FriendAddressee")
-  blocksMade      Block[]              @relation("Blocker")
-  blocksReceived  Block[]              @relation("Blocked")
-  conversations   ConversationMember[]
-  auditLogs       AuditLog[]
-  attachments     Attachment[]
+  sessions          Session[]
+  ownedServers      Server[]             @relation("ServerOwner")
+  invites           Invite[]
+  sounds            SoundEffect[]
+  recordings        CallRecording[]
+  events            ServerEvent[]
+  eventRsvps        EventRsvp[]
+  webhooksCreated   Webhook[]            @relation("WebhookCreator")
+  webhookOf         Webhook?             @relation("WebhookUser")
+  botsOwned         Bot[]                @relation("BotOwner")
+  botOf             Bot?                 @relation("BotUser")
+  boardCards        BoardCard[]
+  badges            UserBadge[]
+  pollVotes         PollVote[]
+  memberships       ServerMember[]
+  bans              ServerBan[]          @relation("BannedUser")
+  moderationCases   ModerationCase[]     @relation("ModerationCaseAuthor")
+  messages          Message[]
+  reactions         Reaction[]
+  readStates        ReadState[]
+  settings          UserSettings?
+  friendshipsOut    Friendship[]         @relation("FriendRequester")
+  friendshipsIn     Friendship[]         @relation("FriendAddressee")
+  blocksMade        Block[]              @relation("Blocker")
+  blocksReceived    Block[]              @relation("Blocked")
+  conversations     ConversationMember[]
+  auditLogs         AuditLog[]
+  attachments       Attachment[]
 }
 
 model Session {
   id               String    @id @default(uuid(7)) @db.Uuid
   userId           String    @db.Uuid
-  /**
-   * SHA-256 do refresh token; o token em claro nunca é persistido.
-   */
+  /** SHA-256 do refresh token; o token em claro nunca é persistido. */
   refreshTokenHash String    @unique
-  /**
-   * Família de rotação: reuso de token já rotacionado revoga a família inteira.
-   */
+  /** Família de rotação: reuso de token já rotacionado revoga a família inteira. */
   familyId         String    @db.Uuid
   deviceId         String?
   userAgent        String?
@@ -131,9 +119,7 @@ model Friendship {
   id          String           @id @default(uuid(7)) @db.Uuid
   requesterId String           @db.Uuid
   addresseeId String           @db.Uuid
-  /**
-   * Par canônico (menor id, maior id) para unicidade independente da direção.
-   */
+  /** Par canônico (menor id, maior id) para unicidade independente da direção. */
   userLowId   String           @db.Uuid
   userHighId  String           @db.Uuid
   status      FriendshipStatus @default(pending)
@@ -158,68 +144,68 @@ model Block {
 }
 
 model Server {
-  id              String           @id @default(uuid(7)) @db.Uuid
-  name            String
-  ownerId         String           @db.Uuid
-  iconKey         String?
+  id         String         @id @default(uuid(7)) @db.Uuid
+  name       String
+  ownerId    String         @db.Uuid
+  iconKey    String?
   /// Servidor oficial da instância: aberto a todos (entrada automática, diretório) e com selo de verificado.
   /// Os demais são privados: só entra quem tem convite.
-  official        Boolean          @default(false)
+  official   Boolean        @default(false)
   /// tema do servidor: cor de destaque (#rrggbb) e papel de parede da conversa (nome em wallpapers/)
-  accent          String?
-  wallpaperKey    String?
+  accent       String?
+  wallpaperKey String?
   /// Só o selo de verificado (marcado pelo super admin); não muda privacidade, diretório nem entrada (ADR-0013).
-  verified        Boolean          @default(false)
+  verified   Boolean        @default(false)
   /// regras do servidor que a moderação por IA leva em conta (ADR-0036); null = só as regras gerais
-  aiRules         String?
+  aiRules    String?
   /// canal de ausentes (ADR-0049): canal de voz para onde vai quem fica parado afkTimeoutSec segundos em voz
-  afkChannelId    String?          @db.Uuid
-  afkTimeoutSec   Int              @default(300)
+  afkChannelId  String? @db.Uuid
+  afkTimeoutSec Int     @default(300)
   /// perfil do servidor (ADR-0050): descrição, até 5 características ({emoji, label}), faixa (cor pronta ou imagem)
-  description     String           @default("")
-  traits          Json             @default("[]")
+  description     String  @default("")
+  traits          Json    @default("[]")
   bannerColor     String?
   bannerKey       String?
   /// imagem de fundo da tela de convite
   inviteBgKey     String?
   /// engajamento: canal das mensagens do sistema (boas-vindas) e notificação padrão ("all" | "mentions")
-  systemChannelId String?          @db.Uuid
-  welcomeEnabled  Boolean          @default(false)
-  defaultNotify   String           @default("mentions")
+  systemChannelId String? @db.Uuid
+  welcomeEnabled  Boolean @default(false)
+  defaultNotify   String  @default("mentions")
   /// convites pausados: nenhum convite deixa entrar
-  invitesPaused   Boolean          @default(false)
+  invitesPaused   Boolean @default(false)
   emojis          ServerEmoji[]
-  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
-  owner           User             @relation("ServerOwner", fields: [ownerId], references: [id])
-  invites         Invite[]
-  sounds          SoundEffect[]
-  recordings      CallRecording[]
-  events          ServerEvent[]
-  webhooks        Webhook[]
-  slackLinks      SlackLink[]
-  bans            ServerBan[]
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  owner      User           @relation("ServerOwner", fields: [ownerId], references: [id])
+  invites    Invite[]
+  sounds     SoundEffect[]
+  recordings CallRecording[]
+  events     ServerEvent[]
+  webhooks   Webhook[]
+  slackLinks SlackLink[]
+  bans       ServerBan[]
   moderationCases ModerationCase[]
-  members         ServerMember[]
-  roles           Role[]
-  categories      Category[]
-  channels        Channel[]
-  auditLogs       AuditLog[]
+  members    ServerMember[]
+  roles      Role[]
+  categories Category[]
+  channels   Channel[]
+  auditLogs  AuditLog[]
 }
 
 model ServerMember {
-  serverId     String       @db.Uuid
-  userId       String       @db.Uuid
-  nickname     String?
-  joinedAt     DateTime     @default(now()) @db.Timestamptz(3)
+  serverId String       @db.Uuid
+  userId   String       @db.Uuid
+  nickname String?
+  joinedAt DateTime     @default(now()) @db.Timestamptz(3)
   /// castigo (ADR-0034): até quando não escreve, reage nem entra em voz
-  timeoutUntil DateTime?    @db.Timestamptz(3)
+  timeoutUntil DateTime? @db.Timestamptz(3)
   /// super admin invisível (adendo ADR-0013): não aparece em listas, contagens nem presença; só ele se vê
-  hidden       Boolean      @default(false)
+  hidden   Boolean      @default(false)
   /// convite usado para entrar (ADR-0050); null = entrada direta, oficial ou antes disto
-  inviteCode   String?
-  server       Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  roles        MemberRole[]
+  inviteCode String?
+  server   Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roles    MemberRole[]
 
   @@id([serverId, userId])
   @@index([userId])
@@ -229,28 +215,28 @@ model ServerMember {
 /// Moderação por IA (ADR-0036): envio retido antes de publicar. `verdict` block (IA segura) ou review (em dúvida);
 /// `status` pending (fila dos moderadores) | approved (publicado, `publishedMessageId`) | rejected | blocked (IA).
 model ModerationCase {
-  id                 String       @id @default(uuid(7)) @db.Uuid
-  serverId           String?      @db.Uuid
-  channelId          String?      @db.Uuid
-  conversationId     String?      @db.Uuid
-  authorId           String       @db.Uuid
-  requestId          String       @db.Uuid
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  serverId           String?   @db.Uuid
+  channelId          String?   @db.Uuid
+  conversationId     String?   @db.Uuid
+  authorId           String    @db.Uuid
+  requestId          String    @db.Uuid
   body               String
-  replyToId          String?      @db.Uuid
+  replyToId          String?   @db.Uuid
   verdict            String
   category           String?
   reason             String
-  status             String       @default("pending")
-  reviewedById       String?      @db.Uuid
-  reviewedAt         DateTime?    @db.Timestamptz(3)
+  status             String    @default("pending")
+  reviewedById       String?   @db.Uuid
+  reviewedAt         DateTime? @db.Timestamptz(3)
   reviewNote         String?
-  publishedMessageId String?      @db.Uuid
+  publishedMessageId String?   @db.Uuid
   /// ação automática aplicada ao autor: 'suspended' | 'suspended+device'
   autoAction         String?
   model              String?
-  createdAt          DateTime     @default(now()) @db.Timestamptz(3)
-  server             Server?      @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  author             User         @relation("ModerationCaseAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  server             Server?   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  author             User      @relation("ModerationCaseAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   attachments        Attachment[]
 
   @@index([serverId, status, createdAt])
@@ -287,19 +273,17 @@ model ServerBan {
 }
 
 model Role {
-  id            String         @id @default(uuid(7)) @db.Uuid
-  serverId      String         @db.Uuid
-  name          String
-  /**
-   * 0 = @everyone; maior = mais alto na hierarquia.
-   */
-  position      Int
-  permissions   Int
-  color         String?
-  isEveryone    Boolean        @default(false)
-  server        Server         @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  members       MemberRole[]
-  reactionRoles ReactionRole[]
+  id              String       @id @default(uuid(7)) @db.Uuid
+  serverId        String       @db.Uuid
+  name            String
+  /** 0 = @everyone; maior = mais alto na hierarquia. */
+  position        Int
+  permissions     Int
+  color           String?
+  isEveryone      Boolean      @default(false)
+  server          Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  members         MemberRole[]
+  reactionRoles   ReactionRole[]
 
   @@index([serverId])
 }
@@ -336,39 +320,39 @@ enum ChannelKind {
 }
 
 model Channel {
-  id          String                      @id @default(uuid(7)) @db.Uuid
-  serverId    String                      @db.Uuid
-  categoryId  String?                     @db.Uuid
-  kind        ChannelKind
-  name        String
-  topic       String?
-  position    Int
-  createdAt   DateTime                    @default(now()) @db.Timestamptz(3)
+  id         String                      @id @default(uuid(7)) @db.Uuid
+  serverId   String                      @db.Uuid
+  categoryId String?                     @db.Uuid
+  kind       ChannelKind
+  name       String
+  topic      String?
+  position   Int
+  createdAt  DateTime                    @default(now()) @db.Timestamptz(3)
   /// canal de voz "criador de salas": entrar nele cria uma sala temporária e põe a pessoa lá (ADR-0029)
-  roomHub     Boolean                     @default(false)
+  roomHub    Boolean                     @default(false)
   /// sala temporária criada por um criador de salas: some quando esvazia
-  temporary   Boolean                     @default(false)
+  temporary  Boolean                     @default(false)
   /// dona da sala temporária (ADR-0040): tranca, convida, limita vagas e remove gente; passa adiante quando sai
-  ownerId     String?                     @db.Uuid
+  ownerId    String?                     @db.Uuid
   /// limite de vagas da sala temporária (null = o máximo do canal)
-  userLimit   Int?
+  userLimit  Int?
   /// modo lento (ADR-0052): segundos entre duas mensagens da mesma pessoa (0 = desligado)
-  slowmodeSec Int                         @default(0)
-  server      Server                      @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  category    Category?                   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  overrides   ChannelPermissionOverride[]
-  messages    Message[]
-  readStates  ReadState[]
+  slowmodeSec Int                        @default(0)
+  server     Server                      @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  category   Category?                   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  overrides  ChannelPermissionOverride[]
+  messages   Message[]
+  readStates ReadState[]
   /// canal de texto: cada mensagem nova vira card neste quadro (ADR-0017)
-  boardId     String?                     @db.Uuid
-  board       Channel?                    @relation("BoardFeed", fields: [boardId], references: [id], onDelete: SetNull)
-  feeds       Channel[]                   @relation("BoardFeed")
-  cards       BoardCard[]                 @relation("BoardCards")
-  sourced     BoardCard[]                 @relation("BoardCardSource")
-  recordings  CallRecording[]
-  events      ServerEvent[]
-  webhooks    Webhook[]
-  slackLinks  SlackLink[]
+  boardId    String?                     @db.Uuid
+  board      Channel?                    @relation("BoardFeed", fields: [boardId], references: [id], onDelete: SetNull)
+  feeds      Channel[]                   @relation("BoardFeed")
+  cards      BoardCard[]                 @relation("BoardCards")
+  sourced    BoardCard[]                 @relation("BoardCardSource")
+  recordings CallRecording[]
+  events     ServerEvent[]
+  webhooks   Webhook[]
+  slackLinks SlackLink[]
 
   @@index([serverId])
 }
@@ -479,9 +463,7 @@ model Conversation {
   id         String               @id @default(uuid(7)) @db.Uuid
   kind       ConversationKind
   name       String?
-  /**
-   * Para DMs: par canônico "lowId:highId", garante uma DM por par.
-   */
+  /** Para DMs: par canônico "lowId:highId", garante uma DM por par. */
   dmKey      String?              @unique
   createdAt  DateTime             @default(now()) @db.Timestamptz(3)
   members    ConversationMember[]
@@ -501,52 +483,46 @@ model ConversationMember {
 }
 
 model Message {
-  id                 String         @id @default(uuid(7)) @db.Uuid
-  authorId           String         @db.Uuid
-  /**
-   * XOR com conversationId (constraint CHECK na migração).
-   */
-  channelId          String?        @db.Uuid
-  conversationId     String?        @db.Uuid
-  /**
-   * Idempotência: o mesmo requestId do mesmo autor não cria segunda mensagem.
-   */
-  requestId          String         @db.Uuid
-  body               String
-  mentions           String[]       @db.Uuid
-  mentionEveryone    Boolean        @default(false)
-  replyToId          String?        @db.Uuid
+  id             String        @id @default(uuid(7)) @db.Uuid
+  authorId       String        @db.Uuid
+  /** XOR com conversationId (constraint CHECK na migração). */
+  channelId      String?       @db.Uuid
+  conversationId String?       @db.Uuid
+  /** Idempotência: o mesmo requestId do mesmo autor não cria segunda mensagem. */
+  requestId      String        @db.Uuid
+  body           String
+  mentions       String[]      @db.Uuid
+  mentionEveryone Boolean      @default(false)
+  replyToId      String?       @db.Uuid
   /// responder no privado (ADR-0042): mensagem de DM que cita uma mensagem de canal
-  privateReplyToId   String?        @db.Uuid
+  privateReplyToId String?     @db.Uuid
   /// título do post (ADR-0052): só em mensagem raiz de canal de fórum
-  title              String?
+  title          String?
   /// encaminhada (ADR-0053): de qual mensagem e canal veio; sem FK de propósito (a original pode sumir)
-  forwardedFromId    String?        @db.Uuid
-  forwardedChannelId String?        @db.Uuid
-  createdAt          DateTime       @default(now()) @db.Timestamptz(3)
-  editedAt           DateTime?      @db.Timestamptz(3)
-  deletedAt          DateTime?      @db.Timestamptz(3)
-  /**
-   * Fixada no canal/conversa (quem fixou fica em pinnedById, sem relação).
-   */
-  pinnedAt           DateTime?      @db.Timestamptz(3)
-  pinnedById         String?        @db.Uuid
+  forwardedFromId    String?   @db.Uuid
+  forwardedChannelId String?   @db.Uuid
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  editedAt       DateTime?     @db.Timestamptz(3)
+  deletedAt      DateTime?     @db.Timestamptz(3)
+  /** Fixada no canal/conversa (quem fixou fica em pinnedById, sem relação). */
+  pinnedAt       DateTime?     @db.Timestamptz(3)
+  pinnedById     String?       @db.Uuid
   /// cartões ricos (ADR-0034): array de Embed do contrato; só bots/webhooks
-  embeds             Json           @default("[]")
+  embeds         Json          @default("[]")
   /// botões e menus (ADR-0034): array de ActionRow do contrato; só bots
-  components         Json           @default("[]")
-  author             User           @relation(fields: [authorId], references: [id])
-  channel            Channel?       @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  conversation       Conversation?  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  replyTo            Message?       @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies            Message[]      @relation("Replies")
-  privateReplyTo     Message?       @relation("PrivateReplies", fields: [privateReplyToId], references: [id], onDelete: SetNull)
-  privateReplies     Message[]      @relation("PrivateReplies")
-  attachments        Attachment[]
-  reactions          Reaction[]
-  boardCard          BoardCard?
-  poll               Poll?
-  reactionRoles      ReactionRole[]
+  components     Json          @default("[]")
+  author         User          @relation(fields: [authorId], references: [id])
+  channel        Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo        Message?      @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[]     @relation("Replies")
+  privateReplyTo Message?      @relation("PrivateReplies", fields: [privateReplyToId], references: [id], onDelete: SetNull)
+  privateReplies Message[]     @relation("PrivateReplies")
+  attachments    Attachment[]
+  reactions      Reaction[]
+  boardCard      BoardCard?
+  poll           Poll?
+  reactionRoles  ReactionRole[]
 
   @@unique([authorId, requestId])
   @@index([channelId, createdAt, id])
@@ -554,26 +530,22 @@ model Message {
 }
 
 model Attachment {
-  id           String          @id @default(uuid(7)) @db.Uuid
-  uploaderId   String          @db.Uuid
-  /**
-   * null até ser vinculado a uma mensagem; órfãos expiram (limpeza periódica).
-   */
-  messageId    String?         @db.Uuid
-  storageKey   String          @unique
+  id           String   @id @default(uuid(7)) @db.Uuid
+  uploaderId   String   @db.Uuid
+  /** null até ser vinculado a uma mensagem; órfãos expiram (limpeza periódica). */
+  messageId    String?  @db.Uuid
+  storageKey   String   @unique
   mime         String
   sizeBytes    Int
   originalName String
   sha256       String
   width        Int?
   height       Int?
-  /**
-   * retido pela moderação por IA (ADR-0036): não expira como órfão enquanto o caso existe
-   */
-  caseId       String?         @db.Uuid
-  createdAt    DateTime        @default(now()) @db.Timestamptz(3)
-  uploader     User            @relation(fields: [uploaderId], references: [id])
-  message      Message?        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  /** retido pela moderação por IA (ADR-0036): não expira como órfão enquanto o caso existe */
+  caseId       String?  @db.Uuid
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  uploader     User     @relation(fields: [uploaderId], references: [id])
+  message      Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
   case         ModerationCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
 
   @@index([messageId])
@@ -633,40 +605,40 @@ model AuditLog {
 
 /// Configuração da instância editada no painel do super admin (ADR-0020). Uma linha só (id = 1).
 model InstanceConfig {
-  id                Int      @id @default(1)
+  id               Int      @id @default(1)
   /// false: ninguém novo entra (nem conta, nem só apelido); quem já tem conta continua entrando.
-  registrationOpen  Boolean  @default(true)
+  registrationOpen Boolean  @default(true)
   /// Aviso em faixa no topo do app para todo mundo (null = sem aviso).
-  announcementText  String?
+  announcementText String?
   /// info | warning | success
-  announcementTone  String   @default("info")
+  announcementTone String   @default("info")
   /// Limite de upload menor que o do ambiente (UPLOAD_MAX_BYTES); null = o do ambiente.
-  uploadMaxBytes    Int?
+  uploadMaxBytes   Int?
   /// Moderação por IA (ADR-0036): ligada na instância (precisa de ANTHROPIC_API_KEY) e se vale em mensagens diretas.
-  aiModeration      Boolean  @default(true)
-  aiModerationDms   Boolean  @default(false)
+  aiModeration     Boolean  @default(true)
+  aiModerationDms  Boolean  @default(false)
   /// bloqueio automático em conteúdo grave (pornografia, menores, violência gráfica) com confiança alta: suspende a conta
-  aiAutoBlock       Boolean  @default(false)
+  aiAutoBlock      Boolean  @default(false)
   /// ... e bloqueia também o dispositivo (hardwareId, deviceId e IP das sessões da pessoa)
-  aiAutoBlockDevice Boolean  @default(false)
+  aiAutoBlockDevice Boolean @default(false)
   /// canal de contato para pedidos sobre dados pessoais (LGPD, ADR-0039); aparece na política dentro do app
-  privacyContact    String?
-  updatedAt         DateTime @default(now()) @updatedAt @db.Timestamptz(3)
-  updatedById       String?  @db.Uuid
+  privacyContact   String?
+  updatedAt        DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  updatedById      String?  @db.Uuid
 }
 
 /// Convite para servidor privado: código aleatório, sem expiração; o criador ou quem gerencia o servidor revoga.
 model Invite {
-  code      String    @id
-  serverId  String    @db.Uuid
-  creatorId String    @db.Uuid
-  uses      Int       @default(0)
+  code      String   @id
+  serverId  String   @db.Uuid
+  creatorId String   @db.Uuid
+  uses      Int      @default(0)
   /// validade e limite de usos (ADR-0050); null = sem
   expiresAt DateTime? @db.Timestamptz(3)
   maxUses   Int?
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
-  server    Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  creator   User      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  server    Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  creator   User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([serverId])
 }
@@ -793,6 +765,7 @@ model Bot {
   owner       User      @relation("BotOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@unique([ownerId, officialKey])
+
   @@index([ownerId])
 }
 
