@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-08',
+    time: '23:30',
+    kind: 'melhoria',
+    icon: 'gamepad',
+    title: 'Times, mira no x1 e bola para todos',
+    body: 'Nos esportes do Espaço 3D cada um entra num time (azul ou vermelho, dá para trocar) e usa uma faixa da cor do time; o gol e a cesta de cada lado têm a cor de quem defende. No x1, o soco agora é no mouse (esquerdo rápido, direito forte) com mira no centro da tela. Corrigido: só uma pessoa conseguia pegar a bola, e no tênis a bola do saque voltava para o lado errado.',
+  },
+  {
+    date: '2026-11-08',
     time: '22:30',
     kind: 'novo',
     icon: 'gamepad',

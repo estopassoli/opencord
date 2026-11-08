@@ -51,6 +51,8 @@ export interface SceneHooks {
   onScore?(zone: SportZone, side: 'a' | 'b', points: number): void;
   /** carga do arremesso de basquete (0–1; null = sem carregar) */
   onCharge?(c: number | null): void;
+  /** x1: mira travada (cursor preso no centro) ou não */
+  onAimLock?(locked: boolean): void;
 }
 
 export interface FightState {
@@ -130,6 +132,8 @@ export class SpaceScene {
   private sport: SportPlay | null = null;
   private decor: THREE.Group | null = null;
   private lastCharge: number | null = null;
+  /** meu time nas arenas */
+  team: 'a' | 'b' = 'a';
   private readonly ro: ResizeObserver;
   /** editor: recebe os eventos do canvas quando mode === 'edit' */
   editorInput: {
@@ -159,6 +163,8 @@ export class SpaceScene {
     this.resize();
     this.bindInput();
     document.addEventListener('visibilitychange', this.onVisibility);
+    document.addEventListener('pointerlockchange', this.onLockChange);
+    document.addEventListener('mousemove', this.onAimMove);
     this.renderer.domElement.addEventListener('webglcontextlost', this.onContextLost);
     this.raf = requestAnimationFrame(this.frame);
   }
@@ -170,9 +176,16 @@ export class SpaceScene {
     if (this.zone === 0) this.applyLayout(l, keepPosition);
   }
 
+  setTeam(t: 'a' | 'b') {
+    this.team = t;
+    this.me.setTeam(this.zone ? t : null);
+    this.lastSend = 0;
+  }
+
   /** vai para uma arena de esporte (1–3) ou volta para a sala (0) */
-  setZone(z: 0 | SportZone) {
+  setZone(z: 0 | SportZone, team: 'a' | 'b' = this.team) {
     if (z === this.zone) return;
+    this.team = team;
     this.sport?.dispose();
     this.sport = null;
     if (this.decor) {
@@ -187,7 +200,20 @@ export class SpaceScene {
     this.hooks.onCharge?.(null);
     const l = z ? ARENAS[z].layout : this.mainLayout;
     if (l) this.applyLayout(l, false);
+    this.me.setTeam(z ? team : null);
     if (z) {
+      // começa na própria metade (azul defende o lado −x)
+      const side = team === 'a' ? -1 : 1;
+      const a = ARENAS[z];
+      this.pose = {
+        x: side * Math.min(6, a.layout.width / 4),
+        y: 0,
+        z: 0,
+        ry: side > 0 ? -Math.PI / 2 : Math.PI / 2,
+        a: 0,
+      };
+      this.yaw = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+      this.me.place(this.pose);
       this.decor = buildArenaDecor(z);
       this.scene.add(this.decor);
       this.sport = new SportPlay(
@@ -199,6 +225,7 @@ export class SpaceScene {
           score: (side, points) => this.hooks.onScore?.(z, side, points),
         },
         (id) => this.handOf(id),
+        (side) => this.servePos(side),
       );
     }
     this.lastSend = 0;
@@ -208,6 +235,20 @@ export class SpaceScene {
   /** bola que chegou pela rede */
   remoteBall(b: RemoteBall & { zone: number }) {
     if (this.sport && b.zone === this.zone) this.sport.remote(b);
+  }
+
+  /** tênis: a bola do saque aparece na frente de quem está mais perto do fundo daquele lado */
+  private servePos(side: 'a' | 'b'): { x: number; y: number; z: number } | null {
+    const onSide = (x: number) => (side === 'a' ? x < -0.5 : x > 0.5);
+    const now = performance.now();
+    const cands: { x: number; z: number; ry: number }[] = [];
+    if (onSide(this.pose.x)) cands.push(this.pose);
+    for (const p of peers.values())
+      if (p.zone === this.zone && now - p.at < PEER_TIMEOUT_MS && onSide(p.x)) cands.push(p);
+    const baseX = (side === 'a' ? -1 : 1) * 11;
+    const who = cands.sort((a, b) => Math.abs(a.x - baseX) - Math.abs(b.x - baseX))[0];
+    if (!who) return null;
+    return { x: who.x + Math.sin(who.ry) * 0.7, y: 1.2, z: who.z + Math.cos(who.ry) * 0.7 };
   }
 
   /** mão de alguém (onde a bola fica quando a pessoa segura) */
@@ -267,10 +308,36 @@ export class SpaceScene {
 
   // ---------- x1 ----------
   setFight(f: FightState | null) {
-    if (f && !this.fight) this.sitting = null;
+    if (f && !this.fight) {
+      this.sitting = null;
+      // por cima do ombro, mais perto
+      this.dist = 3.4;
+      this.pitch = 0.18;
+    }
+    if (!f && this.fight) {
+      this.dist = 5.5;
+      this.pitch = 0.32;
+      if (this.aimLocked) document.exitPointerLock();
+    }
     this.fight = f;
+    this.renderer.domElement.classList.toggle('space3d-aiming', !!f);
     this.lastPrompt = 0;
   }
+
+  /** x1: o mouse gira a câmera com o cursor preso (mira no centro) */
+  get aimLocked() {
+    return document.pointerLockElement === this.renderer.domElement;
+  }
+
+  private onLockChange = () => {
+    this.hooks.onAimLock?.(this.aimLocked);
+  };
+
+  private onAimMove = (e: MouseEvent) => {
+    if (!this.aimLocked) return;
+    this.yaw -= e.movementX * 0.0026;
+    this.pitch = Math.max(-0.25, Math.min(0.7, this.pitch + e.movementY * 0.002));
+  };
 
   /** ringues das lutas em andamento na chamada (todos veem) */
   setRings(list: { id: string; x: number; z: number }[]) {
@@ -303,7 +370,7 @@ export class SpaceScene {
 
   private punch(strong: boolean) {
     const f = this.fight;
-    if (!f || f.phase !== 'fighting' || this.keys.has('l')) return;
+    if (!f || f.phase !== 'fighting' || this.blocking) return;
     const now = performance.now();
     const k = strong ? 's' : 'j';
     if (now - this.lastPunch[k] < (strong ? DUEL_STRONG_COOLDOWN_MS : DUEL_JAB_COOLDOWN_MS)) return;
@@ -474,8 +541,20 @@ export class SpaceScene {
 
   private drag: { id: number; x: number; y: number; button: number; editor: boolean } | null = null;
 
+  /** defesa no x1: segurar Shift (ou L) */
+  private get blocking() {
+    return this.keys.has('shift') || this.keys.has('l');
+  }
+
   private onPointerDown = (e: PointerEvent) => {
     this.host.focus({ preventScroll: true });
+    if (this.fight && this.mode === 'play') {
+      // x1: o primeiro clique trava a mira; depois, esquerdo = soco rápido, direito = soco forte
+      e.preventDefault();
+      if (!this.aimLocked) void this.renderer.domElement.requestPointerLock?.()?.catch?.(() => undefined);
+      else this.punch(e.button === 2);
+      return;
+    }
     if (this.mode === 'edit' && e.button === 0 && this.editorInput?.down(e)) {
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, button: 0, editor: true };
       this.renderer.domElement.setPointerCapture(e.pointerId);
@@ -514,10 +593,6 @@ export class SpaceScene {
 
   private onPointerUp = (e: PointerEvent) => {
     if (this.drag?.editor) this.editorInput?.up(e);
-    // clique sem arrastar durante o x1: esquerdo = soco rápido, direito = soco forte
-    const c = this.clickStart;
-    if (c && this.fight && this.mode === 'play' && Math.hypot(e.clientX - c.x, e.clientY - c.y) < 6)
-      this.punch(e.button === 2);
     this.clickStart = null;
     this.drag = null;
   };
@@ -537,11 +612,6 @@ export class SpaceScene {
       return;
     }
     const k = e.key.toLowerCase();
-    if (this.fight && this.mode === 'play' && (k === 'j' || k === 'k')) {
-      e.preventDefault();
-      if (!e.repeat) this.punch(k === 'k');
-      return;
-    }
     if (this.fight && this.mode === 'play' && k === 'l') {
       e.preventDefault();
       this.keys.add('l');
@@ -714,9 +784,8 @@ export class SpaceScene {
       this.pose.ry = Math.atan2(dx, dz);
     }
     if (this.fight) {
-      // lutando, fica sempre virado para o adversário
-      const o = peers.get(this.fight.opponentId);
-      if (o) this.pose.ry = Math.atan2(o.x - this.pose.x, o.z - this.pose.z);
+      // lutando, o boneco olha para onde a mira aponta (a frente da câmera)
+      this.pose.ry = Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw));
     }
     if (this.pose.y > 0 || this.vy > 0) {
       this.vy -= GRAVITY * dt;
@@ -731,7 +800,7 @@ export class SpaceScene {
         this.hooks.onCharge?.(c);
       }
     }
-    if (this.fight) this.pose.a = now < this.punchUntil ? this.punchKind : k.has('l') ? 8 : moving ? 1 : 0;
+    if (this.fight) this.pose.a = now < this.punchUntil ? this.punchKind : this.blocking ? 8 : moving ? 1 : 0;
     else this.pose.a = this.pose.y > 0.01 ? 3 : moving ? (run ? 2 : 1) : now < this.waveUntil ? 4 : 0;
     this.me.place(this.pose);
     this.updatePrompt(now);
@@ -769,7 +838,15 @@ export class SpaceScene {
     if ((changed && gap >= 100) || gap >= 1000) {
       this.lastSend = now;
       this.lastSent = { ...p };
-      this.hooks.sendPose({ x: round(p.x), y: round(p.y), z: round(p.z), ry: round(p.ry), a: p.a, zone: this.zone });
+      this.hooks.sendPose({
+        x: round(p.x),
+        y: round(p.y),
+        z: round(p.z),
+        ry: round(p.ry),
+        a: p.a,
+        zone: this.zone,
+        ...(this.zone ? { team: this.team } : {}),
+      });
     }
   }
 
@@ -790,6 +867,7 @@ export class SpaceScene {
       }
       av.setTarget(pose);
       av.setSpeaking(info.speaking);
+      av.setTeam(this.zone && pose.team ? pose.team : null);
     }
     for (const [id, av] of this.others) {
       const p = peers.get(id);
@@ -822,6 +900,12 @@ export class SpaceScene {
       this.mode === 'play'
         ? new THREE.Vector3(this.pose.x, this.pose.y + 1.35, this.pose.z)
         : new THREE.Vector3(this.focus.x, 0.5, this.focus.z);
+    if (this.fight && this.mode === 'play') {
+      // por cima do ombro direito: a mira no centro fica livre, à frente do boneco
+      target.x += Math.cos(this.yaw) * 0.6;
+      target.z -= Math.sin(this.yaw) * 0.6;
+      target.y += 0.15;
+    }
     const dir = new THREE.Vector3(
       Math.sin(this.yaw) * Math.cos(this.pitch),
       Math.sin(this.pitch),
@@ -860,6 +944,9 @@ export class SpaceScene {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);
+    document.removeEventListener('pointerlockchange', this.onLockChange);
+    document.removeEventListener('mousemove', this.onAimMove);
+    if (this.aimLocked) document.exitPointerLock();
     this.host.removeEventListener('keydown', this.onKeyDown);
     this.host.removeEventListener('keyup', this.onKeyUp);
     this.host.removeEventListener('blur', this.onBlur);

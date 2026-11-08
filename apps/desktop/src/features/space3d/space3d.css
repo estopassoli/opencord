@@ -592,3 +592,90 @@
   font-size: 12.5px;
   text-align: center;
 }
+
+/* x1: mira no centro e sem cursor */
+.space3d-canvas.space3d-aiming {
+  cursor: none;
+}
+.space3d-crosshair {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0.6;
+}
+.space3d-crosshair[data-locked='true'] {
+  opacity: 1;
+}
+.space3d-crosshair::before,
+.space3d-crosshair::after {
+  position: absolute;
+  background: #fff;
+  box-shadow: 0 0 2px rgb(0 0 0 / 0.9);
+  content: '';
+}
+.space3d-crosshair::before {
+  top: 12px;
+  left: 0;
+  width: 26px;
+  height: 2px;
+}
+.space3d-crosshair::after {
+  top: 0;
+  left: 12px;
+  width: 2px;
+  height: 26px;
+}
+.space3d-crosshair span {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(10 12 18 / 0.9);
+  box-shadow: 0 0 0 2px rgb(10 12 18 / 0.9);
+}
+.space3d-aim-hint {
+  position: absolute;
+  z-index: 2;
+  top: calc(50% + 28px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(10 12 18 / 0.78);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+}
+.space3d-myteam {
+  position: absolute;
+  z-index: 2;
+  top: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border-left: 4px solid #3f8fe0;
+  border-radius: var(--radius);
+  background: rgb(10 12 18 / 0.78);
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.space3d-myteam[data-team='b'] {
+  border-left-color: #e04848;
+}
+.space3d-myteam[data-team='a'] strong {
+  color: #6fb2ff;
+}
+.space3d-myteam[data-team='b'] strong {
+  color: #ff7b7b;
+}

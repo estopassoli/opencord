@@ -62,6 +62,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   const [slow, setSlow] = useState(false);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [charge, setCharge] = useState<number | null>(null);
+  const [aimLocked, setAimLocked] = useState(false);
   const zone = useSpace((s) => s.zone);
   const toggles = useSpace((s) => s.session?.toggles);
 
@@ -75,6 +76,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       onFps: (fps) => setSlow(fps < 24),
       onPrompt: (p) => setPrompt(p?.label ?? null),
       onCharge: setCharge,
+      onAimLock: setAimLocked,
       sendBall: (z, b) => useSession.getState().realtime?.sendVolatile('space:ball', { channelId, zone: z, ...b }),
       onScore: (z, side, points) => useSpace.getState().score(z, side, points),
       onPunch: (strong) => {
@@ -125,10 +127,14 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     scene?.setToggles(toggles ?? {});
   }, [scene, toggles]);
 
+  const team = useSpace((s) => s.team);
   useEffect(() => {
-    scene?.setZone(zone as 0 | SportZone);
+    scene?.setZone(zone as 0 | SportZone, useSpace.getState().team);
     host.current?.focus({ preventScroll: true });
   }, [scene, zone]);
+  useEffect(() => {
+    scene?.setTeam(team);
+  }, [scene, team]);
 
   useDuelScene(scene);
 
@@ -146,7 +152,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       <TelaoSource onSource={onSource} />
       {!editing && zone === 0 && <TelaoControls />}
       <SpaceBar serverId={serverId} />
-      {!editing && zone === 0 && <DuelHud />}
+      {!editing && zone === 0 && <DuelHud aimLocked={aimLocked} />}
       {!editing && zone !== 0 && <SportHud zone={zone as SportZone} charge={charge} />}
       {!editing && prompt && (
         <button
@@ -672,8 +678,15 @@ const SPORT_HELP: Record<SportZone, string> = {
 };
 
 /** Placar da arena (azul ataca para um lado, vermelho para o outro), força do arremesso e como jogar. */
+const TARGET: Record<SportZone, [string, string]> = {
+  1: ['a cesta vermelha', 'a cesta azul'],
+  2: ['o gol vermelho', 'o gol azul'],
+  3: ['o lado vermelho', 'o lado azul'],
+};
+
 function SportHud({ zone, charge }: { zone: SportZone; charge: number | null }) {
   const score = useSpace((s) => s.session?.scores?.[String(zone)]) ?? { a: 0, b: 0 };
+  const team = useSpace((s) => s.team);
   const sweet = charge !== null && charge >= 0.55 && charge <= 0.8;
   return (
     <>
@@ -694,6 +707,15 @@ function SportHud({ zone, charge }: { zone: SportZone; charge: number | null }) 
         </span>
         <Button size="sm" variant="ghost" onClick={() => void useSpace.getState().resetScore(zone)}>
           Zerar
+        </Button>
+      </div>
+      <div className="space3d-myteam" data-team={team}>
+        <span>
+          Você é do time <strong>{team === 'a' ? 'Azul' : 'Vermelho'}</strong>: ataque{' '}
+          {TARGET[zone][team === 'a' ? 0 : 1]}
+        </span>
+        <Button size="sm" variant="ghost" onClick={() => useSpace.getState().setTeam(team === 'a' ? 'b' : 'a')}>
+          Trocar de time
         </Button>
       </div>
       {charge !== null && (

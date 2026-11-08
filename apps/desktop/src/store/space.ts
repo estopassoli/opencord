@@ -26,6 +26,8 @@ export interface PeerPose {
   a: number;
   /** 0 sala do servidor; 1–3 arenas de esporte */
   zone: number;
+  /** time na arena */
+  team?: 'a' | 'b';
   /** quando chegou (ms, relógio local); sem notícia por PEER_TIMEOUT_MS o avatar some */
   at: number;
 }
@@ -60,6 +62,9 @@ interface SpaceStore {
   /** arena em que estou (0 = sala do servidor) */
   zone: number;
   setZone(z: number): void;
+  /** meu time na arena (escolhido ao entrar: o que tem menos gente) */
+  team: 'a' | 'b';
+  setTeam(t: 'a' | 'b'): void;
   /** bola que chegou pela rede (a cena registra quem recebe) */
   ballListener: ((b: SpaceBall & { by: string }) => void) | null;
   score(zone: number, side: 'a' | 'b', points: number): void;
@@ -179,7 +184,16 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
   },
   moved(m) {
     if (m.channelId !== get().openChannelId) return;
-    peers.set(m.userId, { x: m.x, y: m.y, z: m.z, ry: m.ry, a: m.a, zone: m.zone ?? 0, at: performance.now() });
+    peers.set(m.userId, {
+      x: m.x,
+      y: m.y,
+      z: m.z,
+      ry: m.ry,
+      a: m.a,
+      zone: m.zone ?? 0,
+      ...(m.team ? { team: m.team } : {}),
+      at: performance.now(),
+    });
   },
   left(channelId, userId) {
     if (channelId === get().openChannelId) peers.delete(userId);
@@ -194,7 +208,21 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
   duelOffset: 0,
   zone: 0,
   setZone(z) {
-    set({ zone: z });
+    if (z === get().zone) return;
+    // time com menos gente na arena (empate: azul)
+    let a = 0;
+    let b = 0;
+    const now = performance.now();
+    for (const p of peers.values())
+      if (p.zone === z && now - p.at < PEER_TIMEOUT_MS) {
+        if (p.team === 'b') b++;
+        else if (p.team === 'a') a++;
+      }
+    set({ zone: z, team: b < a ? 'b' : 'a' });
+  },
+  team: 'a',
+  setTeam(t) {
+    set({ team: t });
   },
   ballListener: null,
   score(zone, side, points) {

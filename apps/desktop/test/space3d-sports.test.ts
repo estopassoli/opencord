@@ -65,3 +65,16 @@ describe('Espaço 3D: esportes', () => {
     expect(Math.abs(b.z)).toBeLessThanOrEqual(ARENAS[2].layout.depth / 2);
   });
 });
+
+describe('Espaço 3D: quem fica com a bola', () => {
+  it('toque mais novo (contador) ganha, sem depender do relógio de cada PC', async () => {
+    const { acceptBall } = await import('../src/features/space3d/sportplay');
+    expect(acceptBall(5, 'amigo', 4, 'eu')).toBe(true);
+    expect(acceptBall(3, 'amigo', 4, 'eu')).toBe(false);
+    // empate: os dois apps escolhem o mesmo (maior id), e quem já mandava continua
+    expect(acceptBall(4, 'zz', 4, 'aa')).toBe(true);
+    expect(acceptBall(4, 'aa', 4, 'zz')).toBe(false);
+    expect(acceptBall(4, 'aa', 4, 'aa')).toBe(true);
+    expect(acceptBall(0, 'aa', 0, null)).toBe(true);
+  });
+});

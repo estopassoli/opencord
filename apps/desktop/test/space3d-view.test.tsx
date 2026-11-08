@@ -16,6 +16,7 @@ vi.mock('../src/features/space3d/scene', () => ({
     knockout() {}
     setZone() {}
     remoteBall() {}
+    setTeam() {}
     interact() {}
     setMode() {}
     dispose() {}
@@ -147,6 +148,10 @@ describe('Espaço 3D: x1 no soco', () => {
     );
     expect(r.getByLabelText('Vida de tulio').getAttribute('aria-valuenow')).toBe('76');
     expect(r.getByText('Desistir')).toBeTruthy();
+    // lutando: mira no centro e aviso para travar a mira com um clique
+    expect(r.container.querySelector('.space3d-crosshair')).toBeTruthy();
+    expect(r.getByText('Clique na tela para travar a mira')).toBeTruthy();
+    expect(r.getByText(/botão direito: soco forte/)).toBeTruthy();
     expect(r.queryByText('Aceitar (F)')).toBeNull();
 
     act(() =>

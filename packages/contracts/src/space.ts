@@ -202,6 +202,8 @@ export const SpaceMove = z.object({
   a: z.number().int().min(0).max(9),
   /** onde a pessoa está: 0 (ou ausente) a sala do servidor; 1 basquete, 2 futebol, 3 tênis */
   zone: z.number().int().min(0).max(3).optional(),
+  /** time nas arenas: a (azul, ataca +x) ou b (vermelho, ataca −x) */
+  team: z.enum(['a', 'b']).optional(),
 });
 export type SpaceMove = z.infer<typeof SpaceMove>;
 export const SpaceLeave = z.object({ channelId: Id });

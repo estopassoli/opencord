@@ -81,3 +81,10 @@ chamada sem abrir o espaço fala em volume normal.
   bola que não passa da rede.
 - Limite conhecido: a autoridade da bola confia no cliente (um app modificado poderia marcar pontos falsos); como é
   diversão sem prêmio, aceitamos. O x1 continua decidido no servidor.
+- 2026-11-08 (ajustes após o teste do mantenedor): no x1 os golpes vão no mouse (esquerdo rápido, direito forte),
+  com a mira travada no centro (Pointer Lock; Esc solta), câmera por cima do ombro e o boneco olhando para onde a mira
+  aponta (acertar depende de mirar); defesa segurando Shift. A posse da bola deixou de comparar o relógio de cada PC
+  (quem estava com o relógio atrasado nunca conseguia pegar a bola): agora é um contador de toques (o meu toque = o
+  maior visto + 1; empate decidido pelo id, igual em todos os apps). Times nas arenas: entra no time com menos gente,
+  pode trocar, faixa e disco da cor do time no boneco, gol/cesta/fundo da cor de quem defende; no tênis quem ganha o
+  ponto saca, com a bola aparecendo na frente de quem está daquele lado.

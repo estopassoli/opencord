@@ -69,7 +69,7 @@ export function useDuelScene(scene: SpaceScene | null) {
   }, [scene, duels, meId]);
 }
 
-export function DuelHud() {
+export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
   const duels = useSpace((s) => s.duels);
   const offset = useSpace((s) => s.duelOffset);
   const meId = useData((s) => s.me?.id);
@@ -107,9 +107,18 @@ export function DuelHud() {
         </div>
       )}
       {live && (live.a === meId || live.b === meId) && (
+        <>
+          {/* mira no centro da tela (o cursor fica escondido enquanto a mira está travada) */}
+          <div className="space3d-crosshair" aria-hidden="true" data-locked={aimLocked ? 'true' : undefined}>
+            <span />
+          </div>
+          {!aimLocked && <div className="space3d-aim-hint">Clique na tela para travar a mira</div>}
+        </>
+      )}
+      {live && (live.a === meId || live.b === meId) && (
         <div className="space3d-duel-help">
           <span>
-            <kbd>J</kbd> ou clique: soco · <kbd>K</kbd> ou botão direito: soco forte · segure <kbd>L</kbd>: defender
+            Clique: soco · botão direito: soco forte · segure <kbd>Shift</kbd>: defender · <kbd>Esc</kbd> solta a mira
           </span>
           <Button size="sm" variant="ghost" onClick={() => void useSpace.getState().forfeit(live.id)}>
             Desistir

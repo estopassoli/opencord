@@ -49,6 +49,8 @@ export class SportPlay {
   /** tênis: quem rebateu por último (lado) e quantos quiques do outro lado */
   private hitSide: 'a' | 'b' | null = null;
   private bounces = 0;
+  /** tênis: quem ganhou o último ponto saca */
+  private serveSide: 'a' | 'b' = 'a';
   private me: Me = { x: 0, y: 0, z: 0, ry: 0, moving: false, running: false };
 
   constructor(
@@ -57,6 +59,8 @@ export class SportPlay {
     private readonly selfId: string,
     private readonly hooks: SportHooks,
     private readonly handOf: (id: string) => Vec | null,
+    /** tênis: onde fica a bola do saque de um lado (na frente de quem está daquele lado) */
+    private readonly servePos: (side: 'a' | 'b') => Vec | null = () => null,
   ) {
     const a = ARENAS[zone];
     this.ball = { ...a.ballStart, vx: 0, vy: 0, vz: 0 };
@@ -96,7 +100,9 @@ export class SportPlay {
 
   private take(now: number) {
     this.authority = this.selfId;
-    this.touchT = Date.now();
+    // contador de toques (não o relógio de cada PC, que pode estar adiantado ou atrasado):
+    // o meu toque vale um a mais que o maior que já vi
+    this.touchT += 1;
     this.parked = false;
     this.lastSend = 0;
     this.send(now);
@@ -153,8 +159,9 @@ export class SportPlay {
   /** estado vindo da rede */
   remote(b: RemoteBall) {
     if (b.by === this.selfId) return;
-    // quem tocou depois manda; empate: fica com quem já mandava
-    if (b.t < this.touchT || (b.t === this.touchT && this.authority && this.authority !== b.by)) return;
+    // quem tocou depois (contador maior) manda; empate (dois toques ao mesmo tempo): o mesmo vencedor em todos os
+    // apps, pelo id
+    if (!acceptBall(b.t, b.by, this.touchT, this.authority)) return;
     this.authority = b.by;
     this.touchT = b.t;
     this.held = b.held;
@@ -202,7 +209,11 @@ export class SportPlay {
     // ponto marcado: a bola volta para a saída
     if (this.resetAt && now >= this.resetAt && this.mine) {
       this.resetAt = 0;
-      Object.assign(this.ball, a.ballStart, { vx: 0, vy: 0, vz: 0 });
+      const start =
+        this.zone === 3
+          ? (this.servePos(this.serveSide) ?? { x: (this.serveSide === 'a' ? -1 : 1) * (COURT_HX - 1), y: 1.2, z: 0 })
+          : a.ballStart;
+      Object.assign(this.ball, start, { vx: 0, vy: 0, vz: 0 });
       this.parked = true;
       this.held = null;
       this.shotFrom = null;
@@ -233,6 +244,7 @@ export class SportPlay {
       point = this.bounces === 0 ? other : this.hitSide; // fora direto: erro; depois de quicar dentro: ponto
     else if (++this.bounces >= 2) point = this.hitSide; // quicou duas vezes do outro lado
     if (point) {
+      this.serveSide = point;
       this.hooks.score(point, 1);
       this.resetAt = now + 1500;
     }
@@ -266,4 +278,11 @@ export class SportPlay {
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();
   }
+}
+
+/** A bola que chegou manda? Contador maior ganha; no empate, fica com quem já mandava ou com o maior id. */
+export function acceptBall(t: number, by: string, myT: number, authority: string | null): boolean {
+  if (t > myT) return true;
+  if (t < myT) return false;
+  return by === authority || !authority || by > authority;
 }

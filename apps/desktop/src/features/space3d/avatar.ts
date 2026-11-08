@@ -160,6 +160,40 @@ export class Avatar {
     this.nameSprite.visible = false;
   }
 
+  /** time nas arenas: faixa na cintura e disco no chão da cor do time (null tira) */
+  private teamBand: THREE.Mesh | null = null;
+  private teamDisc: THREE.Mesh | null = null;
+  private team: 'a' | 'b' | null = null;
+  setTeam(team: 'a' | 'b' | null) {
+    if (team === this.team) return;
+    this.team = team;
+    for (const m of [this.teamBand, this.teamDisc]) {
+      if (!m) continue;
+      m.parent?.remove(m);
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
+    this.teamBand = this.teamDisc = null;
+    if (!team) return;
+    const color = team === 'a' ? 0x3f8fe0 : 0xe04848;
+    const band = new THREE.Mesh(
+      new THREE.TorusGeometry(BODY_R + 0.01, 0.055, 6, 18),
+      new THREE.MeshLambertMaterial({ color }),
+    );
+    band.rotation.x = Math.PI / 2;
+    band.position.y = FEET + BODY_R + 0.06;
+    this.body.add(band);
+    const disc = new THREE.Mesh(
+      new THREE.RingGeometry(0.3, 0.44, 20),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75, depthWrite: false }),
+    );
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.y = 0.015;
+    this.root.add(disc);
+    this.teamBand = band;
+    this.teamDisc = disc;
+  }
+
   /** levou um golpe: balança e recua um pouco */
   hitReact() {
     this.hitT = 0.28;

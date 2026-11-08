@@ -17,6 +17,21 @@ import {
 } from './sports';
 
 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+/** cor do time que DEFENDE cada lado: azul defende −x, vermelho defende +x */
+const defender = (side: 1 | -1) => (side > 0 ? 0xe04848 : 0x3f8fe0);
+
+/** faixa colorida no fundo de cada metade, para saber de quem é cada lado */
+function halfTint(g: THREE.Group, hx: number, hz: number) {
+  for (const side of [1, -1] as const) {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.2, hz * 2),
+      new THREE.MeshBasicMaterial({ color: defender(side), transparent: true, opacity: 0.35, depthWrite: false }),
+    );
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(side * (hx - 0.6), 0.011, 0);
+    g.add(m);
+  }
+}
 
 /** linha pintada no chão de (x1,z1) a (x2,z2) */
 function line(g: THREE.Group, x1: number, z1: number, x2: number, z2: number, w = 0.08) {
@@ -63,7 +78,10 @@ function hoop(g: THREE.Group, side: 1 | -1) {
   );
   board.position.set(bx, RIM_Y + 0.45, 0);
   g.add(board);
-  const square = new THREE.Mesh(new THREE.PlaneGeometry(0.59, 0.45), new THREE.MeshBasicMaterial({ color: 0xe05a2a }));
+  const square = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.59, 0.45),
+    new THREE.MeshBasicMaterial({ color: defender(side) }),
+  );
   square.position.set(bx - side * 0.03, RIM_Y + 0.3, 0);
   square.rotation.y = -side * (Math.PI / 2);
   g.add(square);
@@ -84,11 +102,13 @@ function hoop(g: THREE.Group, side: 1 | -1) {
 
 function goal(g: THREE.Group, side: 1 | -1) {
   const gx = side * GOAL_X;
-  for (const z of [-GOAL_HALF_W, GOAL_HALF_W]) cyl(g, 0.06, GOAL_H, 0xffffff, gx, GOAL_H / 2, z);
-  cyl(g, 0.06, GOAL_HALF_W * 2, 0xffffff, gx, GOAL_H, 0, new THREE.Euler(Math.PI / 2, 0, 0));
+  // trave da cor do time que defende este gol
+  const c = defender(side);
+  for (const z of [-GOAL_HALF_W, GOAL_HALF_W]) cyl(g, 0.06, GOAL_H, c, gx, GOAL_H / 2, z);
+  cyl(g, 0.06, GOAL_HALF_W * 2, c, gx, GOAL_H, 0, new THREE.Euler(Math.PI / 2, 0, 0));
   const net = new THREE.Mesh(
     new THREE.BoxGeometry(1.4, GOAL_H, GOAL_HALF_W * 2, 4, 6, 10),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.55 }),
+    new THREE.MeshBasicMaterial({ color: c, wireframe: true, transparent: true, opacity: 0.6 }),
   );
   net.position.set(gx + side * 0.7, GOAL_H / 2, 0);
   g.add(net);
@@ -96,6 +116,8 @@ function goal(g: THREE.Group, side: 1 | -1) {
 
 export function buildArenaDecor(zone: SportZone): THREE.Group {
   const g = new THREE.Group();
+  const lay = ARENAS[zone].layout;
+  halfTint(g, lay.width / 2, lay.depth / 2);
   if (zone === 1) {
     const cx = 14;
     const cz = 7.5;
