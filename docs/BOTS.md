@@ -964,7 +964,7 @@ Resultado: `{ coletados: 1, motivo: 'time' }`. Também `channel.createMessageCol
 ### 5.9 Utilidades e mudanças em relação à 0.1
 
 - `Collection` (todos os caches): `first()`, `find()`, `filter()`, `map()`, `some()`, `sort()`, `random()`, `at()`.
-- `PermissionsBitField` + `PermissionFlagsBits` (`ViewChannel`, `SendMessages`, …, `BanMembers`, `ModerateMembers`).
+- `PermissionsBitField` + `PermissionFlagsBits` (`ViewChannel`, `SendMessages`, …, `BanMembers`, `ModerateMembers`, `EditSpace`).
 - Constantes: `ApplicationCommandType`, `ButtonStyle`, `ComponentType`, `TextInputStyle`, `ChannelType`,
   `MessageFlags.Ephemeral`, `InteractionType`, `Colors`, `Limits`.
 - Eventos novos: `typingStart`, `presenceUpdate`, `pollUpdate`, `channelPinsUpdate`, `guildMemberUpdate`,

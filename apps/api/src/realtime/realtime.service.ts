@@ -34,6 +34,12 @@ export class RealtimeService {
     this.io.to(room).emit(name, envelope(randomUUID(), payload));
   }
 
+  /** Sem fila: se o socket estiver ocupado, a mensagem é descartada (posições do Espaço 3D, que logo vêm de novo). */
+  emitVolatile<N extends ServerEventName>(room: string | string[], name: N, payload: ServerEvents[N]) {
+    if (!this.io) return;
+    this.io.to(room).volatile.emit(name, envelope(randomUUID(), payload));
+  }
+
   /** Para todos os conectados (ex.: aviso da instância). */
   emitAll<N extends ServerEventName>(name: N, payload: ServerEvents[N]) {
     this.io?.emit(name, envelope(randomUUID(), payload));

@@ -192,6 +192,7 @@ model Server {
   categories Category[]
   channels   Channel[]
   auditLogs  AuditLog[]
+  space      ServerSpace?
 }
 
 model ServerMember {
@@ -580,6 +581,16 @@ model ReadState {
   @@unique([userId, channelId])
   @@unique([userId, conversationId])
   @@index([userId, updatedAt])
+}
+
+/// Espaço 3D (ADR-0055): ambiente editado do servidor; sem linha = gerado a partir do id do servidor
+model ServerSpace {
+  serverId    String   @id @db.Uuid
+  revision    Int      @default(0)
+  layout      Json
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  updatedById String?  @db.Uuid
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
 }
 
 model UserSettings {

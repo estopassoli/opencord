@@ -32,6 +32,7 @@ const PERMISSION_LABELS: Record<PermissionName, string> = {
   VIEW_AUDIT_LOG: 'Ver registro de auditoria',
   BAN_MEMBERS: 'Banir membros',
   MODERATE_MEMBERS: 'Castigar membros',
+  EDIT_SPACE: 'Editar o espaço 3D',
   ADMINISTRATOR: 'Administrador (todas as permissões)',
 };
 

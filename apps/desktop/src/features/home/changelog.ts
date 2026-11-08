@@ -21,6 +21,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-08',
+    time: '16:00',
+    kind: 'novo',
+    icon: 'activities',
+    title: 'Espaço 3D na chamada',
+    body: 'Em Atividades, abra o Espaço 3D: cada pessoa da chamada vira um bonequinho e anda pelo ambiente do servidor (W A S D, Shift corre, Espaço pula, E acena). Quem está longe fica mais baixo, mas continua dando para ouvir. Ponha no telão a live de alguém ou um vídeo do YouTube para todos assistirem juntos. Cada servidor tem um ambiente próprio, e quem tem a permissão "Editar o espaço 3D" monta tudo como quiser: paredes, tamanho, móveis, televisões e cores.',
+  },
+  {
     date: '2026-11-07',
     time: '18:50',
     kind: 'novo',

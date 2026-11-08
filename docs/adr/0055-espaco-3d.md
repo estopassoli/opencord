@@ -1,0 +1,60 @@
+# ADR-0055: Espaço 3D da chamada
+Status: Accepted (pedido do mantenedor, 2026-11-08)
+
+## Contexto
+O mantenedor quer uma atividade da chamada de voz em que todos aparecem como avatares low poly num ambiente 3D, andam
+livremente, ouvem os outros mais baixo quando estão longe (sem nunca deixar de ouvir), assistem juntos num telão (live
+de alguém da chamada ou vídeo do YouTube) e, como no The Sims, o dono do servidor monta o ambiente (paredes, área,
+móveis). Cada servidor precisa ter um ambiente próprio desde o começo. Escolhas dele: câmera em terceira pessoa com
+WASD; fases 1 a 3 juntas (ambiente, avatares e voz; telão; editor); editar por uma permissão nova; quem está na
+chamada sem abrir o espaço fala em volume normal.
+
+## Decisão
+- **Atividade da chamada**, ao lado de "Assistir juntos" e "Música". Só em canais de servidor (não em chamada privada).
+  Abrir o espaço é individual: quem não abre continua no palco normal e sem posição.
+- **Renderização no app com three.js** (já usado no fundo do layout Vidro), sem arquivos de modelo: peças e avatares
+  são geometria low poly montada em código (`apps/desktop/src/features/space3d`). Avatar original (cápsula com rosto de
+  tela, olhos que piscam, antena), cor estável por pessoa — sem reproduzir personagens de jogos existentes.
+  Sem sombras em tempo real; o laço para com a janela escondida e o app avisa se ficar abaixo de 24 fps.
+- **Ambiente por servidor**: formato `SpaceLayout` (tema, largura × profundidade de 8 a 60 m, cores, até 200 paredes
+  em segmentos e 300 peças de um catálogo fechado, ponto de entrada) validado com zod nos dois lados
+  (`packages/contracts/src/space.ts`). Sem edição, o ambiente é **gerado de forma determinística a partir do id do
+  servidor** (6 temas, tamanhos, cores e arranjos variados) — sem IA, sem custo e sem guardar nada. Ao salvar, vai
+  para a tabela `ServerSpace` (1 linha por servidor, JSONB + revisão); salvar exige a revisão de origem (409 se outra
+  pessoa salvou no meio). "Restaurar original" apaga a linha.
+- **Permissão nova `EDIT_SPACE` (1 << 21)**: dono e administradores têm; pode ser dada a cargos. Salvar e restaurar
+  ficam no registro de auditoria (`space.update`, `space.reset`).
+- **Posições pelo Socket.IO, não pelo canal de dados do LiveKit**: o canal de dados da SFU só é liberado para quem pode
+  transmitir (decisão anterior, para ninguém mandar imagens/dados fora da moderação), e abrir para todos exigiria
+  revalidar a prévia da live e o controle remoto. A posição é presença efêmera: `space:move` sem ACK (~10/s andando,
+  1/s parado, balde próprio de 20/s por socket), validada pelo zod, repassada como `space:moved` **só para quem está na
+  mesma chamada** (lista relida a cada 2 s) com emissão volátil (descartada se o socket estiver ocupado). Nada é
+  guardado. `space:leave`/sair da chamada tiram o avatar; sem notícia por 6 s ele some.
+- **Voz pela distância no cliente**: cada um calcula a distância até os outros e multiplica o volume da voz deles
+  (GainNode do LiveKit) por uma curva suave: cheia até 3 m, cai até 35% aos 22 m e não desce disso. Não mexe no áudio
+  de quem não está no espaço nem no áudio das lives.
+- **Telão**: estado da chamada no Redis (`space:<canal>`, como a atividade), `space:get`/`space:screen` com ACK,
+  `space:state`/`space:ended`. Fontes: a live de alguém da chamada (o app assina a transmissão e usa o vídeo como
+  textura no telão e nas televisões) ou o vídeo do "Assistir juntos" (o mesmo player oficial do YouTube e a mesma
+  sincronia, desenhado num plano CSS 3D atrás do canvas, que abre um "buraco" transparente no lugar da tela — o YouTube
+  não pode virar textura por ser de outra origem). Chamada vazia apaga o estado.
+- **Editor no próprio espaço**: câmera livre, selecionar/arrastar peças (grade de 25 cm), girar, duplicar, recolorir,
+  apagar, desenhar paredes arrastando (grade de 50 cm), altura de parede, tamanho da área (paredes da borda
+  acompanham), tema, cores, ponto de entrada, gerar outro ambiente e desfazer. Trabalha num rascunho; "Salvar para
+  todos" manda `PUT /servers/:id/space` e todos do servidor recebem `space:layout`.
+
+## Alternativas descartadas
+- Canal de dados do LiveKit para posições: menor latência, mas exigiria liberar dados para todos (ver acima).
+- Áudio espacial com HRTF/panorâmica: mais imersivo, mas cansa em conversas longas e exige um grafo de áudio próprio
+  fora do LiveKit; pode vir depois como opção.
+- Ambientes gerados por IA: custo por geração e resultado imprevisível; o gerador procedural já dá um ambiente
+  diferente por servidor.
+- Modelos glTF prontos: arquivos e licenças a gerenciar; a geometria em código é leve e tem o mesmo estilo low poly.
+
+## Consequências
+- Migração `20261108000000_server_space` (aditiva) antes da API nova.
+- Posições passam pela API: com 25 pessoas andando são ~250 mensagens/s por chamada, repassadas a 24 sockets cada.
+  Aceitável na escala atual; se pesar, o próximo passo é o canal de dados da SFU com dados liberados só no espaço.
+- Quem não abriu o espaço não aparece nele (sem posição) e é ouvido normalmente por todos.
+- O telão com live depende do Go Live; a regra do projeto continua: validar Go Live em duas máquinas Windows reais
+  antes de afirmar que funciona — o telão com live está **bloqueado para validação** até esse teste.

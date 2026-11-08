@@ -16,6 +16,7 @@ import { useData } from '../../store/data';
 import { api, describeError, useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
+import { useSpace } from '../../store/space';
 
 const YT_ORIGIN = 'https://www.youtube.com';
 /** diferença tolerada entre o meu player e o grupo antes de pular para o ponto certo */
@@ -412,6 +413,13 @@ export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
     if (music) useMusic.getState().join(true);
     else useMusic.getState().setOpen(true);
   };
+  const voiceChannel = useVoice((v) => v.machine.channelId);
+  const voiceServer = useVoice((v) => v.serverId);
+  const spaceOpen = useSpace((s) => s.openChannelId !== null);
+  const openSpace = () => {
+    onClose();
+    if (voiceChannel && voiceServer) void useSpace.getState().open(voiceChannel, voiceServer);
+  };
   const openYouTube = () => {
     onClose();
     if (running) {
@@ -450,6 +458,22 @@ export function ActivitiesPanel({ onClose }: { onClose: () => void }) {
             </span>
           </button>
         </li>
+        {voiceServer && (
+          <li>
+            <button className="app-card app-space3d" onClick={openSpace}>
+              <span className="app-art" aria-hidden="true">
+                <Icon name="users" size={34} />
+              </span>
+              <span className="app-name">
+                <strong>Espaço 3D</strong>
+                <span className="muted small">
+                  {spaceOpen ? 'Aberto: voltar ao espaço' : 'Andar juntos, voz pela distância'}
+                </span>
+                <span className="app-tag">Novo</span>
+              </span>
+            </button>
+          </li>
+        )}
       </ul>
     </div>
   );

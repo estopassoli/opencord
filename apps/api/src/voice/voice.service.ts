@@ -228,6 +228,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
         this.realtime.emit(this.roomOf(s), 'activity:ended', { channelId: s.channelId, serverId });
       if ((await this.r.del(`music:${s.channelId}`)) > 0 && serverId)
         this.realtime.emit(this.roomOf(s), 'music:ended', { channelId: s.channelId, serverId });
+      // telão do Espaço 3D (ADR-0055)
+      if ((await this.r.del(`space:${s.channelId}`)) > 0 && serverId)
+        this.realtime.emit(this.roomOf(s), 'space:ended', { channelId: s.channelId, serverId });
     }
   }
 

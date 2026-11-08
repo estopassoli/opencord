@@ -22,6 +22,7 @@ import { useActivity } from './activity';
 import { useMusic } from './music';
 import { useScenes } from './scenes';
 import { nameFor } from '../lib/names';
+import { useSpace } from './space';
 import { attachRemoteControl, detachRemoteControl, remoteControl } from '../voice/remote-control';
 
 interface VoiceStore {
@@ -373,6 +374,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       // saiu por vontade própria: não oferece voltar ao reabrir
       forgetLastCall();
       useActivity.getState().reset();
+      useSpace.getState().callEnded();
       useMusic.getState().reset();
       if (wasIn) playSound('leave');
       restoreMicAfterAfk();
@@ -392,6 +394,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
       ptt?.reset();
       void disconnectEngine();
       dispatch({ type: 'FORCED_OUT', reason });
+      useSpace.getState().callEnded();
       forgetLastCall();
       playSound('leave');
       restoreMicAfterAfk();

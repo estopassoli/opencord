@@ -9443,3 +9443,12 @@ html[data-resizing] * {
 .read-receipt[data-seen='true'] {
   color: var(--brand);
 }
+.app-space3d .app-art {
+  background: radial-gradient(circle at 30% 20%, #b9a8ff, #6a5ae0 55%, #2a1f6b);
+}
+.space3d-fallback {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}

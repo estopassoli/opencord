@@ -24,6 +24,7 @@ export const PermissionFlagsBits = {
   ViewAuditLog: 1 << 18,
   BanMembers: 1 << 19,
   ModerateMembers: 1 << 20,
+  EditSpace: 1 << 21,
   Administrator: 1 << 30,
 } as const;
 export type PermissionFlag = keyof typeof PermissionFlagsBits;
@@ -50,6 +51,7 @@ export const Permission = {
   VIEW_AUDIT_LOG: PermissionFlagsBits.ViewAuditLog,
   BAN_MEMBERS: PermissionFlagsBits.BanMembers,
   MODERATE_MEMBERS: PermissionFlagsBits.ModerateMembers,
+  EDIT_SPACE: PermissionFlagsBits.EditSpace,
   ADMINISTRATOR: PermissionFlagsBits.Administrator,
 } as const;
 export type PermissionName = keyof typeof Permission;

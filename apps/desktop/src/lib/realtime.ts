@@ -119,6 +119,12 @@ export class RealtimeClient {
     return ack.data;
   }
 
+  /** Espaço 3D (ADR-0055): posição do avatar, sem ACK e descartável se a conexão estiver ocupada. */
+  sendVolatile(name: 'space:move' | 'space:leave', payload: unknown) {
+    const s = this.socket;
+    if (s?.connected) s.volatile.emit(name, payload);
+  }
+
   get connected() {
     return this.socket?.connected ?? false;
   }

@@ -18,6 +18,9 @@ import {
   type ClientCommandResults,
   type MusicControl,
   type PlayingGame,
+  SpaceLeave,
+  SpaceMove,
+  type SpaceScreen,
 } from '@opencord/contracts';
 import type { Server } from 'socket.io';
 import { randomUUID } from 'node:crypto';
@@ -25,6 +28,7 @@ import { TokenService } from '../auth/token.service.js';
 import { RedisService } from '../common/redis.service.js';
 import { ActivitiesService } from '../voice/activities.service.js';
 import { MusicService } from '../voice/music.service.js';
+import { SpaceService } from '../voice/space.service.js';
 import { SoundsService } from '../sounds/sounds.service.js';
 import { MessagesService, type Target } from '../messages/messages.service.js';
 import { HEARTBEAT_INTERVAL_MS, PresenceService } from './presence.service.js';
@@ -36,11 +40,17 @@ const SOCKET_REVALIDATE_MS = 60_000;
 
 /** Token bucket por socket: rajada de 30 comandos, recarga de 5/s. */
 class Bucket {
-  private tokens = 30;
+  private tokens: number;
   private last = Date.now();
+  constructor(
+    private readonly size = 30,
+    private readonly perSec = 5,
+  ) {
+    this.tokens = size;
+  }
   take(): boolean {
     const now = Date.now();
-    this.tokens = Math.min(30, this.tokens + ((now - this.last) / 1000) * 5);
+    this.tokens = Math.min(this.size, this.tokens + ((now - this.last) / 1000) * this.perSec);
     this.last = now;
     if (this.tokens < 1) return false;
     this.tokens -= 1;
@@ -74,6 +84,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     private readonly activities: ActivitiesService,
     private readonly music: MusicService,
     private readonly sounds: SoundsService,
+    private readonly space: SpaceService,
   ) {}
 
   onModuleDestroy() {
@@ -135,6 +146,18 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   }
 
   private register(socket: AppSocket, bucket: Bucket) {
+    // Espaço 3D (ADR-0055): posição do avatar ~10x/s, sem ACK e com limite próprio (não gasta o dos comandos)
+    const moves = new Bucket(20, 20);
+    socket.on('space:move', (payload: unknown) => {
+      if (!moves.take()) return;
+      const m = SpaceMove.safeParse(payload);
+      if (m.success) void this.space.move(socket.data.userId, m.data).catch(() => undefined);
+    });
+    socket.on('space:leave', (payload: unknown) => {
+      if (!bucket.take()) return;
+      const d = SpaceLeave.safeParse(payload);
+      if (d.success) void this.space.leave(socket.data.userId, d.data.channelId).catch(() => undefined);
+    });
     for (const name of Object.keys(ClientCommands) as ClientCommandName[]) {
       socket.on(name, (payload: unknown, ack?: unknown) => {
         const reply = typeof ack === 'function' ? (ack as (r: Ack<unknown>) => void) : () => undefined;
@@ -269,6 +292,14 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       case 'sound:play': {
         const d = p as { channelId: string; soundId: string };
         return (await this.sounds.play(userId, d.channelId, d.soundId)) as R;
+      }
+      case 'space:get': {
+        const d = p as { channelId: string };
+        return (await this.space.session(userId, d.channelId)) as R;
+      }
+      case 'space:screen': {
+        const d = p as { channelId: string; screen: SpaceScreen | null };
+        return (await this.space.setScreen(userId, d.channelId, d.screen)) as R;
       }
       case 'sync:resume': {
         const d = p as { channels: { channelId: string; lastMessageId: string | null }[] };

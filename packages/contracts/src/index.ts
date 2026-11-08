@@ -4,3 +4,4 @@ export * from './realtime.js';
 export * from './cursor.js';
 export * from './mentions.js';
 export * from './activities.js';
+export * from './space.js';

@@ -34,6 +34,8 @@ export const Permission = {
   BAN_MEMBERS: 1 << 19,
   /** castigo: silenciar por tempo (ADR-0034) */
   MODERATE_MEMBERS: 1 << 20,
+  /** editar o Espaço 3D do servidor: paredes, área e móveis (ADR-0055) */
+  EDIT_SPACE: 1 << 21,
   ADMINISTRATOR: 1 << 30,
 } as const;
 

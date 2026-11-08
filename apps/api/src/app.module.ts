@@ -47,6 +47,8 @@ import { RoomsService } from './servers/rooms.service.js';
 import { DiscordImportService } from './servers/discord-import.service.js';
 import { ActivitiesService } from './voice/activities.service.js';
 import { MusicService } from './voice/music.service.js';
+import { SpaceController } from './voice/space.controller.js';
+import { SpaceService } from './voice/space.service.js';
 import { SpotifyService } from './voice/spotify.service.js';
 import { AccountService } from './users/account.service.js';
 import { AvatarService } from './users/avatar.service.js';
@@ -83,6 +85,7 @@ export class AppModule {
         AdminController,
         EmojisController,
         SoundsController,
+        SpaceController,
         RecordingsController,
         EventsController,
         WebhooksController,
@@ -119,6 +122,7 @@ export class AppModule {
         DiscordImportService,
         ActivitiesService,
         MusicService,
+        SpaceService,
         SpotifyService,
         AvatarService,
         EmojisService,

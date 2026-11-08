@@ -2,7 +2,7 @@ import { ZoomPan } from './ZoomPan';
 import { MobileNavButton } from '../../components/MobileNavButton';
 import { Avatar, avatarColor, Button, Icon } from '@opencord/ui';
 import { hasPermission, Permission, type Member } from '@opencord/contracts';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { openContextMenu, useContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Tooltip } from '../../components/Tooltip';
 import { deviceMenu } from './devices';
@@ -24,6 +24,10 @@ import { memberMenu } from '../shell/ProfileButton';
 import { knockRoom } from '../shell/rooms';
 import { RecordButton, RecordingBadge, RecordingsButton, useRecordingLoad } from './Recording';
 import { RemoteOverlay } from './RemoteOverlay';
+import { useSpace } from '../../store/space';
+
+// Espaço 3D (ADR-0055): carregado só quando alguém abre
+const SpaceView = lazy(() => import('../space3d/SpaceView').then((m) => ({ default: m.SpaceView })));
 import { remoteControl, useRemote } from '../../voice/remote-control';
 
 const NO_MEMBERS: Member[] = [];
@@ -39,6 +43,7 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   const focused = useUi((s) => s.focusedStream);
   const sideId = useUi((s) => s.sideStream);
   const activity = useActivity((s) => s.state);
+  const spaceOpen = useSpace((s) => s.openChannelId === channelId);
   const privateCall = serverId === null;
   const channel = useData((s) =>
     serverId ? s.details[serverId]?.channels.find((c) => c.id === channelId) : undefined,
@@ -144,7 +149,11 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
         activity={activityFocused}
         mobile
       />
-      {activityFocused ? (
+      {spaceOpen && serverId ? (
+        <Suspense fallback={<div className="space3d-fallback">Carregando o espaço…</div>}>
+          <SpaceView channelId={channelId} serverId={serverId} />
+        </Suspense>
+      ) : activityFocused ? (
         <FocusLayout main={<ActivityTile large />} participants={participants} />
       ) : camFocus ? (
         <FocusLayout

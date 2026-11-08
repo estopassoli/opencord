@@ -37,6 +37,7 @@ Testar IDOR, permissões por canal, tokens expirados, reuso de convites, rate li
 4. Sem `VIEW_CHANNEL`, o canal inteiro é negado (e a API responde 404, não 403, para não revelar a existência).
 5. Sem `CONNECT`, SPEAK/VIDEO/STREAM são removidos. Os grants do token LiveKit (`canPublishSources`) derivam dessas permissões e são reaplicados na SFU quando mudam.
 6. Hierarquia: só se gerenciam cargos e membros estritamente abaixo do próprio cargo mais alto; não é possível conceder bits que o ator não possui.
+7. `EDIT_SPACE` (ADR-0055) só libera editar o ambiente do Espaço 3D; posições do espaço são repassadas apenas a quem está na mesma chamada (validadas por zod, balde próprio por socket) e o telão só aceita lives de quem está na chamada.
 
 ## Revisão de segurança — 2026-10-29 (automatizada; não substitui auditoria externa)
 | Item do checklist | Evidência |

@@ -532,7 +532,7 @@ export class VoiceEngine {
     const v =
       this.deafened || this.mutedUsers.has(p.identity)
         ? 0
-        : (this.volumes.get(p.identity) ?? 1) * this.prefs.outputVolume;
+        : (this.volumes.get(p.identity) ?? 1) * (this.spatial.get(p.identity) ?? 1) * this.prefs.outputVolume;
     p.setVolume(v, Track.Source.Microphone);
     // áudio da transmissão: volume próprio por pessoa (menu da live), independente do volume da voz
     const sv = this.deafened ? 0 : (this.screenVolumes.get(p.identity) ?? 1) * this.prefs.outputVolume;
@@ -555,6 +555,26 @@ export class VoiceEngine {
     else this.mutedUsers.delete(identity);
     const p = this.room?.remoteParticipants.get(identity);
     if (p) this.applyVolume(p);
+  }
+
+  /** Espaço 3D (ADR-0055): multiplicador da voz pela distância (1 = normal); null volta ao normal. */
+  private spatial = new Map<string, number>();
+  setSpatialGain(identity: string, g: number | null) {
+    const prev = this.spatial.get(identity) ?? 1;
+    const next = g ?? 1;
+    if (Math.abs(prev - next) < 0.01) return;
+    if (g === null || g >= 0.999) this.spatial.delete(identity);
+    else this.spatial.set(identity, Math.max(0, Math.min(1, g)));
+    const p = this.room?.remoteParticipants.get(identity);
+    if (p) this.applyVolume(p);
+  }
+  clearSpatialGains() {
+    const ids = [...this.spatial.keys()];
+    this.spatial.clear();
+    for (const id of ids) {
+      const p = this.room?.remoteParticipants.get(id);
+      if (p) this.applyVolume(p);
+    }
   }
 
   setUserVolume(identity: string, v: number) {

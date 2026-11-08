@@ -428,6 +428,19 @@ function wireRealtime(rt: RealtimeClient) {
       });
     });
     rt.on('music:ended', (e) => void import('./music').then(({ useMusic }) => useMusic.getState().ended(e.channelId)));
+    // Espaço 3D (ADR-0055): ambiente do servidor salvo, telão da chamada e posições dos avatares
+    rt.on('space:layout', (sp) => void import('./space').then(({ useSpace }) => useSpace.getState().applyLayout(sp)));
+    rt.on('space:state', (st) => {
+      void Promise.all([import('./space'), import('./voice')]).then(([{ useSpace }, { useVoice }]) => {
+        if (useVoice.getState().machine.channelId === st.channelId) useSpace.getState().applySession(st);
+      });
+    });
+    rt.on('space:ended', (e) => void import('./space').then(({ useSpace }) => useSpace.getState().ended(e.channelId)));
+    rt.on('space:moved', (m) => void import('./space').then(({ useSpace }) => useSpace.getState().moved(m)));
+    rt.on(
+      'space:left',
+      (e) => void import('./space').then(({ useSpace }) => useSpace.getState().left(e.channelId, e.userId)),
+    );
     // efeitos sonoros: alguém na minha chamada tocou um som; a lista de um servidor mudou
     rt.on('sound:played', (e) => {
       void Promise.all([import('./sounds'), import('./voice')]).then(([{ useSounds }, { useVoice }]) => {
@@ -456,6 +469,7 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('voice:member:left', (e) => {
       const cur = d().voiceStates[e.userId];
       if (cur?.channelId === e.channelId) d().removeVoiceState(e.userId);
+      void import('./space').then(({ useSpace }) => useSpace.getState().left(e.channelId, e.userId));
     });
     // quadros kanban (ADR-0017): só chegam para quem vê o quadro
     rt.on(

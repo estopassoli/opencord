@@ -1,0 +1,287 @@
+/* Espaço 3D na chamada (ADR-0055) */
+.space3d {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 12px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #0e1016;
+  isolation: isolate;
+}
+
+.space3d-host {
+  position: absolute;
+  inset: 0;
+  outline: none;
+}
+.space3d-host:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent, #5865f2);
+}
+
+/* o canvas fica por cima do plano CSS 3D do YouTube; o "buraco" transparente do telão deixa o vídeo aparecer */
+.space3d-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+.space3d-canvas:active {
+  cursor: grabbing;
+}
+.space3d-css {
+  position: absolute !important;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.space3d-yt-host,
+.space3d-yt {
+  border: 0;
+  background: #000;
+  pointer-events: none;
+}
+.space3d-yt {
+  width: 100%;
+  height: 100%;
+}
+
+/* vídeo da live: invisível, mas no tamanho do espaço para a SFU mandar boa qualidade */
+.space3d-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.space3d-bar {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+.space3d-bar > * {
+  pointer-events: auto;
+}
+.space3d-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: rgb(10 12 18 / 0.6);
+  color: #fff;
+  font-weight: 600;
+}
+.space3d-title .muted {
+  color: rgb(255 255 255 / 0.65);
+  font-weight: 500;
+}
+.space3d-spacer {
+  flex: 1;
+}
+
+.space3d-menu-wrap {
+  position: relative;
+}
+.space3d-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 260px;
+  max-width: 360px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--elevated);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+.space3d-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.space3d-menu button:hover,
+.space3d-menu button:focus-visible {
+  background: var(--hover, rgb(255 255 255 / 0.06));
+}
+.space3d-menu-note {
+  padding: 6px 10px;
+}
+
+.space3d-hint,
+.space3d-slow {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(10 12 18 / 0.62);
+  color: #fff;
+  font-size: 12.5px;
+  white-space: nowrap;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.space3d-hint {
+  bottom: 12px;
+}
+.space3d-hint[data-dim='true'] {
+  opacity: 0.7;
+}
+.space3d-slow {
+  bottom: 46px;
+  background: rgb(120 70 10 / 0.8);
+}
+
+.space3d-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+
+.space3d-editor {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  bottom: 10px;
+  width: min(320px, calc(100% - 20px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--elevated);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.4);
+}
+.space3d-editor header {
+  display: grid;
+  gap: 4px;
+}
+.space3d-editor footer {
+  position: sticky;
+  bottom: -12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: auto -12px -12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--elevated);
+}
+.space3d-section {
+  display: grid;
+  gap: 8px;
+}
+.space3d-section h4 {
+  margin: 0;
+  font-size: 13px;
+}
+.space3d-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.space3d-tools {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.space3d-tools button,
+.space3d-catalog button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--chat);
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.space3d-tools button[aria-pressed='true'] {
+  border-color: var(--accent, #5865f2);
+  background: color-mix(in srgb, var(--accent, #5865f2) 18%, var(--chat));
+}
+.space3d-tools button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.space3d-tools button:hover:not(:disabled),
+.space3d-catalog button:hover {
+  border-color: var(--text-muted);
+}
+.space3d-catalog {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.space3d-swatches {
+  display: grid;
+  gap: 6px;
+}
+.space3d-swatches > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.space3d-swatches button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25);
+}
+.space3d-swatches button[aria-checked='true'] {
+  border-color: var(--text);
+}
+.space3d-swatches button:focus-visible,
+.space3d-tools button:focus-visible,
+.space3d-catalog button:focus-visible {
+  outline: 2px solid var(--accent, #5865f2);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .space3d-editor {
+    top: auto;
+    left: 10px;
+    width: auto;
+    max-height: 55%;
+  }
+}

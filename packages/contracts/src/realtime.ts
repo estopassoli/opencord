@@ -38,6 +38,7 @@ import {
   YouTubePlaylistId,
   YouTubeVideoId,
 } from './activities.js';
+import { type ServerSpace, type SpaceMove, SpaceScreen, type SpaceSession } from './space.js';
 
 /** Versão do protocolo realtime; incrementar ao quebrar compatibilidade. */
 export const REALTIME_SCHEMA_VERSION = 1 as const;
@@ -90,6 +91,9 @@ export const ClientCommands = {
   'music:control': MusicControl,
   'music:stop': z.object({ channelId: Id }),
   'sound:play': z.object({ channelId: Id, soundId: Id }),
+  /** Espaço 3D (ADR-0055): o que passa no telão da chamada */
+  'space:get': z.object({ channelId: Id }),
+  'space:screen': z.object({ channelId: Id, screen: SpaceScreen.nullable() }),
   'sync:resume': z.object({
     /** último eventId/seq visto por canal, para ressincronização por cursor */
     channels: z.array(z.object({ channelId: Id, lastMessageId: Id.nullable() })).max(500),
@@ -120,6 +124,8 @@ export interface ClientCommandResults {
   'music:control': MusicState;
   'music:stop': null;
   'sound:play': null;
+  'space:get': SpaceSession | null;
+  'space:screen': SpaceSession;
 }
 
 // ---------- Eventos servidor → cliente ----------
@@ -221,6 +227,14 @@ export interface ServerEvents {
   /** música da chamada: fila, faixa atual, tocando/pausado e posição */
   'music:state': MusicState;
   'music:ended': { channelId: string; serverId: string };
+  /** Espaço 3D (ADR-0055): telão da chamada mudou */
+  'space:state': SpaceSession;
+  'space:ended': { channelId: string; serverId: string };
+  /** ambiente do servidor salvo pelo editor (para todos do servidor) */
+  'space:layout': ServerSpace;
+  /** posição de um avatar (só para quem está na chamada; sem garantia de entrega) */
+  'space:moved': Omit<SpaceMove, 'channelId'> & { channelId: string; userId: string };
+  'space:left': { channelId: string; userId: string };
   /** alguém tocou um efeito sonoro na chamada: quem está nela toca no próprio app */
   /** serverId é o da chamada; o som pode ser de outro servidor de quem tocou (volume vem junto) */
   'sound:played': { channelId: string; serverId: string; soundId: string; userId: string; volume: number };

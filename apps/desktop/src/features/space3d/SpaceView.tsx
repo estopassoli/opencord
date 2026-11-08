@@ -1,0 +1,413 @@
+/**
+ * Espaço 3D na chamada (ADR-0055): a cena ocupa o palco; por cima, a barra (telão, editar, sair), as dicas de
+ * controle e, no modo edição, o painel do editor.
+ */
+import {
+  generateSpace,
+  SPACE_ITEM_KINDS,
+  SPACE_ITEM_LABELS,
+  SPACE_THEME_LABELS,
+  SPACE_THEMES,
+  type SpaceTheme,
+} from '@opencord/contracts';
+import { Button, Icon, Select, Slider } from '@opencord/ui';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { askConfirm } from '../../components/AskDialog';
+import { useActivity } from '../../store/activity';
+import { useData } from '../../store/data';
+import { useSession } from '../../store/session';
+import { canEditSpace, useSpace } from '../../store/space';
+import { useUi } from '../../store/ui';
+import { useVoice } from '../../store/voice';
+import { SpaceEditor } from './editor';
+import { SpaceScene, type ScreenSource } from './scene';
+import { TelaoSource } from './Telao';
+import './space3d.css';
+
+const SWATCHES = [
+  '#e05a5a',
+  '#f08a3c',
+  '#f2c94c',
+  '#4fbf6a',
+  '#2f9e9e',
+  '#3f8fe0',
+  '#6a5ae0',
+  '#b36ae0',
+  '#f06ab0',
+  '#e8e1cf',
+  '#8a8f96',
+  '#3b2f2a',
+];
+
+export function SpaceView({ channelId, serverId }: { channelId: string; serverId: string }) {
+  const host = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<SpaceScene | null>(null);
+  const [scene, setScene] = useState<SpaceScene | null>(null);
+  const space = useSpace((s) => s.spaces[serverId]);
+  const editing = useSpace((s) => s.editing);
+  const me = useData((s) => s.me);
+  const participants = useVoice(
+    useShallow((s) =>
+      s.participants.map((p) => ({ identity: p.identity, name: p.name, speaking: p.speaking, isLocal: p.isLocal })),
+    ),
+  );
+  const [focused, setFocused] = useState(false);
+  const [slow, setSlow] = useState(false);
+
+  // a cena nasce uma vez por chamada; ambiente, pessoas e telão chegam depois
+  useEffect(() => {
+    const el = host.current;
+    if (!el || !me) return;
+    const s = new SpaceScene(el, me.id, me.displayName, {
+      sendPose: (p) => useSession.getState().realtime?.sendVolatile('space:move', { channelId, ...p }),
+      setGain: (id, g) => useVoice.getState().engine()?.setSpatialGain(id, g),
+      onFps: (fps) => setSlow(fps < 24),
+    });
+    sceneRef.current = s;
+    setScene(s);
+    el.focus({ preventScroll: true });
+    return () => {
+      s.dispose();
+      useVoice.getState().engine()?.clearSpatialGains();
+      sceneRef.current = null;
+      setScene(null);
+    };
+  }, [channelId, me]);
+
+  useEffect(() => {
+    if (scene && space && !editing) scene.setLayout(space.layout, true);
+  }, [scene, space, editing]);
+
+  useEffect(() => {
+    scene?.setParticipants(participants);
+  }, [scene, participants]);
+
+  const onSource = useCallback((src: ScreenSource) => sceneRef.current?.setScreen(src), []);
+
+  return (
+    <div className="space3d">
+      <div
+        className="space3d-host"
+        ref={host}
+        aria-label="Espaço 3D. Use W, A, S e D para andar."
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+      />
+      <TelaoSource onSource={onSource} />
+      <SpaceBar serverId={serverId} />
+      {!editing && (
+        <p className="space3d-hint" data-dim={focused ? 'true' : undefined}>
+          {focused
+            ? 'W A S D andar · Shift correr · Espaço pular · E acenar · arraste para girar a câmera · roda do mouse para aproximar'
+            : 'Clique no espaço para andar com o teclado'}
+        </p>
+      )}
+      {slow && !editing && (
+        <p className="space3d-slow">O espaço está pesado neste computador: feche-o enquanto joga.</p>
+      )}
+      {editing && scene && space && <EditorPanel scene={scene} serverId={serverId} />}
+      {!space && <div className="space3d-loading">Carregando o espaço…</div>}
+    </div>
+  );
+}
+
+function SpaceBar({ serverId }: { serverId: string }) {
+  const editing = useSpace((s) => s.editing);
+  const screen = useSpace((s) => s.session?.screen ?? null);
+  const theme = useSpace((s) => s.spaces[serverId]?.layout.theme);
+  const canEdit = useData(() => canEditSpace(serverId));
+  const [menu, setMenu] = useState(false);
+  const streamers = useVoice(
+    useShallow((s) => s.participants.filter((p) => p.hasScreen).map((p) => ({ id: p.identity, name: p.name }))),
+  );
+  const activity = useActivity((a) => a.state);
+  const meId = useData((s) => s.me?.id);
+  const owner = activity && activity.startedBy === meId;
+
+  const pick = (s: Parameters<ReturnType<typeof useSpace.getState>['setScreen']>[0]) => {
+    setMenu(false);
+    void useSpace.getState().setScreen(s);
+  };
+  const current =
+    screen?.kind === 'stream'
+      ? `Live de ${streamers.find((s) => s.id === screen.userId)?.name ?? 'alguém'}`
+      : screen?.kind === 'activity'
+        ? (activity?.title ?? 'Vídeo do Assistir juntos')
+        : 'Nada no telão';
+
+  if (editing) return null;
+  return (
+    <div className="space3d-bar">
+      <span className="space3d-title">
+        <Icon name="activities" size={16} /> Espaço 3D
+        {theme && <span className="muted small">{SPACE_THEME_LABELS[theme]}</span>}
+      </span>
+      <div className="space3d-menu-wrap">
+        <Button size="sm" variant="secondary" icon="screen" onClick={() => setMenu((m) => !m)} aria-expanded={menu}>
+          Telão: {current}
+        </Button>
+        {menu && (
+          <ul className="space3d-menu" role="menu">
+            <li>
+              <button role="menuitem" onClick={() => pick(null)}>
+                Nada
+              </button>
+            </li>
+            {streamers.map((s) => (
+              <li key={s.id}>
+                <button role="menuitem" onClick={() => pick({ kind: 'stream', userId: s.id })}>
+                  <Icon name="screen" size={16} /> Live de {s.name}
+                </button>
+              </li>
+            ))}
+            <li>
+              {activity ? (
+                <button role="menuitem" onClick={() => pick({ kind: 'activity' })}>
+                  <Icon name="play" size={16} /> {activity.title ?? 'Vídeo do Assistir juntos'}
+                </button>
+              ) : (
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(false);
+                    void useSpace.getState().setScreen({ kind: 'activity' });
+                    useUi.getState().openModal({ kind: 'watch-together' });
+                  }}
+                >
+                  <Icon name="play" size={16} /> Escolher um vídeo do YouTube…
+                </button>
+              )}
+            </li>
+            {!streamers.length && <li className="muted small space3d-menu-note">Ninguém está ao vivo na chamada.</li>}
+          </ul>
+        )}
+      </div>
+      {screen?.kind === 'activity' && activity && owner && (
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={activity.playing ? 'pause' : 'play'}
+          onClick={() =>
+            void useActivity
+              .getState()
+              .control(activity.playing ? 'pause' : 'play', useActivity.getState().expectedPosition())
+          }
+        >
+          {activity.playing ? 'Pausar para todos' : 'Tocar para todos'}
+        </Button>
+      )}
+      <span className="space3d-spacer" />
+      {canEdit && (
+        <Button size="sm" variant="secondary" icon="edit" onClick={() => useSpace.getState().setEditing(true)}>
+          Editar espaço
+        </Button>
+      )}
+      <Button size="sm" variant="ghost" icon="close" onClick={() => useSpace.getState().close()}>
+        Sair do espaço
+      </Button>
+    </div>
+  );
+}
+
+function EditorPanel({ scene, serverId }: { scene: SpaceScene; serverId: string }) {
+  const space = useSpace((s) => s.spaces[serverId])!;
+  const [, bump] = useState(0);
+  const [ed] = useState(() => new SpaceEditor(scene, space.layout, () => bump((n) => n + 1)));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    scene.setMode('edit');
+    return () => {
+      ed.dispose();
+      scene.setMode('play');
+    };
+  }, [scene, ed]);
+
+  const d = ed.draft;
+  const sel = ed.selection;
+  const item = sel?.kind === 'item' ? d.items.find((i) => i.id === sel.id) : undefined;
+  const wall = sel?.kind === 'wall' ? d.walls[sel.index] : undefined;
+  const leave = async () => {
+    if (
+      ed.dirty &&
+      !(await askConfirm('As mudanças que você fez no espaço serão perdidas.', {
+        title: 'Sair sem salvar?',
+        confirmLabel: 'Sair sem salvar',
+        danger: true,
+      }))
+    )
+      return;
+    scene.setLayout(space.layout, true);
+    useSpace.getState().setEditing(false);
+  };
+  const save = async () => {
+    setSaving(true);
+    const ok = await useSpace.getState().save(serverId, ed.draft, space.revision);
+    setSaving(false);
+    if (ok) useSpace.getState().setEditing(false);
+  };
+
+  return (
+    <aside className="space3d-editor" aria-label="Editor do espaço">
+      <header>
+        <strong>Editar espaço</strong>
+        <span className="muted small">
+          Clique para selecionar, arraste para mover. R gira, Delete apaga, Ctrl+Z desfaz. Botão direito ou WASD movem a
+          câmera.
+        </span>
+      </header>
+
+      <div className="space3d-tools" role="group" aria-label="Ferramenta">
+        <button aria-pressed={ed.tool === 'select'} onClick={() => ed.setTool('select')}>
+          <Icon name="cursor" size={16} active={ed.tool === 'select'} /> Selecionar
+        </button>
+        <button aria-pressed={ed.tool === 'wall'} onClick={() => ed.setTool('wall')}>
+          <Icon name="edit" size={16} active={ed.tool === 'wall'} /> Desenhar parede
+        </button>
+        <button disabled={!ed.canUndo} onClick={() => ed.undo()} aria-label="Desfazer">
+          <Icon name="refresh" size={16} /> Desfazer
+        </button>
+      </div>
+
+      {item && (
+        <section className="space3d-section">
+          <h4>{SPACE_ITEM_LABELS[item.kind]}</h4>
+          <div className="space3d-row">
+            <Button size="sm" variant="secondary" onClick={() => ed.rotateSelected(-Math.PI / 4)}>
+              Girar ⟲
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => ed.rotateSelected(Math.PI / 4)}>
+              Girar ⟳
+            </Button>
+            <Button size="sm" variant="secondary" icon="copy" onClick={() => ed.duplicate()}>
+              Duplicar
+            </Button>
+            <Button size="sm" variant="danger" icon="trash" onClick={() => ed.removeSelected()}>
+              Apagar
+            </Button>
+          </div>
+          <Swatches value={item.color ?? null} onChange={(c) => ed.recolorSelected(c)} label="Cor" />
+        </section>
+      )}
+      {wall && (
+        <section className="space3d-section">
+          <h4>Parede</h4>
+          <Slider
+            label="Altura"
+            min={0.5}
+            max={6}
+            step={0.1}
+            value={wall.h}
+            format={(v) => `${v.toFixed(1)} m`}
+            onChange={(v) => ed.setWallHeight(Math.round(v * 10) / 10)}
+          />
+          <Button size="sm" variant="danger" icon="trash" onClick={() => ed.removeSelected()}>
+            Apagar parede
+          </Button>
+        </section>
+      )}
+
+      <section className="space3d-section">
+        <h4>Colocar</h4>
+        <div className="space3d-catalog">
+          {SPACE_ITEM_KINDS.map((k) => (
+            <button key={k} onClick={() => ed.addItem(k)}>
+              {SPACE_ITEM_LABELS[k]}
+            </button>
+          ))}
+        </div>
+        <span className="muted small">A peça aparece no centro da câmera.</span>
+      </section>
+
+      <section className="space3d-section">
+        <h4>Ambiente</h4>
+        <Select<SpaceTheme>
+          label="Tema"
+          value={d.theme}
+          options={SPACE_THEMES.map((t) => ({ value: t, label: SPACE_THEME_LABELS[t] }))}
+          onChange={(t) => ed.setLook({ theme: t })}
+        />
+        <Slider
+          label="Largura"
+          min={8}
+          max={60}
+          step={2}
+          value={d.width}
+          format={(v) => `${v} m`}
+          onChange={(v) => ed.setSize(v, d.depth)}
+        />
+        <Slider
+          label="Profundidade"
+          min={8}
+          max={60}
+          step={2}
+          value={d.depth}
+          format={(v) => `${v} m`}
+          onChange={(v) => ed.setSize(d.width, v)}
+        />
+        <Swatches value={d.floorColor} onChange={(c) => ed.setLook({ floorColor: c })} label="Piso" />
+        <Swatches value={d.wallColor} onChange={(c) => ed.setLook({ wallColor: c })} label="Paredes" />
+        <div className="space3d-row">
+          <Button size="sm" variant="secondary" onClick={() => ed.setSpawnHere()}>
+            Entrada aqui
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            icon="refresh"
+            onClick={() => ed.replace(generateSpace(`${serverId}:${Date.now()}`))}
+          >
+            Gerar outro
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              void askConfirm('A edição salva será apagada e o espaço volta ao ambiente gerado para o servidor.', {
+                title: 'Restaurar o original?',
+                confirmLabel: 'Restaurar',
+                danger: true,
+              }).then(async (ok) => {
+                if (!ok) return;
+                await useSpace.getState().reset(serverId);
+                useSpace.getState().setEditing(false);
+              })
+            }
+          >
+            Restaurar original
+          </Button>
+        </div>
+      </section>
+
+      <footer>
+        <Button variant="ghost" onClick={() => void leave()}>
+          Cancelar
+        </Button>
+        <Button icon="check" disabled={saving || !ed.dirty} onClick={() => void save()}>
+          {saving ? 'Salvando…' : 'Salvar para todos'}
+        </Button>
+      </footer>
+    </aside>
+  );
+}
+
+function Swatches({ value, onChange, label }: { value: string | null; onChange: (c: string) => void; label: string }) {
+  return (
+    <div className="space3d-swatches" role="radiogroup" aria-label={label}>
+      <span className="small">{label}</span>
+      <div>
+        {SWATCHES.map((c) => (
+          <button
+            key={c}
+            role="radio"
+            aria-checked={value === c}
+            aria-label={c}
+            style={{ background: c }}
+            onClick={() => onChange(c)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
