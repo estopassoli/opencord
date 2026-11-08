@@ -260,7 +260,10 @@ const bridge: OpenCordBridge = {
   setBadge: (count) => invoke('set_badge', { count: Math.max(0, Math.min(9999, Math.trunc(count))) }),
   setTrayVoiceState: (state) => invoke('tray_voice_state', { state: TrayVoiceState.parse(state) }),
   appInfo: () => invoke<AppInfo>('app_info'),
-  hardwareId: () => invoke<string | null>('hardware_id'),
+  // A API de produção só libera Authorization/Content-Type/X-Device-Id no CORS; o x-hardware-id faria o WebView2
+  // barrar toda requisição (o Electron, em file://, passa). Versão de teste: sem o cabeçalho, o bloqueio por aparelho
+  // não vale aqui. O comando hardware_id continua no Rust (mesmo valor do Electron) para quando a API liberar.
+  hardwareId: () => Promise.resolve(null),
   appMetrics: () => invoke<ProcessMetric[]>('app_metrics'),
   rendererMemory: async () => {
     // o WebView2 não dá as estatísticas do Blink; o heap JS vem do performance.memory do Chromium
