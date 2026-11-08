@@ -437,6 +437,7 @@ function wireRealtime(rt: RealtimeClient) {
     });
     rt.on('space:ended', (e) => void import('./space').then(({ useSpace }) => useSpace.getState().ended(e.channelId)));
     rt.on('space:moved', (m) => void import('./space').then(({ useSpace }) => useSpace.getState().moved(m)));
+    rt.on('space:duel', (d) => void import('./space').then(({ useSpace }) => useSpace.getState().applyDuel(d)));
     rt.on(
       'space:left',
       (e) => void import('./space').then(({ useSpace }) => useSpace.getState().left(e.channelId, e.userId)),

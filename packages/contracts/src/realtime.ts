@@ -38,7 +38,14 @@ import {
   YouTubePlaylistId,
   YouTubeVideoId,
 } from './activities.js';
-import { type ServerSpace, SpaceItemId, type SpaceMove, SpaceScreen, type SpaceSession } from './space.js';
+import {
+  type ServerSpace,
+  type SpaceDuel,
+  SpaceItemId,
+  type SpaceMove,
+  SpaceScreen,
+  type SpaceSession,
+} from './space.js';
 
 /** Versão do protocolo realtime; incrementar ao quebrar compatibilidade. */
 export const REALTIME_SCHEMA_VERSION = 1 as const;
@@ -96,6 +103,12 @@ export const ClientCommands = {
   'space:screen': z.object({ channelId: Id, screen: SpaceScreen.nullable() }),
   /** liga/desliga uma luminária, lareira ou fliperama do espaço (para todos da chamada) */
   'space:toggle': z.object({ channelId: Id, itemId: SpaceItemId, on: z.boolean() }),
+  /** x1 no soco: desafiar, responder, golpe (o servidor decide se acertou) e desistir */
+  'space:duel:challenge': z.object({ channelId: Id, targetId: Id }),
+  'space:duel:answer': z.object({ duelId: z.string().max(64), accept: z.boolean() }),
+  'space:duel:hit': z.object({ duelId: z.string().max(64), strong: z.boolean() }),
+  'space:duel:forfeit': z.object({ duelId: z.string().max(64) }),
+  'space:duel:get': z.object({ channelId: Id }),
   'sync:resume': z.object({
     /** último eventId/seq visto por canal, para ressincronização por cursor */
     channels: z.array(z.object({ channelId: Id, lastMessageId: Id.nullable() })).max(500),
@@ -129,6 +142,11 @@ export interface ClientCommandResults {
   'space:get': SpaceSession | null;
   'space:screen': SpaceSession;
   'space:toggle': SpaceSession;
+  'space:duel:challenge': SpaceDuel;
+  'space:duel:answer': SpaceDuel;
+  'space:duel:hit': SpaceDuel;
+  'space:duel:forfeit': SpaceDuel;
+  'space:duel:get': SpaceDuel[];
 }
 
 // ---------- Eventos servidor → cliente ----------
@@ -238,6 +256,8 @@ export interface ServerEvents {
   /** posição de um avatar (só para quem está na chamada; sem garantia de entrega) */
   'space:moved': Omit<SpaceMove, 'channelId'> & { channelId: string; userId: string };
   'space:left': { channelId: string; userId: string };
+  /** x1 no soco: convite, contagem, golpes e resultado (para quem vê o canal) */
+  'space:duel': SpaceDuel;
   /** alguém tocou um efeito sonoro na chamada: quem está nela toca no próprio app */
   /** serverId é o da chamada; o som pode ser de outro servidor de quem tocou (volume vem junto) */
   'sound:played': { channelId: string; serverId: string; soundId: string; userId: string; volume: number };

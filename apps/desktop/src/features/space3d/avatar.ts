@@ -77,6 +77,11 @@ export class Avatar {
   private blinkIn = 2 + Math.random() * 3;
   private target: Pose = { x: 0, y: 0, z: 0, ry: 0, a: 0 };
   private ry = 0;
+  /** reação ao levar um golpe (s restantes) */
+  private hitT = 0;
+  /** tempo no golpe atual (anima o braço indo e voltando) */
+  private punchT = 0;
+  private lastA = 0;
 
   constructor(
     readonly id: string,
@@ -155,6 +160,11 @@ export class Avatar {
     this.nameSprite.visible = false;
   }
 
+  /** levou um golpe: balança e recua um pouco */
+  hitReact() {
+    this.hitT = 0.28;
+  }
+
   setSpeaking(on: boolean) {
     this.ring.visible = on;
   }
@@ -187,6 +197,24 @@ export class Avatar {
     this.root.rotation.y = this.ry;
 
     const a = this.target.a;
+    if (a !== this.lastA) {
+      this.punchT = 0;
+      this.lastA = a;
+    }
+    this.body.rotation.x = 0;
+    this.body.rotation.y = 0;
+    this.body.scale.set(1, 1, 1);
+    if (this.hitT > 0) {
+      this.hitT = Math.max(0, this.hitT - dt);
+      const k = this.hitT / 0.28;
+      this.body.rotation.x = -0.35 * k;
+      this.body.scale.set(1 + 0.08 * k, 1 - 0.08 * k, 1 + 0.08 * k);
+    }
+    if (a >= 6 && a <= 9) {
+      this.fightPose(a, dt, t, pos.y);
+      this.blink(dt);
+      return;
+    }
     if (a === 5) {
       // sentado: corpo apoiado no assento, pés à frente no chão, braços no colo
       this.body.position.y = Math.sin(t * 1.6) * 0.006;
@@ -206,6 +234,10 @@ export class Avatar {
     const s = moving ? Math.sin(this.phase) : 0;
     this.body.position.y = moving ? Math.abs(Math.sin(this.phase)) * 0.06 : Math.sin(t * 1.6) * 0.01;
     this.body.rotation.z = s * 0.05;
+    for (const arm of this.arms) {
+      arm.scale.y = 1;
+      arm.rotation.y = 0;
+    }
     this.feet[0]!.position.x = -0.13;
     this.feet[1]!.position.x = 0.13;
     this.feet[0]!.position.z = 0.03 + s * 0.14;
@@ -213,6 +245,7 @@ export class Avatar {
     this.feet[0]!.position.y = FEET / 2 + Math.max(0, s) * 0.06;
     this.feet[1]!.position.y = FEET / 2 + Math.max(0, -s) * 0.06;
     this.arms[0]!.rotation.x = -s * 0.7;
+    this.arms[0]!.rotation.z = -0.18;
     if (a === 4) {
       // acenando com o braço direito
       this.arms[1]!.rotation.x = 0;
@@ -223,6 +256,43 @@ export class Avatar {
     }
 
     this.blink(dt);
+  }
+
+  /** 6 soco rápido, 7 soco forte, 8 guarda, 9 nocaute */
+  private fightPose(a: number, dt: number, t: number, rootY: number) {
+    this.punchT += dt;
+    for (const [i, f] of this.feet.entries())
+      f.position.set(i ? 0.16 : -0.16, FEET / 2 - Math.min(0, rootY), i ? -0.06 : 0.1);
+    const [left, right] = this.arms as [THREE.Mesh, THREE.Mesh];
+    // guarda de base: os dois braços na frente
+    left.rotation.set(-1.2, 0, 0.45);
+    right.rotation.set(-1.2, 0, -0.45);
+    this.body.position.y = Math.sin(t * 7) * 0.015;
+    if (a === 6) {
+      // soco rápido: o braço direito vai e volta em ~0,25 s
+      const k = Math.sin(Math.min(1, this.punchT / 0.25) * Math.PI);
+      right.rotation.set(-1.2 - 0.45 * k, 0, -0.45 + 0.4 * k);
+      right.scale.y = 1 + 0.5 * k;
+    } else if (a === 7) {
+      // soco forte: gira o corpo e estica o braço
+      const k = Math.sin(Math.min(1, this.punchT / 0.4) * Math.PI);
+      this.body.rotation.y = -0.5 * k;
+      right.rotation.set(-1.25 - 0.4 * k, 0, -0.45 + 0.45 * k);
+      right.scale.y = 1 + 0.75 * k;
+    } else if (a === 8) {
+      // defesa: braços cobrindo o rosto
+      left.rotation.set(-2.3, 0, 0.75);
+      right.rotation.set(-2.3, 0, -0.75);
+    } else {
+      // nocaute: cai de costas e fica no chão
+      const k = Math.min(1, this.punchT / 0.5);
+      this.body.rotation.x = -1.45 * k;
+      left.rotation.set(-2.6, 0, 0.6);
+      right.rotation.set(-2.6, 0, -0.6);
+      for (const e of this.eyes) e.scale.y = 0.15;
+    }
+    if (a !== 6 && a !== 7) right.scale.y = 1;
+    left.scale.y = 1;
   }
 
   private blink(dt: number) {

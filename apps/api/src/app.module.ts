@@ -49,6 +49,7 @@ import { ActivitiesService } from './voice/activities.service.js';
 import { MusicService } from './voice/music.service.js';
 import { SpaceController } from './voice/space.controller.js';
 import { SpaceService } from './voice/space.service.js';
+import { DuelService } from './voice/duel.service.js';
 import { SpotifyService } from './voice/spotify.service.js';
 import { AccountService } from './users/account.service.js';
 import { AvatarService } from './users/avatar.service.js';
@@ -123,6 +124,7 @@ export class AppModule {
         ActivitiesService,
         MusicService,
         SpaceService,
+        DuelService,
         SpotifyService,
         AvatarService,
         EmojisService,

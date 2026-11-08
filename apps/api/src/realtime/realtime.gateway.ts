@@ -29,6 +29,7 @@ import { RedisService } from '../common/redis.service.js';
 import { ActivitiesService } from '../voice/activities.service.js';
 import { MusicService } from '../voice/music.service.js';
 import { SpaceService } from '../voice/space.service.js';
+import { DuelService } from '../voice/duel.service.js';
 import { SoundsService } from '../sounds/sounds.service.js';
 import { MessagesService, type Target } from '../messages/messages.service.js';
 import { HEARTBEAT_INTERVAL_MS, PresenceService } from './presence.service.js';
@@ -85,6 +86,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     private readonly music: MusicService,
     private readonly sounds: SoundsService,
     private readonly space: SpaceService,
+    private readonly duels: DuelService,
   ) {}
 
   onModuleDestroy() {
@@ -304,6 +306,26 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       case 'space:toggle': {
         const d = p as { channelId: string; itemId: string; on: boolean };
         return (await this.space.toggle(userId, d.channelId, d.itemId, d.on)) as R;
+      }
+      case 'space:duel:challenge': {
+        const d = p as { channelId: string; targetId: string };
+        return (await this.duels.challenge(userId, d.channelId, d.targetId)) as R;
+      }
+      case 'space:duel:answer': {
+        const d = p as { duelId: string; accept: boolean };
+        return (await this.duels.answer(userId, d.duelId, d.accept)) as R;
+      }
+      case 'space:duel:hit': {
+        const d = p as { duelId: string; strong: boolean };
+        return this.duels.hit(userId, d.duelId, d.strong) as R;
+      }
+      case 'space:duel:forfeit': {
+        const d = p as { duelId: string };
+        return this.duels.forfeit(userId, d.duelId) as R;
+      }
+      case 'space:duel:get': {
+        const d = p as { channelId: string };
+        return (await this.duels.get(userId, d.channelId)) as R;
       }
       case 'sync:resume': {
         const d = p as { channels: { channelId: string; lastMessageId: string | null }[] };

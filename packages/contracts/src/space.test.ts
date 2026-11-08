@@ -1,6 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { generateSpace, SPACE_THEMES, SPACE_VOICE_FLOOR, SpaceLayout, SpaceMove, spaceVoiceGain } from './space.js';
+import {
+  DUEL_JAB,
+  DUEL_STRONG,
+  duelDamage,
+  duelReaches,
+  generateSpace,
+  SPACE_THEMES,
+  SPACE_VOICE_FLOOR,
+  SpaceLayout,
+  SpaceMove,
+  spaceVoiceGain,
+} from './space.js';
 
 describe('Espaço 3D: gerador procedural', () => {
   it('mesmo servidor → mesmo ambiente; servidores diferentes → ambientes diferentes', () => {
@@ -44,6 +55,21 @@ describe('Espaço 3D: validação', () => {
     const id = randomUUID();
     expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 1 }).success).toBe(true);
     expect(SpaceMove.safeParse({ channelId: id, x: 1e9, y: 0, z: 1, ry: 0, a: 1 }).success).toBe(false);
-    expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 9 }).success).toBe(false);
+    expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 10 }).success).toBe(false);
+  });
+});
+
+describe('x1 no soco: regras', () => {
+  it('alcance e mira', () => {
+    const me = { x: 0, z: 0, ry: 0 }; // olhando para +z
+    expect(duelReaches(me, { x: 0, z: 1.2 })).toBe(true);
+    expect(duelReaches(me, { x: 0, z: 2.5 })).toBe(false);
+    expect(duelReaches(me, { x: 0, z: -1 })).toBe(false); // de costas
+    expect(duelReaches(me, { x: 1, z: 0.6 })).toBe(true); // de lado, dentro do ângulo
+  });
+  it('defesa reduz o dano', () => {
+    expect(duelDamage(false, false)).toBe(DUEL_JAB);
+    expect(duelDamage(true, false)).toBe(DUEL_STRONG);
+    expect(duelDamage(true, true)).toBe(Math.round(DUEL_STRONG / 4));
   });
 });

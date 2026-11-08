@@ -188,7 +188,8 @@ export type SpaceSession = z.infer<typeof SpaceSession>;
 
 /**
  * Posição de um avatar (enviada ~10x/s enquanto anda, 1x/s parado).
- * `a`: 0 parado, 1 andando, 2 correndo, 3 pulando, 4 acenando, 5 sentado.
+ * `a`: 0 parado, 1 andando, 2 correndo, 3 pulando, 4 acenando, 5 sentado,
+ * 6 soco rápido, 7 soco forte, 8 defendendo, 9 nocauteado (x1).
  */
 export const SpaceMove = z.object({
   channelId: Id,
@@ -196,7 +197,7 @@ export const SpaceMove = z.object({
   y: z.number().finite().min(0).max(10),
   z: Coord,
   ry: z.number().finite().min(-7).max(7),
-  a: z.number().int().min(0).max(5),
+  a: z.number().int().min(0).max(9),
 });
 export type SpaceMove = z.infer<typeof SpaceMove>;
 export const SpaceLeave = z.object({ channelId: Id });
@@ -380,4 +381,58 @@ export function generateSpace(serverId: string): SpaceLayout {
 
 function round(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+// ---------- x1 no soco ----------
+export const DUEL_HP = 100;
+export const DUEL_JAB = 8;
+export const DUEL_STRONG = 16;
+/** defendendo, o golpe tira só esta fração */
+export const DUEL_BLOCK = 0.25;
+export const DUEL_JAB_COOLDOWN_MS = 420;
+export const DUEL_STRONG_COOLDOWN_MS = 1100;
+/** alcance do soco (centro a centro) */
+export const DUEL_REACH = 1.5;
+/** o soco precisa estar virado para o adversário (meio ângulo, em radianos) */
+export const DUEL_AIM = 1.2;
+export const DUEL_RING_R = 3.5;
+export const DUEL_COUNTDOWN_MS = 3000;
+export const DUEL_FIGHT_MS = 90_000;
+export const DUEL_INVITE_MS = 20_000;
+
+export const SpaceDuel = z.object({
+  id: z.string(),
+  channelId: Id,
+  /** quem desafiou e quem foi desafiado */
+  a: Id,
+  b: Id,
+  status: z.enum(['pending', 'countdown', 'fighting', 'ended']),
+  hp: z.record(z.string(), z.number()),
+  ring: z.object({ x: z.number(), z: z.number() }),
+  /** relógio do servidor (ms): fim do convite (pending), início da luta (countdown), fim da luta (fighting) */
+  until: z.number(),
+  winner: Id.nullable(),
+  reason: z.enum(['ko', 'time', 'forfeit', 'declined', 'expired', 'left']).nullable(),
+  /** último golpe que acertou (para o efeito de impacto) */
+  lastHit: z.object({ by: Id, on: Id, dmg: z.number(), blocked: z.boolean(), at: z.number() }).nullable(),
+  serverNow: z.number(),
+});
+export type SpaceDuel = z.infer<typeof SpaceDuel>;
+
+/** Dano de um golpe que acertou. */
+export function duelDamage(strong: boolean, blocking: boolean): number {
+  const base = strong ? DUEL_STRONG : DUEL_JAB;
+  return blocking ? Math.round(base * DUEL_BLOCK) : base;
+}
+
+/** O soco de `a` (virado para `a.ry`) alcança `b`? */
+export function duelReaches(a: { x: number; z: number; ry: number }, b: { x: number; z: number }, slack = 0): boolean {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const d = Math.hypot(dx, dz);
+  if (d > DUEL_REACH + slack) return false;
+  if (d < 0.2) return true;
+  let diff = Math.atan2(dx, dz) - a.ry;
+  diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+  return Math.abs(diff) <= DUEL_AIM;
 }

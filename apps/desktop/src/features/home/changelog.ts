@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-08',
+    time: '21:00',
+    kind: 'novo',
+    icon: 'trophy',
+    title: 'x1 no soco no Espaço 3D',
+    body: 'Chegue perto de alguém no Espaço 3D e aperte F para desafiar a pessoa para um x1. Quando ela aceitar, aparece um ringue: J ou clique dá um soco, K ou o botão direito dá um soco forte e segurando L você defende. Cada um tem 100 de vida e a luta vale por 90 segundos; quem estiver na chamada acompanha as barras de vida.',
+  },
+  {
+    date: '2026-11-08',
     time: '19:30',
     kind: 'melhoria',
     icon: 'activities',

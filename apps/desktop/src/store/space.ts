@@ -5,6 +5,7 @@ import {
   type SpaceLayout,
   type SpaceMove,
   type SpaceScreen,
+  type SpaceDuel,
   type SpaceSession,
 } from '@opencord/contracts';
 import { create } from 'zustand';
@@ -53,6 +54,15 @@ interface SpaceStore {
   left(channelId: string, userId: string): void;
   /** saiu da chamada: some do espaço de todo mundo e o espaço fecha */
   callEnded(): void;
+  /** x1 no soco: lutas da chamada (convites, em andamento e as que acabaram há pouco) */
+  duels: Record<string, SpaceDuel>;
+  /** diferença entre o relógio do servidor e o meu (ms) */
+  duelOffset: number;
+  applyDuel(d: SpaceDuel): void;
+  challenge(targetId: string): Promise<void>;
+  answerDuel(duelId: string, accept: boolean): Promise<void>;
+  punch(duelId: string, strong: boolean): void;
+  forfeit(duelId: string): Promise<void>;
 }
 
 export function canEditSpace(serverId: string | null): boolean {
@@ -75,6 +85,7 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     try {
       const s = rt ? await rt.command('space:get', { channelId }) : null;
       set({ session: s });
+      for (const d of rt ? await rt.command('space:duel:get', { channelId }) : []) get().applyDuel(d);
     } catch {
       /* sem conexão: o telão fica vazio até o próximo estado */
     }
@@ -83,7 +94,7 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     const ch = get().openChannelId;
     if (ch) useSession.getState().realtime?.sendVolatile('space:leave', { channelId: ch });
     peers.clear();
-    set({ openChannelId: null, editing: false });
+    set({ openChannelId: null, editing: false, duels: {} });
   },
   async load(serverId) {
     try {
@@ -164,7 +175,56 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     if (channelId === get().openChannelId) peers.delete(userId);
   },
   callEnded() {
+    const ch = get().openChannelId;
+    if (ch) useSession.getState().realtime?.sendVolatile('space:leave', { channelId: ch });
     peers.clear();
-    set({ openChannelId: null, editing: false, session: null });
+    set({ openChannelId: null, editing: false, session: null, duels: {} });
+  },
+  duels: {},
+  duelOffset: 0,
+  applyDuel(d) {
+    if (d.channelId !== get().openChannelId) return;
+    set((st) => ({ duels: { ...st.duels, [d.id]: d }, duelOffset: d.serverNow - Date.now() }));
+    // a luta acabou: some da tela depois de mostrar o resultado
+    if (d.status === 'ended')
+      setTimeout(() => {
+        const cur = get().duels[d.id];
+        if (cur?.status === 'ended') {
+          const { [d.id]: _gone, ...rest } = get().duels;
+          set({ duels: rest });
+        }
+      }, 8000);
+  },
+  async challenge(targetId) {
+    const channelId = get().openChannelId;
+    const rt = useSession.getState().realtime;
+    if (!channelId || !rt) return;
+    try {
+      get().applyDuel(await rt.command('space:duel:challenge', { channelId, targetId }));
+    } catch (e) {
+      useUi.getState().toast('error', `Não foi possível desafiar: ${describeError(e)}`);
+    }
+  },
+  async answerDuel(duelId, accept) {
+    const rt = useSession.getState().realtime;
+    if (!rt) return;
+    try {
+      get().applyDuel(await rt.command('space:duel:answer', { duelId, accept }));
+    } catch (e) {
+      useUi.getState().toast('error', describeError(e));
+    }
+  },
+  punch(duelId, strong) {
+    const rt = useSession.getState().realtime;
+    // o servidor decide se acertou; o resultado chega pelo evento space:duel
+    void rt?.command('space:duel:hit', { duelId, strong }).catch(() => undefined);
+  },
+  async forfeit(duelId) {
+    const rt = useSession.getState().realtime;
+    if (!rt) return;
+    await rt
+      .command('space:duel:forfeit', { duelId })
+      .then((d) => get().applyDuel(d))
+      .catch(() => undefined);
   },
 }));

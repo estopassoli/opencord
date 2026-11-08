@@ -3,14 +3,21 @@
  * dos outros (posições pela rede), voz pela distância e o telão (live como textura; YouTube em CSS 3D atrás do canvas).
  * No modo edição a câmera vira livre e o editor (editor.ts) recebe os cliques.
  */
-import { SPACE_TOGGLE_KINDS, spaceVoiceGain, type SpaceLayout } from '@opencord/contracts';
+import {
+  DUEL_JAB_COOLDOWN_MS,
+  DUEL_RING_R,
+  DUEL_STRONG_COOLDOWN_MS,
+  SPACE_TOGGLE_KINDS,
+  spaceVoiceGain,
+  type SpaceLayout,
+} from '@opencord/contracts';
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 import { peers, PEER_TIMEOUT_MS } from '../../store/space';
 import { Avatar, type Pose } from './avatar';
 import { findInteraction, standUpSpot, type Interaction } from './interact';
 import { SCREEN_H, SCREEN_W, setItemOn } from './models';
-import { obstaclesOf, resolve, type Obstacles } from './physics';
+import { obstaclesOf, PLAYER_R, resolve, type Obstacles } from './physics';
 import { buildWorld, THEME_LOOK, type BuiltWorld } from './world';
 
 export interface SceneParticipant {
@@ -29,8 +36,19 @@ export interface SceneHooks {
   onFps?(fps: number): void;
   /** o que dá para fazer agora com F (null = nada ao alcance) */
   onPrompt?(p: { label: string } | null): void;
-  /** interações que não são da cena: ligar/desligar (para todos), telão, música */
+  /** interações que não são da cena: ligar/desligar (para todos), telão, música, desafiar */
   onAction?(i: Exclude<Interaction, { kind: 'sit' }>): void;
+  /** x1: soco (o servidor decide se acertou) */
+  onPunch?(strong: boolean): void;
+  /** F quando há um convite de x1 para mim: aceitar */
+  onAcceptKey?(): boolean;
+}
+
+export interface FightState {
+  duelId: string;
+  opponentId: string;
+  ring: { x: number; z: number };
+  phase: 'countdown' | 'fighting';
 }
 
 export type ScreenSource = { kind: 'video'; el: HTMLVideoElement } | { kind: 'html'; el: HTMLElement } | null;
@@ -90,6 +108,13 @@ export class SpaceScene {
   private current: Interaction | null = null;
   private promptLabel: string | null = null;
   private lastPrompt = 0;
+  private fight: FightState | null = null;
+  private rings = new Map<string, THREE.Group>();
+  private punchUntil = 0;
+  private punchKind = 0;
+  private koUntil = 0;
+  private readonly lastPunch = { j: 0, s: 0 };
+  private clickStart: { x: number; y: number } | null = null;
   private readonly ro: ResizeObserver;
   /** editor: recebe os eventos do canvas quando mode === 'edit' */
   editorInput: {
@@ -172,10 +197,64 @@ export class SpaceScene {
     }
   }
 
+  // ---------- x1 ----------
+  setFight(f: FightState | null) {
+    if (f && !this.fight) this.sitting = null;
+    this.fight = f;
+    this.lastPrompt = 0;
+  }
+
+  /** ringues das lutas em andamento na chamada (todos veem) */
+  setRings(list: { id: string; x: number; z: number }[]) {
+    const want = new Set(list.map((r) => r.id));
+    for (const [id, g] of this.rings)
+      if (!want.has(id)) {
+        this.scene.remove(g);
+        g.traverse((o) => o instanceof THREE.Mesh && o.geometry.dispose());
+        this.rings.delete(id);
+      }
+    for (const r of list) {
+      if (this.rings.has(r.id)) continue;
+      const g = ringMesh();
+      g.position.set(r.x, 0, r.z);
+      this.scene.add(g);
+      this.rings.set(r.id, g);
+    }
+  }
+
+  /** alguém levou um golpe (efeito) */
+  hit(userId: string) {
+    if (userId === this.selfId) this.me.hitReact();
+    else this.others.get(userId)?.hitReact();
+  }
+
+  /** perdi por nocaute: fico no chão um pouco */
+  knockout(ms = 3500) {
+    this.koUntil = performance.now() + ms;
+  }
+
+  private punch(strong: boolean) {
+    const f = this.fight;
+    if (!f || f.phase !== 'fighting' || this.keys.has('l')) return;
+    const now = performance.now();
+    const k = strong ? 's' : 'j';
+    if (now - this.lastPunch[k] < (strong ? DUEL_STRONG_COOLDOWN_MS : DUEL_JAB_COOLDOWN_MS)) return;
+    this.lastPunch[k] = now;
+    this.punchKind = strong ? 7 : 6;
+    this.punchUntil = now + (strong ? 400 : 250);
+    this.pose.a = this.punchKind;
+    // a pose do soco sai antes do golpe (o servidor confere a posição e a mira)
+    this.lastSend = 0;
+    this.maybeSend(now);
+    this.hooks.onPunch?.(strong);
+  }
+
   // ---------- interação (F) ----------
   /** executa o que o aviso mostra: sentar/levantar aqui; o resto vai para o app */
   interact() {
     if (this.mode !== 'play') return;
+    if (this.hooks.onAcceptKey?.()) return;
+    if (this.fight) return;
     if (this.sitting) {
       this.standUp();
       return;
@@ -207,12 +286,25 @@ export class SpaceScene {
     const l = this.layout;
     let label: string | null = null;
     if (this.mode !== 'play' || !l) this.current = null;
+    else if (this.fight) this.current = null;
     else if (this.sitting) {
       this.current = null;
       label = 'Levantar';
     } else {
       const occupied = [...peers.values()].filter((p) => p.a === 5);
       this.current = findInteraction(l, this.pose, occupied, this.toggles);
+      // alguém bem perto: desafiar para um x1 (ganha da peça)
+      let near: { id: string; d: number } | null = null;
+      for (const [id, p] of peers) {
+        if (now - p.at > PEER_TIMEOUT_MS || p.a === 5 || p.a === 9) continue;
+        const d = Math.hypot(p.x - this.pose.x, p.z - this.pose.z);
+        if (d <= 1.8 && (!near || d < near.d)) near = { id, d };
+      }
+      if (near) {
+        const who = near.id;
+        const name = this.participants.find((x) => x.identity === who)?.name ?? 'alguém';
+        this.current = { kind: 'duel', itemId: who, label: `Desafiar ${name} para um x1` };
+      }
       label = this.current?.label ?? null;
     }
     if (label !== this.promptLabel) {
@@ -319,6 +411,7 @@ export class SpaceScene {
       return;
     }
     this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, button: e.button, editor: false };
+    this.clickStart = { x: e.clientX, y: e.clientY };
     this.renderer.domElement.setPointerCapture(e.pointerId);
   };
 
@@ -350,6 +443,11 @@ export class SpaceScene {
 
   private onPointerUp = (e: PointerEvent) => {
     if (this.drag?.editor) this.editorInput?.up(e);
+    // clique sem arrastar durante o x1: esquerdo = soco rápido, direito = soco forte
+    const c = this.clickStart;
+    if (c && this.fight && this.mode === 'play' && Math.hypot(e.clientX - c.x, e.clientY - c.y) < 6)
+      this.punch(e.button === 2);
+    this.clickStart = null;
     this.drag = null;
   };
 
@@ -368,6 +466,16 @@ export class SpaceScene {
       return;
     }
     const k = e.key.toLowerCase();
+    if (this.fight && this.mode === 'play' && (k === 'j' || k === 'k')) {
+      e.preventDefault();
+      if (!e.repeat) this.punch(k === 'k');
+      return;
+    }
+    if (this.fight && this.mode === 'play' && k === 'l') {
+      e.preventDefault();
+      this.keys.add('l');
+      return;
+    }
     if (k === 'f' && this.mode === 'play') {
       e.preventDefault();
       if (!e.repeat) this.interact();
@@ -479,8 +587,16 @@ export class SpaceScene {
     if (k.has('s') || k.has('arrowdown')) fz -= 1;
     if (k.has('d') || k.has('arrowright')) fx += 1;
     if (k.has('a') || k.has('arrowleft')) fx -= 1;
+    if (now < this.koUntil) {
+      this.pose.a = 9;
+      this.pose.y = 0;
+      this.me.place(this.pose);
+      this.updatePrompt(now);
+      this.maybeSend(now);
+      return;
+    }
     const moving = fx !== 0 || fz !== 0;
-    const run = k.has('shift');
+    const run = k.has('shift') && !this.fight;
     if (this.sitting) {
       if (!moving) {
         // sentado: fica no assento, virado para a frente da peça
@@ -507,17 +623,30 @@ export class SpaceScene {
       const sp = (run ? RUN : WALK) * dt;
       const nx = this.pose.x + dx * sp;
       const nz = this.pose.z + dz * sp;
-      const p = this.obstacles ? resolve(this.obstacles, nx, nz) : { x: nx, z: nz };
+      let p = this.obstacles ? resolve(this.obstacles, nx, nz) : { x: nx, z: nz };
+      if (this.fight) {
+        // ninguém sai do ringue durante o x1
+        const r = this.fight.ring;
+        const d = Math.hypot(p.x - r.x, p.z - r.z);
+        const max = DUEL_RING_R - PLAYER_R;
+        if (d > max) p = { x: r.x + ((p.x - r.x) / d) * max, z: r.z + ((p.z - r.z) / d) * max };
+      }
       this.pose.x = p.x;
       this.pose.z = p.z;
       this.pose.ry = Math.atan2(dx, dz);
+    }
+    if (this.fight) {
+      // lutando, fica sempre virado para o adversário
+      const o = peers.get(this.fight.opponentId);
+      if (o) this.pose.ry = Math.atan2(o.x - this.pose.x, o.z - this.pose.z);
     }
     if (this.pose.y > 0 || this.vy > 0) {
       this.vy -= GRAVITY * dt;
       this.pose.y = Math.max(0, this.pose.y + this.vy * dt);
       if (this.pose.y === 0) this.vy = 0;
     }
-    this.pose.a = this.pose.y > 0.01 ? 3 : moving ? (run ? 2 : 1) : now < this.waveUntil ? 4 : 0;
+    if (this.fight) this.pose.a = now < this.punchUntil ? this.punchKind : k.has('l') ? 8 : moving ? 1 : 0;
+    else this.pose.a = this.pose.y > 0.01 ? 3 : moving ? (run ? 2 : 1) : now < this.waveUntil ? 4 : 0;
     this.me.place(this.pose);
     this.updatePrompt(now);
     this.maybeSend(now);
@@ -663,4 +792,48 @@ export class SpaceScene {
 
 function round(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+/** ringue do x1: círculo no chão, quatro postes e cordas */
+function ringMesh(): THREE.Group {
+  const g = new THREE.Group();
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(DUEL_RING_R, 40),
+    new THREE.MeshBasicMaterial({ color: 0xc0392b, transparent: true, opacity: 0.18, depthWrite: false }),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0.015;
+  g.add(floor);
+  const edge = new THREE.Mesh(
+    new THREE.RingGeometry(DUEL_RING_R - 0.08, DUEL_RING_R, 48),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }),
+  );
+  edge.rotation.x = -Math.PI / 2;
+  edge.position.y = 0.02;
+  g.add(edge);
+  const postMat = new THREE.MeshLambertMaterial({ color: 0xd0d4dc });
+  const ropeMat = new THREE.MeshLambertMaterial({ color: 0xe74c3c });
+  const corners = [0, 1, 2, 3].map((i) => {
+    const a = Math.PI / 4 + (i * Math.PI) / 2;
+    return new THREE.Vector3(Math.cos(a) * DUEL_RING_R, 0, Math.sin(a) * DUEL_RING_R);
+  });
+  for (const c of corners) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 6), postMat);
+    post.position.set(c.x, 0.65, c.z);
+    g.add(post);
+  }
+  for (let i = 0; i < 4; i++) {
+    const a = corners[i]!;
+    const b = corners[(i + 1) % 4]!;
+    const len = a.distanceTo(b);
+    for (const y of [0.7, 1.1]) {
+      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, len, 5), ropeMat);
+      rope.position.set((a.x + b.x) / 2, y, (a.z + b.z) / 2);
+      rope.rotation.z = Math.PI / 2;
+      rope.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+      g.add(rope);
+    }
+  }
+  g.traverse((o) => (o.raycast = () => undefined));
+  return g;
 }

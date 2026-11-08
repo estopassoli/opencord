@@ -184,8 +184,22 @@ export class SpaceService {
     return peers;
   }
 
+  /** última posição de cada um (memória, ~segundos): usada pelo x1 para decidir golpes */
+  private readonly poses = new Map<string, SpaceMove & { at: number }>();
+  /** avisado quando alguém sai do espaço (o x1 dá a luta por perdida) */
+  onLeave: ((userId: string) => void) | null = null;
+
+  poseOf(userId: string, maxAgeMs = 2000): (SpaceMove & { at: number }) | null {
+    const p = this.poses.get(userId);
+    return p && Date.now() - p.at <= maxAgeMs ? p : null;
+  }
+
   async move(userId: string, m: SpaceMove) {
     const peers = await this.peers(userId, m.channelId);
+    if (peers) {
+      this.poses.set(userId, { ...m, at: Date.now() });
+      if (this.poses.size > 5000) this.poses.clear();
+    }
     if (!peers?.length) return;
     this.realtime.emitVolatile(peers.map(rooms.user), 'space:moved', { ...m, userId });
   }
@@ -193,6 +207,8 @@ export class SpaceService {
   async leave(userId: string, channelId: string) {
     const peers = await this.peers(userId, channelId);
     this.calls.delete(userId);
+    this.poses.delete(userId);
+    this.onLeave?.(userId);
     if (peers?.length) this.realtime.emit(peers.map(rooms.user), 'space:left', { channelId, userId });
   }
 }

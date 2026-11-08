@@ -34,7 +34,9 @@ export type Interaction =
   | { kind: 'sit'; itemId: string; label: string; seat: { x: number; y: number; z: number; ry: number } }
   | { kind: 'toggle'; itemId: string; label: string; on: boolean }
   | { kind: 'screen'; itemId: string; label: string }
-  | { kind: 'music'; itemId: string; label: string };
+  | { kind: 'music'; itemId: string; label: string }
+  /** desafiar alguém para um x1 (`itemId` = id da pessoa) */
+  | { kind: 'duel'; itemId: string; label: string };
 
 /** alcance: distância do avatar até a borda da peça */
 export const REACH = 1.1;

@@ -22,6 +22,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { SpaceEditor } from './editor';
 import { SpaceScene, type ScreenSource } from './scene';
+import { DuelHud, useDuelScene } from './DuelHud';
 import { TelaoSource, useTelaoPlayer } from './Telao';
 import './space3d.css';
 
@@ -69,8 +70,21 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       setGain: (id, g) => useVoice.getState().engine()?.setSpatialGain(id, g),
       onFps: (fps) => setSlow(fps < 24),
       onPrompt: (p) => setPrompt(p?.label ?? null),
+      onPunch: (strong) => {
+        const d = Object.values(useSpace.getState().duels).find(
+          (x) => x.status === 'fighting' && (x.a === me.id || x.b === me.id),
+        );
+        if (d) useSpace.getState().punch(d.id, strong);
+      },
+      onAcceptKey: () => {
+        const d = Object.values(useSpace.getState().duels).find((x) => x.status === 'pending' && x.b === me.id);
+        if (!d) return false;
+        void useSpace.getState().answerDuel(d.id, true);
+        return true;
+      },
       onAction: (i) => {
         if (i.kind === 'toggle') void useSpace.getState().toggle(i.itemId, !i.on);
+        else if (i.kind === 'duel') void useSpace.getState().challenge(i.itemId);
         else if (i.kind === 'screen') useSpace.getState().setScreenMenu(true);
         else if (i.kind === 'music') {
           const m = useMusic.getState();
@@ -102,6 +116,8 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     scene?.setToggles(toggles ?? {});
   }, [scene, toggles]);
 
+  useDuelScene(scene);
+
   const onSource = useCallback((src: ScreenSource) => sceneRef.current?.setScreen(src), []);
 
   return (
@@ -116,6 +132,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       <TelaoSource onSource={onSource} />
       {!editing && <TelaoControls />}
       <SpaceBar serverId={serverId} />
+      {!editing && <DuelHud />}
       {!editing && prompt && (
         <button
           className="space3d-prompt"

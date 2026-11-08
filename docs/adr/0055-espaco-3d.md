@@ -58,3 +58,17 @@ chamada sem abrir o espaço fala em volume normal.
 - Quem não abriu o espaço não aparece nele (sem posição) e é ouvido normalmente por todos.
 - O telão com live depende do Go Live; a regra do projeto continua: validar Go Live em duas máquinas Windows reais
   antes de afirmar que funciona — o telão com live está **bloqueado para validação** até esse teste.
+
+## Adendo 2026-11-08: interação e x1 no soco
+- **Interagir (F)**: assentos (sofá, poltrona, cadeira, banqueta, puff, cama) põem o avatar sentado (pose `a = 5`,
+  vista por todos; lugar ocupado não é oferecido); luminária, lareira e fliperama ligam/desligam para a chamada
+  (`space:toggle`, estado `toggles` no Redis da sessão, só peças desses tipos que existem no ambiente do servidor);
+  televisão/telão abrem o menu do telão; caixa de som abre a música. No máximo 6 luzes de verdade por ambiente
+  (apagar = intensidade 0, para não recompilar materiais).
+- **x1 no soco**: desafiar alguém a até 4 m, convite de 20 s, contagem de 3 s, luta de 90 s, 100 de vida, soco rápido
+  8 (recarga 0,42 s), forte 16 (1,1 s), defesa reduz a um quarto. **O servidor decide cada golpe** pela última posição
+  recebida de cada um (alcance 1,5 m + 0,4 de folga, mira de ±69°, recarga, defesa = pose `a = 8`), não pelo que o
+  cliente diz. Ringue no chão; quem luta não sai dele e fica virado para o adversário. Sair do espaço = derrota.
+  As lutas ficam **em memória** na API (duram ~2 min); reiniciar a API encerra as lutas em andamento.
+- Próximos mini games (basquete, futebol, tênis) usam uma base comum de bola: quem tocou por último simula e
+  transmite a bola; placar no servidor.
