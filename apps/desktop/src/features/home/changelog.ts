@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-09',
+    time: '04:00',
+    kind: 'correção',
+    icon: 'gamepad',
+    title: 'Tacada da sinuca não zera mais sozinha',
+    body: 'Na sinuca do Espaço 3D, segurar o clique para dar força não volta mais do zero no meio da mira quando há outras pessoas no espaço. E os avisos dos jogos agora mostram o atalho que você escolheu (por exemplo, o clique do mouse) em vez de sempre dizer F.',
+  },
+  {
+    date: '2026-11-09',
     time: '03:30',
     kind: 'melhoria',
     icon: 'keyboard',

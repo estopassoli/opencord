@@ -81,17 +81,18 @@ export class SportPlay {
     return this.charge;
   }
 
-  /** o que o F faz agora (para o aviso) */
-  prompt(): string | null {
+  /** o que dá para fazer agora e com qual atalho (para o aviso) */
+  prompt(): { label: string; action: 'interact' | 'primary' } | null {
     const d = this.distToMe();
     if (this.zone === 1) {
-      if (this.holding) return this.charge === null ? 'Segure F para arremessar' : 'Solte F na faixa verde';
-      if (d < 1.4) return this.held ? 'Roubar a bola' : 'Pegar a bola';
+      if (this.holding)
+        return { label: this.charge === null ? 'Segure para arremessar' : 'Solte na faixa verde', action: 'primary' };
+      if (d < 1.4) return { label: this.held ? 'Roubar a bola' : 'Pegar a bola', action: 'interact' };
       return null;
     }
-    if (this.zone === 2) return d < 1.6 ? 'Chutar forte' : null;
+    if (this.zone === 2) return d < 1.6 ? { label: 'Chutar forte', action: 'primary' } : null;
     if (d < (ARENAS[this.zone].reach ?? 2))
-      return this.parked ? 'Sacar' : this.zone === 4 ? 'Bater na bola' : 'Rebater';
+      return { label: this.parked ? 'Sacar' : this.zone === 4 ? 'Bater na bola' : 'Rebater', action: 'primary' };
     return null;
   }
 

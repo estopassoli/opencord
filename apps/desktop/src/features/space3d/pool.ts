@@ -216,7 +216,7 @@ export class PoolPlay {
   prompt(team: 'a' | 'b'): string {
     if (this.moving || this.shooting) return 'Bolas rolando…';
     if (team !== this.turn) return `Vez do time ${this.turn === 'a' ? 'Azul' : 'Vermelho'}`;
-    return this.charge === null ? 'Mire com o mouse e segure F para tacar' : 'Solte F para tacar';
+    return this.charge === null ? 'Mire e segure para tacar' : 'Solte para tacar';
   }
 
   press(team: 'a' | 'b') {
@@ -259,9 +259,10 @@ export class PoolPlay {
     if (m.t < this.t || (m.t === this.t && this.authority && m.by !== this.authority && m.by < this.authority)) return;
     this.authority = m.by;
     this.t = m.t;
+    // a mesa parada manda o estado de tempos em tempos: isso não pode zerar a força de quem está mirando
+    if (m.turn !== this.turn || m.moving) this.charge = null;
     this.turn = m.turn;
     this.shooting = false;
-    this.charge = null;
     m.balls.forEach(([x, z, inn], i) => {
       const b = this.balls[i];
       if (!b) return;

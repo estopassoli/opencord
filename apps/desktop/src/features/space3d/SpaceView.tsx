@@ -25,7 +25,7 @@ import { useVoice } from '../../store/voice';
 import { SpaceEditor } from './editor';
 import { SpaceScene, type ScreenSource } from './scene';
 import { DuelHud, useDuelScene } from './DuelHud';
-import { ControlsPanel, LockHint, PauseMenu } from './GameHud';
+import { Binding, ControlsPanel, LockHint, PauseMenu } from './GameHud';
 import { TelaoSource, useTelaoPlayer } from './Telao';
 import './space3d.css';
 
@@ -60,7 +60,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     [voiceParticipants],
   );
   const [slow, setSlow] = useState(false);
-  const [prompt, setPrompt] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState<{ label: string; action: 'interact' | 'primary' } | null>(null);
   const [charge, setCharge] = useState<number | null>(null);
   const [aimLocked, setAimLocked] = useState(false);
   /** o sistema não deixou prender o mouse: joga arrastando; a pausa abre pelo botão */
@@ -95,7 +95,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       sendPose: (p) => useSession.getState().realtime?.sendVolatile('space:move', { channelId, ...p }),
       setGain: (id, g) => useVoice.getState().engine()?.setSpatialGain(id, g),
       onFps: (fps) => setSlow(fps < 24),
-      onPrompt: (p) => setPrompt(p?.label ?? null),
+      onPrompt: (p) => setPrompt(p),
       onCharge: setCharge,
       onAimLock: (locked) => {
         setAimLocked(locked);
@@ -210,7 +210,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
             host.current?.focus({ preventScroll: true });
           }}
         >
-          <kbd>F</kbd> {prompt}
+          <Binding action={prompt.action} /> {prompt.label}
         </button>
       )}
       {!editing && <ControlsPanel zone={zone} fighting={fighting} />}

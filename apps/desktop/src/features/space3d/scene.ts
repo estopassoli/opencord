@@ -43,7 +43,7 @@ export interface SceneHooks {
   /** quadros por segundo atuais (para a dica de desempenho) */
   onFps?(fps: number): void;
   /** o que dá para fazer agora com F (null = nada ao alcance) */
-  onPrompt?(p: { label: string } | null): void;
+  onPrompt?(p: { label: string; action: 'interact' | 'primary' } | null): void;
   /** interações que não são da cena: ligar/desligar (para todos), telão, música, desafiar */
   onAction?(i: Exclude<Interaction, { kind: 'sit' }>): void;
   /** x1: soco (o servidor decide se acertou) */
@@ -547,16 +547,21 @@ export class SpaceScene {
     this.lastPrompt = now;
     const l = this.layout;
     let label: string | null = null;
+    let action: 'interact' | 'primary' = 'interact';
     if (this.mode !== 'play' || !l) this.current = null;
     else if (this.sport) {
       this.current = null;
-      label = this.sport.prompt();
+      const sp = this.sport.prompt();
+      label = sp?.label ?? null;
+      if (sp) action = sp.action;
     } else if (this.pool) {
       this.current = null;
       label = this.pool.prompt(this.team);
+      action = 'primary';
     } else if (this.bike) {
       this.current = null;
       label = this.bike.item ? 'Usar turbo' : null;
+      action = 'primary';
     } else if (this.fight) this.current = null;
     else if (this.sitting) {
       this.current = null;
@@ -578,9 +583,10 @@ export class SpaceScene {
       }
       label = this.current?.label ?? null;
     }
-    if (label !== this.promptLabel) {
-      this.promptLabel = label;
-      this.hooks.onPrompt?.(label ? { label } : null);
+    const key = label ? `${action}:${label}` : null;
+    if (key !== this.promptLabel) {
+      this.promptLabel = key;
+      this.hooks.onPrompt?.(label ? { label, action } : null);
     }
   }
 
