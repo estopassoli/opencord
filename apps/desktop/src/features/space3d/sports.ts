@@ -180,7 +180,7 @@ export const ARENAS: Record<SportZone, Arena> = {
   },
   7: {
     zone: 7,
-    layout: floorLayout('rooftop', 60, 60, '#3a3f4a', '#2b3340', 1),
+    layout: floorLayout('rooftop', 130, 130, '#3a3f4a', '#2b3340', 1),
     r: 0.1,
     bounce: 0.5,
     roll: 1,

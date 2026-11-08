@@ -516,6 +516,6 @@ export const SpacePool = z.object({
 export type SpacePool = z.infer<typeof SpacePool>;
 
 export const RACE_LAPS = 3;
-/** prova mínima plausível (anti-trapaça grosseira): uma volta não sai em menos de 12 s */
-export const RACE_MIN_LAP_MS = 12_000;
+/** prova mínima plausível (anti-trapaça grosseira): uma volta não sai em menos de 8 s (a pista tem ~355 m) */
+export const RACE_MIN_LAP_MS = 8_000;
 export const RACE_COUNTDOWN_MS = 4000;

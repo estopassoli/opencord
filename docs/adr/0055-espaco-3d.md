@@ -93,5 +93,5 @@ chamada sem abrir o espaço fala em volume normal.
   função testada (`netPoint`). Sinuca: física das 16 bolas no cliente de quem tacou (`space:pool`, contador de tacadas
   como a posse da bola), vez por time, 1 ponto por bola. Corrida: cada um simula a própria moto (posição pelo
   `space:move`), pontos de controle a cada terço impedem cortar caminho; largada (`space:race:start`, contagem de 4 s)
-  e chegada (`space:race:finish`) no servidor, que recusa tempo menor que 12 s por volta ou maior que o tempo desde a
-  largada (+3 s). Estilo de corrida arcade original (não reproduz personagens, pistas ou itens de outros jogos).
+  e chegada (`space:race:finish`) no servidor, que recusa tempo impossível por volta ou maior que o tempo desde a
+  largada (+3 s). Pista refeita depois do teste do mantenedor: circuito largo (11 m) de ~355 m numa arena de 130 m, só curvas abertas, guidão gradual; mínimo por volta baixado para 8 s. Estilo de corrida arcade original (não reproduz personagens, pistas ou itens de outros jogos).

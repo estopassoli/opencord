@@ -7,22 +7,24 @@ import * as THREE from 'three';
 
 /** pontos de controle da pista (sentido da corrida) */
 const CONTROL = [
-  [0, 20],
-  [14, 19],
-  [22, 10],
-  [20, -2],
-  [10, -6],
-  [4, -14],
-  [-6, -22],
-  [-18, -18],
-  [-22, -6],
-  [-14, 2],
-  [-20, 12],
-  [-12, 20],
+  [0, 52],
+  [30, 50],
+  [50, 36],
+  [56, 8],
+  [50, -22],
+  [30, -46],
+  [0, -52],
+  [-30, -48],
+  [-50, -30],
+  [-56, 0],
+  [-50, 30],
+  [-30, 48],
 ] as const;
+/** metade do tamanho da arena (130 m) */
+export const RACE_HALF = 64;
 
-export const TRACK_W = 7;
-const N = 240;
+export const TRACK_W = 11;
+const N = 360;
 
 export interface Track {
   pts: { x: number; z: number }[];
@@ -47,7 +49,8 @@ export function buildTrack(): Track {
     pts.push({ x: p.x, z: p.z });
     dirs.push({ x: t.x, z: t.z });
   }
-  return { pts, dirs, pads: [40, 110, 185], boxes: [70, 150, 215] };
+  const at = (f: number) => Math.round(f * N);
+  return { pts, dirs, pads: [at(0.18), at(0.47), at(0.76)], boxes: [at(0.3), at(0.62), at(0.9)] };
 }
 
 export const TRACK = buildTrack();
@@ -78,6 +81,8 @@ export interface Bike {
   boostUntil: number;
   /** turbo guardado (caixa de item) */
   item: boolean;
+  /** guidão (−1 a 1): vira aos poucos, não de uma vez */
+  steer: number;
 }
 
 const ACC = 11;
@@ -85,16 +90,16 @@ const BRAKE = 18;
 const MAX_V = 21;
 const BOOST_V = 31;
 const REVERSE_V = 6;
-const OFFROAD_V = 9;
+const OFFROAD_V = 14;
 
 export function startGrid(slot: number): Bike {
   const p = TRACK.pts[N - 4 - Math.floor(slot / 2) * 4]!;
   const d = TRACK.dirs[N - 4]!;
   const side = slot % 2 ? 1 : -1;
   // lado: perpendicular à pista
-  const x = p.x + -d.z * side * 1.6;
-  const z = p.z + d.x * side * 1.6;
-  return { x, z, h: Math.atan2(d.x, d.z), v: 0, idx: N - 4, lap: 0, checks: 0, boostUntil: 0, item: false };
+  const x = p.x + -d.z * side * 2.2;
+  const z = p.z + d.x * side * 2.2;
+  return { x, z, h: Math.atan2(d.x, d.z), v: 0, idx: N - 4, lap: 0, checks: 0, boostUntil: 0, item: false, steer: 0 };
 }
 
 export interface RaceInput {
@@ -121,14 +126,16 @@ export function stepBike(b: Bike, inp: RaceInput, dt: number, now: number, go: b
   } else b.v = 0;
   b.v = Math.max(-REVERSE_V, Math.min(maxV, b.v > maxV ? b.v - 20 * dt : b.v));
   // vira mais devagar parado e em alta velocidade fica estável
-  const steer = (inp.left ? 1 : 0) - (inp.right ? 1 : 0);
-  const grip = Math.min(1, Math.abs(b.v) / 6) * (1 - Math.min(0.35, Math.abs(b.v) / 90));
-  b.h += steer * 2.1 * grip * dt * Math.sign(b.v || 1);
+  // o guidão chega ao fim em ~0,2 s e volta ao centro sozinho: menos tranco ao virar
+  const want = (inp.left ? 1 : 0) - (inp.right ? 1 : 0);
+  b.steer += (want - b.steer) * Math.min(1, dt * 7);
+  const grip = Math.min(1, Math.abs(b.v) / 6) * (1 - Math.min(0.3, Math.abs(b.v) / 100));
+  b.h += b.steer * 1.9 * grip * dt * Math.sign(b.v || 1);
   b.x += Math.sin(b.h) * b.v * dt;
   b.z += Math.cos(b.h) * b.v * dt;
   // limites da arena
-  b.x = Math.max(-29, Math.min(29, b.x));
-  b.z = Math.max(-29, Math.min(29, b.z));
+  b.x = Math.max(-RACE_HALF + 1, Math.min(RACE_HALF - 1, b.x));
+  b.z = Math.max(-RACE_HALF + 1, Math.min(RACE_HALF - 1, b.z));
 
   // progresso: pontos de controle a cada terço; volta só conta tendo passado pelos dois
   const prev = b.idx;
@@ -168,9 +175,13 @@ export function fireBoost(b: Bike, now: number): boolean {
 // ---------- visual ----------
 export function buildRaceDecor(): THREE.Group {
   const g = new THREE.Group();
-  const grass = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshLambertMaterial({ color: 0x3f8a3f }));
+  const grass = new THREE.Mesh(
+    new THREE.PlaneGeometry(RACE_HALF * 2, RACE_HALF * 2),
+    new THREE.MeshLambertMaterial({ color: 0x3f8a3f }),
+  );
   grass.rotation.x = -Math.PI / 2;
-  grass.position.y = 0.005;
+  // um pouco acima do chão da arena (no mesmo nível os dois piscam)
+  grass.position.y = 0.03;
   g.add(grass);
   // asfalto: faixa ao longo da pista
   const pos: number[] = [];
@@ -184,10 +195,10 @@ export function buildRaceDecor(): THREE.Group {
     const nx = -d.z;
     const nz = d.x;
     const w = TRACK_W / 2;
-    pos.push(p.x + nx * w, 0.02, p.z + nz * w, p.x - nx * w, 0.02, p.z - nz * w);
+    pos.push(p.x + nx * w, 0.06, p.z + nz * w, p.x - nx * w, 0.06, p.z - nz * w);
     for (const s of [1, -1]) {
       const base = curb.length / 3;
-      curb.push(p.x + nx * s * w, 0.03, p.z + nz * s * w, p.x + nx * s * (w + 0.6), 0.03, p.z + nz * s * (w + 0.6));
+      curb.push(p.x + nx * s * w, 0.08, p.z + nz * s * w, p.x + nx * s * (w + 0.6), 0.08, p.z + nz * s * (w + 0.6));
       const c = Math.floor(i / 3) % 2 ? [0.9, 0.15, 0.15] : [0.95, 0.95, 0.95];
       curbCol.push(...c, ...c);
       if (i < N) {
@@ -231,7 +242,7 @@ export function buildRaceDecor(): THREE.Group {
   const finish = new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W, 1.2), new THREE.MeshBasicMaterial({ map: tex }));
   finish.rotation.x = -Math.PI / 2;
   finish.rotation.z = Math.atan2(d0.x, d0.z);
-  finish.position.set(p0.x, 0.04, p0.z);
+  finish.position.set(p0.x, 0.1, p0.z);
   g.add(finish);
   // pórtico da largada
   for (const s of [1, -1]) {
@@ -244,7 +255,8 @@ export function buildRaceDecor(): THREE.Group {
     new THREE.MeshLambertMaterial({ color: 0xe04848 }),
   );
   banner.position.set(p0.x, 4, p0.z);
-  banner.rotation.y = Math.atan2(-d0.z, d0.x);
+  // de um poste ao outro: atravessado na pista
+  banner.rotation.y = -Math.atan2(d0.x, -d0.z);
   g.add(banner);
 
   // turbo: setas amarelas no chão
@@ -255,14 +267,14 @@ export function buildRaceDecor(): THREE.Group {
     arrow.rotation.x = Math.PI / 2;
     arrow.rotation.z = -Math.atan2(d.x, d.z);
     arrow.scale.y = 0.08;
-    arrow.position.set(p.x, 0.06, p.z);
+    arrow.position.set(p.x, 0.11, p.z);
     arrow.name = 'pad';
     g.add(arrow);
   }
   // caixas de item: cubos coloridos girando
   for (const i of TRACK.boxes) {
     const p = TRACK.pts[i]!;
-    for (const s of [-1.5, 0, 1.5]) {
+    for (const s of [-3, 0, 3]) {
       const d = TRACK.dirs[i]!;
       const box = new THREE.Mesh(
         new THREE.BoxGeometry(0.7, 0.7, 0.7),
