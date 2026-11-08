@@ -105,3 +105,15 @@ chamada sem abrir o espaço fala em volume normal.
   neste computador): padrão W A S D, Shift corre, Espaço pula, E acena, F interage, esquerdo = ação, direito = defender.
   Esc (do navegador) solta o mouse e abre o menu de pausa (Continuar, Comandos, Sair). Correção: a cena cancelava o
   `pointerdown`, o que impede o navegador de gerar o `mousedown` — com o mouse preso, os cliques não chegavam.
+- 2026-11-09 (pedido do mantenedor — muda a decisão de "sem modelos glTF"): avatares viraram **bonecos de massinha**
+  (silhueta lisa e simples, com olhos que piscam, boca que abre com o volume da voz e a antena como marca do OpenCord)
+  animados por esqueleto. Animações e esqueleto: Universal Animation Library (Standard) da Quaternius, licença **CC0**
+  (domínio público; crédito por cortesia). O corpo é nosso: gerado a partir de cápsulas que se fundem (campo de
+  distância + surface nets), cabeça esculpida, montado em pose em A com pesos suaves; o resultado é gravado uma vez em
+  `apps/desktop/src/features/space3d/assets/doll.glb` (~1,7 MB: malha, esqueleto e só as 15 animações usadas, sem
+  dedos/pés/posição/escala). O gerador fica em `apps/desktop/scripts/doll-bake.html` (abrir com o `ual.json` do pack
+  ao lado e chamar `window.__bake()`). Estados → animações: parado/conversando, andar, trotar, pular, sentado/
+  conversando sentado, pilotar, soco rápido/forte, guarda (início do jab parado), nocaute, levar golpe, raquete
+  (golpe de espada usado como raquetada); aceno feito por cima da animação. Boca: `Participant.audioLevel` do LiveKit
+  (só leitura no cliente). Alternativas recusadas: personagens prontos de outros packs (não eram o estilo pedido),
+  gerar o corpo no app a cada abertura (segundos de CPU por pessoa).

@@ -1,10 +1,20 @@
 /**
- * Avatar do Espaço 3D (ADR-0055): boneco original low poly — corpo de cápsula, rosto de tela com dois olhos que
- * piscam, antena, braços e pés que balançam ao andar. Cor estável por pessoa; nome em cima; anel verde quando fala.
+ * Avatar do Espaço 3D (ADR-0055): boneco de massinha liso (doll.ts) animado pelas animações do esqueleto — parado,
+ * conversando, andando, correndo, pulando, sentado, pilotando, socos, nocaute. Olhos que piscam sozinhos, boca que
+ * abre com o volume da voz, antena com a cor da pessoa. Cor estável por pessoa; nome em cima; anel verde quando fala.
  */
 import * as THREE from 'three';
-import { mat } from './models';
 import { bikeMesh } from './race';
+import {
+  buildFace,
+  cloneDoll,
+  dollNow,
+  DOLL_SCALE,
+  loadDoll,
+  type ClipName,
+  type DollFace,
+  type DollTemplate,
+} from './doll';
 
 export const AVATAR_COLORS = [
   '#e05a5a',
@@ -27,10 +37,8 @@ export function avatarColor(id: string): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]!;
 }
 
-const FEET = 0.12;
-const BODY_R = 0.32;
-const BODY_LEN = 0.52;
-export const AVATAR_HEIGHT = FEET + BODY_R * 2 + BODY_LEN;
+/** altura do boneco no espaço (do chão ao topo da cabeça) */
+export const AVATAR_HEIGHT = 1.31;
 
 function label(text: string): THREE.Sprite {
   const c = document.createElement('canvas');
@@ -66,62 +74,51 @@ export interface Pose {
   a: number;
 }
 
+const ONCE: ReadonlySet<ClipName> = new Set(['Punch_Jab', 'Punch_Cross', 'Death01', 'Hit_Chest', 'Sword_Attack']);
+const FADE = 0.18;
+
+function disposeTree(o: THREE.Object3D) {
+  o.traverse((m) => {
+    if (m instanceof THREE.Mesh) {
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
+  });
+}
+
 export class Avatar {
   readonly root = new THREE.Group();
-  private readonly body = new THREE.Group();
-  private readonly eyes: THREE.Mesh[] = [];
-  private readonly arms: THREE.Mesh[] = [];
-  private readonly feet: THREE.Mesh[] = [];
+  /** o boneco (escalado); sobe e desce para sentar no assento ou na moto */
+  private readonly model = new THREE.Group();
+  private doll: THREE.Object3D | null = null;
+  private mixer: THREE.AnimationMixer | null = null;
+  private tpl: DollTemplate | null = null;
+  private face: DollFace | null = null;
+  private skin: THREE.MeshStandardMaterial;
   private readonly ring: THREE.Mesh;
   private nameSprite: THREE.Sprite;
-  private phase = Math.random() * 10;
   private blinkIn = 2 + Math.random() * 3;
   private target: Pose = { x: 0, y: 0, z: 0, ry: 0, a: 0 };
   private ry = 0;
   /** reação ao levar um golpe (s restantes) */
   private hitT = 0;
-  /** tempo no golpe atual (anima o braço indo e voltando) */
-  private punchT = 0;
-  private lastA = 0;
+  private speaking = false;
+  private level = 0;
+  private mouthOpen = 0;
+  private talkSeed = Math.random() * 100;
+  private clip: ClipName | null = null;
+  private action: THREE.AnimationAction | null = null;
+  private lastA = -1;
+  private disposed = false;
 
   constructor(
     readonly id: string,
     name: string,
     readonly color = avatarColor(id),
   ) {
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(BODY_R, BODY_LEN, 3, 8), mat(color));
-    body.position.y = FEET + BODY_R + BODY_LEN / 2;
-    this.body.add(body);
-
-    const face = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.28, 0.08), mat('#151821'));
-    face.position.set(0, FEET + BODY_R + BODY_LEN * 0.82, BODY_R - 0.04);
-    this.body.add(face);
-    for (const x of [-0.09, 0.09]) {
-      const eye = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.02), mat('#e8fbff', { emissive: 0x9fdcff }));
-      eye.position.set(x, face.position.y, face.position.z + 0.05);
-      this.eyes.push(eye);
-      this.body.add(eye);
-    }
-    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.2, 5), mat('#2b2e36'));
-    stalk.position.set(0.08, AVATAR_HEIGHT + 0.08, -0.04);
-    this.body.add(stalk);
-    const tip = new THREE.Mesh(new THREE.IcosahedronGeometry(0.05, 0), mat(color, { emissive: 0x222222 }));
-    tip.position.set(0.08, AVATAR_HEIGHT + 0.2, -0.04);
-    this.body.add(tip);
-
-    for (const x of [-1, 1]) {
-      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.26, 2, 6), mat(color));
-      arm.geometry.translate(0, -0.13, 0);
-      arm.position.set(x * (BODY_R + 0.05), FEET + BODY_R + BODY_LEN * 0.55, 0);
-      arm.rotation.z = x * 0.18;
-      this.arms.push(arm);
-      this.body.add(arm);
-      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.15, FEET, 0.24), mat('#2b2e36'));
-      foot.position.set(x * 0.13, FEET / 2, 0.03);
-      this.feet.push(foot);
-      this.root.add(foot);
-    }
-    this.root.add(this.body);
+    this.skin = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0 });
+    this.model.scale.setScalar(DOLL_SCALE);
+    this.root.add(this.model);
 
     const shadow = new THREE.Mesh(
       new THREE.CircleGeometry(0.42, 16),
@@ -141,8 +138,37 @@ export class Avatar {
     this.root.add(this.ring);
 
     this.nameSprite = label(name);
-    this.nameSprite.position.y = AVATAR_HEIGHT + 0.5;
+    this.nameSprite.position.y = AVATAR_HEIGHT + 0.42;
     this.root.add(this.nameSprite);
+
+    const t = dollNow();
+    if (t) this.build(t);
+    else
+      void loadDoll()
+        .then((tp) => this.build(tp))
+        .catch(() => {
+          /* sem o modelo (arquivo faltando): fica só o nome e o anel */
+        });
+  }
+
+  /** monta o boneco quando o modelo está carregado (o resto — time, raquete, moto — é reaplicado) */
+  private build(t: DollTemplate) {
+    if (this.disposed || this.doll) return;
+    this.tpl = t;
+    const doll = cloneDoll(t);
+    doll.traverse((o) => {
+      if (o instanceof THREE.SkinnedMesh) o.material = this.skin;
+    });
+    this.model.add(doll);
+    this.doll = doll;
+    this.face = buildFace(doll, t.info, this.color);
+    this.mixer = new THREE.AnimationMixer(doll);
+    const team = this.team;
+    this.team = null;
+    this.setTeam(team);
+    const racket = this.racketKind;
+    this.racketKind = null;
+    this.setRacket(racket);
   }
 
   setName(name: string) {
@@ -162,7 +188,7 @@ export class Avatar {
   }
 
   /** time nas arenas: faixa na cintura e disco no chão da cor do time (null tira) */
-  private teamBand: THREE.Mesh | null = null;
+  private teamBand: THREE.Object3D | null = null;
   private teamDisc: THREE.Mesh | null = null;
   private team: 'a' | 'b' | null = null;
   setTeam(team: 'a' | 'b' | null) {
@@ -171,19 +197,11 @@ export class Avatar {
     for (const m of [this.teamBand, this.teamDisc]) {
       if (!m) continue;
       m.parent?.remove(m);
-      m.geometry.dispose();
-      (m.material as THREE.Material).dispose();
+      disposeTree(m);
     }
     this.teamBand = this.teamDisc = null;
     if (!team) return;
     const color = team === 'a' ? 0x3f8fe0 : 0xe04848;
-    const band = new THREE.Mesh(
-      new THREE.TorusGeometry(BODY_R + 0.01, 0.055, 6, 18),
-      new THREE.MeshLambertMaterial({ color }),
-    );
-    band.rotation.x = Math.PI / 2;
-    band.position.y = FEET + BODY_R + 0.06;
-    this.body.add(band);
     const disc = new THREE.Mesh(
       new THREE.RingGeometry(0.3, 0.44, 20),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75, depthWrite: false }),
@@ -191,8 +209,25 @@ export class Avatar {
     disc.rotation.x = -Math.PI / 2;
     disc.position.y = 0.015;
     this.root.add(disc);
-    this.teamBand = band;
     this.teamDisc = disc;
+    const pelvis = this.doll?.getObjectByName('spine_01');
+    if (!pelvis || !this.doll) return;
+    // faixa na barriga, presa ao osso para acompanhar o corpo
+    const band = new THREE.Mesh(
+      new THREE.TorusGeometry(0.18, 0.03, 8, 28),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.5 }),
+    );
+    band.rotation.x = Math.PI / 2;
+    band.scale.set(1, 0.8, 1);
+    const g = new THREE.Group();
+    g.add(band);
+    this.inBindPose(() => {
+      const at = pelvis.getWorldPosition(new THREE.Vector3());
+      this.doll!.worldToLocal(at);
+      g.position.copy(at);
+      attachTo(pelvis, g, this.doll!);
+    });
+    this.teamBand = g;
   }
 
   /** raquete na mão direita (tênis ou ping pong) */
@@ -203,64 +238,63 @@ export class Avatar {
     this.racketKind = kind;
     if (this.racket) {
       this.racket.parent?.remove(this.racket);
-      this.racket.traverse((o) => {
-        if (o instanceof THREE.Mesh) {
-          o.geometry.dispose();
-          (o.material as THREE.Material).dispose();
-        }
-      });
+      disposeTree(this.racket);
       this.racket = null;
     }
-    if (!kind) return;
+    const hand = this.doll?.getObjectByName('hand_r');
+    const fore = this.doll?.getObjectByName('lowerarm_r');
+    if (!kind || !hand || !fore || !this.doll) return;
     const g = new THREE.Group();
     const handle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.018, 0.018, kind === 'tennis' ? 0.24 : 0.1, 6),
+      new THREE.CylinderGeometry(0.026, 0.026, kind === 'tennis' ? 0.34 : 0.14, 6),
       new THREE.MeshLambertMaterial({ color: kind === 'tennis' ? 0x2b2e36 : 0x8b5a2b }),
     );
-    handle.position.y = kind === 'tennis' ? -0.12 : -0.05;
+    handle.position.y = kind === 'tennis' ? -0.17 : -0.07;
     g.add(handle);
     if (kind === 'tennis') {
       const frame = new THREE.Mesh(
-        new THREE.TorusGeometry(0.13, 0.014, 6, 20),
+        new THREE.TorusGeometry(0.19, 0.02, 6, 20),
         new THREE.MeshLambertMaterial({ color: 0xe0e4ea }),
       );
       frame.scale.set(1, 1.3, 1);
-      frame.position.y = -0.4;
+      frame.position.y = -0.58;
       g.add(frame);
       const strings = new THREE.Mesh(
-        new THREE.CircleGeometry(0.125, 16),
+        new THREE.CircleGeometry(0.18, 16),
         new THREE.MeshBasicMaterial({ color: 0xd7f24a, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
       );
       strings.scale.set(1, 1.3, 1);
-      strings.position.y = -0.4;
+      strings.position.y = -0.58;
       g.add(strings);
     } else {
       const paddle = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.08, 0.08, 0.014, 16),
+        new THREE.CylinderGeometry(0.115, 0.115, 0.02, 16),
         new THREE.MeshLambertMaterial({ color: 0xc0392b }),
       );
       paddle.rotation.x = Math.PI / 2;
-      paddle.position.y = -0.17;
+      paddle.position.y = -0.24;
       g.add(paddle);
     }
-    // na ponta do braço direito, apontando para baixo como o braço
-    g.position.set(0, -0.36, 0.02);
-    this.arms[1]!.add(g);
+    // na mão, continuando a linha do antebraço
+    this.inBindPose(() => {
+      const doll = this.doll!;
+      const h = doll.worldToLocal(hand.getWorldPosition(new THREE.Vector3()));
+      const f = doll.worldToLocal(fore.getWorldPosition(new THREE.Vector3()));
+      const dir = h.clone().sub(f).normalize();
+      g.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
+      g.position.copy(h.addScaledVector(dir, 0.06));
+      attachTo(hand, g, doll);
+    });
     this.racket = g;
   }
 
-  /** corrida: a moto embaixo do boneco (sentado nela) */
+  /** corrida: a moto embaixo do boneco (pilotando) */
   private bike: THREE.Group | null = null;
   setBike(on: boolean) {
     if (on === !!this.bike) return;
     if (this.bike) {
       this.root.remove(this.bike);
-      this.bike.traverse((o) => {
-        if (o instanceof THREE.Mesh) {
-          o.geometry.dispose();
-          (o.material as THREE.Material).dispose();
-        }
-      });
+      disposeTree(this.bike);
       this.bike = null;
       return;
     }
@@ -278,13 +312,19 @@ export class Avatar {
     });
   }
 
-  /** levou um golpe: balança e recua um pouco */
+  /** levou um golpe: encolhe e recua */
   hitReact() {
-    this.hitT = 0.28;
+    this.hitT = 0.45;
   }
 
   setSpeaking(on: boolean) {
+    this.speaking = on;
     this.ring.visible = on;
+  }
+
+  /** volume da voz agora (0..1) — abre a boca; sem volume (0) e falando, a boca mexe num ritmo de fala */
+  setVoiceLevel(v: number) {
+    this.level = Math.max(0, Math.min(1, v));
   }
 
   /** posição vinda da rede (os outros) — a animação anda até lá suavemente */
@@ -303,6 +343,49 @@ export class Avatar {
     this.ry = p.ry;
   }
 
+  /** qual animação para o estado: 0 parado, 1 andando, 2 correndo, 3 no ar, 4 acenando, 5 sentado/pilotando, 6–9 x1 */
+  private clipFor(a: number): ClipName {
+    if (this.hitT > 0 && a !== 9) return 'Hit_Chest';
+    switch (a) {
+      case 1:
+        return 'Walk_Loop';
+      case 2:
+        return 'Jog_Fwd_Loop';
+      case 3:
+        return 'Jump_Loop';
+      case 5:
+        return this.bike ? 'Driving_Loop' : this.speaking ? 'Sitting_Talking_Loop' : 'Sitting_Idle_Loop';
+      case 6:
+        return this.racketKind ? 'Sword_Attack' : 'Punch_Jab';
+      case 7:
+        return 'Punch_Cross';
+      case 8:
+        return 'Punch_Jab';
+      case 9:
+        return 'Death01';
+      default:
+        return this.speaking ? 'Idle_Talking_Loop' : 'Idle_Loop';
+    }
+  }
+
+  private play(name: ClipName, restart: boolean) {
+    const mixer = this.mixer;
+    const clip = this.tpl?.clips.get(name);
+    if (!mixer || !clip) return;
+    if (name === this.clip && !restart) return;
+    const next = mixer.clipAction(clip);
+    next.reset();
+    if (ONCE.has(name)) {
+      next.setLoop(THREE.LoopOnce, 1);
+      next.clampWhenFinished = true;
+    } else next.setLoop(THREE.LoopRepeat, Infinity);
+    next.timeScale = name === 'Punch_Jab' || name === 'Punch_Cross' ? 1.6 : 1;
+    next.play();
+    if (this.action && this.action !== next) this.action.crossFadeTo(next, name === 'Hit_Chest' ? 0.06 : FADE, false);
+    this.action = next;
+    this.clip = name;
+  }
+
   update(dt: number, t: number) {
     const k = 1 - Math.exp(-dt * 12);
     const pos = this.root.position;
@@ -313,118 +396,130 @@ export class Avatar {
     d = Math.atan2(Math.sin(d), Math.cos(d));
     this.ry += d * Math.min(1, k * 1.3);
     this.root.rotation.y = this.ry;
+    if (this.hitT > 0) this.hitT = Math.max(0, this.hitT - dt);
 
     const a = this.target.a;
-    if (a !== this.lastA) {
-      this.punchT = 0;
-      this.lastA = a;
-    }
-    this.body.rotation.x = 0;
-    this.body.rotation.y = 0;
-    this.body.scale.set(1, 1, 1);
-    if (this.hitT > 0) {
-      this.hitT = Math.max(0, this.hitT - dt);
-      const k = this.hitT / 0.28;
-      this.body.rotation.x = -0.35 * k;
-      this.body.scale.set(1 + 0.08 * k, 1 - 0.08 * k, 1 + 0.08 * k);
-    }
-    if (a >= 6 && a <= 9) {
-      this.fightPose(a, dt, t, pos.y);
-      this.blink(dt);
-      return;
-    }
-    if (a === 5) {
-      // sentado: corpo apoiado no assento, pés à frente no chão, braços no colo
-      this.body.position.y = Math.sin(t * 1.6) * 0.006;
-      this.body.rotation.z = 0;
-      for (const [i, f] of this.feet.entries()) {
-        f.position.set(i ? 0.13 : -0.13, FEET / 2 - pos.y, 0.34);
-      }
-      for (const [i, arm] of this.arms.entries()) {
-        arm.rotation.x = -0.75;
-        arm.rotation.z = i ? 0.18 : -0.18;
-      }
-      this.blink(dt);
-      return;
-    }
-    const moving = a === 1 || a === 2;
-    this.phase += dt * (a === 2 ? 14 : 9) * (moving ? 1 : 0);
-    const s = moving ? Math.sin(this.phase) : 0;
-    this.body.position.y = moving ? Math.abs(Math.sin(this.phase)) * 0.06 : Math.sin(t * 1.6) * 0.01;
-    this.body.rotation.z = s * 0.05;
-    for (const arm of this.arms) {
-      arm.scale.y = 1;
-      arm.rotation.y = 0;
-    }
-    this.feet[0]!.position.x = -0.13;
-    this.feet[1]!.position.x = 0.13;
-    this.feet[0]!.position.z = 0.03 + s * 0.14;
-    this.feet[1]!.position.z = 0.03 - s * 0.14;
-    this.feet[0]!.position.y = FEET / 2 + Math.max(0, s) * 0.06;
-    this.feet[1]!.position.y = FEET / 2 + Math.max(0, -s) * 0.06;
-    this.arms[0]!.rotation.x = -s * 0.7;
-    this.arms[0]!.rotation.z = -0.18;
-    if (a === 4) {
-      // acenando com o braço direito
-      this.arms[1]!.rotation.x = 0;
-      this.arms[1]!.rotation.z = 2.5 + Math.sin(t * 12) * 0.35;
-    } else {
-      this.arms[1]!.rotation.x = s * 0.7;
-      this.arms[1]!.rotation.z = 0.18;
-    }
+    const name = this.clipFor(a);
+    // golpe repetido (mesmo estado de novo) recomeça a animação
+    this.play(name, a !== this.lastA && (a === 6 || a === 7 || a === 8));
+    this.lastA = a;
+    // guarda do x1: a pose de base do jab, parada
+    if (this.action) this.action.paused = a === 8 && this.action.time > 0.12;
 
-    this.blink(dt);
+    // sentado ou pilotando: o quadril vai para a altura do assento (raiz = assento)
+    const tpl = this.tpl;
+    if (tpl && a === 5) {
+      const pelvis = this.bike ? tpl.drivePelvis : tpl.sitPelvis;
+      this.model.position.y = (0.12 - pelvis) * DOLL_SCALE + (this.bike ? 0.02 : 0.06);
+    } else this.model.position.y = 0;
+
+    this.mixer?.update(dt);
+    if (a === 4) this.wave(t);
+    this.faceUpdate(dt, t);
   }
 
-  /** 6 soco rápido, 7 soco forte, 8 guarda, 9 nocaute */
-  private fightPose(a: number, dt: number, t: number, rootY: number) {
-    this.punchT += dt;
-    for (const [i, f] of this.feet.entries())
-      f.position.set(i ? 0.16 : -0.16, FEET / 2 - Math.min(0, rootY), i ? -0.06 : 0.1);
-    const [left, right] = this.arms as [THREE.Mesh, THREE.Mesh];
-    // guarda de base: os dois braços na frente
-    left.rotation.set(-1.2, 0, 0.45);
-    right.rotation.set(-1.2, 0, -0.45);
-    this.body.position.y = Math.sin(t * 7) * 0.015;
-    if (a === 6) {
-      // soco rápido: o braço direito vai e volta em ~0,25 s
-      const k = Math.sin(Math.min(1, this.punchT / 0.25) * Math.PI);
-      right.rotation.set(-1.2 - 0.45 * k, 0, -0.45 + 0.4 * k);
-      right.scale.y = 1 + 0.5 * k;
-    } else if (a === 7) {
-      // soco forte: gira o corpo e estica o braço
-      const k = Math.sin(Math.min(1, this.punchT / 0.4) * Math.PI);
-      this.body.rotation.y = -0.5 * k;
-      right.rotation.set(-1.25 - 0.4 * k, 0, -0.45 + 0.45 * k);
-      right.scale.y = 1 + 0.75 * k;
-    } else if (a === 8) {
-      // defesa: braços cobrindo o rosto
-      left.rotation.set(-2.3, 0, 0.75);
-      right.rotation.set(-2.3, 0, -0.75);
-    } else {
-      // nocaute: cai de costas e fica no chão
-      const k = Math.min(1, this.punchT / 0.5);
-      this.body.rotation.x = -1.45 * k;
-      left.rotation.set(-2.6, 0, 0.6);
-      right.rotation.set(-2.6, 0, -0.6);
-      for (const e of this.eyes) e.scale.y = 0.15;
-    }
-    if (a !== 6 && a !== 7) right.scale.y = 1;
-    left.scale.y = 1;
+  /** aceno: braço direito para o alto, antebraço balançando (por cima da animação de parado) */
+  private wave(t: number) {
+    const doll = this.doll;
+    const up = doll?.getObjectByName('upperarm_r');
+    const low = doll?.getObjectByName('lowerarm_r');
+    const hand = doll?.getObjectByName('hand_r');
+    if (!doll || !up || !low || !hand) return;
+    doll.updateMatrixWorld(true);
+    aim(up, low, new THREE.Vector3(-0.55, 0.83, 0.08).applyQuaternion(doll.getWorldQuaternion(new THREE.Quaternion())));
+    const side = new THREE.Vector3(Math.sin(t * 10) * 0.45, 1, 0.1)
+      .normalize()
+      .applyQuaternion(doll.getWorldQuaternion(new THREE.Quaternion()));
+    aim(low, hand, side);
   }
 
-  private blink(dt: number) {
+  private faceUpdate(dt: number, t: number) {
+    const f = this.face;
+    if (!f) return;
+    // piscar de tempos em tempos (no nocaute, olhos fechados)
     this.blinkIn -= dt;
-    const blink = this.blinkIn < 0.12 && this.blinkIn > 0;
-    for (const e of this.eyes) e.scale.y = blink ? 0.15 : 1;
+    const closed = this.target.a === 9 || (this.blinkIn < 0.12 && this.blinkIn > 0);
+    for (const e of f.eyes) e.scale.y = closed ? 0.12 : 1;
     if (this.blinkIn <= 0) this.blinkIn = 2 + Math.random() * 4;
+    // boca: o volume da voz; sem volume medido, um ritmo de fala enquanto o anel está aceso
+    let want = 0;
+    if (this.speaking) {
+      if (this.level > 0.01) want = Math.min(1, 0.25 + this.level * 2.2);
+      else {
+        const s = t * 9 + this.talkSeed;
+        want = Math.max(0, Math.sin(s) * 0.6 + Math.sin(s * 2.3) * 0.4) * 0.9;
+      }
+    }
+    this.mouthOpen += (want - this.mouthOpen) * Math.min(1, dt * 18);
+    const o = this.mouthOpen;
+    f.lip.scale.set(0.034 - o * 0.008, 0.006 + o * 0.016, 0.012);
+    f.inner.scale.set(0.028 - o * 0.008, 0.004 + o * 0.016, 0.011);
+  }
+
+  /** roda `fn` com o boneco na pose de referência (para prender objetos aos ossos na orientação certa) */
+  private inBindPose(fn: () => void) {
+    const doll = this.doll;
+    if (!doll) return;
+    const saved: [THREE.Object3D, THREE.Quaternion, THREE.Vector3][] = [];
+    doll.traverse((o) => {
+      if (o instanceof THREE.Bone) saved.push([o, o.quaternion.clone(), o.position.clone()]);
+    });
+    let skel: THREE.Skeleton | null = null;
+    doll.traverse((o) => {
+      if (o instanceof THREE.SkinnedMesh) skel = o.skeleton;
+    });
+    (skel as THREE.Skeleton | null)?.pose();
+    const rot = this.root.rotation.y;
+    this.root.rotation.y = 0;
+    this.root.updateMatrixWorld(true);
+    fn();
+    this.root.rotation.y = rot;
+    for (const [b, q, p] of saved) {
+      b.quaternion.copy(q);
+      b.position.copy(p);
+    }
+    this.root.updateMatrixWorld(true);
   }
 
   dispose() {
-    this.root.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.geometry.dispose();
-    });
+    this.disposed = true;
+    this.mixer?.stopAllAction();
+    if (this.doll) this.mixer?.uncacheRoot(this.doll);
+    this.setTeam(null);
+    this.setRacket(null);
+    this.setBike(false);
+    this.skin.dispose();
+    this.face?.tip.geometry.dispose();
+    (this.face?.tip.material as THREE.Material | undefined)?.dispose();
+    for (const m of [this.ring]) {
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
     this.nameSprite.material.map?.dispose();
     this.nameSprite.material.dispose();
   }
+}
+
+/** prende `obj` (posição e orientação no espaço do boneco) ao osso, mantendo onde ele está */
+function attachTo(bone: THREE.Object3D, obj: THREE.Object3D, doll: THREE.Object3D) {
+  doll.updateMatrixWorld(true);
+  const m = new THREE.Matrix4()
+    .copy(bone.matrixWorld)
+    .invert()
+    .multiply(doll.matrixWorld)
+    .multiply(new THREE.Matrix4().compose(obj.position, obj.quaternion, obj.scale));
+  m.decompose(obj.position, obj.quaternion, obj.scale);
+  bone.add(obj);
+}
+
+/** gira o osso `a` para que o filho `b` fique na direção `dir` (mundo) */
+function aim(a: THREE.Object3D, b: THREE.Object3D, dir: THREE.Vector3) {
+  const pa = a.getWorldPosition(new THREE.Vector3());
+  const pb = b.getWorldPosition(new THREE.Vector3());
+  const cur = pb.sub(pa).normalize();
+  const q = new THREE.Quaternion().setFromUnitVectors(cur, dir.clone().normalize());
+  const world = a.getWorldQuaternion(new THREE.Quaternion());
+  const parent = a.parent ? a.parent.getWorldQuaternion(new THREE.Quaternion()) : new THREE.Quaternion();
+  a.quaternion.copy(parent.invert().multiply(q.multiply(world)));
+  a.updateMatrixWorld(true);
 }

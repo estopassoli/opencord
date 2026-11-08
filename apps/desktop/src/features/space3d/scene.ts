@@ -22,6 +22,7 @@ import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 import { peers, PEER_TIMEOUT_MS } from '../../store/space';
 import { Avatar, type Pose } from './avatar';
+import { loadDoll } from './doll';
 import { actionsOf, normalizeCode, useBindings, type Action } from './bindings';
 import { findInteraction, standUpSpot, type Interaction } from './interact';
 import { SCREEN_H, SCREEN_W, setItemOn } from './models';
@@ -36,6 +37,8 @@ export interface SceneParticipant {
 }
 
 export interface SceneHooks {
+  /** volume da voz de alguém agora (0..1), para a boca do boneco */
+  audioLevel?(identity: string): number;
   /** minha posição para a rede (~10x/s andando, 1x/s parado) */
   sendPose(p: Pose & { zone: number }): void;
   /** multiplicador da voz de cada um pela distância (null = normal) */
@@ -172,6 +175,8 @@ export class SpaceScene {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.domElement.className = 'space3d-canvas';
     host.append(this.renderer.domElement);
+    // o boneco começa a carregar já (cada avatar aparece assim que o modelo chega)
+    void loadDoll().catch(() => undefined);
     this.me = new Avatar(selfId, selfName);
     this.me.hideName();
     this.scene.add(this.me.root);
@@ -940,6 +945,7 @@ export class SpaceScene {
     const t = now / 1000;
     if (this.mode === 'play') this.stepPlayer(dt, now);
     else this.stepEditorCamera(dt);
+    this.me.setVoiceLevel(this.hooks.audioLevel?.(this.selfId) ?? 0);
     this.me.update(dt, t);
     this.stepOthers(dt, t, now);
     this.placeCamera();
@@ -1103,6 +1109,7 @@ export class SpaceScene {
       }
       av.setTarget(pose);
       av.setSpeaking(info.speaking);
+      av.setVoiceLevel(info.speaking ? (this.hooks.audioLevel?.(id) ?? 0) : 0);
       av.setTeam(this.zone && this.zone !== 7 && pose.team ? pose.team : null);
       av.setRacket(racketOf(this.zone));
       av.setBike(this.zone === 7);

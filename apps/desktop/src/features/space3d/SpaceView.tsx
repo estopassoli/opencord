@@ -92,6 +92,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     const el = host.current;
     if (!el || !me) return;
     const s = new SpaceScene(el, me.id, me.displayName, {
+      audioLevel: (id) => useVoice.getState().engine()?.audioLevel(id) ?? 0,
       sendPose: (p) => useSession.getState().realtime?.sendVolatile('space:move', { channelId, ...p }),
       setGain: (id, g) => useVoice.getState().engine()?.setSpatialGain(id, g),
       onFps: (fps) => setSlow(fps < 24),

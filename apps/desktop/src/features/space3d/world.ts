@@ -280,4 +280,3 @@ export function buildWorld(l: SpaceLayout): BuiltWorld {
     },
   };
 }
-

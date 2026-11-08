@@ -775,6 +775,15 @@ export class VoiceEngine {
   }
 
   /** A live em andamento é uma composição de cena (dá para trocar de cena ao vivo). */
+  /** volume da voz de alguém na chamada agora (0..1; 0 se não está na sala) */
+  audioLevel(identity: string): number {
+    const room = this.room;
+    if (!room) return 0;
+    const p =
+      identity === room.localParticipant.identity ? room.localParticipant : room.remoteParticipants.get(identity);
+    return p?.audioLevel ?? 0;
+  }
+
   hasScene() {
     return this.compositor !== null;
   }

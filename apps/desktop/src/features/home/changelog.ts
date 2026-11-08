@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-09',
+    time: '05:00',
+    kind: 'novo',
+    icon: 'user',
+    title: 'Bonecos novos no Espaço 3D',
+    body: 'Os bonecos do Espaço 3D foram refeitos: corpo liso de massinha, cabeça com olhos que piscam sozinhos e boca que abre conforme o volume da sua voz na chamada, com a antena na sua cor. E agora eles se mexem de verdade: andam, correm, pulam, gesticulam enquanto você fala, sentam, pilotam a moto, dão socos, se defendem, caem no nocaute e acenam.',
+  },
+  {
+    date: '2026-11-09',
     time: '04:00',
     kind: 'correção',
     icon: 'gamepad',

@@ -1,0 +1,1209 @@
+<!--
+  Gerador do boneco do Espaço 3D (ADR-0055). Não faz parte do app.
+  Uso: sirva esta pasta com o `ual.json` (o UAL1_Standard.glb da Universal Animation Library da Quaternius, CC0,
+  convertido para .gltf com o buffer embutido) ao lado, abra no navegador e rode `await window.__bake()` no console:
+  devolve o .glb em base64 (gravar em src/features/space3d/assets/doll.glb).
+-->
+<meta charset="utf-8" />
+<title>Bonecos de Massinha</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap"
+/>
+<style>
+  /* Layout: palco 3D grande; abaixo, controles (animação, cor, rosto) que viram coluna no celular */
+  :root {
+    --bg: #eceae6;
+    --stage: #d9d5ce;
+    --ink: #24211d;
+    --ink-2: #5d5850;
+    --line: #c9c3b9;
+    --chip: #f7f5f1;
+    --accent: #3d6fd6;
+    --accent-ink: #ffffff;
+    --display: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif;
+    --body: 'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #1b1d22;
+      --stage: #2a2d34;
+      --ink: #eeece8;
+      --ink-2: #a9a59d;
+      --line: #383b43;
+      --chip: #2a2d34;
+      --accent: #7aa2ff;
+      --accent-ink: #10131a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme='dark'] {
+    --bg: #1b1d22;
+    --stage: #2a2d34;
+    --ink: #eeece8;
+    --ink-2: #a9a59d;
+    --line: #383b43;
+    --chip: #2a2d34;
+    --accent: #7aa2ff;
+    --accent-ink: #10131a;
+    color-scheme: dark;
+  }
+  [hidden] {
+    display: none !important;
+  }
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 var(--body);
+  }
+  .wrap {
+    display: grid;
+    gap: 14px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-block: 18px 28px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 14px;
+  }
+  h1 {
+    margin: 0;
+    font: 600 clamp(24px, 4vw, 34px)/1.1 var(--display);
+    text-wrap: balance;
+  }
+  header p {
+    margin: 0;
+    color: var(--ink-2);
+    max-width: 64ch;
+  }
+  .stage {
+    position: relative;
+    height: min(62vh, 560px);
+    min-height: 320px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--stage);
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+  }
+  canvas:active {
+    cursor: grabbing;
+  }
+  .status {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--ink-2);
+    font-weight: 600;
+  }
+  .hint {
+    position: absolute;
+    left: 14px;
+    bottom: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--chip) 85%, transparent);
+    color: var(--ink-2);
+    font-size: 12.5px;
+  }
+  .panel {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px 28px;
+    align-items: start;
+  }
+  .group {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .group h2 {
+    margin: 0;
+    font: 600 13px var(--body);
+    color: var(--ink-2);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chip {
+    padding: 7px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--chip);
+    color: var(--ink);
+    font: 600 13.5px var(--body);
+    cursor: pointer;
+  }
+  .chip:hover {
+    border-color: var(--ink-2);
+  }
+  .chip[aria-pressed='true'] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  .chip:focus-visible,
+  .swatch:focus-visible,
+  .toggle input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .swatch {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    cursor: pointer;
+    padding: 0;
+  }
+  .swatch[aria-pressed='true'] {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 2px var(--bg) inset;
+  }
+  .toggles {
+    display: grid;
+    gap: 8px;
+  }
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 13.5px;
+    cursor: pointer;
+  }
+  .toggle input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+  }
+  .note {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: 13px;
+    max-width: 72ch;
+  }
+  @media (max-width: 760px) {
+    .panel {
+      grid-template-columns: 1fr;
+    }
+    .stage {
+      height: 52vh;
+    }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Bonecos de Massinha</h1>
+    <p>
+      Prévia dos avatares do Espaço 3D: silhueta lisa e simples, rosto que fala e pisca, e a antena dos bonecos do
+      OpenCord. Arraste para girar, use a roda do mouse para aproximar.
+    </p>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="c" aria-label="Fileira de bonecos animados"></canvas>
+    <div class="status" id="status">Carregando as animações…</div>
+    <span class="hint">Boca mexe com a voz · olhos piscam sozinhos</span>
+  </div>
+
+  <div class="panel">
+    <div class="group">
+      <h2>Animação</h2>
+      <div class="chips" id="clips" role="group" aria-label="Animação"></div>
+    </div>
+    <div class="group">
+      <h2>Cor</h2>
+      <div class="swatches" id="colors" role="group" aria-label="Cor dos bonecos"></div>
+      <div class="toggles">
+        <label class="toggle"><input type="checkbox" id="mixed" checked /> Cada um de uma cor</label>
+        <label class="toggle"><input type="checkbox" id="talk" checked /> Falando na voz</label>
+        <label class="toggle"><input type="checkbox" id="antenna" checked /> Antena</label>
+        <label class="toggle"><input type="checkbox" id="sync" /> Todos no mesmo tempo</label>
+      </div>
+    </div>
+  </div>
+  <p class="note">
+    No app, a boca abre conforme o volume do microfone de cada pessoa na chamada, e a cor do boneco é a da pessoa. Nos
+    jogos, a faixa do time entra por cima. Animações da Universal Animation Library (Quaternius, licença livre CC0).
+  </p>
+</div>
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+</script>
+<script type="module">
+  import * as THREE from 'three';
+  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+  import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+  const CLIPS = [
+    ['Parado', 'Idle_Loop'],
+    ['Conversar', 'Idle_Talking_Loop'],
+    ['Andar', 'Walk_Loop'],
+    ['Trotar', 'Jog_Fwd_Loop'],
+    ['Correr', 'Sprint_Loop'],
+    ['Pular', 'Jump_Loop'],
+    ['Sentar', 'Sitting_Idle_Loop'],
+    ['Soco', 'Punch_Jab'],
+    ['Soco cruzado', 'Punch_Cross'],
+    ['Dançar', 'Dance_Loop'],
+    ['Pilotar', 'Driving_Loop'],
+    ['Rolar', 'Roll'],
+  ];
+  const COLORS = [
+    '#f4f2ee',
+    '#e05a5a',
+    '#f08a3c',
+    '#f2c94c',
+    '#4fbf6a',
+    '#3fd0c9',
+    '#3f8fe0',
+    '#8a6ae0',
+    '#f06ab0',
+    '#5a5f6b',
+  ];
+  const MIXED = ['#f4f2ee', '#3f8fe0', '#e05a5a', '#4fbf6a', '#f2c94c'];
+
+  const canvas = document.getElementById('c');
+  const stage = document.getElementById('stage');
+  const status = document.getElementById('status');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  camera.position.set(0.4, 1.7, 7.6);
+  const controls = new OrbitControls(camera, canvas);
+  controls.target.set(0, 0.95, 0);
+  controls.enableDamping = true;
+  controls.minDistance = 1.6;
+  controls.maxDistance = 14;
+  controls.maxPolarAngle = Math.PI * 0.49;
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8174, 1.7));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(2.5, 6, 5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.left = -5;
+  key.shadow.camera.right = 5;
+  key.shadow.camera.top = 5;
+  key.shadow.camera.bottom = -5;
+  key.shadow.radius = 6;
+  key.shadow.bias = -0.0002;
+  key.shadow.normalBias = 0.04;
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.7);
+  rim.position.set(-4, 3, -3);
+  scene.add(rim);
+
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(9, 64), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+  function applyTheme() {
+    const c = new THREE.Color(
+      getComputedStyle(document.documentElement).getPropertyValue('--stage').trim() || '#d9d5ce',
+    );
+    scene.background = c;
+    floorMat.color.copy(c).offsetHSL(0, 0, 0.03);
+  }
+  applyTheme();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+
+  const clay = (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.55, metalness: 0 });
+
+  // ---------- o corpo ----------
+  // tronco, pescoço, braços e pernas: cápsulas que se fundem suavemente (grupos: tronco, cada braço, cada perna);
+  // braços e pernas fundem só com o tronco, nunca entre si (assim ficam soltos, como na silhueta de referência)
+  const DEPTH = 0.124; // meia profundidade do tronco
+  const TORSO_W = 0.172; // meia largura do tronco
+  const HEAD_R = 0.168;
+
+  // cabeça de massinha (não uma bola): crânio um pouco mais alto e cheio atrás, bochechas e um queixo mais estreito,
+  // rosto levemente achatado na frente. Coordenadas a partir do centro da cabeça; distância aproximada (elipsoides).
+  function ellip(x, y, z, rx, ry, rz) {
+    const k0 = Math.hypot(x / rx, y / ry, z / rz);
+    const k1 = Math.hypot(x / (rx * rx), y / (ry * ry), z / (rz * rz));
+    return k1 > 0 ? (k0 * (k0 - 1)) / k1 : -Math.min(rx, ry, rz);
+  }
+  function headSDF(x, y, z) {
+    const cran = ellip(x, y - 0.012, z + 0.012, 0.162, 0.168, 0.158);
+    const cheeks = ellip(x, y + 0.058, z - 0.022, 0.138, 0.098, 0.13);
+    const chin = ellip(x, y + 0.11, z - 0.03, 0.082, 0.06, 0.088);
+    let d = smin(smin(cran, cheeks, 0.06), chin, 0.05);
+    // frente do rosto um pouquinho mais plana
+    d = Math.max(d, z - 0.152 - 0.35 * (x * x + y * y));
+    return d;
+  }
+  /** z da superfície da frente da cabeça no ponto (dx, dy) */
+  function headFrontZ(dx, dy) {
+    let lo = 0,
+      hi = 0.3;
+    for (let i = 0; i < 30; i++) {
+      const m = (lo + hi) / 2;
+      if (headSDF(dx, dy, m) < 0) lo = m;
+      else hi = m;
+    }
+    return lo;
+  }
+  /** y do topo da cabeça no ponto (dx, dz) */
+  function headTopY(dx, dz) {
+    let lo = 0,
+      hi = 0.3;
+    for (let i = 0; i < 30; i++) {
+      const m = (lo + hi) / 2;
+      if (headSDF(dx, m, dz) < 0) lo = m;
+      else hi = m;
+    }
+    return lo;
+  }
+  const ARM_DOWN = THREE.MathUtils.degToRad(42);
+  const LEG_OUT = THREE.MathUtils.degToRad(8.5);
+
+  function smin(a, b, k) {
+    const h = Math.max(k - Math.abs(a - b), 0) / k;
+    return Math.min(a, b) - h * h * k * 0.25;
+  }
+
+  /** pose da modelagem: a do esqueleto (T) com os braços descendo, afastados do tronco */
+  function bindPose(bones) {
+    for (const sd of [1, -1]) {
+      const U = bones[sd > 0 ? 'upperarm_l' : 'upperarm_r'];
+      const L = bones[sd > 0 ? 'lowerarm_l' : 'lowerarm_r'];
+      const cur = L.getWorldPosition(new THREE.Vector3()).sub(U.getWorldPosition(new THREE.Vector3())).normalize();
+      const want = new THREE.Vector3(sd * Math.sin(ARM_DOWN), -Math.cos(ARM_DOWN), 0);
+      const q = new THREE.Quaternion().setFromUnitVectors(cur, want);
+      const world = U.getWorldQuaternion(new THREE.Quaternion());
+      const parent = U.parent.getWorldQuaternion(new THREE.Quaternion());
+      U.quaternion.copy(parent.invert().multiply(q.multiply(world)));
+      U.updateMatrixWorld(true);
+      // pernas um pouco abertas: sem isso os joelhos quase se tocam e a malha gruda uma perna na outra
+      const T = bones[sd > 0 ? 'thigh_l' : 'thigh_r'];
+      const C = bones[sd > 0 ? 'calf_l' : 'calf_r'];
+      const lc = C.getWorldPosition(new THREE.Vector3()).sub(T.getWorldPosition(new THREE.Vector3())).normalize();
+      const lw = new THREE.Vector3(sd * Math.sin(LEG_OUT), -Math.cos(LEG_OUT), lc.z).normalize();
+      const lq = new THREE.Quaternion().setFromUnitVectors(lc, lw);
+      const tw = T.getWorldQuaternion(new THREE.Quaternion());
+      const tp = T.parent.getWorldQuaternion(new THREE.Quaternion());
+      T.quaternion.copy(tp.invert().multiply(lq.multiply(tw)));
+      T.updateMatrixWorld(true);
+    }
+  }
+
+  function buildBody(base) {
+    const bones = {};
+    let skeleton = null;
+    base.traverse((o) => {
+      if (o.isBone) bones[o.name] = o;
+      if (o.isSkinnedMesh) {
+        skeleton = skeleton || o.skeleton;
+        o.visible = false;
+      }
+    });
+    // a malha é feita com os braços meio abaixados (pose em A): o ombro deforma bem nas poses comuns, sem "bola" na
+    // junção; o manequim do pack é posto na mesma pose para copiar os pesos do tronco
+    base.updateMatrixWorld(true);
+    bindPose(bones);
+    base.updateMatrixWorld(true);
+    base.traverse((o) => {
+      if (o.isSkinnedMesh) o.skeleton.update();
+    });
+    const P = (n) => bones[n].getWorldPosition(new THREE.Vector3());
+    const bi = (n) => skeleton.bones.indexOf(bones[n]);
+
+    const segs = [];
+    const seg = (a, b, r, bone, g, wide = 1, from = null, to = null) => {
+      const A = from ?? P(a),
+        B = to ?? P(b);
+      const d = B.clone().sub(A);
+      segs.push({
+        ax: A.x,
+        ay: A.y,
+        az: A.z,
+        dx: d.x,
+        dy: d.y,
+        dz: d.z,
+        l2: Math.max(1e-9, d.lengthSq()),
+        r,
+        wide,
+        bone: bi(bone),
+        g,
+      });
+    };
+    // tronco: do quadril até a altura dos ombros, largo e achatado
+    const top = P('spine_03');
+    top.y += 0.035;
+    top.z = P('spine_02').z;
+    const hip = P('pelvis');
+    hip.y -= 0.02;
+    hip.z = P('spine_02').z;
+    const mid = P('spine_01');
+    mid.z = P('spine_02').z;
+    // uma peça só do quadril aos ombros: emendar várias deixava anéis (faixas na luz) nas emendas
+    void mid;
+    seg(null, null, DEPTH, 'spine_01', 'T', (TORSO_W + 0.002) / DEPTH, hip, top);
+    // pescoço curto
+    seg('spine_03', 'Head', 0.056, 'neck_01', 'T');
+    // linha dos ombros: uma barra arredondada de um ombro ao outro, para o braço sair de dentro dela (sem "ombreira")
+    {
+      const sl = P('upperarm_l'),
+        sr = P('upperarm_r');
+      sl.x -= 0.012;
+      sr.x += 0.012;
+      sl.y -= 0.01;
+      sr.y -= 0.01;
+      seg(null, null, 0.082, 'spine_03', 'T', 1, sl, sr);
+    }
+    // braços (sem mãos: a ponta é arredondada)
+    for (const [sd, g] of [
+      ['l', 'AL'],
+      ['r', 'AR'],
+    ]) {
+      seg(`upperarm_${sd}`, `lowerarm_${sd}`, 0.077, `upperarm_${sd}`, g);
+      seg(`lowerarm_${sd}`, `hand_${sd}`, 0.073, `lowerarm_${sd}`, g);
+    }
+    // pernas (sem pés: termina no tornozelo, arredondada)
+    for (const [sd, g] of [
+      ['l', 'LL'],
+      ['r', 'LR'],
+    ]) {
+      seg(`thigh_${sd}`, `calf_${sd}`, 0.089, `thigh_${sd}`, g);
+      seg(`calf_${sd}`, `foot_${sd}`, 0.083, `calf_${sd}`, g);
+    }
+    const hc = P('Head').add(new THREE.Vector3(0, 0.13, 0.005));
+    const head = { x: hc.x, y: hc.y, z: hc.z, bone: bi('Head') };
+
+    function segDist(s, x, y, z) {
+      const px = x - s.ax,
+        py = y - s.ay,
+        pz = z - s.az;
+      let t = (px * s.dx + py * s.dy + pz * s.dz) / s.l2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const ex = (px - s.dx * t) / s.wide,
+        ey = py - s.dy * t,
+        ez = pz - s.dz * t;
+      return Math.sqrt(ex * ex + ey * ey + ez * ez);
+    }
+    const groupDist = (x, y, z) => {
+      const g = { T: 1e9, AL: 1e9, AR: 1e9, LL: 1e9, LR: 1e9 };
+      for (const s of segs) g[s.g] = smin(g[s.g], segDist(s, x, y, z) - s.r, 0.05);
+      return g;
+    };
+    function sdf(x, y, z) {
+      const g = groupDist(x, y, z);
+      let d = Math.min(smin(g.T, g.AL, 0.05), smin(g.T, g.AR, 0.05), smin(g.T, g.LL, 0.07), smin(g.T, g.LR, 0.07));
+      const hd = headSDF(x - head.x, y - head.y, z - head.z);
+      return smin(d, hd, 0.035);
+    }
+
+    // grade em volta do corpo e surface nets (malha lisa)
+    const box = new THREE.Box3();
+    for (const s of segs) {
+      box.expandByPoint(new THREE.Vector3(s.ax, s.ay, s.az));
+      box.expandByPoint(new THREE.Vector3(s.ax + s.dx, s.ay + s.dy, s.az + s.dz));
+    }
+    box.expandByPoint(new THREE.Vector3(head.x, head.y + HEAD_R, head.z));
+    box.expandByScalar(0.24);
+    const h = 0.013;
+    const nx = Math.ceil((box.max.x - box.min.x) / h) + 1;
+    const ny = Math.ceil((box.max.y - box.min.y) / h) + 1;
+    const nz = Math.ceil((box.max.z - box.min.z) / h) + 1;
+    const ox = box.min.x,
+      oy = box.min.y,
+      oz = box.min.z;
+    const F = new Float32Array(nx * ny * nz);
+    const at = (x, y, z) => x + nx * (y + ny * z);
+    for (let z = 0; z < nz; z++)
+      for (let y = 0; y < ny; y++)
+        for (let x = 0; x < nx; x++) F[at(x, y, z)] = sdf(ox + x * h, oy + y * h, oz + z * h);
+    const cx = nx - 1,
+      cy = ny - 1,
+      cz = nz - 1;
+    const cellV = new Int32Array(cx * cy * cz).fill(-1);
+    const cid = (x, y, z) => x + cx * (y + cy * z);
+    const pos = [];
+    const C = [
+      [0, 0, 0],
+      [1, 0, 0],
+      [0, 1, 0],
+      [1, 1, 0],
+      [0, 0, 1],
+      [1, 0, 1],
+      [0, 1, 1],
+      [1, 1, 1],
+    ];
+    const E = [
+      [0, 1],
+      [2, 3],
+      [4, 5],
+      [6, 7],
+      [0, 2],
+      [1, 3],
+      [4, 6],
+      [5, 7],
+      [0, 4],
+      [1, 5],
+      [2, 6],
+      [3, 7],
+    ];
+    const v = new Float32Array(8);
+    for (let z = 0; z < cz; z++)
+      for (let y = 0; y < cy; y++)
+        for (let x = 0; x < cx; x++) {
+          let neg = 0;
+          for (let k = 0; k < 8; k++) {
+            v[k] = F[at(x + C[k][0], y + C[k][1], z + C[k][2])];
+            if (v[k] < 0) neg++;
+          }
+          if (neg === 0 || neg === 8) continue;
+          let sx = 0,
+            sy = 0,
+            sz = 0,
+            n = 0;
+          for (const [a, b] of E) {
+            if (v[a] < 0 === v[b] < 0) continue;
+            const t = v[a] / (v[a] - v[b]);
+            sx += C[a][0] + (C[b][0] - C[a][0]) * t;
+            sy += C[a][1] + (C[b][1] - C[a][1]) * t;
+            sz += C[a][2] + (C[b][2] - C[a][2]) * t;
+            n++;
+          }
+          cellV[cid(x, y, z)] = pos.length / 3;
+          pos.push(ox + (x + sx / n) * h, oy + (y + sy / n) * h, oz + (z + sz / n) * h);
+        }
+    const idx = [];
+    const quad = (a, b, c, d, flip) => {
+      if (a < 0 || b < 0 || c < 0 || d < 0) return;
+      if (flip) idx.push(a, b, c, a, c, d);
+      else idx.push(a, c, b, a, d, c);
+    };
+    for (let z = 1; z < cz; z++)
+      for (let y = 1; y < cy; y++)
+        for (let x = 1; x < cx; x++) {
+          const f0 = F[at(x, y, z)] < 0;
+          if (f0 !== F[at(x + 1, y, z)] < 0)
+            quad(
+              cellV[cid(x, y - 1, z - 1)],
+              cellV[cid(x, y, z - 1)],
+              cellV[cid(x, y, z)],
+              cellV[cid(x, y - 1, z)],
+              f0,
+            );
+          if (f0 !== F[at(x, y + 1, z)] < 0)
+            quad(
+              cellV[cid(x - 1, y, z - 1)],
+              cellV[cid(x - 1, y, z)],
+              cellV[cid(x, y, z)],
+              cellV[cid(x, y, z - 1)],
+              f0,
+            );
+          if (f0 !== F[at(x, y, z + 1)] < 0)
+            quad(
+              cellV[cid(x - 1, y - 1, z)],
+              cellV[cid(x, y - 1, z)],
+              cellV[cid(x, y, z)],
+              cellV[cid(x - 1, y, z)],
+              f0,
+            );
+        }
+
+    // leva cada vértice exatamente para a superfície lisa (a grade deixa degraus que viram faixas na luz)
+    {
+      const e2 = 0.002;
+      for (let i = 0; i < pos.length; i += 3) {
+        for (let it = 0; it < 3; it++) {
+          const x = pos[i],
+            y = pos[i + 1],
+            z = pos[i + 2];
+          const d = sdf(x, y, z);
+          let gx = sdf(x + e2, y, z) - sdf(x - e2, y, z);
+          let gy = sdf(x, y + e2, z) - sdf(x, y - e2, z);
+          let gz = sdf(x, y, z + e2) - sdf(x, y, z - e2);
+          const gl = Math.hypot(gx, gy, gz) || 1;
+          gx /= gl;
+          gy /= gl;
+          gz /= gl;
+          const step = Math.max(-h, Math.min(h, d));
+          pos[i] -= gx * step;
+          pos[i + 1] -= gy * step;
+          pos[i + 2] -= gz * step;
+        }
+      }
+    }
+    // normais pela própria forma (bem lisas)
+    const nv = pos.length / 3;
+    const nor = new Float32Array(nv * 3);
+    const e = 0.003;
+    for (let i = 0; i < nv; i++) {
+      const x = pos[i * 3],
+        y = pos[i * 3 + 1],
+        z = pos[i * 3 + 2];
+      const gx = sdf(x + e, y, z) - sdf(x - e, y, z),
+        gy = sdf(x, y + e, z) - sdf(x, y - e, z),
+        gz = sdf(x, y, z + e) - sdf(x, y, z - e);
+      const gl = Math.hypot(gx, gy, gz) || 1;
+      nor[i * 3] = gx / gl;
+      nor[i * 3 + 1] = gy / gl;
+      nor[i * 3 + 2] = gz / gl;
+    }
+
+    // pesos dos ossos copiados do manequim do pack (feitos por artista): cada ponto do nosso corpo usa os do ponto
+    // mais perto do manequim, na mesma pose — a dobra fica suave, sem rasgar nas junções
+    const src = []; // [x, y, z, i0..i3 (índices no nosso esqueleto), w0..w3]
+    const vtx = new THREE.Vector3();
+    base.traverse((o) => {
+      if (!o.isSkinnedMesh) return;
+      const map = o.skeleton.bones.map((b) => skeleton.bones.indexOf(b));
+      const gp = o.geometry.attributes.position,
+        si = o.geometry.attributes.skinIndex,
+        sw = o.geometry.attributes.skinWeight;
+      for (let k = 0; k < gp.count; k++) {
+        o.getVertexPosition(k, vtx).applyMatrix4(o.matrixWorld);
+        src.push([
+          vtx.x,
+          vtx.y,
+          vtx.z,
+          map[si.getX(k)],
+          map[si.getY(k)],
+          map[si.getZ(k)],
+          map[si.getW(k)],
+          sw.getX(k),
+          sw.getY(k),
+          sw.getZ(k),
+          sw.getW(k),
+        ]);
+      }
+    });
+    // grade de busca (células de 6 cm)
+    const cell = 0.06;
+    const grid = new Map();
+    const key = (a, b, c) => `${a},${b},${c}`;
+    for (const v of src) {
+      const k = key(Math.floor(v[0] / cell), Math.floor(v[1] / cell), Math.floor(v[2] / cell));
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(v);
+    }
+    // grupo de cada osso pelo ancestral (mão e dedos viram antebraço; pé vira canela: pontas lisas, sem dobra)
+    const boneGroup = skeleton.bones.map((b) => {
+      for (let o = b; o && o.isBone; o = o.parent) {
+        const n = o.name;
+        if (/^(upperarm|lowerarm|hand)_l$/.test(n)) return 'AL';
+        if (/^(upperarm|lowerarm|hand)_r$/.test(n)) return 'AR';
+        if (/^(thigh|calf|foot)_l$/.test(n)) return 'LL';
+        if (/^(thigh|calf|foot)_r$/.test(n)) return 'LR';
+      }
+      return 'T';
+    });
+    const remap = skeleton.bones.map((b, i) => {
+      for (let o = b; o && o.isBone; o = o.parent) {
+        const m = /^hand_(l|r)$/.exec(o.name);
+        if (m) return bi(`lowerarm_${m[1]}`);
+        const f = /^foot_(l|r)$/.exec(o.name);
+        if (f) return bi(`calf_${f[1]}`);
+      }
+      return i;
+    });
+    const okFor = (v, g) => {
+      let w = 0;
+      for (let k = 0; k < 4; k++) if (v[3 + k] >= 0 && boneGroup[v[3 + k]] === g) w += v[7 + k];
+      return w > 0.5;
+    };
+    const skinIndex = new Uint16Array(nv * 4);
+    const skinWeight = new Float32Array(nv * 4);
+    const headBone = bi('Head');
+    for (let i = 0; i < nv; i++) {
+      const x = pos[i * 3],
+        y = pos[i * 3 + 1],
+        z = pos[i * 3 + 2];
+      // a cabeça inteira segue o osso da cabeça (o manequim tem cabeça menor)
+      if (headSDF(x - head.x, y - head.y, z - head.z) < 0.012 && y > head.y - 0.16) {
+        skinIndex[i * 4] = headBone;
+        skinWeight[i * 4] = 1;
+        continue;
+      }
+      // parte do corpo deste ponto (tronco, braço ou perna): só copia pesos de ossos dessa parte, assim o
+      // tronco perto da axila não pega o braço (e vice-versa)
+      const gd = groupDist(x, y, z);
+      let L = 'AL';
+      for (const g of ['AR', 'LL', 'LR']) if (gd[g] < gd[L]) L = g;
+      const ss = (e0, e1, t) => {
+        const u = Math.min(1, Math.max(0, (t - e0) / (e1 - e0)));
+        return u * u * (3 - 2 * u);
+      };
+      // quanto este ponto é do membro mais próximo (1) ou do tronco (0): transição suave na junção, sem degrau
+      const f = ss(-0.035, 0.035, gd.T - gd[L]);
+      const acc = new Map();
+      const add = (bone, w) => {
+        if (w > 0) acc.set(bone, (acc.get(bone) || 0) + w);
+      };
+      if (f > 0) {
+        // braço/perna: peso direto ao longo da corrente de ossos, com cotovelo/joelho largo e macio
+        const sd = L.endsWith('L') ? 'l' : 'r';
+        const [rootB, aB, bB] =
+          L[0] === 'A'
+            ? [`clavicle_${sd}`, `upperarm_${sd}`, `lowerarm_${sd}`]
+            : ['pelvis', `thigh_${sd}`, `calf_${sd}`];
+        const A = P(aB),
+          B = P(bB);
+        const dir = B.clone().sub(A).normalize();
+        const sA = (x - A.x) * dir.x + (y - A.y) * dir.y + (z - A.z) * dir.z;
+        const sB = (x - B.x) * dir.x + (y - B.y) * dir.y + (z - B.z) * dir.z;
+        const wLow = ss(-0.11, 0.11, sB);
+        const wRoot = 1 - ss(-0.05, 0.1, sA);
+        add(bi(rootB), f * wRoot * (1 - wLow));
+        add(bi(aB), f * (1 - wRoot) * (1 - wLow));
+        add(bi(bB), f * wLow);
+      }
+      if (f < 1) {
+        const gx = Math.floor(x / cell),
+          gy = Math.floor(y / cell),
+          gz = Math.floor(z / cell);
+        let best = null,
+          bd = Infinity;
+        for (let r = 1; r <= 4 && !best; r++) {
+          for (let a = -r; a <= r; a++)
+            for (let b = -r; b <= r; b++)
+              for (let c = -r; c <= r; c++) {
+                const list = grid.get(key(gx + a, gy + b, gz + c));
+                if (!list) continue;
+                for (const v of list) {
+                  if (!okFor(v, 'T')) continue;
+                  const d = (v[0] - x) ** 2 + (v[1] - y) ** 2 + (v[2] - z) ** 2;
+                  if (d < bd) {
+                    bd = d;
+                    best = v;
+                  }
+                }
+              }
+        }
+        if (!best) add(bi('pelvis'), 1 - f);
+        else for (let k = 0; k < 4; k++) if (best[3 + k] >= 0) add(remap[best[3 + k]], (1 - f) * best[7 + k]);
+      }
+      const top = [...acc].sort((p1, p2) => p2[1] - p1[1]).slice(0, 4);
+      const sum = top.reduce((t, r) => t + r[1], 0) || 1;
+      for (let k = 0; k < 4; k++) {
+        skinIndex[i * 4 + k] = top[k] ? top[k][0] : 0;
+        skinWeight[i * 4 + k] = top[k] ? top[k][1] / sum : 0;
+      }
+    }
+    // suaviza os pesos sobre a malha (média com os vizinhos, várias vezes): o manequim é articulado, com trocas
+    // bruscas de osso; aqui as junções viram transições graduais e a pele não rasga
+    {
+      const NB = skeleton.bones.length;
+      let W = new Float32Array(nv * NB);
+      for (let i = 0; i < nv; i++)
+        for (let k = 0; k < 4; k++) W[i * NB + skinIndex[i * 4 + k]] += skinWeight[i * 4 + k];
+      const nbr = Array.from({ length: nv }, () => new Set());
+      for (let t = 0; t < idx.length; t += 3) {
+        const a = idx[t],
+          b = idx[t + 1],
+          c = idx[t + 2];
+        nbr[a].add(b).add(c);
+        nbr[b].add(a).add(c);
+        nbr[c].add(a).add(b);
+      }
+      const lists = nbr.map((st) => [...st]);
+      const isHead = new Uint8Array(nv);
+      for (let i = 0; i < nv; i++)
+        isHead[i] = skinWeight[i * 4] === 1 && skinIndex[i * 4] === headBone && pos[i * 3 + 1] > head.y ? 1 : 0;
+      for (let it = 0; it < 24; it++) {
+        const N = new Float32Array(nv * NB);
+        for (let i = 0; i < nv; i++) {
+          const L = lists[i];
+          const base0 = i * NB;
+          if (isHead[i] || L.length === 0) {
+            for (let b = 0; b < NB; b++) N[base0 + b] = W[base0 + b];
+            continue;
+          }
+          const inv = 0.5 / L.length;
+          for (let b = 0; b < NB; b++) N[base0 + b] = W[base0 + b] * 0.5;
+          for (const j of L) {
+            const bj = j * NB;
+            for (let b = 0; b < NB; b++) N[base0 + b] += W[bj + b] * inv;
+          }
+        }
+        W = N;
+      }
+      for (let i = 0; i < nv; i++) {
+        const row = [];
+        for (let b = 0; b < NB; b++) if (W[i * NB + b] > 1e-4) row.push([b, W[i * NB + b]]);
+        row.sort((x, y) => y[1] - x[1]);
+        const top = row.slice(0, 4);
+        const sum = top.reduce((t, r) => t + r[1], 0) || 1;
+        for (let k = 0; k < 4; k++) {
+          skinIndex[i * 4 + k] = top[k] ? top[k][0] : 0;
+          skinWeight[i * 4 + k] = top[k] ? top[k][1] / sum : 0;
+        }
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndex, 4));
+    geo.setAttribute('skinWeight', new THREE.BufferAttribute(skinWeight, 4));
+    geo.setIndex(idx);
+    const mesh = new THREE.SkinnedMesh(geo, clay('#f4f2ee'));
+    mesh.name = 'doll-body';
+    mesh.castShadow = true;
+    mesh.receiveShadow = false; // sem sombra do próprio corpo: em massinha lisa ela vira "luas" e faixas
+    mesh.frustumCulled = false;
+    base.add(mesh);
+    base.updateMatrixWorld(true);
+    skeleton.calculateInverses();
+    mesh.bind(skeleton, mesh.matrixWorld);
+    return { headCenter: hc };
+  }
+
+  // ---------- rosto e antena (presos à cabeça) ----------
+  const FACE = new THREE.MeshStandardMaterial({ color: 0x1b1d22, roughness: 0.35 });
+  const GLINT = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const MOUTH_IN = new THREE.MeshStandardMaterial({ color: 0x7a2a35, roughness: 0.6 });
+
+  function dress(root, color, headCenter) {
+    const bones = {};
+    const mat = clay(color);
+    root.traverse((o) => {
+      if (o.isBone) bones[o.name] = o;
+      if (o.name === 'doll-body') o.material = mat;
+    });
+    root.updateMatrixWorld(true);
+    const H = bones.Head;
+    const s = H.getWorldScale(new THREE.Vector3()).x;
+    const hc = headCenter.clone().add(root.position);
+    const onHead = (dx, dy, out = 0) => {
+      // ponto na superfície da cabeça, na frente (+z), deslocado dx/dy
+      const p = new THREE.Vector3(dx, dy, 0);
+      p.z = headFrontZ(dx, dy) + out;
+      return H.worldToLocal(hc.clone().add(p));
+    };
+    const face = new THREE.Group();
+    // olhos: ovais escuros com um brilho, que piscam
+    const eyes = [];
+    for (const x of [-0.058, 0.058]) {
+      const eye = new THREE.Group();
+      const iris = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), FACE);
+      iris.scale.set(0.024 / s, 0.036 / s, 0.012 / s);
+      eye.add(iris);
+      const glint = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), GLINT);
+      glint.scale.setScalar(0.0075 / s);
+      glint.position.set(0.007 / s, 0.012 / s, 0.009 / s);
+      eye.add(glint);
+      eye.position.copy(onHead(x, 0.028, (-0.004 / s) * 0));
+      H.add(eye);
+      eyes.push(eye);
+    }
+    // boca: fecha numa linha e abre num oval enquanto fala
+    const mouth = new THREE.Group();
+    const lip = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), FACE);
+    lip.scale.set(0.034 / s, 0.006 / s, 0.012 / s);
+    mouth.add(lip);
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), MOUTH_IN);
+    inner.scale.set(0.028 / s, 0.004 / s, 0.011 / s);
+    inner.position.z = 0.002 / s;
+    mouth.add(inner);
+    mouth.position.copy(onHead(0, -0.055));
+    H.add(mouth);
+    // antena: a marca dos bonecos do OpenCord
+    const antenna = new THREE.Group();
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.008 / s, 0.008 / s, 0.13 / s, 8), clay('#2b2e36'));
+    stalk.position.y = 0.065 / s;
+    antenna.add(stalk);
+    const tip = new THREE.Mesh(
+      new THREE.SphereGeometry(0.026 / s, 16, 12),
+      new THREE.MeshStandardMaterial({ color: 0x7aa2ff, emissive: 0x2a4aa0, roughness: 0.4 }),
+    );
+    tip.position.y = 0.135 / s;
+    antenna.add(tip);
+    antenna.position.copy(H.worldToLocal(hc.clone().add(new THREE.Vector3(0.05, headTopY(0.05, -0.02) - 0.01, -0.02))));
+    antenna.rotation.z = -0.25;
+    H.add(antenna);
+    for (const o of [...eyes, mouth, antenna])
+      o.traverse((m) => {
+        if (m.isMesh) m.castShadow = true;
+      });
+    return {
+      mat,
+      eyes,
+      lip,
+      inner,
+      antenna,
+      tip,
+      blinkIn: 1 + Math.random() * 3,
+      blink: 0,
+      open: 0,
+      talkSeed: Math.random() * 100,
+    };
+  }
+
+  let base = null;
+  let clips = [];
+  let headCenter = null;
+  const figures = [];
+  let currentClip = 'Idle_Talking_Loop';
+  let pickedColor = COLORS[0];
+
+  async function loadEmbedded(url) {
+    const json = await (await fetch(url)).json();
+    const uri = json.buffers[0].uri;
+    const raw = atob(uri.slice(uri.indexOf(',') + 1));
+    const bin = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i);
+    delete json.buffers[0].uri;
+    json.buffers[0].byteLength = bin.length;
+    const enc = new TextEncoder().encode(JSON.stringify(json));
+    const jl = Math.ceil(enc.length / 4) * 4,
+      bl = Math.ceil(bin.length / 4) * 4;
+    const out = new ArrayBuffer(28 + jl + bl);
+    const dv = new DataView(out),
+      u8 = new Uint8Array(out);
+    dv.setUint32(0, 0x46546c67, true);
+    dv.setUint32(4, 2, true);
+    dv.setUint32(8, out.byteLength, true);
+    dv.setUint32(12, jl, true);
+    dv.setUint32(16, 0x4e4f534a, true);
+    u8.fill(0x20, 20, 20 + jl);
+    u8.set(enc, 20);
+    dv.setUint32(20 + jl, bl, true);
+    dv.setUint32(24 + jl, 0x004e4942, true);
+    u8.set(bin, 28 + jl);
+    return new Promise((resolve, reject) => new GLTFLoader().parse(out, '', resolve, reject));
+  }
+
+  loadEmbedded('ual.json')
+    .then((gltf) => {
+      base = gltf.scene;
+      clips = gltf.animations;
+      headCenter = buildBody(base).headCenter;
+      window.__bake = async () => {
+        const KEEP = [
+          'Idle_Loop',
+          'Idle_Talking_Loop',
+          'Walk_Loop',
+          'Jog_Fwd_Loop',
+          'Sprint_Loop',
+          'Jump_Loop',
+          'Sitting_Idle_Loop',
+          'Sitting_Talking_Loop',
+          'Driving_Loop',
+          'Punch_Jab',
+          'Punch_Cross',
+          'Death01',
+          'Hit_Chest',
+          'Sword_Attack',
+          'Dance_Loop',
+        ];
+        const skip = /^(hand_|index_|middle_|pinky_|ring_|thumb_|foot_|ball_)/;
+        const anims = clips
+          .filter((c) => KEEP.includes(c.name))
+          .map((c) => {
+            const tracks = c.tracks.filter((t) => {
+              const [bone, prop] = t.name.split('.');
+              if (skip.test(bone)) return false;
+              if (prop === 'scale') return false;
+              if (prop === 'position') return bone === 'pelvis' || bone === 'root';
+              return true;
+            });
+            const k = new THREE.AnimationClip(c.name, c.duration, tracks);
+            k.optimize();
+            return k;
+          });
+        const drop = [];
+        base.traverse((o) => {
+          if (o.isSkinnedMesh && o.name !== 'doll-body') drop.push(o);
+        });
+        for (const o of drop) o.parent.remove(o);
+        const body = base.getObjectByName('doll-body');
+        const bones = {};
+        base.traverse((o) => {
+          if (o.isBone) bones[o.name] = o;
+        });
+        base.updateMatrixWorld(true);
+        const H = bones.Head;
+        const hc = headCenter.clone();
+        const at = (dx, dy, out = 0) =>
+          H.worldToLocal(hc.clone().add(new THREE.Vector3(dx, dy, headFrontZ(dx, dy) + out))).toArray();
+        body.userData = {
+          verts: body.geometry.attributes.position.count,
+          eyeL: at(-0.058, 0.028),
+          eyeR: at(0.058, 0.028),
+          mouth: at(0, -0.055),
+          antenna: H.worldToLocal(
+            hc.clone().add(new THREE.Vector3(0.05, headTopY(0.05, -0.02) - 0.01, -0.02)),
+          ).toArray(),
+          headScale: H.getWorldScale(new THREE.Vector3()).x,
+        };
+        const out = await new GLTFExporter().parseAsync(base, { binary: true, animations: anims, onlyVisible: false });
+        const u8 = new Uint8Array(out);
+        let bin = '';
+        for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+        return { b64: btoa(bin), info: body.userData, names: anims.map((a) => a.name) };
+      };
+      const N = 5;
+      for (let i = 0; i < N; i++) {
+        const root = SkeletonUtils.clone(base);
+        root.position.set((i - (N - 1) / 2) * 1.15, 0, i % 2 ? -0.45 : 0);
+        root.rotation.y = (i - (N - 1) / 2) * -0.1;
+        scene.add(root);
+        const face = dress(
+          root,
+          MIXED[i % MIXED.length],
+          headCenter.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), 0),
+        );
+        const mixer = new THREE.AnimationMixer(root);
+        figures.push({ root, face, mixer, action: null, phase: i * 0.37, talking: i % 2 === 0 });
+      }
+      status.hidden = true;
+      play(currentClip);
+    })
+    .catch(() => {
+      status.textContent = 'Não foi possível carregar as animações.';
+    });
+
+  function play(name) {
+    currentClip = name;
+    const clip = clips.find((c) => c.name === name);
+    if (!clip) return;
+    const sync = document.getElementById('sync').checked;
+    for (const f of figures) {
+      const next = f.mixer.clipAction(clip);
+      next.reset();
+      next.time = sync ? 0 : (f.phase * clip.duration) % clip.duration;
+      next.setLoop(THREE.LoopRepeat, Infinity);
+      if (f.action && f.action !== next) next.crossFadeFrom(f.action, 0.25, false);
+      next.play();
+      f.action = next;
+    }
+    for (const b of document.querySelectorAll('#clips .chip'))
+      b.setAttribute('aria-pressed', String(b.dataset.clip === name));
+  }
+
+  function recolor() {
+    const mixed = document.getElementById('mixed').checked;
+    figures.forEach((f, i) => f.face.mat.color.set(mixed ? MIXED[i % MIXED.length] : pickedColor));
+    for (const b of document.querySelectorAll('#colors .swatch'))
+      b.setAttribute('aria-pressed', String(!mixed && b.dataset.color === pickedColor));
+  }
+
+  const clipBox = document.getElementById('clips');
+  for (const [label, name] of CLIPS) {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.type = 'button';
+    b.textContent = label;
+    b.dataset.clip = name;
+    b.setAttribute('aria-pressed', String(name === currentClip));
+    b.addEventListener('click', () => play(name));
+    clipBox.append(b);
+  }
+  const colorBox = document.getElementById('colors');
+  for (const c of COLORS) {
+    const b = document.createElement('button');
+    b.className = 'swatch';
+    b.type = 'button';
+    b.style.background = c;
+    b.dataset.color = c;
+    b.setAttribute('aria-label', `Cor ${c}`);
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => {
+      pickedColor = c;
+      document.getElementById('mixed').checked = false;
+      recolor();
+    });
+    colorBox.append(b);
+  }
+  document.getElementById('mixed').addEventListener('change', recolor);
+  document
+    .getElementById('antenna')
+    .addEventListener('change', (e) => figures.forEach((f) => (f.face.antenna.visible = e.target.checked)));
+  document.getElementById('sync').addEventListener('change', () => play(currentClip));
+
+  function resize() {
+    const w = stage.clientWidth,
+      h = stage.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.position.setLength(w < 600 ? 10.5 : 7.8);
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(stage);
+  resize();
+
+  // voz simulada: sílabas (abre e fecha) com pausas, como alguém falando
+  function speech(t, seed) {
+    const syll = Math.max(0, Math.sin(t * 13 + seed) * 0.6 + Math.sin(t * 7.3 + seed * 2) * 0.5);
+    const phrase = Math.sin(t * 0.9 + seed) > -0.2 ? 1 : 0;
+    return Math.min(1, syll * phrase);
+  }
+
+  const clock = new THREE.Clock();
+  renderer.setAnimationLoop(() => {
+    const dt = Math.min(0.05, clock.getDelta());
+    const t = clock.elapsedTime;
+    const talkAll = document.getElementById('talk').checked;
+    for (const f of figures) {
+      f.mixer.update(dt);
+      const F = f.face;
+      // piscar: de 2 a 5 s, fecha por ~0,12 s
+      F.blinkIn -= dt;
+      if (F.blinkIn <= 0) {
+        F.blink = 0.12;
+        F.blinkIn = 2 + Math.random() * 3;
+      }
+      if (F.blink > 0) F.blink -= dt;
+      const closed = F.blink > 0 ? 0.12 : 1;
+      for (const e of F.eyes) e.scale.y += (closed - e.scale.y) * Math.min(1, dt * 40);
+      // boca: abre com o "volume" da voz
+      const target = talkAll && f.talking ? speech(t, F.talkSeed) : 0;
+      F.open += (target - F.open) * Math.min(1, dt * 18);
+      F.lip.scale.y = F.lip.scale.x * (0.18 + F.open * 0.62);
+      F.inner.scale.y = F.inner.scale.x * F.open * 0.62;
+      F.tip.material.emissiveIntensity = 0.6 + F.open * 1.4;
+    }
+    controls.update();
+    renderer.render(scene, camera);
+  });
+</script>
