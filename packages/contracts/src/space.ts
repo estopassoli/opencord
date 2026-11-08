@@ -181,8 +181,17 @@ export const SpaceSession = z.object({
   screen: SpaceScreen.nullable(),
   /** luminárias, lareiras e fliperamas desligados/ligados nesta chamada (id da peça → ligada) */
   toggles: z.record(z.string(), z.boolean()).optional(),
-  /** placar de cada arena ("1" basquete, "2" futebol, "3" tênis): pontos do lado A e do lado B */
+  /** placar de cada arena ("1" basquete … "6" sinuca): pontos do lado A e do lado B */
   scores: z.record(z.string(), z.object({ a: z.number().int(), b: z.number().int() })).optional(),
+  /** corrida de moto: largada (relógio do servidor), voltas e chegada de cada um (ms de prova) */
+  race: z
+    .object({
+      startAt: z.number(),
+      laps: z.number().int(),
+      results: z.array(z.object({ userId: Id, ms: z.number().int() })),
+    })
+    .nullable()
+    .optional(),
   updatedBy: Id.nullable(),
   revision: z.number().int(),
 });
@@ -200,8 +209,9 @@ export const SpaceMove = z.object({
   z: Coord,
   ry: z.number().finite().min(-7).max(7),
   a: z.number().int().min(0).max(9),
-  /** onde a pessoa está: 0 (ou ausente) a sala do servidor; 1 basquete, 2 futebol, 3 tênis */
-  zone: z.number().int().min(0).max(3).optional(),
+  /** onde a pessoa está: 0 (ou ausente) a sala do servidor; 1 basquete, 2 futebol, 3 tênis, 4 vôlei, 5 ping pong,
+   * 6 sinuca, 7 corrida de moto */
+  zone: z.number().int().min(0).max(7).optional(),
   /** time nas arenas: a (azul, ataca +x) ou b (vermelho, ataca −x) */
   team: z.enum(['a', 'b']).optional(),
 });
@@ -444,9 +454,25 @@ export function duelReaches(a: { x: number; z: number; ry: number }, b: { x: num
 }
 
 // ---------- esportes (arenas do espaço) ----------
-export const SPORT_ZONES = { basketball: 1, soccer: 2, tennis: 3 } as const;
-export type SportZone = 1 | 2 | 3;
-export const SPORT_LABELS: Record<SportZone, string> = { 1: 'Basquete', 2: 'Futebol', 3: 'Tênis' };
+export const SPORT_ZONES = {
+  basketball: 1,
+  soccer: 2,
+  tennis: 3,
+  volleyball: 4,
+  pingpong: 5,
+  pool: 6,
+  race: 7,
+} as const;
+export type SportZone = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export const SPORT_LABELS: Record<SportZone, string> = {
+  1: 'Basquete',
+  2: 'Futebol',
+  3: 'Tênis',
+  4: 'Vôlei',
+  5: 'Ping pong',
+  6: 'Sinuca',
+  7: 'Corrida de moto',
+};
 
 /**
  * Bola de uma arena: quem tocou por último simula e manda (~10x/s); os outros seguem.
@@ -454,7 +480,7 @@ export const SPORT_LABELS: Record<SportZone, string> = { 1: 'Basquete', 2: 'Fute
  */
 export const SpaceBall = z.object({
   channelId: Id,
-  zone: z.number().int().min(1).max(3),
+  zone: z.number().int().min(1).max(7),
   x: z.number().finite().min(-80).max(80),
   y: z.number().finite().min(-5).max(40),
   z: z.number().finite().min(-80).max(80),
@@ -469,7 +495,27 @@ export type SpaceBall = z.infer<typeof SpaceBall>;
 
 export const SpaceScore = z.object({
   channelId: Id,
-  zone: z.number().int().min(1).max(3),
+  zone: z.number().int().min(1).max(7),
   side: z.enum(['a', 'b']),
   points: z.number().int().min(1).max(3),
 });
+
+/** Sinuca: as 16 bolas (0 = branca) [x, z, encaçapada 0/1], de quem é a vez e se ainda estão rolando. */
+export const SpacePool = z.object({
+  channelId: Id,
+  balls: z
+    .array(
+      z.tuple([z.number().finite().min(-5).max(5), z.number().finite().min(-5).max(5), z.number().int().min(0).max(1)]),
+    )
+    .max(16),
+  turn: z.enum(['a', 'b']),
+  moving: z.boolean(),
+  /** contador de tacadas: a mais nova manda (como a posse da bola) */
+  t: z.number().int().min(0),
+});
+export type SpacePool = z.infer<typeof SpacePool>;
+
+export const RACE_LAPS = 3;
+/** prova mínima plausível (anti-trapaça grosseira): uma volta não sai em menos de 12 s */
+export const RACE_MIN_LAP_MS = 12_000;
+export const RACE_COUNTDOWN_MS = 4000;

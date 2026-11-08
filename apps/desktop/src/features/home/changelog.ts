@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-08',
+    time: '23:55',
+    kind: 'novo',
+    icon: 'gamepad',
+    title: 'Vôlei e ping pong no Espaço 3D',
+    body: 'O menu Jogos ganhou vôlei de areia e ping pong. No tênis e no ping pong os bonecos agora seguram a raquete e batem com ela. Aperte F com a bola perto para rebater e olhe para um lado para puxar a bola para ele.',
+  },
+  {
+    date: '2026-11-08',
     time: '23:30',
     kind: 'melhoria',
     icon: 'gamepad',

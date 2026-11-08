@@ -20,6 +20,7 @@ import {
   type PlayingGame,
   SpaceBall,
   SpaceLeave,
+  SpacePool,
   SpaceMove,
   type SpaceScreen,
 } from '@opencord/contracts';
@@ -161,6 +162,12 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       if (!balls.take()) return;
       const b = SpaceBall.safeParse(payload);
       if (b.success) void this.space.ball(socket.data.userId, b.data).catch(() => undefined);
+    });
+    const pools = new Bucket(20, 20);
+    socket.on('space:pool', (payload: unknown) => {
+      if (!pools.take()) return;
+      const p = SpacePool.safeParse(payload);
+      if (p.success) void this.space.pool(socket.data.userId, p.data).catch(() => undefined);
     });
     socket.on('space:leave', (payload: unknown) => {
       if (!bucket.take()) return;
@@ -341,6 +348,14 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       case 'space:score:reset': {
         const d = p as { channelId: string; zone: number };
         return (await this.space.resetScore(userId, d.channelId, d.zone)) as R;
+      }
+      case 'space:race:start': {
+        const d = p as { channelId: string };
+        return (await this.space.raceStart(userId, d.channelId)) as R;
+      }
+      case 'space:race:finish': {
+        const d = p as { channelId: string; ms: number };
+        return (await this.space.raceFinish(userId, d.channelId, d.ms)) as R;
       }
       case 'sync:resume': {
         const d = p as { channels: { channelId: string; lastMessageId: string | null }[] };

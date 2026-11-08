@@ -78,3 +78,32 @@ describe('Espaço 3D: quem fica com a bola', () => {
     expect(acceptBall(0, 'aa', 0, null)).toBe(true);
   });
 });
+
+describe('Espaço 3D: vôlei e ping pong', () => {
+  it('regras de ponto', async () => {
+    const { netPoint } = await import('../src/features/space3d/sportplay');
+    // vôlei: A bateu; caiu dentro do lado B → ponto A; caiu dentro do lado A → ponto B; fora → ponto B
+    expect(netPoint(4, 'a', { x: 3, z: 0, surface: 'floor' }, 0)).toBe('a');
+    expect(netPoint(4, 'a', { x: -3, z: 0, surface: 'floor' }, 0)).toBe('b');
+    expect(netPoint(4, 'a', { x: 12, z: 0, surface: 'floor' }, 0)).toBe('b');
+    // ping pong: A bateu; quicou na mesa do B uma vez → conta; duas → ponto A; no chão sem quicar na mesa → ponto B
+    expect(netPoint(5, 'a', { x: 0.8, z: 0, surface: 'table' }, 0)).toBe('bounce');
+    expect(netPoint(5, 'a', { x: 0.8, z: 0, surface: 'table' }, 1)).toBe('a');
+    expect(netPoint(5, 'a', { x: 3, z: 0, surface: 'floor' }, 0)).toBe('b');
+    expect(netPoint(5, 'a', { x: 3, z: 0, surface: 'floor' }, 1)).toBe('a');
+    expect(netPoint(5, 'a', { x: -0.8, z: 0, surface: 'table' }, 0)).toBe('b');
+  });
+
+  it('a bolinha quica na mesa e o lob passa por cima da rede', () => {
+    const from = { x: -1.6, y: 0.95, z: 0 };
+    const to = { x: 0.9, y: 0.76 + 0.025, z: 0.2 };
+    const b = { ...from, ...lob(from, to, 0.25) };
+    const ev = run(5, b, 1.5);
+    expect(ev.some((e) => e.kind === 'net')).toBe(false);
+    const first = ev.find((e) => e.kind === 'bounce');
+    expect(first).toMatchObject({ surface: 'table' });
+    const vfrom = { x: -6, y: 1.6, z: 0 };
+    const vb = { ...vfrom, ...lob(vfrom, { x: 4, y: 0.11, z: 1 }, 1.6) };
+    expect(run(4, vb, 3).some((e) => e.kind === 'net')).toBe(false);
+  });
+});

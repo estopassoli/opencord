@@ -9,7 +9,7 @@
 import type { SportZone } from '@opencord/contracts';
 import * as THREE from 'three';
 import { ballMesh } from './arena3d';
-import { ARENAS, basketShot, COURT_HX, COURT_HZ, lob, stepBall, type BallState, type Vec } from './sports';
+import { ARENAS, basketShot, lob, stepBall, type BallState, type Vec } from './sports';
 
 export interface RemoteBall extends BallState {
   held: string | null;
@@ -90,7 +90,8 @@ export class SportPlay {
       return null;
     }
     if (this.zone === 2) return d < 1.6 ? 'Chutar forte' : null;
-    if (d < 2) return this.parked ? 'Sacar' : 'Rebater';
+    if (d < (ARENAS[this.zone].reach ?? 2))
+      return this.parked ? 'Sacar' : this.zone === 4 ? 'Bater na bola' : 'Rebater';
     return null;
   }
 
@@ -109,39 +110,53 @@ export class SportPlay {
   }
 
   /** F apertado */
-  press(now: number) {
+  /** devolve true quando bateu na bola (a cena anima o braço/raquete) */
+  press(now: number): boolean {
     const d = this.distToMe();
     if (this.zone === 1) {
       if (this.holding) {
         this.charge = 0;
-        return;
+        return false;
       }
       if (d < 1.4) {
         this.held = this.selfId;
         this.take(now);
       }
-      return;
+      return false;
     }
     if (this.zone === 2) {
-      if (d > 1.6) return;
+      if (d > 1.6) return false;
       // chute forte para onde estou olhando
       this.ball.vx = Math.sin(this.me.ry) * 15;
       this.ball.vz = Math.cos(this.me.ry) * 15;
       this.ball.vy = 3.2;
       this.take(now);
-      return;
+      return true;
     }
-    if (d > 2) return;
-    // tênis: rebate para fundo do outro lado, puxando para onde estou olhando
+    const a = ARENAS[this.zone];
+    if (!a.net || !a.court || d > (a.reach ?? 2)) return false;
+    // tênis, vôlei e ping pong: rebate para o outro lado; olhar mais para um lado puxa a bola para ele
+    const c = a.court;
     const side = this.me.x < 0 ? 1 : -1;
-    // olhar mais para um lado puxa a bola para ele
-    const aimZ = Math.max(-COURT_HZ + 0.8, Math.min(COURT_HZ - 0.8, this.me.z + Math.cos(this.me.ry) * 6));
-    const to = { x: side * (5 + Math.random() * 5), y: ARENAS[3].r, z: aimZ };
-    const from = { x: this.ball.x, y: Math.max(this.ball.y, 0.9), z: this.ball.z };
-    Object.assign(this.ball, from, lob(from, to, this.parked ? 1.6 : 1.2));
+    const tune = NET_TUNE[this.zone as 3 | 4 | 5];
+    const aimZ = Math.max(
+      -c.hz + tune.margin,
+      Math.min(c.hz - tune.margin, this.me.z + Math.cos(this.me.ry) * tune.pull),
+    );
+    const to = {
+      x: side * (tune.depth[0] + Math.random() * (tune.depth[1] - tune.depth[0])),
+      y: (a.table?.y ?? 0) + a.r,
+      z: aimZ,
+    };
+    const from = { x: this.ball.x, y: Math.max(this.ball.y, tune.minY), z: this.ball.z };
+    // a bola tem que passar por cima da rede com folga
+    const netTop = a.net.y0 + a.net.h + tune.clear;
+    const apex = Math.max(this.parked ? tune.apex * 1.3 : tune.apex, netTop - Math.max(from.y, to.y));
+    Object.assign(this.ball, from, lob(from, to, apex));
     this.hitSide = this.me.x < 0 ? 'a' : 'b';
     this.bounces = 0;
     this.take(now);
+    return true;
   }
 
   /** F solto (basquete: arremessa com a carga atual) */
@@ -209,10 +224,13 @@ export class SportPlay {
     // ponto marcado: a bola volta para a saída
     if (this.resetAt && now >= this.resetAt && this.mine) {
       this.resetAt = 0;
-      const start =
-        this.zone === 3
-          ? (this.servePos(this.serveSide) ?? { x: (this.serveSide === 'a' ? -1 : 1) * (COURT_HX - 1), y: 1.2, z: 0 })
-          : a.ballStart;
+      const serveY = this.zone === 4 ? 1.6 : this.zone === 5 ? 1.05 : 1.2;
+      const sp = a.net ? this.servePos(this.serveSide) : null;
+      const start = a.net
+        ? sp
+          ? { ...sp, y: serveY }
+          : { x: (this.serveSide === 'a' ? -1 : 1) * (a.serveX ?? 1), y: serveY, z: 0 }
+        : a.ballStart;
       Object.assign(this.ball, start, { vx: 0, vy: 0, vz: 0 });
       this.parked = true;
       this.held = null;
@@ -232,17 +250,12 @@ export class SportPlay {
       this.resetAt = now + 1500;
       return;
     }
-    if (this.zone !== 3 || e.kind !== 'bounce' || !this.hitSide) return;
-    // tênis: quem rebateu é `hitSide` (a joga em x < 0)
-    const other = this.hitSide === 'a' ? 'b' : 'a';
-    const sideOfBounce = e.x < 0 ? 'a' : 'b';
-    const out = Math.abs(e.x) > COURT_HX || Math.abs(e.z) > COURT_HZ;
-    let point: 'a' | 'b' | null = null;
-    if (sideOfBounce === this.hitSide)
-      point = other; // não passou da rede
-    else if (out)
-      point = this.bounces === 0 ? other : this.hitSide; // fora direto: erro; depois de quicar dentro: ponto
-    else if (++this.bounces >= 2) point = this.hitSide; // quicou duas vezes do outro lado
+    if (e.kind !== 'bounce' || !this.hitSide) return;
+    const point = netPoint(this.zone, this.hitSide, e, this.bounces);
+    if (point === 'bounce') {
+      this.bounces++;
+      return;
+    }
     if (point) {
       this.serveSide = point;
       this.hooks.score(point, 1);
@@ -285,4 +298,47 @@ export function acceptBall(t: number, by: string, myT: number, authority: string
   if (t > myT) return true;
   if (t < myT) return false;
   return by === authority || !authority || by > authority;
+}
+
+/** ajustes do rebate de cada jogo de rede */
+const NET_TUNE: Record<
+  3 | 4 | 5,
+  { depth: [number, number]; pull: number; margin: number; minY: number; apex: number; clear: number }
+> = {
+  3: { depth: [5, 10], pull: 6, margin: 0.8, minY: 0.9, apex: 1.2, clear: 0.5 },
+  4: { depth: [1.5, 7.5], pull: 4, margin: 0.6, minY: 1.4, apex: 1, clear: 0.6 },
+  5: { depth: [0.35, 1.2], pull: 0.8, margin: 0.12, minY: 0.85, apex: 0.25, clear: 0.12 },
+};
+
+/**
+ * Regra de ponto dos jogos de rede, a cada quique (quem rebateu por último = `hitSide`; A joga em x < 0).
+ * Devolve o lado que marcou, 'bounce' (conta mais um quique do outro lado) ou null (nada acontece).
+ */
+export function netPoint(
+  zone: number,
+  hitSide: 'a' | 'b',
+  e: { x: number; z: number; surface: 'floor' | 'table' },
+  bounces: number,
+): 'a' | 'b' | 'bounce' | null {
+  const other = hitSide === 'a' ? 'b' : 'a';
+  const sideOf = e.x < 0 ? 'a' : 'b';
+  const c = ARENAS[zone as 3 | 4 | 5].court;
+  if (!c) return null;
+  const out = Math.abs(e.x) > c.hx || Math.abs(e.z) > c.hz;
+  if (zone === 4) {
+    // vôlei: caiu no chão = ponto; dentro, perde quem deixou cair; fora, perde quem bateu
+    return out ? other : sideOf === 'a' ? 'b' : 'a';
+  }
+  if (zone === 5) {
+    // ping pong: precisa quicar na mesa do outro lado; no chão sem quicar lá = erro
+    if (e.surface === 'table') {
+      if (sideOf === hitSide) return other;
+      return bounces + 1 >= 2 ? hitSide : 'bounce';
+    }
+    return bounces === 0 ? other : hitSide;
+  }
+  // tênis
+  if (sideOf === hitSide) return other; // não passou da rede
+  if (out) return bounces === 0 ? other : hitSide; // fora direto: erro; depois de quicar dentro: ponto
+  return bounces + 1 >= 2 ? hitSide : 'bounce';
 }

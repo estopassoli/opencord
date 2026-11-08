@@ -210,4 +210,43 @@ describe('Espaço 3D', () => {
     const r = await command<SpaceSession>(sa, 'space:score:reset', { channelId: voiceId, zone: 2 });
     expect(r.data?.scores?.['2']).toEqual({ a: 0, b: 0 });
   });
+
+  it('sinuca repassada só na chamada; corrida com largada para todos e chegadas conferidas', async () => {
+    const { owner, alice, voiceId, so, sa, sb } = await setup();
+    for (const u of [owner, alice]) await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token });
+    const pool = {
+      channelId: voiceId,
+      balls: [
+        [0, 0.5, 0],
+        [0.1, -0.5, 1],
+      ],
+      turn: 'b',
+      moving: true,
+      t: 3,
+    };
+    const got = nextEvent<{ by: string; turn: string }>(sa, 'space:pool', (p) => p.by === owner.id);
+    const notBob = noEvent(sb, 'space:pool', () => true, 1000);
+    so.emit('space:pool', pool);
+    expect((await got).turn).toBe('b');
+    await notBob;
+
+    expect((await command(so, 'space:race:finish', { channelId: voiceId, ms: 60_000 })).ok).toBe(false); // sem corrida
+    const started = await command<SpaceSession>(so, 'space:race:start', { channelId: voiceId });
+    expect(started.data?.race).toMatchObject({ laps: 3, results: [] });
+    // tempo maior que o tempo desde a largada: recusado
+    expect((await command(sa, 'space:race:finish', { channelId: voiceId, ms: 60_000 })).ok).toBe(false);
+    // finge que a largada foi há 2 minutos
+    const { SpaceService } = await import('../src/voice/space.service.js');
+    const svc = app.get(SpaceService);
+    const raw = JSON.parse((await svc['redis'].client.get(`space:${voiceId}`)) as string) as SpaceSession;
+    raw.race!.startAt = Date.now() - 120_000;
+    await svc['redis'].client.set(`space:${voiceId}`, JSON.stringify(raw));
+    expect((await command(sa, 'space:race:finish', { channelId: voiceId, ms: 1000 })).ok).toBe(false); // rápido demais
+    const f1 = await command<SpaceSession>(sa, 'space:race:finish', { channelId: voiceId, ms: 90_000 });
+    const f2 = await command<SpaceSession>(so, 'space:race:finish', { channelId: voiceId, ms: 80_000 });
+    expect(f1.ok && f2.ok).toBe(true);
+    expect(f2.data?.race?.results.map((r) => r.userId)).toEqual([owner.id, alice.id]);
+    const again = await command<SpaceSession>(sa, 'space:race:finish', { channelId: voiceId, ms: 70_000 });
+    expect(again.data?.race?.results).toHaveLength(2);
+  });
 });

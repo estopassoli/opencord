@@ -8,6 +8,10 @@ import {
   type ServerSpace,
   type SpaceBall,
   type SpaceMove,
+  type SpacePool,
+  RACE_COUNTDOWN_MS,
+  RACE_LAPS,
+  RACE_MIN_LAP_MS,
   type SpaceScreen,
   type SpaceSession,
 } from '@opencord/contracts';
@@ -149,6 +153,7 @@ export class SpaceService {
       screen: prev?.screen ?? null,
       toggles,
       ...(prev?.scores ? { scores: prev.scores } : {}),
+      ...(prev?.race ? { race: prev.race } : {}),
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
     });
@@ -167,6 +172,7 @@ export class SpaceService {
       screen,
       ...(prev?.toggles ? { toggles: prev.toggles } : {}),
       ...(prev?.scores ? { scores: prev.scores } : {}),
+      ...(prev?.race ? { race: prev.race } : {}),
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
     });
@@ -212,6 +218,41 @@ export class SpaceService {
     const peers = await this.peers(userId, b.channelId);
     if (!peers?.length) return;
     this.realtime.emitVolatile(peers.map(rooms.user), 'space:ball', { ...b, by: userId });
+  }
+
+  /** sinuca: bolas e vez, repassadas só para quem está na chamada */
+  async pool(userId: string, p: SpacePool) {
+    const peers = await this.peers(userId, p.channelId);
+    if (!peers?.length) return;
+    this.realtime.emitVolatile(peers.map(rooms.user), 'space:pool', { ...p, by: userId });
+  }
+
+  /** corrida: qualquer um na chamada larga (contagem para todos); recomeçar zera as chegadas */
+  async raceStart(userId: string, channelId: string): Promise<SpaceSession> {
+    const serverId = await this.requireInCall(userId, channelId);
+    const prev = await this.loadSession(channelId);
+    const base: SpaceSession = prev ?? { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
+    const race = { startAt: Date.now() + RACE_COUNTDOWN_MS, laps: RACE_LAPS, results: [] };
+    return this.publishSession({ ...base, race, updatedBy: userId, revision: base.revision + 1 });
+  }
+
+  /** chegada: uma por pessoa; o tempo precisa caber no relógio do servidor e ser plausível */
+  async raceFinish(userId: string, channelId: string, ms: number): Promise<SpaceSession> {
+    const serverId = await this.requireInCall(userId, channelId);
+    const prev = await this.loadSession(channelId);
+    const race = prev?.race;
+    if (!prev || !race) throw new BadRequestException('nenhuma corrida em andamento');
+    const elapsed = Date.now() - race.startAt;
+    if (ms < race.laps * RACE_MIN_LAP_MS || ms > elapsed + 3000) throw new BadRequestException('tempo inválido');
+    if (race.results.some((r) => r.userId === userId)) return prev;
+    const results = [...race.results, { userId, ms }].sort((a, b) => a.ms - b.ms);
+    return this.publishSession({
+      ...prev,
+      serverId,
+      race: { ...race, results },
+      updatedBy: userId,
+      revision: prev.revision + 1,
+    });
   }
 
   /** último ponto de cada arena: um mesmo lance detectado por dois apps não conta duas vezes */

@@ -13,7 +13,14 @@ import {
   NET_H,
   RIM_R,
   RIM_Y,
+  PP_HX,
+  PP_HZ,
+  PP_NET,
+  PP_Y,
   THREE_PT,
+  VB_HX,
+  VB_HZ,
+  VB_NET,
 } from './sports';
 
 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -143,7 +150,65 @@ export function buildArenaDecor(zone: SportZone): THREE.Group {
       rect(g, side * cx, -3.6, side * (cx - 2), 3.6);
       goal(g, side);
     }
-  } else {
+  } else if (zone === 4) {
+    // vôlei de areia: linhas e rede alta
+    rect(g, -VB_HX, -VB_HZ, VB_HX, VB_HZ);
+    line(g, -3, -VB_HZ, -3, VB_HZ);
+    line(g, 3, -VB_HZ, 3, VB_HZ);
+    const net = new THREE.Mesh(
+      new THREE.PlaneGeometry(VB_HZ * 2 + 1, 1, 30, 8),
+      new THREE.MeshBasicMaterial({
+        color: 0x111111,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.75,
+        side: THREE.DoubleSide,
+      }),
+    );
+    net.rotation.y = Math.PI / 2;
+    net.position.set(0, VB_NET - 0.5, 0);
+    g.add(net);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, VB_HZ * 2 + 1), white);
+    band.position.set(0, VB_NET, 0);
+    g.add(band);
+    for (const z of [-(VB_HZ + 0.5), VB_HZ + 0.5]) cyl(g, 0.06, VB_NET + 0.2, 0xd0d4dc, 0, (VB_NET + 0.2) / 2, z);
+  } else if (zone === 5) {
+    // mesa de ping pong
+    const top = new THREE.Mesh(
+      new THREE.BoxGeometry(PP_HX * 2, 0.04, PP_HZ * 2),
+      new THREE.MeshLambertMaterial({ color: 0x1f5fa8 }),
+    );
+    top.position.y = PP_Y - 0.02;
+    g.add(top);
+    const lines = new THREE.Group();
+    rect(lines, -PP_HX + 0.02, -PP_HZ + 0.02, PP_HX - 0.02, PP_HZ - 0.02);
+    line(lines, -PP_HX, 0, PP_HX, 0, 0.02);
+    lines.position.y = PP_Y;
+    g.add(lines);
+    for (const [x, z] of [
+      [-PP_HX + 0.15, -PP_HZ + 0.15],
+      [PP_HX - 0.15, -PP_HZ + 0.15],
+      [-PP_HX + 0.15, PP_HZ - 0.15],
+      [PP_HX - 0.15, PP_HZ - 0.15],
+    ] as const)
+      cyl(g, 0.04, PP_Y - 0.04, 0x2b2e36, x, (PP_Y - 0.04) / 2, z);
+    const net = new THREE.Mesh(
+      new THREE.PlaneGeometry(PP_HZ * 2 + 0.3, PP_NET, 20, 4),
+      new THREE.MeshBasicMaterial({
+        color: 0x111111,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+      }),
+    );
+    net.rotation.y = Math.PI / 2;
+    net.position.set(0, PP_Y + PP_NET / 2, 0);
+    g.add(net);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.015, PP_HZ * 2 + 0.3), white);
+    band.position.set(0, PP_Y + PP_NET, 0);
+    g.add(band);
+  } else if (zone === 3) {
     rect(g, -COURT_HX, -COURT_HZ, COURT_HX, COURT_HZ);
     line(g, -COURT_HX, -COURT_HZ + 1.37, COURT_HX, -COURT_HZ + 1.37);
     line(g, -COURT_HX, COURT_HZ - 1.37, COURT_HX, COURT_HZ - 1.37);
@@ -175,9 +240,9 @@ export function buildArenaDecor(zone: SportZone): THREE.Group {
 /** a bola de cada esporte */
 export function ballMesh(zone: SportZone): THREE.Mesh {
   const a = ARENAS[zone];
-  const color = zone === 1 ? 0xe8742a : zone === 2 ? 0xf4f4f4 : 0xd7f24a;
+  const color = zone === 1 ? 0xe8742a : zone === 2 || zone === 5 ? 0xf4f4f4 : zone === 4 ? 0xf2d34a : 0xd7f24a;
   const m = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(zone === 3 ? 0.09 : a.r, 1),
+    new THREE.IcosahedronGeometry(zone === 3 ? 0.09 : zone === 5 ? 0.035 : a.r, 1),
     new THREE.MeshLambertMaterial({ color, flatShading: true }),
   );
   m.raycast = () => undefined;

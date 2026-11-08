@@ -222,7 +222,7 @@ function SpaceBar({ serverId }: { serverId: string }) {
         </Button>
         {games && (
           <ul className="space3d-menu" role="menu">
-            {([1, 2, 3] as const).map((z) => (
+            {SPORTS_READY.map((z) => (
               <li key={z}>
                 <button
                   role="menuitem"
@@ -675,6 +675,10 @@ const SPORT_HELP: Record<SportZone, string> = {
   1: 'F perto da bola pega (ou rouba) · segure F e solte na faixa verde para arremessar · de trás do arco vale 3',
   2: 'encoste na bola para chutar (correndo chuta mais forte) · F perto da bola dá um chute forte para onde você olha',
   3: 'F com a bola perto rebate para o outro lado · olhe para um lado para puxar a bola · bola parada: F saca',
+  4: 'F com a bola perto bate para o outro lado · não deixe cair no seu lado · olhe para um lado para puxar a bola',
+  5: 'F com a bolinha perto rebate · ela precisa quicar na mesa do outro lado · bola parada: F saca',
+  6: 'Mire com o mouse, segure F e solte para tacar · encaçapou, joga de novo',
+  7: 'W acelera · S freia · A e D viram · pegue as setas no chão para ganhar turbo',
 };
 
 /** Placar da arena (azul ataca para um lado, vermelho para o outro), força do arremesso e como jogar. */
@@ -682,6 +686,10 @@ const TARGET: Record<SportZone, [string, string]> = {
   1: ['a cesta vermelha', 'a cesta azul'],
   2: ['o gol vermelho', 'o gol azul'],
   3: ['o lado vermelho', 'o lado azul'],
+  4: ['o lado vermelho', 'o lado azul'],
+  5: ['o lado vermelho da mesa', 'o lado azul da mesa'],
+  6: ['', ''],
+  7: ['', ''],
 };
 
 function SportHud({ zone, charge }: { zone: SportZone; charge: number | null }) {
@@ -739,3 +747,6 @@ function SportHud({ zone, charge }: { zone: SportZone; charge: number | null }) 
     </>
   );
 }
+
+/** esportes que já aparecem no menu Jogos */
+const SPORTS_READY = [1, 2, 3, 4, 5] as const satisfies readonly SportZone[];

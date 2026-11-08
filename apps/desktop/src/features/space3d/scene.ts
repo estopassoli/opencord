@@ -132,6 +132,7 @@ export class SpaceScene {
   private sport: SportPlay | null = null;
   private decor: THREE.Group | null = null;
   private lastCharge: number | null = null;
+  private swingUntil = 0;
   /** meu time nas arenas */
   team: 'a' | 'b' = 'a';
   private readonly ro: ResizeObserver;
@@ -201,6 +202,7 @@ export class SpaceScene {
     const l = z ? ARENAS[z].layout : this.mainLayout;
     if (l) this.applyLayout(l, false);
     this.me.setTeam(z ? team : null);
+    this.me.setRacket(racketOf(z));
     if (z) {
       // começa na própria metade (azul defende o lado −x)
       const side = team === 'a' ? -1 : 1;
@@ -245,7 +247,7 @@ export class SpaceScene {
     if (onSide(this.pose.x)) cands.push(this.pose);
     for (const p of peers.values())
       if (p.zone === this.zone && now - p.at < PEER_TIMEOUT_MS && onSide(p.x)) cands.push(p);
-    const baseX = (side === 'a' ? -1 : 1) * 11;
+    const baseX = (side === 'a' ? -1 : 1) * (this.zone ? (ARENAS[this.zone].serveX ?? 11) : 11);
     const who = cands.sort((a, b) => Math.abs(a.x - baseX) - Math.abs(b.x - baseX))[0];
     if (!who) return null;
     return { x: who.x + Math.sin(who.ry) * 0.7, y: 1.2, z: who.z + Math.cos(who.ry) * 0.7 };
@@ -619,7 +621,8 @@ export class SpaceScene {
     }
     if (k === 'f' && this.mode === 'play' && this.sport) {
       e.preventDefault();
-      if (!e.repeat) this.sport.press(performance.now());
+      // bateu na bola: o braço (com a raquete) faz o movimento, e os outros veem
+      if (!e.repeat && this.sport.press(performance.now())) this.swingUntil = performance.now() + 260;
       return;
     }
     if (k === 'f' && this.mode === 'play') {
@@ -801,6 +804,7 @@ export class SpaceScene {
       }
     }
     if (this.fight) this.pose.a = now < this.punchUntil ? this.punchKind : this.blocking ? 8 : moving ? 1 : 0;
+    else if (now < this.swingUntil) this.pose.a = 6;
     else this.pose.a = this.pose.y > 0.01 ? 3 : moving ? (run ? 2 : 1) : now < this.waveUntil ? 4 : 0;
     this.me.place(this.pose);
     this.updatePrompt(now);
@@ -868,6 +872,7 @@ export class SpaceScene {
       av.setTarget(pose);
       av.setSpeaking(info.speaking);
       av.setTeam(this.zone && pose.team ? pose.team : null);
+      av.setRacket(racketOf(this.zone));
     }
     for (const [id, av] of this.others) {
       const p = peers.get(id);
@@ -1011,4 +1016,9 @@ function ringMesh(): THREE.Group {
   }
   g.traverse((o) => (o.raycast = () => undefined));
   return g;
+}
+
+/** raquete de cada esporte */
+function racketOf(zone: number): 'tennis' | 'pingpong' | null {
+  return zone === 3 ? 'tennis' : zone === 5 ? 'pingpong' : null;
 }

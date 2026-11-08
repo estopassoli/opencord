@@ -194,6 +194,60 @@ export class Avatar {
     this.teamDisc = disc;
   }
 
+  /** raquete na mão direita (tênis ou ping pong) */
+  private racket: THREE.Group | null = null;
+  private racketKind: 'tennis' | 'pingpong' | null = null;
+  setRacket(kind: 'tennis' | 'pingpong' | null) {
+    if (kind === this.racketKind) return;
+    this.racketKind = kind;
+    if (this.racket) {
+      this.racket.parent?.remove(this.racket);
+      this.racket.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          o.geometry.dispose();
+          (o.material as THREE.Material).dispose();
+        }
+      });
+      this.racket = null;
+    }
+    if (!kind) return;
+    const g = new THREE.Group();
+    const handle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.018, kind === 'tennis' ? 0.24 : 0.1, 6),
+      new THREE.MeshLambertMaterial({ color: kind === 'tennis' ? 0x2b2e36 : 0x8b5a2b }),
+    );
+    handle.position.y = kind === 'tennis' ? -0.12 : -0.05;
+    g.add(handle);
+    if (kind === 'tennis') {
+      const frame = new THREE.Mesh(
+        new THREE.TorusGeometry(0.13, 0.014, 6, 20),
+        new THREE.MeshLambertMaterial({ color: 0xe0e4ea }),
+      );
+      frame.scale.set(1, 1.3, 1);
+      frame.position.y = -0.4;
+      g.add(frame);
+      const strings = new THREE.Mesh(
+        new THREE.CircleGeometry(0.125, 16),
+        new THREE.MeshBasicMaterial({ color: 0xd7f24a, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
+      );
+      strings.scale.set(1, 1.3, 1);
+      strings.position.y = -0.4;
+      g.add(strings);
+    } else {
+      const paddle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, 0.014, 16),
+        new THREE.MeshLambertMaterial({ color: 0xc0392b }),
+      );
+      paddle.rotation.x = Math.PI / 2;
+      paddle.position.y = -0.17;
+      g.add(paddle);
+    }
+    // na ponta do braço direito, apontando para baixo como o braço
+    g.position.set(0, -0.36, 0.02);
+    this.arms[1]!.add(g);
+    this.racket = g;
+  }
+
   /** levou um golpe: balança e recua um pouco */
   hitReact() {
     this.hitT = 0.28;
