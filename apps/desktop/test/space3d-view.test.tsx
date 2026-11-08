@@ -94,7 +94,7 @@ describe('Espaço 3D: controles do telão', () => {
     act(() => useActivity.setState({ state: state('outra-pessoa') }));
     expect(r.getByLabelText('Pausar só para você')).toBeTruthy();
     expect(r.queryByLabelText('Avançar 10 segundos')).toBeNull();
-    expect((r.getByLabelText('Posição do vídeo') as HTMLInputElement).disabled).toBe(true);
+    expect(r.getByLabelText('Posição do vídeo').getAttribute('aria-disabled')).toBe('true');
     r.unmount();
   });
 });

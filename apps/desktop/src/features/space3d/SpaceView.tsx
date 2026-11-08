@@ -420,6 +420,7 @@ function TelaoControls() {
     activity ? (v.participants.find((x) => x.identity === activity.startedBy)?.name ?? 'quem pôs o vídeo') : '',
   );
   const [scrub, setScrub] = useState<number | null>(null);
+  const scrubTimer = useRef<number | undefined>(undefined);
   // a posição do grupo anda sozinha: redesenha a barra 2x por segundo
   const [, tick] = useState(0);
   useEffect(() => {
@@ -510,25 +511,25 @@ function TelaoControls() {
         </>
       )}
       <span className="space3d-ptime">{fmtTime(position)}</span>
-      <input
-        type="range"
-        className="space3d-pbar"
-        aria-label={owner ? 'Posição do vídeo (para todos)' : 'Posição do vídeo'}
-        min={0}
-        max={Math.max(1, duration)}
-        step={1}
-        value={Math.min(position, Math.max(1, duration))}
-        disabled={!owner || !duration}
-        onChange={(e) => setScrub(Number(e.target.value))}
-        onPointerUp={() => {
-          if (scrub !== null) seek(scrub);
-          setScrub(null);
-        }}
-        onKeyUp={() => {
-          if (scrub !== null) seek(scrub);
-          setScrub(null);
-        }}
-      />
+      <div className="space3d-pbar">
+        <Slider
+          aria-label={owner ? 'Posição do vídeo (para todos)' : 'Posição do vídeo'}
+          min={0}
+          max={Math.max(1, Math.round(duration))}
+          value={Math.min(Math.round(position), Math.max(1, Math.round(duration)))}
+          format={fmtTime}
+          disabled={!owner || !duration}
+          onChange={(v) => {
+            // pula quando a pessoa para de arrastar (não manda um comando por pixel)
+            setScrub(v);
+            window.clearTimeout(scrubTimer.current);
+            scrubTimer.current = window.setTimeout(() => {
+              seek(v);
+              setScrub(null);
+            }, 350);
+          }}
+        />
+      </div>
       <span className="space3d-ptime">{duration ? fmtTime(duration) : '--:--'}</span>
       <button
         className="space3d-pbtn"

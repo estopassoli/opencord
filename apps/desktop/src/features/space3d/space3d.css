@@ -329,8 +329,7 @@
   opacity: 0.5;
   cursor: default;
 }
-.space3d-pbtn:focus-visible,
-.space3d-pbar:focus-visible {
+.space3d-pbtn:focus-visible {
   outline: 2px solid var(--accent, #5865f2);
   outline-offset: 2px;
 }
@@ -346,7 +345,9 @@
 .space3d-pbar {
   flex: 1;
   min-width: 60px;
-  accent-color: var(--accent, #5865f2);
+}
+.space3d-pbar .oc-field {
+  margin: 0;
 }
 .space3d-pvol {
   width: 110px;
