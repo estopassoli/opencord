@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost"
+    />
+    <title>OpenCord</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #1b1d22;
+        color: #f2f3f5;
+        font:
+          13px/1.2 'Segoe UI',
+          system-ui,
+          sans-serif;
+        overflow: hidden;
+        user-select: none;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 6px 0 14px;
+        box-sizing: border-box;
+        border: 2px solid #f0b232;
+        border-radius: 8px;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #f0b232;
+        flex: none;
+      }
+      .t {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .k {
+        color: #b5bac1;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      button {
+        font:
+          600 13px 'Segoe UI',
+          system-ui,
+          sans-serif;
+        color: #fff;
+        background: #da373c;
+        border: 0;
+        border-radius: 6px;
+        padding: 6px 14px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #a12828;
+      }
+    </style>
+  </head>
+  <body>
+    <span class="dot"></span><span class="t"><b id="who"></b> está controlando seu PC</span>
+    <span class="k">Ctrl+Alt+Shift+S</span><button id="stop">Parar</button>
+    <script type="module" src="/src/banner.ts"></script>
+  </body>
+</html>

@@ -20,3 +20,8 @@ e2e/results/
 # Fontes de terceiros com licença que proíbe redistribuição (ex.: gg sans) — nunca versionar
 public/fonts/
 apps/desktop/resources/win/
+
+# Protótipo Tauri: compilação do Rust e esquemas gerados
+apps/desktop-tauri/src-tauri/target/
+apps/desktop-tauri/src-tauri/gen/
+apps/desktop-tauri/resources/
