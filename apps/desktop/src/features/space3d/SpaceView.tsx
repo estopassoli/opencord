@@ -66,6 +66,18 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   /** o sistema não deixou prender o mouse: joga arrastando; a pausa abre pelo botão */
   const [noLock, setNoLock] = useState(false);
   const [paused, setPaused] = useState(false);
+  /** o mouse foi solto para usar um menu do jogo (telão, música): não é pausa */
+  const menuFree = useRef(false);
+  const screenMenu = useSpace((s) => s.screenMenu);
+  const musicOpen = useMusic((m) => m.open);
+  const [, forceRender] = useState(0);
+  // fechou o menu (escolheu ou clicou fora): volta a prender o mouse na visão
+  useEffect(() => {
+    if (!menuFree.current || screenMenu || musicOpen) return;
+    menuFree.current = false;
+    sceneRef.current?.lockPointer();
+    forceRender((n) => n + 1);
+  }, [screenMenu, musicOpen]);
   const fighting = useSpace((s) =>
     Object.values(s.duels).some(
       (d) => (d.status === 'countdown' || d.status === 'fighting') && (d.a === me?.id || d.b === me?.id),
@@ -85,7 +97,14 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       onFps: (fps) => setSlow(fps < 24),
       onPrompt: (p) => setPrompt(p?.label ?? null),
       onCharge: setCharge,
-      onAimLock: setAimLocked,
+      onAimLock: (locked) => {
+        setAimLocked(locked);
+        // voltou a prender o mouse (clicou na cena): o menu do telão fecha
+        if (locked) {
+          menuFree.current = false;
+          if (useSpace.getState().screenMenu) useSpace.getState().setScreenMenu(false);
+        }
+      },
       onLockFailed: () => {
         setNoLock(true);
         setPaused(false);
@@ -113,8 +132,14 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       onAction: (i) => {
         if (i.kind === 'toggle') void useSpace.getState().toggle(i.itemId, !i.on);
         else if (i.kind === 'duel') void useSpace.getState().challenge(i.itemId);
-        else if (i.kind === 'screen') useSpace.getState().setScreenMenu(true);
-        else if (i.kind === 'music') {
+        else if (i.kind === 'screen') {
+          // menu precisa do cursor: solta o mouse da visão (sem abrir a pausa) até escolher
+          menuFree.current = true;
+          if (document.pointerLockElement) document.exitPointerLock();
+          useSpace.getState().setScreenMenu(true);
+        } else if (i.kind === 'music') {
+          menuFree.current = true;
+          if (document.pointerLockElement) document.exitPointerLock();
           const m = useMusic.getState();
           if (m.state) m.join(true);
           else m.setOpen(true);
@@ -190,7 +215,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       )}
       {!editing && <ControlsPanel zone={zone} fighting={fighting} />}
       {!editing && aimLocked && <LockHint locked fighting={fighting} />}
-      {!editing && ((!noLock && !aimLocked) || (noLock && paused)) && (
+      {!editing && ((!noLock && !aimLocked && !menuFree.current && !screenMenu) || (noLock && paused)) && (
         <PauseMenu
           onResume={() => {
             setPaused(false);
