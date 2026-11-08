@@ -25,6 +25,7 @@ import { useVoice } from '../../store/voice';
 import { SpaceEditor } from './editor';
 import { SpaceScene, type ScreenSource } from './scene';
 import { DuelHud, useDuelScene } from './DuelHud';
+import { ControlsPanel, LockHint } from './GameHud';
 import { TelaoSource, useTelaoPlayer } from './Telao';
 import './space3d.css';
 
@@ -58,11 +59,15 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       voiceParticipants.map((p) => ({ identity: p.identity, name: p.name, speaking: p.speaking, isLocal: p.isLocal })),
     [voiceParticipants],
   );
-  const [focused, setFocused] = useState(false);
   const [slow, setSlow] = useState(false);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [charge, setCharge] = useState<number | null>(null);
   const [aimLocked, setAimLocked] = useState(false);
+  const fighting = useSpace((s) =>
+    Object.values(s.duels).some(
+      (d) => (d.status === 'countdown' || d.status === 'fighting') && (d.a === me?.id || d.b === me?.id),
+    ),
+  );
   const [race, setRace] = useState<{ lap: number; item: boolean; boost: boolean; speed: number } | null>(null);
   const zone = useSpace((s) => s.zone);
   const toggles = useSpace((s) => s.session?.toggles);
@@ -82,7 +87,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       onRace: setRace,
       onRaceFinish: (ms) => void useSpace.getState().finishRace(ms),
       sendBall: (z, b) => useSession.getState().realtime?.sendVolatile('space:ball', { channelId, zone: z, ...b }),
-      onScore: (z, side, points) => useSpace.getState().score(z, side, points),
+      onScore: (z, side, points, by) => useSpace.getState().score(z, side, points, by),
       onPunch: (strong) => {
         const d = Object.values(useSpace.getState().duels).find(
           (x) => x.status === 'fighting' && (x.a === me.id || x.b === me.id),
@@ -108,6 +113,8 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     });
     sceneRef.current = s;
     setScene(s);
+    // quem abriu o espaço acabou de clicar: tenta já prender o mouse na visão (sem gesto, o aviso pede um clique)
+    s.lockPointer();
     useSpace.setState({ ballListener: (b) => s.remoteBall(b), poolListener: (m) => s.remotePool(m) });
     el.focus({ preventScroll: true });
     return () => {
@@ -151,19 +158,13 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
 
   return (
     <div className="space3d">
-      <div
-        className="space3d-host"
-        ref={host}
-        aria-label="Espaço 3D. Use W, A, S e D para andar."
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
+      <div className="space3d-host" ref={host} aria-label="Espaço 3D. Use W, A, S e D para andar." />
       <TelaoSource onSource={onSource} />
       {!editing && zone === 0 && <TelaoControls />}
       <SpaceBar serverId={serverId} />
       {!editing && zone === 0 && <DuelHud aimLocked={aimLocked} />}
       {!editing && zone !== 0 && zone !== 7 && (
-        <SportHud zone={zone as SportZone} charge={charge} onRerack={() => sceneRef.current?.rerack()} />
+        <SportHud zone={zone as SportZone} charge={charge} onNewMatch={() => sceneRef.current?.newMatch()} />
       )}
       {!editing && zone === 7 && <RaceHud hud={race} />}
       {!editing && prompt && (
@@ -177,13 +178,8 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
           <kbd>F</kbd> {prompt}
         </button>
       )}
-      {!editing && (
-        <p className="space3d-hint" data-dim={focused ? 'true' : undefined}>
-          {focused
-            ? 'W A S D andar · Shift correr · Espaço pular · E acenar · F interagir · arraste para girar a câmera'
-            : 'Clique no espaço para andar com o teclado'}
-        </p>
-      )}
+      {!editing && <ControlsPanel zone={zone} fighting={fighting} />}
+      {!editing && <LockHint locked={aimLocked} fighting={fighting} />}
       {slow && !editing && (
         <p className="space3d-slow">O espaço está pesado neste computador: feche-o enquanto joga.</p>
       )}
@@ -683,16 +679,6 @@ function TelaoControls() {
   );
 }
 
-const SPORT_HELP: Record<SportZone, string> = {
-  1: 'F perto da bola pega (ou rouba) · segure F e solte na faixa verde para arremessar · de trás do arco vale 3',
-  2: 'encoste na bola para chutar (correndo chuta mais forte) · F perto da bola dá um chute forte para onde você olha',
-  3: 'F com a bola perto rebate para o outro lado · olhe para um lado para puxar a bola · bola parada: F saca',
-  4: 'F com a bola perto bate para o outro lado · não deixe cair no seu lado · olhe para um lado para puxar a bola',
-  5: 'F com a bolinha perto rebate · ela precisa quicar na mesa do outro lado · bola parada: F saca',
-  6: 'Mire com o mouse, segure F e solte para tacar · encaçapou, joga de novo',
-  7: 'W acelera · S freia · A e D viram · pegue as setas no chão para ganhar turbo',
-};
-
 /** Placar da arena (azul ataca para um lado, vermelho para o outro), força do arremesso e como jogar. */
 const TARGET: Record<SportZone, [string, string]> = {
   1: ['a cesta vermelha', 'a cesta azul'],
@@ -704,63 +690,95 @@ const TARGET: Record<SportZone, [string, string]> = {
   7: ['', ''],
 };
 
-function SportHud({ zone, charge, onRerack }: { zone: SportZone; charge: number | null; onRerack: () => void }) {
+function SportHud({ zone, charge, onNewMatch }: { zone: SportZone; charge: number | null; onNewMatch: () => void }) {
   const score = useSpace((s) => s.session?.scores?.[String(zone)]) ?? { a: 0, b: 0 };
+  const board = useSpace((s) => s.session?.board?.[String(zone)]);
   const team = useSpace((s) => s.team);
+  const participants = useVoice((v) => v.participants);
+  const meId = useData((s) => s.me?.id);
+  const [showBoard, setShowBoard] = useState(false);
   const sweet = charge !== null && charge >= 0.55 && charge <= 0.8;
+  const rows = Object.entries(board ?? {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, pts]) => ({ id, pts, name: participants.find((p) => p.identity === id)?.name ?? 'alguém' }));
   return (
     <>
-      <div
-        className="space3d-score"
-        role="status"
-        aria-live="polite"
-        aria-label={`Placar: azul ${score.a}, vermelho ${score.b}`}
-      >
-        <span className="space3d-team" data-team="a">
-          Azul
-        </span>
-        <strong>
-          {score.a} × {score.b}
-        </strong>
-        <span className="space3d-team" data-team="b">
-          Vermelho
-        </span>
-        <Button size="sm" variant="ghost" onClick={() => void useSpace.getState().resetScore(zone)}>
-          Zerar
-        </Button>
-      </div>
-      <div className="space3d-myteam" data-team={team}>
-        <span>
-          Você é do time <strong>{team === 'a' ? 'Azul' : 'Vermelho'}</strong>
-          {zone === 6 ? ' · jogam em vezes: encaçapou, joga de novo' : `: ataque ${TARGET[zone][team === 'a' ? 0 : 1]}`}
-        </span>
-        {zone === 6 && (
-          <Button size="sm" variant="ghost" onClick={onRerack}>
-            Arrumar a mesa
-          </Button>
+      <div className="space3d-game" role="region" aria-label={SPORT_LABELS[zone]}>
+        <div className="space3d-game-title">{SPORT_LABELS[zone]}</div>
+        <div
+          className="space3d-game-score"
+          aria-live="polite"
+          aria-label={`Placar: azul ${score.a}, vermelho ${score.b}`}
+        >
+          <span className="space3d-team" data-team="a">
+            Azul
+          </span>
+          <strong>{score.a}</strong>
+          <span className="space3d-game-x">×</span>
+          <strong>{score.b}</strong>
+          <span className="space3d-team" data-team="b">
+            Vermelho
+          </span>
+        </div>
+        <div className="space3d-game-actions">
+          <button
+            className="space3d-gbtn space3d-gbtn-play"
+            onClick={() => {
+              void useSpace.getState().resetScore(zone);
+              onNewMatch();
+            }}
+          >
+            <Icon name="play" size={16} /> Jogar
+          </button>
+          <button className="space3d-gbtn" onClick={() => void useSpace.getState().resetScore(zone)}>
+            <Icon name="refresh" size={16} /> Zerar
+          </button>
+          <button className="space3d-gbtn" aria-expanded={showBoard} onClick={() => setShowBoard((v) => !v)}>
+            <Icon name="trophy" size={16} active={showBoard} /> Classificação
+          </button>
+        </div>
+        <div className="space3d-myteam-line" data-team={team}>
+          <span>
+            Você: <strong>{team === 'a' ? 'Azul' : 'Vermelho'}</strong>
+            {zone === 6 ? ' · encaçapou, joga de novo' : ` · ataque ${TARGET[zone][team === 'a' ? 0 : 1]}`}
+          </span>
+          <button
+            className="space3d-gbtn space3d-gbtn-sm"
+            onClick={() => useSpace.getState().setTeam(team === 'a' ? 'b' : 'a')}
+          >
+            Trocar de time
+          </button>
+        </div>
+        {showBoard && (
+          <ol className="space3d-board" aria-label="Classificação">
+            {rows.length === 0 && <li className="space3d-board-empty">Ninguém marcou ainda</li>}
+            {rows.map((r, i) => (
+              <li key={r.id} data-me={r.id === meId ? 'true' : undefined}>
+                <span className="space3d-board-pos">{i + 1}º</span>
+                <span className="truncate">{r.name}</span>
+                <strong>{r.pts}</strong>
+              </li>
+            ))}
+          </ol>
         )}
-        <Button size="sm" variant="ghost" onClick={() => useSpace.getState().setTeam(team === 'a' ? 'b' : 'a')}>
-          Trocar de time
-        </Button>
       </div>
       {charge !== null && (
         <div
           className="space3d-charge"
           role="meter"
-          aria-label="Força do arremesso"
+          aria-label="Força"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(charge * 100)}
         >
-          <span className="space3d-charge-sweet" />
+          {zone === 1 && <span className="space3d-charge-sweet" />}
           <span
             className="space3d-charge-fill"
-            data-sweet={sweet ? 'true' : undefined}
+            data-sweet={zone === 1 && sweet ? 'true' : undefined}
             style={{ width: `${charge * 100}%` }}
           />
         </div>
       )}
-      <p className="space3d-sport-help">{SPORT_HELP[zone]}</p>
     </>
   );
 }
@@ -809,9 +827,9 @@ function RaceHud({ hud }: { hud: { lap: number; item: boolean; boost: boolean; s
         ) : (
           <span>{race ? 'Corrida encerrada para você' : 'Ninguém correndo ainda'}</span>
         )}
-        <Button size="sm" variant="secondary" icon="play" onClick={() => void useSpace.getState().startRace()}>
-          {race ? 'Nova corrida' : 'Largar corrida'}
-        </Button>
+        <button className="space3d-gbtn space3d-gbtn-play" onClick={() => void useSpace.getState().startRace()}>
+          <Icon name="play" size={16} /> {race ? 'Nova corrida' : 'Jogar'}
+        </button>
       </div>
       {race && race.results.length > 0 && (
         <ol className="space3d-results" aria-label="Chegada">
@@ -822,7 +840,6 @@ function RaceHud({ hud }: { hud: { lap: number; item: boolean; boost: boolean; s
           ))}
         </ol>
       )}
-      <p className="space3d-sport-help">{SPORT_HELP[7]}</p>
     </>
   );
 }

@@ -117,9 +117,7 @@ export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
       )}
       {live && (live.a === meId || live.b === meId) && (
         <div className="space3d-duel-help">
-          <span>
-            Clique: soco · botão direito: soco forte · segure <kbd>Shift</kbd>: defender · <kbd>Esc</kbd> solta a mira
-          </span>
+          <span>Clique: soco · segure e solte: soco forte · segure o botão direito: defender</span>
           <Button size="sm" variant="ghost" onClick={() => void useSpace.getState().forfeit(live.id)}>
             Desistir
           </Button>

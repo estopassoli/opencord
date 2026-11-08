@@ -153,6 +153,7 @@ export class SpaceService {
       screen: prev?.screen ?? null,
       toggles,
       ...(prev?.scores ? { scores: prev.scores } : {}),
+      ...(prev?.board ? { board: prev.board } : {}),
       ...(prev?.race ? { race: prev.race } : {}),
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
@@ -172,6 +173,7 @@ export class SpaceService {
       screen,
       ...(prev?.toggles ? { toggles: prev.toggles } : {}),
       ...(prev?.scores ? { scores: prev.scores } : {}),
+      ...(prev?.board ? { board: prev.board } : {}),
       ...(prev?.race ? { race: prev.race } : {}),
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
@@ -258,7 +260,14 @@ export class SpaceService {
   /** último ponto de cada arena: um mesmo lance detectado por dois apps não conta duas vezes */
   private readonly lastScore = new Map<string, number>();
 
-  async score(userId: string, channelId: string, zone: number, side: 'a' | 'b', points: number): Promise<SpaceSession> {
+  async score(
+    userId: string,
+    channelId: string,
+    zone: number,
+    side: 'a' | 'b',
+    points: number,
+    by?: string,
+  ): Promise<SpaceSession> {
     const serverId = await this.requireInCall(userId, channelId);
     const prev = await this.loadSession(channelId);
     const k = `${channelId}:${zone}`;
@@ -269,7 +278,17 @@ export class SpaceService {
     const scores = { ...(base.scores ?? {}) };
     const cur = scores[String(zone)] ?? { a: 0, b: 0 };
     scores[String(zone)] = { ...cur, [side]: Math.min(999, cur[side] + points) };
-    return this.publishSession({ ...base, scores, updatedBy: userId, revision: base.revision + 1 });
+    // classificação: só conta para quem está na mesma chamada
+    const board = { ...(base.board ?? {}) };
+    if (by) {
+      const st = await this.voice.stateOf(by);
+      if (st?.channelId === channelId) {
+        const z = { ...(board[String(zone)] ?? {}) };
+        z[by] = Math.min(9999, (z[by] ?? 0) + points);
+        board[String(zone)] = z;
+      }
+    }
+    return this.publishSession({ ...base, scores, board, updatedBy: userId, revision: base.revision + 1 });
   }
 
   async resetScore(userId: string, channelId: string, zone: number): Promise<SpaceSession> {
@@ -277,7 +296,8 @@ export class SpaceService {
     const prev = await this.loadSession(channelId);
     const base: SpaceSession = prev ?? { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
     const scores = { ...(base.scores ?? {}), [String(zone)]: { a: 0, b: 0 } };
-    return this.publishSession({ ...base, scores, updatedBy: userId, revision: base.revision + 1 });
+    const board = { ...(base.board ?? {}), [String(zone)]: {} };
+    return this.publishSession({ ...base, scores, board, updatedBy: userId, revision: base.revision + 1 });
   }
 
   async leave(userId: string, channelId: string) {

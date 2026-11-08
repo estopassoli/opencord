@@ -183,6 +183,8 @@ export const SpaceSession = z.object({
   toggles: z.record(z.string(), z.boolean()).optional(),
   /** placar de cada arena ("1" basquete … "6" sinuca): pontos do lado A e do lado B */
   scores: z.record(z.string(), z.object({ a: z.number().int(), b: z.number().int() })).optional(),
+  /** classificação de cada arena: pontos de cada pessoa ("1" → { userId: pontos }) */
+  board: z.record(z.string(), z.record(z.string(), z.number().int())).optional(),
   /** corrida de moto: largada (relógio do servidor), voltas e chegada de cada um (ms de prova) */
   race: z
     .object({
@@ -498,6 +500,8 @@ export const SpaceScore = z.object({
   zone: z.number().int().min(1).max(7),
   side: z.enum(['a', 'b']),
   points: z.number().int().min(1).max(3),
+  /** quem marcou (para a classificação); precisa estar na chamada */
+  by: Id.optional(),
 });
 
 /** Sinuca: as 16 bolas (0 = branca) [x, z, encaçapada 0/1], de quem é a vez e se ainda estão rolando. */

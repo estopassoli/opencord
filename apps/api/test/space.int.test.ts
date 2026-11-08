@@ -202,13 +202,22 @@ describe('Espaço 3D', () => {
     expect((await got).vx).toBe(4);
     await notBob;
 
-    const s1 = await command<SpaceSession>(so, 'space:score', { channelId: voiceId, zone: 2, side: 'a', points: 1 });
+    const s1 = await command<SpaceSession>(so, 'space:score', {
+      channelId: voiceId,
+      zone: 2,
+      side: 'a',
+      points: 1,
+      by: alice.id,
+    });
     expect(s1.data?.scores?.['2']).toEqual({ a: 1, b: 0 });
+    // classificação: o gol foi da alice
+    expect(s1.data?.board?.['2']).toEqual({ [alice.id]: 1 });
     // o outro app viu o mesmo gol: não conta de novo
     const s2 = await command<SpaceSession>(sa, 'space:score', { channelId: voiceId, zone: 2, side: 'a', points: 1 });
     expect(s2.data?.scores?.['2']).toEqual({ a: 1, b: 0 });
     const r = await command<SpaceSession>(sa, 'space:score:reset', { channelId: voiceId, zone: 2 });
     expect(r.data?.scores?.['2']).toEqual({ a: 0, b: 0 });
+    expect(r.data?.board?.['2']).toEqual({});
   });
 
   it('sinuca repassada só na chamada; corrida com largada para todos e chegadas conferidas', async () => {

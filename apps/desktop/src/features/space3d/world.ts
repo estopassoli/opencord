@@ -175,9 +175,9 @@ function surroundings(g: THREE.Group, l: SpaceLayout) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     g.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.6, sizeAttenuation: true })));
-    const planet = new THREE.Mesh(new THREE.IcosahedronGeometry(14, 1), mat('#3a6fd6', { emissive: 0x0a1630 }));
-    planet.position.set(-60, 30, -80);
-    g.add(planet);
+    const hole = blackHole();
+    hole.position.set(-60, 32, -90);
+    g.add(hole);
   } else {
     // ambientes fechados: chão escuro em volta
     const out = new THREE.Mesh(
@@ -274,4 +274,71 @@ export function buildWorld(l: SpaceLayout): BuiltWorld {
       });
     },
   };
+}
+
+/** disco quente em volta do buraco negro: claro perto do horizonte, laranja e transparente para fora, com faixas */
+function diskMaterial(inner: number, outer: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { inner: { value: inner }, outer: { value: outer } },
+    vertexShader: `varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `
+      uniform float inner; uniform float outer; varying vec2 vP;
+      void main(){
+        float r = (length(vP) - inner) / (outer - inner);
+        if (r < 0.0 || r > 1.0) discard;
+        float a = atan(vP.y, vP.x);
+        float bands = 0.75 + 0.25 * sin(r * 60.0 + a * 3.0);
+        vec3 hot = vec3(1.0, 0.97, 0.88);
+        vec3 warm = vec3(1.0, 0.62, 0.22);
+        vec3 col = mix(hot, warm, smoothstep(0.0, 0.55, r)) * bands;
+        float alpha = (1.0 - smoothstep(0.35, 1.0, r)) * smoothstep(0.0, 0.04, r);
+        gl_FragColor = vec4(col * 1.35, alpha);
+      }`,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    fog: false,
+  });
+}
+
+/** buraco negro (tema estação espacial): horizonte preto, anel de fótons, disco de acreção e o halo do disco curvado */
+function blackHole(): THREE.Group {
+  const g = new THREE.Group();
+  const R = 9;
+  const horizon = new THREE.Mesh(
+    new THREE.SphereGeometry(R, 32, 16),
+    new THREE.MeshBasicMaterial({ color: 0x000000, fog: false }),
+  );
+  horizon.renderOrder = 1;
+  g.add(horizon);
+  const photon = new THREE.Mesh(
+    new THREE.TorusGeometry(R * 1.05, 0.22, 8, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff1d6,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+    }),
+  );
+  g.add(photon);
+  // disco quase de perfil, um pouco inclinado
+  const disk = new THREE.Mesh(new THREE.RingGeometry(R * 1.35, R * 3.6, 128, 1), diskMaterial(R * 1.35, R * 3.6));
+  disk.rotation.x = Math.PI / 2 - 0.16;
+  disk.rotation.z = 0.12;
+  g.add(disk);
+  // a luz do disco que passa por cima e por baixo do buraco: um anel sempre de frente para a câmera
+  const halo = new THREE.Mesh(new THREE.RingGeometry(R * 1.08, R * 1.9, 96, 1), diskMaterial(R * 1.08, R * 1.9));
+  halo.onBeforeRender = (_r, _s, camera) => {
+    halo.quaternion.copy(camera.quaternion);
+    if (halo.parent) halo.quaternion.premultiply(halo.parent.getWorldQuaternion(new THREE.Quaternion()).invert());
+  };
+  g.add(halo);
+  // o anel de fótons também de frente para a câmera
+  photon.onBeforeRender = (_r, _s, camera) => {
+    photon.quaternion.copy(camera.quaternion);
+  };
+  g.traverse((o) => (o.raycast = () => undefined));
+  return g;
 }

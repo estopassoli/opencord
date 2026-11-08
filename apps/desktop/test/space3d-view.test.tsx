@@ -17,6 +17,8 @@ vi.mock('../src/features/space3d/scene', () => ({
     setZone() {}
     remoteBall() {}
     setTeam() {}
+    newMatch() {}
+    lockPointer() {}
     setRace() {}
     rerack() {}
     remotePool() {}
@@ -154,7 +156,7 @@ describe('Espaço 3D: x1 no soco', () => {
     // lutando: mira no centro e aviso para travar a mira com um clique
     expect(r.container.querySelector('.space3d-crosshair')).toBeTruthy();
     expect(r.getByText('Clique na tela para travar a mira')).toBeTruthy();
-    expect(r.getByText(/botão direito: soco forte/)).toBeTruthy();
+    expect(r.getByText(/segure e solte: soco forte/)).toBeTruthy();
     expect(r.queryByText('Aceitar (F)')).toBeNull();
 
     act(() =>

@@ -171,6 +171,16 @@ export class SportPlay {
     this.take(now);
   }
 
+  /** nova partida: a bola volta para a saída (no tênis/vôlei/ping pong, o saque é do azul) para todos */
+  resetMatch(now: number) {
+    this.serveSide = 'a';
+    this.resetAt = now;
+    this.authority = this.selfId;
+    this.touchT += 1;
+    this.held = null;
+    this.charge = null;
+  }
+
   /** estado vindo da rede */
   remote(b: RemoteBall) {
     if (b.by === this.selfId) return;

@@ -51,7 +51,8 @@ export interface SceneHooks {
   onAcceptKey?(): boolean;
   /** esportes: estado da bola para a rede e ponto marcado */
   sendBall?(zone: SportZone, b: BallState & { held: string | null; t: number }): void;
-  onScore?(zone: SportZone, side: 'a' | 'b', points: number): void;
+  /** ponto marcado; `by` = quem marcou (eu, quando o ponto é do meu time) */
+  onScore?(zone: SportZone, side: 'a' | 'b', points: number, by?: string): void;
   /** carga do arremesso de basquete (0–1; null = sem carregar) */
   onCharge?(c: number | null): void;
   /** x1: mira travada (cursor preso no centro) ou não */
@@ -179,6 +180,8 @@ export class SpaceScene {
     document.addEventListener('visibilitychange', this.onVisibility);
     document.addEventListener('pointerlockchange', this.onLockChange);
     document.addEventListener('mousemove', this.onAimMove);
+    document.addEventListener('mousedown', this.onMouseDownDoc);
+    document.addEventListener('mouseup', this.onMouseUpDoc);
     this.renderer.domElement.addEventListener('webglcontextlost', this.onContextLost);
     this.raf = requestAnimationFrame(this.frame);
   }
@@ -230,7 +233,7 @@ export class SpaceScene {
       if (z === 6)
         this.pool = new PoolPlay(this.scene, this.selfId, {
           send: (m) => this.hooks.sendPool?.(m),
-          score: (side, points) => this.hooks.onScore?.(6, side, points),
+          score: (side, points) => this.hooks.onScore?.(6, side, points, side === this.team ? this.selfId : undefined),
         });
       else {
         this.bike = startGrid(this.gridSlot());
@@ -258,7 +261,7 @@ export class SpaceScene {
         this.selfId,
         {
           sendBall: (b) => this.hooks.sendBall?.(z, b),
-          score: (side, points) => this.hooks.onScore?.(z, side, points),
+          score: (side, points) => this.hooks.onScore?.(z, side, points, side === this.team ? this.selfId : undefined),
         },
         (id) => this.handOf(id),
         (side) => this.servePos(side),
@@ -271,6 +274,13 @@ export class SpaceScene {
   /** sinuca: bolas que chegaram pela rede */
   remotePool(m: PoolMsg & { by: string }) {
     this.pool?.remote(m);
+  }
+
+  /** nova partida na arena atual (bola para a saída, mesa arrumada ou nova largada fica com o app) */
+  newMatch() {
+    const now = performance.now();
+    this.sport?.resetMatch(now);
+    this.pool?.rerack(now);
   }
 
   /** sinuca: arrumar a mesa de novo */
@@ -425,10 +435,9 @@ export class SpaceScene {
     if (!f && this.fight) {
       this.dist = 5.5;
       this.pitch = 0.32;
-      if (this.aimLocked) document.exitPointerLock();
     }
     this.fight = f;
-    this.renderer.domElement.classList.toggle('space3d-aiming', !!f);
+
     this.lastPrompt = 0;
   }
 
@@ -438,13 +447,20 @@ export class SpaceScene {
   }
 
   private onLockChange = () => {
+    if (!this.aimLocked) {
+      // soltou (Esc): nada fica "segurado"
+      this.leftHeld = this.rightHeld = false;
+      this.keys.clear();
+    }
     this.hooks.onAimLock?.(this.aimLocked);
   };
 
   private onAimMove = (e: MouseEvent) => {
     if (!this.aimLocked) return;
     this.yaw -= e.movementX * 0.0026;
-    this.pitch = Math.max(-0.25, Math.min(0.7, this.pitch + e.movementY * 0.002));
+    this.pitch = this.fight
+      ? Math.max(-0.25, Math.min(0.7, this.pitch + e.movementY * 0.002))
+      : Math.max(-0.15, Math.min(1.35, this.pitch + e.movementY * 0.002));
   };
 
   /** ringues das lutas em andamento na chamada (todos veem) */
@@ -657,16 +673,77 @@ export class SpaceScene {
 
   /** defesa no x1: segurar Shift (ou L) */
   private get blocking() {
-    return this.keys.has('shift') || this.keys.has('l');
+    return this.rightHeld;
   }
+
+  /** botões do mouse segurados (com o mouse preso na visão) */
+  private leftHeld = false;
+  private leftAt = 0;
+  private rightHeld = false;
+
+  /** prende o mouse na visão (mexer o mouse gira a câmera, sem clicar); Esc solta */
+  lockPointer() {
+    if (this.mode !== 'play' || this.aimLocked) return;
+    try {
+      const r = this.renderer.domElement.requestPointerLock?.() as unknown as Promise<void> | undefined;
+      void r?.catch?.(() => undefined);
+    } catch {
+      /* sem gesto do usuário: o aviso "clique para jogar" pede o clique */
+    }
+  }
+
+  private mouseDown(button: number) {
+    const now = performance.now();
+    if (button === 1) {
+      // botão do meio: pular (ou levantar)
+      if (this.sitting) this.standUp();
+      else if (this.pose.y <= 0.001 && !this.bike) this.vy = JUMP_V;
+      return;
+    }
+    if (button === 2) {
+      this.rightHeld = true;
+      return;
+    }
+    if (button !== 0) return;
+    this.leftHeld = true;
+    this.leftAt = now;
+    if (this.bike) fireBoost(this.bike, Date.now());
+    else if (this.pool) this.pool.press(this.team);
+    else if (this.sport && this.sport.press(now)) this.swingUntil = now + 260;
+  }
+
+  private mouseUp(button: number) {
+    const now = performance.now();
+    if (button === 2) {
+      this.rightHeld = false;
+      return;
+    }
+    if (button !== 0 || !this.leftHeld) return;
+    this.leftHeld = false;
+    // x1: clique rápido = soco rápido; segurar e soltar = soco forte
+    if (this.fight) this.punch(now - this.leftAt >= 350);
+    else if (this.pool) this.pool.release(now, this.team, Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)));
+    else if (this.sport) this.sport.release(now);
+  }
+
+  private onMouseDownDoc = (e: MouseEvent) => {
+    if (!this.aimLocked || this.mode !== 'play') return;
+    e.preventDefault();
+    this.mouseDown(e.button);
+  };
+
+  private onMouseUpDoc = (e: MouseEvent) => {
+    if (!this.aimLocked) return;
+    this.mouseUp(e.button);
+  };
 
   private onPointerDown = (e: PointerEvent) => {
     this.host.focus({ preventScroll: true });
-    if (this.fight && this.mode === 'play') {
-      // x1: o primeiro clique trava a mira; depois, esquerdo = soco rápido, direito = soco forte
+    if (this.mode === 'play') {
+      // jogando, o mouse fica preso na visão: o clique solto (sem trava) só prende de novo; com a trava, os botões
+      // chegam por mousedown/mouseup no documento (onMouseDownDoc)
       e.preventDefault();
-      if (!this.aimLocked) void this.renderer.domElement.requestPointerLock?.()?.catch?.(() => undefined);
-      else this.punch(e.button === 2);
+      if (!this.aimLocked) this.lockPointer();
       return;
     }
     if (this.mode === 'edit' && e.button === 0 && this.editorInput?.down(e)) {
@@ -726,25 +803,11 @@ export class SpaceScene {
       return;
     }
     const k = e.key.toLowerCase();
-    if (this.fight && this.mode === 'play' && k === 'l') {
+    // teclado só para andar (WASD), acenar (E) e interagir (F); o resto dos comandos fica no mouse
+    if (k === 'f' && this.mode === 'play' && (this.sport || this.pool || this.bike)) {
       e.preventDefault();
-      this.keys.add('l');
-      return;
-    }
-    if (k === 'f' && this.mode === 'play' && this.bike) {
-      e.preventDefault();
-      if (!e.repeat) fireBoost(this.bike, Date.now());
-      return;
-    }
-    if (k === 'f' && this.mode === 'play' && this.pool) {
-      e.preventDefault();
-      if (!e.repeat) this.pool.press(this.team);
-      return;
-    }
-    if (k === 'f' && this.mode === 'play' && this.sport) {
-      e.preventDefault();
-      // bateu na bola: o braço (com a raquete) faz o movimento, e os outros veem
-      if (!e.repeat && this.sport.press(performance.now())) this.swingUntil = performance.now() + 260;
+      // nas arenas o F só pega a bola (basquete); bater, tacar e turbo são no mouse
+      if (!e.repeat && this.sport?.zone === 1 && !this.sport.holding) this.sport.press(performance.now());
       return;
     }
     if (k === 'f' && this.mode === 'play') {
@@ -752,21 +815,16 @@ export class SpaceScene {
       if (!e.repeat) this.interact();
       return;
     }
-    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'shift', 'e', 'q'].includes(k)) {
+    const editKeys = this.mode === 'edit' ? ['shift'] : [];
+    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e', ...editKeys].includes(k)) {
       e.preventDefault();
-      if (k === ' ' && this.mode === 'play' && this.sitting) this.standUp();
-      else if (k === ' ' && this.mode === 'play' && this.pose.y <= 0.001) this.vy = JUMP_V;
       if (k === 'e' && this.mode === 'play') this.waveUntil = performance.now() + 2200;
       this.keys.add(k);
     }
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
-    const k = e.key.toLowerCase();
-    if (k === 'f' && this.sport) this.sport.release(performance.now());
-    if (k === 'f' && this.pool)
-      this.pool.release(performance.now(), this.team, Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)));
-    this.keys.delete(k);
+    this.keys.delete(e.key.toLowerCase());
   };
 
   private onBlur = () => this.keys.clear();
@@ -789,6 +847,8 @@ export class SpaceScene {
     if (this.mode === m) return;
     this.mode = m;
     this.keys.clear();
+    // editar usa o cursor (arrastar peças); voltar a jogar prende o mouse de novo
+    if (m === 'edit' && this.aimLocked) document.exitPointerLock();
     this.applyCutaway();
     this.sitting = null;
     this.lastPrompt = 0;
@@ -875,7 +935,8 @@ export class SpaceScene {
       return;
     }
     const moving = fx !== 0 || fz !== 0;
-    const run = k.has('shift') && !this.fight;
+    // correr: segurar o botão direito (no x1 o direito é defender)
+    const run = this.rightHeld && !this.fight;
     if (this.sitting) {
       if (!moving) {
         // sentado: fica no assento, virado para a frente da peça
@@ -1089,6 +1150,8 @@ export class SpaceScene {
     document.removeEventListener('visibilitychange', this.onVisibility);
     document.removeEventListener('pointerlockchange', this.onLockChange);
     document.removeEventListener('mousemove', this.onAimMove);
+    document.removeEventListener('mousedown', this.onMouseDownDoc);
+    document.removeEventListener('mouseup', this.onMouseUpDoc);
     if (this.aimLocked) document.exitPointerLock();
     this.host.removeEventListener('keydown', this.onKeyDown);
     this.host.removeEventListener('keyup', this.onKeyUp);

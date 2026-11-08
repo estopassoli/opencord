@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-09',
+    time: '02:30',
+    kind: 'melhoria',
+    icon: 'gamepad',
+    title: 'Espaço 3D com controles de jogo',
+    body: 'Ao entrar no Espaço 3D o mouse já controla a visão, sem clicar (Esc solta o mouse para usar os botões). No teclado ficam só W A S D, E para acenar e F para interagir; correr, pular, socar, defender, arremessar, chutar, rebater, tacar e usar o turbo são no mouse, e um painel mostra os comandos de cada jogo. Os jogos ganharam Jogar, Zerar e Classificação com os pontos de cada um. E a estação espacial agora tem um buraco negro no céu.',
+  },
+  {
+    date: '2026-11-09',
     time: '01:10',
     kind: 'melhoria',
     icon: 'scissors',

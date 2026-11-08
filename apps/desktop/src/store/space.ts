@@ -76,7 +76,7 @@ interface SpaceStore {
   raceKey: number | null;
   startRace(): Promise<void>;
   finishRace(ms: number): Promise<void>;
-  score(zone: number, side: 'a' | 'b', points: number): void;
+  score(zone: number, side: 'a' | 'b', points: number, by?: string): void;
   resetScore(zone: number): Promise<void>;
   /** x1 no soco: lutas da chamada (convites, em andamento e as que acabaram há pouco) */
   duels: Record<string, SpaceDuel>;
@@ -261,12 +261,12 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
       .then((s) => get().applySession(s))
       .catch(() => undefined);
   },
-  score(zone, side, points) {
+  score(zone, side, points, by) {
     const channelId = get().openChannelId;
     const rt = useSession.getState().realtime;
     if (!channelId || !rt) return;
     void rt
-      .command('space:score', { channelId, zone, side, points })
+      .command('space:score', { channelId, zone, side, points, ...(by ? { by } : {}) })
       .then((s) => get().applySession(s))
       .catch(() => undefined);
   },

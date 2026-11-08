@@ -95,3 +95,9 @@ chamada sem abrir o espaço fala em volume normal.
   `space:move`), pontos de controle a cada terço impedem cortar caminho; largada (`space:race:start`, contagem de 4 s)
   e chegada (`space:race:finish`) no servidor, que recusa tempo impossível por volta ou maior que o tempo desde a
   largada (+3 s). Pista refeita depois do teste do mantenedor: circuito largo (11 m) de ~355 m numa arena de 130 m, só curvas abertas, guidão gradual; mínimo por volta baixado para 8 s. Estilo de corrida arcade original (não reproduz personagens, pistas ou itens de outros jogos).
+- 2026-11-09 (pedido do mantenedor): teclado só com W A S D, E (acenar) e F (interagir); demais ações no mouse
+  (direito segurado corre / defende no x1; meio pula; esquerdo bate, chuta, taca, arremessa, usa o turbo, e no x1
+  clique = soco rápido, segurar e soltar = soco forte). O mouse fica preso na visão ao entrar (Pointer Lock, Esc solta
+  para usar os botões; editar usa o cursor). Painel de comandos por contexto, painel dos jogos com Jogar / Zerar /
+  Classificação (pontos por pessoa em `SpaceSession.board`, `space:score.by` só conta para quem está na chamada).
+  Buraco negro original (horizonte, anel de fótons, disco de acreção e halo) no lugar do planeta da estação espacial.
