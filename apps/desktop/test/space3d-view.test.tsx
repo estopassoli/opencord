@@ -14,6 +14,8 @@ vi.mock('../src/features/space3d/scene', () => ({
     setRings() {}
     hit() {}
     knockout() {}
+    setZone() {}
+    remoteBall() {}
     interact() {}
     setMode() {}
     dispose() {}

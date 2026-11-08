@@ -5,6 +5,7 @@ import {
   type SpaceLayout,
   type SpaceMove,
   type SpaceScreen,
+  type SpaceBall,
   type SpaceDuel,
   type SpaceSession,
 } from '@opencord/contracts';
@@ -23,6 +24,8 @@ export interface PeerPose {
   z: number;
   ry: number;
   a: number;
+  /** 0 sala do servidor; 1–3 arenas de esporte */
+  zone: number;
   /** quando chegou (ms, relógio local); sem notícia por PEER_TIMEOUT_MS o avatar some */
   at: number;
 }
@@ -54,6 +57,13 @@ interface SpaceStore {
   left(channelId: string, userId: string): void;
   /** saiu da chamada: some do espaço de todo mundo e o espaço fecha */
   callEnded(): void;
+  /** arena em que estou (0 = sala do servidor) */
+  zone: number;
+  setZone(z: number): void;
+  /** bola que chegou pela rede (a cena registra quem recebe) */
+  ballListener: ((b: SpaceBall & { by: string }) => void) | null;
+  score(zone: number, side: 'a' | 'b', points: number): void;
+  resetScore(zone: number): Promise<void>;
   /** x1 no soco: lutas da chamada (convites, em andamento e as que acabaram há pouco) */
   duels: Record<string, SpaceDuel>;
   /** diferença entre o relógio do servidor e o meu (ms) */
@@ -78,7 +88,7 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
   editing: false,
 
   async open(channelId, serverId) {
-    set({ openChannelId: channelId, editing: false });
+    set({ openChannelId: channelId, editing: false, zone: 0 });
     useUi.getState().setActivitiesOpen(false);
     await get().load(serverId);
     const rt = useSession.getState().realtime;
@@ -94,7 +104,7 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     const ch = get().openChannelId;
     if (ch) useSession.getState().realtime?.sendVolatile('space:leave', { channelId: ch });
     peers.clear();
-    set({ openChannelId: null, editing: false, duels: {} });
+    set({ openChannelId: null, editing: false, duels: {}, zone: 0 });
   },
   async load(serverId) {
     try {
@@ -169,7 +179,7 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
   },
   moved(m) {
     if (m.channelId !== get().openChannelId) return;
-    peers.set(m.userId, { x: m.x, y: m.y, z: m.z, ry: m.ry, a: m.a, at: performance.now() });
+    peers.set(m.userId, { x: m.x, y: m.y, z: m.z, ry: m.ry, a: m.a, zone: m.zone ?? 0, at: performance.now() });
   },
   left(channelId, userId) {
     if (channelId === get().openChannelId) peers.delete(userId);
@@ -178,10 +188,33 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     const ch = get().openChannelId;
     if (ch) useSession.getState().realtime?.sendVolatile('space:leave', { channelId: ch });
     peers.clear();
-    set({ openChannelId: null, editing: false, session: null, duels: {} });
+    set({ openChannelId: null, editing: false, session: null, duels: {}, zone: 0 });
   },
   duels: {},
   duelOffset: 0,
+  zone: 0,
+  setZone(z) {
+    set({ zone: z });
+  },
+  ballListener: null,
+  score(zone, side, points) {
+    const channelId = get().openChannelId;
+    const rt = useSession.getState().realtime;
+    if (!channelId || !rt) return;
+    void rt
+      .command('space:score', { channelId, zone, side, points })
+      .then((s) => get().applySession(s))
+      .catch(() => undefined);
+  },
+  async resetScore(zone) {
+    const channelId = get().openChannelId;
+    const rt = useSession.getState().realtime;
+    if (!channelId || !rt) return;
+    await rt
+      .command('space:score:reset', { channelId, zone })
+      .then((s) => get().applySession(s))
+      .catch(() => undefined);
+  },
   applyDuel(d) {
     if (d.channelId !== get().openChannelId) return;
     set((st) => ({ duels: { ...st.duels, [d.id]: d }, duelOffset: d.serverNow - Date.now() }));

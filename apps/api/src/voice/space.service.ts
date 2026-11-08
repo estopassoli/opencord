@@ -6,6 +6,7 @@ import {
   SpaceLayout,
   SPACE_TOGGLE_KINDS,
   type ServerSpace,
+  type SpaceBall,
   type SpaceMove,
   type SpaceScreen,
   type SpaceSession,
@@ -147,6 +148,7 @@ export class SpaceService {
       serverId,
       screen: prev?.screen ?? null,
       toggles,
+      ...(prev?.scores ? { scores: prev.scores } : {}),
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
     });
@@ -164,6 +166,7 @@ export class SpaceService {
       serverId,
       screen,
       ...(prev?.toggles ? { toggles: prev.toggles } : {}),
+      ...(prev?.scores ? { scores: prev.scores } : {}),
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
     });
@@ -202,6 +205,38 @@ export class SpaceService {
     }
     if (!peers?.length) return;
     this.realtime.emitVolatile(peers.map(rooms.user), 'space:moved', { ...m, userId });
+  }
+
+  /** bola de uma arena: repassa só para quem está na chamada (quem tocou por último manda) */
+  async ball(userId: string, b: SpaceBall) {
+    const peers = await this.peers(userId, b.channelId);
+    if (!peers?.length) return;
+    this.realtime.emitVolatile(peers.map(rooms.user), 'space:ball', { ...b, by: userId });
+  }
+
+  /** último ponto de cada arena: um mesmo lance detectado por dois apps não conta duas vezes */
+  private readonly lastScore = new Map<string, number>();
+
+  async score(userId: string, channelId: string, zone: number, side: 'a' | 'b', points: number): Promise<SpaceSession> {
+    const serverId = await this.requireInCall(userId, channelId);
+    const prev = await this.loadSession(channelId);
+    const k = `${channelId}:${zone}`;
+    const base: SpaceSession = prev ?? { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
+    if (Date.now() - (this.lastScore.get(k) ?? 0) < 1500) return base;
+    this.lastScore.set(k, Date.now());
+    if (this.lastScore.size > 2000) this.lastScore.clear();
+    const scores = { ...(base.scores ?? {}) };
+    const cur = scores[String(zone)] ?? { a: 0, b: 0 };
+    scores[String(zone)] = { ...cur, [side]: Math.min(999, cur[side] + points) };
+    return this.publishSession({ ...base, scores, updatedBy: userId, revision: base.revision + 1 });
+  }
+
+  async resetScore(userId: string, channelId: string, zone: number): Promise<SpaceSession> {
+    const serverId = await this.requireInCall(userId, channelId);
+    const prev = await this.loadSession(channelId);
+    const base: SpaceSession = prev ?? { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
+    const scores = { ...(base.scores ?? {}), [String(zone)]: { a: 0, b: 0 } };
+    return this.publishSession({ ...base, scores, updatedBy: userId, revision: base.revision + 1 });
   }
 
   async leave(userId: string, channelId: string) {

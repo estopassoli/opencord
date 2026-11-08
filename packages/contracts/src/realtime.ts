@@ -40,9 +40,11 @@ import {
 } from './activities.js';
 import {
   type ServerSpace,
+  type SpaceBall,
   type SpaceDuel,
   SpaceItemId,
   type SpaceMove,
+  SpaceScore,
   SpaceScreen,
   type SpaceSession,
 } from './space.js';
@@ -109,6 +111,9 @@ export const ClientCommands = {
   'space:duel:hit': z.object({ duelId: z.string().max(64), strong: z.boolean() }),
   'space:duel:forfeit': z.object({ duelId: z.string().max(64) }),
   'space:duel:get': z.object({ channelId: Id }),
+  /** esportes: ponto marcado (detectado por quem simula a bola) e zerar o placar */
+  'space:score': SpaceScore,
+  'space:score:reset': z.object({ channelId: Id, zone: z.number().int().min(1).max(3) }),
   'sync:resume': z.object({
     /** último eventId/seq visto por canal, para ressincronização por cursor */
     channels: z.array(z.object({ channelId: Id, lastMessageId: Id.nullable() })).max(500),
@@ -147,6 +152,8 @@ export interface ClientCommandResults {
   'space:duel:hit': SpaceDuel;
   'space:duel:forfeit': SpaceDuel;
   'space:duel:get': SpaceDuel[];
+  'space:score': SpaceSession;
+  'space:score:reset': SpaceSession;
 }
 
 // ---------- Eventos servidor → cliente ----------
@@ -256,6 +263,8 @@ export interface ServerEvents {
   /** posição de um avatar (só para quem está na chamada; sem garantia de entrega) */
   'space:moved': Omit<SpaceMove, 'channelId'> & { channelId: string; userId: string };
   'space:left': { channelId: string; userId: string };
+  /** bola de uma arena (só para quem está na chamada; sem garantia de entrega) */
+  'space:ball': SpaceBall & { by: string };
   /** x1 no soco: convite, contagem, golpes e resultado (para quem vê o canal) */
   'space:duel': SpaceDuel;
   /** alguém tocou um efeito sonoro na chamada: quem está nela toca no próprio app */

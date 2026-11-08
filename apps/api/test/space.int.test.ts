@@ -191,4 +191,23 @@ describe('Espaço 3D', () => {
     expect((await command(so, 'space:toggle', { channelId: voiceId, itemId: 'sofa1', on: false })).ok).toBe(false);
     expect((await command(so, 'space:toggle', { channelId: voiceId, itemId: 'naoexiste', on: true })).ok).toBe(false);
   });
+
+  it('esportes: bola repassada só na chamada; placar no servidor sem contar o mesmo lance duas vezes', async () => {
+    const { owner, alice, voiceId, so, sa, sb } = await setup();
+    for (const u of [owner, alice]) await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token });
+    const ball = { channelId: voiceId, zone: 2, x: 1, y: 0.2, z: 3, vx: 4, vy: 0, vz: -2, held: null, t: 1 };
+    const got = nextEvent<{ by: string; vx: number }>(sa, 'space:ball', (b) => b.by === owner.id);
+    const notBob = noEvent(sb, 'space:ball', () => true, 1000);
+    so.emit('space:ball', ball);
+    expect((await got).vx).toBe(4);
+    await notBob;
+
+    const s1 = await command<SpaceSession>(so, 'space:score', { channelId: voiceId, zone: 2, side: 'a', points: 1 });
+    expect(s1.data?.scores?.['2']).toEqual({ a: 1, b: 0 });
+    // o outro app viu o mesmo gol: não conta de novo
+    const s2 = await command<SpaceSession>(sa, 'space:score', { channelId: voiceId, zone: 2, side: 'a', points: 1 });
+    expect(s2.data?.scores?.['2']).toEqual({ a: 1, b: 0 });
+    const r = await command<SpaceSession>(sa, 'space:score:reset', { channelId: voiceId, zone: 2 });
+    expect(r.data?.scores?.['2']).toEqual({ a: 0, b: 0 });
+  });
 });

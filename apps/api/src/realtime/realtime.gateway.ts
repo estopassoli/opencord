@@ -18,6 +18,7 @@ import {
   type ClientCommandResults,
   type MusicControl,
   type PlayingGame,
+  SpaceBall,
   SpaceLeave,
   SpaceMove,
   type SpaceScreen,
@@ -154,6 +155,12 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       if (!moves.take()) return;
       const m = SpaceMove.safeParse(payload);
       if (m.success) void this.space.move(socket.data.userId, m.data).catch(() => undefined);
+    });
+    const balls = new Bucket(20, 20);
+    socket.on('space:ball', (payload: unknown) => {
+      if (!balls.take()) return;
+      const b = SpaceBall.safeParse(payload);
+      if (b.success) void this.space.ball(socket.data.userId, b.data).catch(() => undefined);
     });
     socket.on('space:leave', (payload: unknown) => {
       if (!bucket.take()) return;
@@ -326,6 +333,14 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       case 'space:duel:get': {
         const d = p as { channelId: string };
         return (await this.duels.get(userId, d.channelId)) as R;
+      }
+      case 'space:score': {
+        const d = p as { channelId: string; zone: number; side: 'a' | 'b'; points: number };
+        return (await this.space.score(userId, d.channelId, d.zone, d.side, d.points)) as R;
+      }
+      case 'space:score:reset': {
+        const d = p as { channelId: string; zone: number };
+        return (await this.space.resetScore(userId, d.channelId, d.zone)) as R;
       }
       case 'sync:resume': {
         const d = p as { channels: { channelId: string; lastMessageId: string | null }[] };

@@ -8,7 +8,9 @@ import {
   SPACE_ITEM_LABELS,
   SPACE_THEME_LABELS,
   SPACE_THEMES,
+  SPORT_LABELS,
   type SpaceTheme,
+  type SportZone,
 } from '@opencord/contracts';
 import { Button, Icon, Select, Slider } from '@opencord/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -59,6 +61,8 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   const [focused, setFocused] = useState(false);
   const [slow, setSlow] = useState(false);
   const [prompt, setPrompt] = useState<string | null>(null);
+  const [charge, setCharge] = useState<number | null>(null);
+  const zone = useSpace((s) => s.zone);
   const toggles = useSpace((s) => s.session?.toggles);
 
   // a cena nasce uma vez por chamada; ambiente, pessoas e telão chegam depois
@@ -70,6 +74,9 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       setGain: (id, g) => useVoice.getState().engine()?.setSpatialGain(id, g),
       onFps: (fps) => setSlow(fps < 24),
       onPrompt: (p) => setPrompt(p?.label ?? null),
+      onCharge: setCharge,
+      sendBall: (z, b) => useSession.getState().realtime?.sendVolatile('space:ball', { channelId, zone: z, ...b }),
+      onScore: (z, side, points) => useSpace.getState().score(z, side, points),
       onPunch: (strong) => {
         const d = Object.values(useSpace.getState().duels).find(
           (x) => x.status === 'fighting' && (x.a === me.id || x.b === me.id),
@@ -95,9 +102,11 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     });
     sceneRef.current = s;
     setScene(s);
+    useSpace.setState({ ballListener: (b) => s.remoteBall(b) });
     el.focus({ preventScroll: true });
     return () => {
       s.dispose();
+      useSpace.setState({ ballListener: null });
       useVoice.getState().engine()?.clearSpatialGains();
       sceneRef.current = null;
       setScene(null);
@@ -116,6 +125,11 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     scene?.setToggles(toggles ?? {});
   }, [scene, toggles]);
 
+  useEffect(() => {
+    scene?.setZone(zone as 0 | SportZone);
+    host.current?.focus({ preventScroll: true });
+  }, [scene, zone]);
+
   useDuelScene(scene);
 
   const onSource = useCallback((src: ScreenSource) => sceneRef.current?.setScreen(src), []);
@@ -130,9 +144,10 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
         onBlur={() => setFocused(false)}
       />
       <TelaoSource onSource={onSource} />
-      {!editing && <TelaoControls />}
+      {!editing && zone === 0 && <TelaoControls />}
       <SpaceBar serverId={serverId} />
-      {!editing && <DuelHud />}
+      {!editing && zone === 0 && <DuelHud />}
+      {!editing && zone !== 0 && <SportHud zone={zone as SportZone} charge={charge} />}
       {!editing && prompt && (
         <button
           className="space3d-prompt"
@@ -186,6 +201,8 @@ function SpaceBar({ serverId }: { serverId: string }) {
         ? (activity?.title ?? 'Vídeo do Assistir juntos')
         : 'Nada no telão';
 
+  const zone = useSpace((s) => s.zone);
+  const [games, setGames] = useState(false);
   if (editing) return null;
   return (
     <div className="space3d-bar">
@@ -194,47 +211,86 @@ function SpaceBar({ serverId }: { serverId: string }) {
         {theme && <span className="muted small">{SPACE_THEME_LABELS[theme]}</span>}
       </span>
       <div className="space3d-menu-wrap">
-        <Button size="sm" variant="secondary" icon="screen" onClick={() => setMenu((m) => !m)} aria-expanded={menu}>
-          Telão: {current}
+        <Button size="sm" variant="secondary" icon="gamepad" onClick={() => setGames((g) => !g)} aria-expanded={games}>
+          {zone ? SPORT_LABELS[zone as SportZone] : 'Jogos'}
         </Button>
-        {menu && (
+        {games && (
           <ul className="space3d-menu" role="menu">
-            <li>
-              <button role="menuitem" onClick={() => pick(null)}>
-                Nada
-              </button>
-            </li>
-            {streamers.map((s) => (
-              <li key={s.id}>
-                <button role="menuitem" onClick={() => pick({ kind: 'stream', userId: s.id })}>
-                  <Icon name="screen" size={16} /> Live de {s.name}
+            {([1, 2, 3] as const).map((z) => (
+              <li key={z}>
+                <button
+                  role="menuitem"
+                  aria-current={zone === z ? 'true' : undefined}
+                  onClick={() => {
+                    setGames(false);
+                    useSpace.getState().setZone(z);
+                  }}
+                >
+                  <Icon name="trophy" size={16} /> {SPORT_LABELS[z]}
                 </button>
               </li>
             ))}
-            <li>
-              {activity ? (
-                <button role="menuitem" onClick={() => pick({ kind: 'activity' })}>
-                  <Icon name="play" size={16} /> {activity.title ?? 'Vídeo do Assistir juntos'}
-                </button>
-              ) : (
+            {zone !== 0 && (
+              <li>
                 <button
                   role="menuitem"
                   onClick={() => {
-                    setMenu(false);
-                    void useSpace.getState().setScreen({ kind: 'activity' });
-                    useUi.getState().openModal({ kind: 'watch-together' });
+                    setGames(false);
+                    useSpace.getState().setZone(0);
                   }}
                 >
-                  <Icon name="play" size={16} /> Escolher um vídeo do YouTube…
+                  <Icon name="home" size={16} /> Voltar para a sala
                 </button>
-              )}
-            </li>
-            {!streamers.length && <li className="muted small space3d-menu-note">Ninguém está ao vivo na chamada.</li>}
+              </li>
+            )}
+            <li className="muted small space3d-menu-note">x1 no soco: na sala, chegue perto de alguém e aperte F.</li>
           </ul>
         )}
       </div>
+      {zone === 0 && (
+        <div className="space3d-menu-wrap">
+          <Button size="sm" variant="secondary" icon="screen" onClick={() => setMenu((m) => !m)} aria-expanded={menu}>
+            Telão: {current}
+          </Button>
+          {menu && (
+            <ul className="space3d-menu" role="menu">
+              <li>
+                <button role="menuitem" onClick={() => pick(null)}>
+                  Nada
+                </button>
+              </li>
+              {streamers.map((s) => (
+                <li key={s.id}>
+                  <button role="menuitem" onClick={() => pick({ kind: 'stream', userId: s.id })}>
+                    <Icon name="screen" size={16} /> Live de {s.name}
+                  </button>
+                </li>
+              ))}
+              <li>
+                {activity ? (
+                  <button role="menuitem" onClick={() => pick({ kind: 'activity' })}>
+                    <Icon name="play" size={16} /> {activity.title ?? 'Vídeo do Assistir juntos'}
+                  </button>
+                ) : (
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(false);
+                      void useSpace.getState().setScreen({ kind: 'activity' });
+                      useUi.getState().openModal({ kind: 'watch-together' });
+                    }}
+                  >
+                    <Icon name="play" size={16} /> Escolher um vídeo do YouTube…
+                  </button>
+                )}
+              </li>
+              {!streamers.length && <li className="muted small space3d-menu-note">Ninguém está ao vivo na chamada.</li>}
+            </ul>
+          )}
+        </div>
+      )}
       <span className="space3d-spacer" />
-      {canEdit && (
+      {canEdit && zone === 0 && (
         <Button size="sm" variant="secondary" icon="edit" onClick={() => useSpace.getState().setEditing(true)}>
           Editar espaço
         </Button>
@@ -606,5 +662,58 @@ function TelaoControls() {
         Legendas
       </button>
     </div>
+  );
+}
+
+const SPORT_HELP: Record<SportZone, string> = {
+  1: 'F perto da bola pega (ou rouba) · segure F e solte na faixa verde para arremessar · de trás do arco vale 3',
+  2: 'encoste na bola para chutar (correndo chuta mais forte) · F perto da bola dá um chute forte para onde você olha',
+  3: 'F com a bola perto rebate para o outro lado · olhe para um lado para puxar a bola · bola parada: F saca',
+};
+
+/** Placar da arena (azul ataca para um lado, vermelho para o outro), força do arremesso e como jogar. */
+function SportHud({ zone, charge }: { zone: SportZone; charge: number | null }) {
+  const score = useSpace((s) => s.session?.scores?.[String(zone)]) ?? { a: 0, b: 0 };
+  const sweet = charge !== null && charge >= 0.55 && charge <= 0.8;
+  return (
+    <>
+      <div
+        className="space3d-score"
+        role="status"
+        aria-live="polite"
+        aria-label={`Placar: azul ${score.a}, vermelho ${score.b}`}
+      >
+        <span className="space3d-team" data-team="a">
+          Azul
+        </span>
+        <strong>
+          {score.a} × {score.b}
+        </strong>
+        <span className="space3d-team" data-team="b">
+          Vermelho
+        </span>
+        <Button size="sm" variant="ghost" onClick={() => void useSpace.getState().resetScore(zone)}>
+          Zerar
+        </Button>
+      </div>
+      {charge !== null && (
+        <div
+          className="space3d-charge"
+          role="meter"
+          aria-label="Força do arremesso"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(charge * 100)}
+        >
+          <span className="space3d-charge-sweet" />
+          <span
+            className="space3d-charge-fill"
+            data-sweet={sweet ? 'true' : undefined}
+            style={{ width: `${charge * 100}%` }}
+          />
+        </div>
+      )}
+      <p className="space3d-sport-help">{SPORT_HELP[zone]}</p>
+    </>
   );
 }

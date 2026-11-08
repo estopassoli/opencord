@@ -70,5 +70,14 @@ chamada sem abrir o espaço fala em volume normal.
   recebida de cada um (alcance 1,5 m + 0,4 de folga, mira de ±69°, recarga, defesa = pose `a = 8`), não pelo que o
   cliente diz. Ringue no chão; quem luta não sai dele e fica virado para o adversário. Sair do espaço = derrota.
   As lutas ficam **em memória** na API (duram ~2 min); reiniciar a API encerra as lutas em andamento.
-- Próximos mini games (basquete, futebol, tênis) usam uma base comum de bola: quem tocou por último simula e
-  transmite a bola; placar no servidor.
+- **Esportes (basquete, futebol, tênis)**: cada um tem uma arena fixa (não depende do ambiente do servidor), aberta
+  pelo botão Jogos; a posição leva `zone` (0 sala, 1–3 arenas) e quem está em outra arena é ouvido como se estivesse
+  longe (piso de 35%). A bola é de quem tocou por último: essa pessoa simula e manda `space:ball` (~10/s, repassado
+  só a quem está na chamada, volátil); os outros simulam também e corrigem pelo que chega; empate de toque fica com
+  quem já mandava. Física própria (gravidade, quique, atrito, muros, aro/tabela, traves, rede). Ponto detectado por
+  quem simula → `space:score` (placar no Redis da sessão, mesma arena ignorada por 1,5 s para não contar o mesmo lance
+  duas vezes; qualquer um da chamada pode zerar). Basquete: pegar/roubar com F, segurar e soltar na faixa boa; 3 pontos
+  de trás do arco. Futebol: encostar chuta, F chuta forte. Tênis: F rebate, ponto por dois quiques, bola fora ou
+  bola que não passa da rede.
+- Limite conhecido: a autoridade da bola confia no cliente (um app modificado poderia marcar pontos falsos); como é
+  diversão sem prêmio, aceitamos. O x1 continua decidido no servidor.

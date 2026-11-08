@@ -10,7 +10,11 @@ import {
   SPACE_TOGGLE_KINDS,
   spaceVoiceGain,
   type SpaceLayout,
+  type SportZone,
 } from '@opencord/contracts';
+import { buildArenaDecor } from './arena3d';
+import { SportPlay, type RemoteBall } from './sportplay';
+import { ARENAS, type BallState } from './sports';
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 import { peers, PEER_TIMEOUT_MS } from '../../store/space';
@@ -29,7 +33,7 @@ export interface SceneParticipant {
 
 export interface SceneHooks {
   /** minha posição para a rede (~10x/s andando, 1x/s parado) */
-  sendPose(p: Pose): void;
+  sendPose(p: Pose & { zone: number }): void;
   /** multiplicador da voz de cada um pela distância (null = normal) */
   setGain(identity: string, g: number | null): void;
   /** quadros por segundo atuais (para a dica de desempenho) */
@@ -42,6 +46,11 @@ export interface SceneHooks {
   onPunch?(strong: boolean): void;
   /** F quando há um convite de x1 para mim: aceitar */
   onAcceptKey?(): boolean;
+  /** esportes: estado da bola para a rede e ponto marcado */
+  sendBall?(zone: SportZone, b: BallState & { held: string | null; t: number }): void;
+  onScore?(zone: SportZone, side: 'a' | 'b', points: number): void;
+  /** carga do arremesso de basquete (0–1; null = sem carregar) */
+  onCharge?(c: number | null): void;
 }
 
 export interface FightState {
@@ -115,6 +124,12 @@ export class SpaceScene {
   private koUntil = 0;
   private readonly lastPunch = { j: 0, s: 0 };
   private clickStart: { x: number; y: number } | null = null;
+  /** 0 = sala do servidor; 1–3 = arenas */
+  zone: 0 | SportZone = 0;
+  private mainLayout: SpaceLayout | null = null;
+  private sport: SportPlay | null = null;
+  private decor: THREE.Group | null = null;
+  private lastCharge: number | null = null;
   private readonly ro: ResizeObserver;
   /** editor: recebe os eventos do canvas quando mode === 'edit' */
   editorInput: {
@@ -149,7 +164,60 @@ export class SpaceScene {
   }
 
   // ---------- ambiente ----------
+  /** ambiente do servidor (a sala); nas arenas fica guardado para a volta */
   setLayout(l: SpaceLayout, keepPosition: boolean) {
+    this.mainLayout = l;
+    if (this.zone === 0) this.applyLayout(l, keepPosition);
+  }
+
+  /** vai para uma arena de esporte (1–3) ou volta para a sala (0) */
+  setZone(z: 0 | SportZone) {
+    if (z === this.zone) return;
+    this.sport?.dispose();
+    this.sport = null;
+    if (this.decor) {
+      this.scene.remove(this.decor);
+      this.decor.traverse((o) => o instanceof THREE.Mesh && o.geometry.dispose());
+      this.decor = null;
+    }
+    this.zone = z;
+    this.fight = null;
+    this.sitting = null;
+    this.lastCharge = null;
+    this.hooks.onCharge?.(null);
+    const l = z ? ARENAS[z].layout : this.mainLayout;
+    if (l) this.applyLayout(l, false);
+    if (z) {
+      this.decor = buildArenaDecor(z);
+      this.scene.add(this.decor);
+      this.sport = new SportPlay(
+        this.scene,
+        z,
+        this.selfId,
+        {
+          sendBall: (b) => this.hooks.sendBall?.(z, b),
+          score: (side, points) => this.hooks.onScore?.(z, side, points),
+        },
+        (id) => this.handOf(id),
+      );
+    }
+    this.lastSend = 0;
+    this.lastPrompt = 0;
+  }
+
+  /** bola que chegou pela rede */
+  remoteBall(b: RemoteBall & { zone: number }) {
+    if (this.sport && b.zone === this.zone) this.sport.remote(b);
+  }
+
+  /** mão de alguém (onde a bola fica quando a pessoa segura) */
+  private handOf(id: string): { x: number; y: number; z: number } | null {
+    const p = id === this.selfId ? this.pose : peers.get(id);
+    if (!p) return null;
+    return { x: p.x + Math.sin(p.ry) * 0.42, y: p.y + 1.15, z: p.z + Math.cos(p.ry) * 0.42 };
+  }
+
+  private applyLayout(l: SpaceLayout, keepPosition: boolean) {
     const first = !this.layout;
     if (this.world) {
       this.scene.remove(this.world.group);
@@ -286,7 +354,10 @@ export class SpaceScene {
     const l = this.layout;
     let label: string | null = null;
     if (this.mode !== 'play' || !l) this.current = null;
-    else if (this.fight) this.current = null;
+    else if (this.sport) {
+      this.current = null;
+      label = this.sport.prompt();
+    } else if (this.fight) this.current = null;
     else if (this.sitting) {
       this.current = null;
       label = 'Levantar';
@@ -296,7 +367,7 @@ export class SpaceScene {
       // alguém bem perto: desafiar para um x1 (ganha da peça)
       let near: { id: string; d: number } | null = null;
       for (const [id, p] of peers) {
-        if (now - p.at > PEER_TIMEOUT_MS || p.a === 5 || p.a === 9) continue;
+        if (now - p.at > PEER_TIMEOUT_MS || p.a === 5 || p.a === 9 || p.zone !== this.zone) continue;
         const d = Math.hypot(p.x - this.pose.x, p.z - this.pose.z);
         if (d <= 1.8 && (!near || d < near.d)) near = { id, d };
       }
@@ -476,6 +547,11 @@ export class SpaceScene {
       this.keys.add('l');
       return;
     }
+    if (k === 'f' && this.mode === 'play' && this.sport) {
+      e.preventDefault();
+      if (!e.repeat) this.sport.press(performance.now());
+      return;
+    }
     if (k === 'f' && this.mode === 'play') {
       e.preventDefault();
       if (!e.repeat) this.interact();
@@ -491,7 +567,9 @@ export class SpaceScene {
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
-    this.keys.delete(e.key.toLowerCase());
+    const k = e.key.toLowerCase();
+    if (k === 'f' && this.sport) this.sport.release(performance.now());
+    this.keys.delete(k);
   };
 
   private onBlur = () => this.keys.clear();
@@ -645,6 +723,14 @@ export class SpaceScene {
       this.pose.y = Math.max(0, this.pose.y + this.vy * dt);
       if (this.pose.y === 0) this.vy = 0;
     }
+    if (this.sport) {
+      this.sport.update(dt, now, { ...this.pose, moving, running: run });
+      const c = this.sport.charging;
+      if ((c === null) !== (this.lastCharge === null) || (c !== null && Math.abs(c - (this.lastCharge ?? 0)) > 0.02)) {
+        this.lastCharge = c;
+        this.hooks.onCharge?.(c);
+      }
+    }
     if (this.fight) this.pose.a = now < this.punchUntil ? this.punchKind : k.has('l') ? 8 : moving ? 1 : 0;
     else this.pose.a = this.pose.y > 0.01 ? 3 : moving ? (run ? 2 : 1) : now < this.waveUntil ? 4 : 0;
     this.me.place(this.pose);
@@ -683,7 +769,7 @@ export class SpaceScene {
     if ((changed && gap >= 100) || gap >= 1000) {
       this.lastSend = now;
       this.lastSent = { ...p };
-      this.hooks.sendPose({ x: round(p.x), y: round(p.y), z: round(p.z), ry: round(p.ry), a: p.a });
+      this.hooks.sendPose({ x: round(p.x), y: round(p.y), z: round(p.z), ry: round(p.ry), a: p.a, zone: this.zone });
     }
   }
 
@@ -691,7 +777,7 @@ export class SpaceScene {
     const names = new Map(this.participants.map((p) => [p.identity, p]));
     for (const [id, pose] of peers) {
       const info = names.get(id);
-      if (id === this.selfId || !info || now - pose.at > PEER_TIMEOUT_MS) {
+      if (id === this.selfId || !info || now - pose.at > PEER_TIMEOUT_MS || pose.zone !== this.zone) {
         if (now - pose.at > PEER_TIMEOUT_MS) peers.delete(id);
         continue;
       }
@@ -707,7 +793,7 @@ export class SpaceScene {
     }
     for (const [id, av] of this.others) {
       const p = peers.get(id);
-      if (!p || !names.has(id)) {
+      if (!p || !names.has(id) || p.zone !== this.zone) {
         this.scene.remove(av.root);
         av.dispose();
         this.others.delete(id);
@@ -725,7 +811,8 @@ export class SpaceScene {
         this.hooks.setGain(p.identity, null);
         continue;
       }
-      const d = Math.hypot(pose.x - this.pose.x, pose.z - this.pose.z);
+      // em outra arena (ou na sala, se estou numa arena): como se estivesse longe
+      const d = pose.zone !== this.zone ? Infinity : Math.hypot(pose.x - this.pose.x, pose.z - this.pose.z);
       this.hooks.setGain(p.identity, spaceVoiceGain(d));
     }
   }
@@ -769,6 +856,7 @@ export class SpaceScene {
 
   dispose() {
     this.disposed = true;
+    this.sport?.dispose();
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);

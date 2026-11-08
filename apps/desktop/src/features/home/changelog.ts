@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-08',
+    time: '22:30',
+    kind: 'novo',
+    icon: 'gamepad',
+    title: 'Basquete, futebol e tênis no Espaço 3D',
+    body: 'No Espaço 3D, o botão Jogos leva para uma quadra de basquete, um campo de futebol ou uma quadra de tênis. No basquete, pegue a bola com F, segure e solte na faixa verde para arremessar (de trás do arco vale 3). No futebol é só encostar na bola para chutar, e F chuta forte. No tênis, F rebate e saca. O placar é o mesmo para todo mundo da chamada.',
+  },
+  {
+    date: '2026-11-08',
     time: '21:00',
     kind: 'novo',
     icon: 'trophy',

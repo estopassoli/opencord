@@ -520,3 +520,75 @@
     transition: none;
   }
 }
+
+/* esportes */
+.space3d-score {
+  position: absolute;
+  z-index: 2;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px 6px 14px;
+  border-radius: var(--radius-lg);
+  background: rgb(10 12 18 / 0.82);
+  color: #fff;
+}
+.space3d-score strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.space3d-team {
+  font-weight: 700;
+}
+.space3d-team[data-team='a'] {
+  color: #6fb2ff;
+}
+.space3d-team[data-team='b'] {
+  color: #ff7b7b;
+}
+.space3d-charge {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 214px;
+  transform: translateX(-50%);
+  width: 240px;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.18);
+}
+.space3d-charge-sweet {
+  position: absolute;
+  left: 55%;
+  width: 25%;
+  height: 100%;
+  background: rgb(58 209 122 / 0.45);
+}
+.space3d-charge-fill {
+  position: absolute;
+  left: 0;
+  height: 100%;
+  background: #f2c94c;
+}
+.space3d-charge-fill[data-sweet='true'] {
+  background: #3ad17a;
+}
+.space3d-sport-help {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(10 12 18 / 0.62);
+  color: #fff;
+  font-size: 12.5px;
+  text-align: center;
+}

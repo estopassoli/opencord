@@ -181,6 +181,8 @@ export const SpaceSession = z.object({
   screen: SpaceScreen.nullable(),
   /** luminárias, lareiras e fliperamas desligados/ligados nesta chamada (id da peça → ligada) */
   toggles: z.record(z.string(), z.boolean()).optional(),
+  /** placar de cada arena ("1" basquete, "2" futebol, "3" tênis): pontos do lado A e do lado B */
+  scores: z.record(z.string(), z.object({ a: z.number().int(), b: z.number().int() })).optional(),
   updatedBy: Id.nullable(),
   revision: z.number().int(),
 });
@@ -198,6 +200,8 @@ export const SpaceMove = z.object({
   z: Coord,
   ry: z.number().finite().min(-7).max(7),
   a: z.number().int().min(0).max(9),
+  /** onde a pessoa está: 0 (ou ausente) a sala do servidor; 1 basquete, 2 futebol, 3 tênis */
+  zone: z.number().int().min(0).max(3).optional(),
 });
 export type SpaceMove = z.infer<typeof SpaceMove>;
 export const SpaceLeave = z.object({ channelId: Id });
@@ -436,3 +440,34 @@ export function duelReaches(a: { x: number; z: number; ry: number }, b: { x: num
   diff = Math.atan2(Math.sin(diff), Math.cos(diff));
   return Math.abs(diff) <= DUEL_AIM;
 }
+
+// ---------- esportes (arenas do espaço) ----------
+export const SPORT_ZONES = { basketball: 1, soccer: 2, tennis: 3 } as const;
+export type SportZone = 1 | 2 | 3;
+export const SPORT_LABELS: Record<SportZone, string> = { 1: 'Basquete', 2: 'Futebol', 3: 'Tênis' };
+
+/**
+ * Bola de uma arena: quem tocou por último simula e manda (~10x/s); os outros seguem.
+ * `held`: quem está com a bola na mão (basquete).
+ */
+export const SpaceBall = z.object({
+  channelId: Id,
+  zone: z.number().int().min(1).max(3),
+  x: z.number().finite().min(-80).max(80),
+  y: z.number().finite().min(-5).max(40),
+  z: z.number().finite().min(-80).max(80),
+  vx: z.number().finite().min(-60).max(60),
+  vy: z.number().finite().min(-60).max(60),
+  vz: z.number().finite().min(-60).max(60),
+  held: Id.nullable(),
+  /** quem mandou por último e quando (ms, relógio de quem mandou): desempata quem é a autoridade */
+  t: z.number().finite(),
+});
+export type SpaceBall = z.infer<typeof SpaceBall>;
+
+export const SpaceScore = z.object({
+  channelId: Id,
+  zone: z.number().int().min(1).max(3),
+  side: z.enum(['a', 'b']),
+  points: z.number().int().min(1).max(3),
+});
