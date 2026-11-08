@@ -11,8 +11,7 @@ import {
   type SpaceTheme,
 } from '@opencord/contracts';
 import { Button, Icon, Select, Slider } from '@opencord/ui';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useShallow } from 'zustand/react/shallow';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { askConfirm } from '../../components/AskDialog';
 import { useActivity } from '../../store/activity';
 import { useData } from '../../store/data';
@@ -47,10 +46,13 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   const space = useSpace((s) => s.spaces[serverId]);
   const editing = useSpace((s) => s.editing);
   const me = useData((s) => s.me);
-  const participants = useVoice(
-    useShallow((s) =>
-      s.participants.map((p) => ({ identity: p.identity, name: p.name, speaking: p.speaking, isLocal: p.isLocal })),
-    ),
+  // a lista da voz é estável entre mudanças; derivar aqui (um seletor que cria objetos novos a cada leitura
+  // faz o React re-renderizar sem parar — erro #185)
+  const voiceParticipants = useVoice((s) => s.participants);
+  const participants = useMemo(
+    () =>
+      voiceParticipants.map((p) => ({ identity: p.identity, name: p.name, speaking: p.speaking, isLocal: p.isLocal })),
+    [voiceParticipants],
   );
   const [focused, setFocused] = useState(false);
   const [slow, setSlow] = useState(false);
@@ -118,8 +120,10 @@ function SpaceBar({ serverId }: { serverId: string }) {
   const theme = useSpace((s) => s.spaces[serverId]?.layout.theme);
   const canEdit = useData(() => canEditSpace(serverId));
   const [menu, setMenu] = useState(false);
-  const streamers = useVoice(
-    useShallow((s) => s.participants.filter((p) => p.hasScreen).map((p) => ({ id: p.identity, name: p.name }))),
+  const voiceParticipants = useVoice((s) => s.participants);
+  const streamers = useMemo(
+    () => voiceParticipants.filter((p) => p.hasScreen).map((p) => ({ id: p.identity, name: p.name })),
+    [voiceParticipants],
   );
   const activity = useActivity((a) => a.state);
   const meId = useData((s) => s.me?.id);
