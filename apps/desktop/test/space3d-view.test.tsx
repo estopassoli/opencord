@@ -17,6 +17,9 @@ vi.mock('../src/features/space3d/scene', () => ({
     setZone() {}
     remoteBall() {}
     setTeam() {}
+    setRace() {}
+    rerack() {}
+    remotePool() {}
     interact() {}
     setMode() {}
     dispose() {}
