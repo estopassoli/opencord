@@ -101,3 +101,7 @@ chamada sem abrir o espaço fala em volume normal.
   para usar os botões; editar usa o cursor). Painel de comandos por contexto, painel dos jogos com Jogar / Zerar /
   Classificação (pontos por pessoa em `SpaceSession.board`, `space:score.by` só conta para quem está na chamada).
   Buraco negro original (horizonte, anel de fótons, disco de acreção e halo) no lugar do planeta da estação espacial.
+- 2026-11-09: atalhos configuráveis (`features/space3d/bindings.ts`, por código de tecla ou botão do mouse, guardados
+  neste computador): padrão W A S D, Shift corre, Espaço pula, E acena, F interage, esquerdo = ação, direito = defender.
+  Esc (do navegador) solta o mouse e abre o menu de pausa (Continuar, Comandos, Sair). Correção: a cena cancelava o
+  `pointerdown`, o que impede o navegador de gerar o `mousedown` — com o mouse preso, os cliques não chegavam.

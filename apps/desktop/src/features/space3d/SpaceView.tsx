@@ -25,7 +25,7 @@ import { useVoice } from '../../store/voice';
 import { SpaceEditor } from './editor';
 import { SpaceScene, type ScreenSource } from './scene';
 import { DuelHud, useDuelScene } from './DuelHud';
-import { ControlsPanel, LockHint } from './GameHud';
+import { ControlsPanel, LockHint, PauseMenu } from './GameHud';
 import { TelaoSource, useTelaoPlayer } from './Telao';
 import './space3d.css';
 
@@ -179,7 +179,16 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
         </button>
       )}
       {!editing && <ControlsPanel zone={zone} fighting={fighting} />}
-      {!editing && <LockHint locked={aimLocked} fighting={fighting} />}
+      {!editing && aimLocked && <LockHint locked fighting={fighting} />}
+      {!editing && !aimLocked && (
+        <PauseMenu
+          onResume={() => {
+            sceneRef.current?.lockPointer();
+            host.current?.focus({ preventScroll: true });
+          }}
+          onLeave={() => useSpace.getState().close()}
+        />
+      )}
       {slow && !editing && (
         <p className="space3d-slow">O espaço está pesado neste computador: feche-o enquanto joga.</p>
       )}

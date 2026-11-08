@@ -22,6 +22,7 @@ import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 import { peers, PEER_TIMEOUT_MS } from '../../store/space';
 import { Avatar, type Pose } from './avatar';
+import { actionsOf, normalizeCode, useBindings, type Action } from './bindings';
 import { findInteraction, standUpSpot, type Interaction } from './interact';
 import { SCREEN_H, SCREEN_W, setItemOn } from './models';
 import { obstaclesOf, PLAYER_R, resolve, type Obstacles } from './physics';
@@ -306,16 +307,15 @@ export class SpaceScene {
 
   private stepRace(dt: number, now: number) {
     const b = this.bike!;
-    const k = this.keys;
     const start = this.raceInfo.localStart;
     const go = start !== null && Date.now() >= start && !this.raceFinished;
     const events = stepBike(
       b,
       {
-        up: k.has('w') || k.has('arrowup'),
-        down: k.has('s') || k.has('arrowdown'),
-        left: k.has('a') || k.has('arrowleft'),
-        right: k.has('d') || k.has('arrowright'),
+        up: this.held('forward'),
+        down: this.held('back'),
+        left: this.held('left'),
+        right: this.held('right'),
       },
       dt,
       Date.now(),
@@ -449,7 +449,7 @@ export class SpaceScene {
   private onLockChange = () => {
     if (!this.aimLocked) {
       // soltou (Esc): nada fica "segurado"
-      this.leftHeld = this.rightHeld = false;
+      this.leftHeld = false;
       this.keys.clear();
     }
     this.hooks.onAimLock?.(this.aimLocked);
@@ -673,13 +673,46 @@ export class SpaceScene {
 
   /** defesa no x1: segurar Shift (ou L) */
   private get blocking() {
-    return this.rightHeld;
+    return this.held('secondary');
+  }
+
+  /** ação segurada agora (tecla ou botão do mouse escolhido; as setas sempre andam) */
+  private held(a: Action): boolean {
+    const code = useBindings.getState().map[a];
+    if (this.keys.has(code)) return true;
+    const arrow = { forward: 'ArrowUp', back: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' } as Partial<
+      Record<Action, string>
+    >;
+    return !!arrow[a] && this.keys.has(arrow[a]);
+  }
+
+  /** tecla ou botão apertado (código já normalizado: `KeyW`, `Shift`, `Mouse0`…) */
+  private press(code: string, repeat: boolean) {
+    this.keys.add(code);
+    if (this.mode !== 'play' || repeat) return;
+    const now = performance.now();
+    for (const a of actionsOf(code)) {
+      if (a === 'jump') {
+        if (this.sitting) this.standUp();
+        else if (this.pose.y <= 0.001 && !this.bike) this.vy = JUMP_V;
+      } else if (a === 'wave') this.waveUntil = now + 2200;
+      else if (a === 'interact') {
+        // nas arenas, interagir só pega a bola (basquete); bater, tacar e turbo são a "ação"
+        if (this.sport || this.pool || this.bike) {
+          if (this.sport?.zone === 1 && !this.sport.holding) this.sport.press(now);
+        } else this.interact();
+      } else if (a === 'primary') this.primaryDown(now);
+    }
+  }
+
+  private release(code: string) {
+    this.keys.delete(code);
+    if (actionsOf(code).includes('primary')) this.primaryUp(performance.now());
   }
 
   /** botões do mouse segurados (com o mouse preso na visão) */
   private leftHeld = false;
   private leftAt = 0;
-  private rightHeld = false;
 
   /** prende o mouse na visão (mexer o mouse gira a câmera, sem clicar); Esc solta */
   lockPointer() {
@@ -693,18 +726,15 @@ export class SpaceScene {
   }
 
   private mouseDown(button: number) {
-    const now = performance.now();
-    if (button === 1) {
-      // botão do meio: pular (ou levantar)
-      if (this.sitting) this.standUp();
-      else if (this.pose.y <= 0.001 && !this.bike) this.vy = JUMP_V;
-      return;
-    }
-    if (button === 2) {
-      this.rightHeld = true;
-      return;
-    }
-    if (button !== 0) return;
+    this.press(`Mouse${button}`, false);
+  }
+
+  private mouseUp(button: number) {
+    this.release(`Mouse${button}`);
+  }
+
+  /** a "ação" (por padrão o botão esquerdo): bater, chutar, tacar, arremessar, turbo; no x1 começa o soco */
+  private primaryDown(now: number) {
     this.leftHeld = true;
     this.leftAt = now;
     if (this.bike) fireBoost(this.bike, Date.now());
@@ -712,13 +742,8 @@ export class SpaceScene {
     else if (this.sport && this.sport.press(now)) this.swingUntil = now + 260;
   }
 
-  private mouseUp(button: number) {
-    const now = performance.now();
-    if (button === 2) {
-      this.rightHeld = false;
-      return;
-    }
-    if (button !== 0 || !this.leftHeld) return;
+  private primaryUp(now: number) {
+    if (!this.leftHeld) return;
     this.leftHeld = false;
     // x1: clique rápido = soco rápido; segurar e soltar = soco forte
     if (this.fight) this.punch(now - this.leftAt >= 350);
@@ -741,8 +766,8 @@ export class SpaceScene {
     this.host.focus({ preventScroll: true });
     if (this.mode === 'play') {
       // jogando, o mouse fica preso na visão: o clique solto (sem trava) só prende de novo; com a trava, os botões
-      // chegam por mousedown/mouseup no documento (onMouseDownDoc)
-      e.preventDefault();
+      // chegam por mousedown/mouseup no documento (onMouseDownDoc). Sem preventDefault aqui: cancelar o pointerdown
+      // faz o navegador não gerar o mousedown, e os cliques do jogo não chegariam.
       if (!this.aimLocked) this.lockPointer();
       return;
     }
@@ -802,29 +827,17 @@ export class SpaceScene {
       e.preventDefault();
       return;
     }
-    const k = e.key.toLowerCase();
-    // teclado só para andar (WASD), acenar (E) e interagir (F); o resto dos comandos fica no mouse
-    if (k === 'f' && this.mode === 'play' && (this.sport || this.pool || this.bike)) {
-      e.preventDefault();
-      // nas arenas o F só pega a bola (basquete); bater, tacar e turbo são no mouse
-      if (!e.repeat && this.sport?.zone === 1 && !this.sport.holding) this.sport.press(performance.now());
-      return;
-    }
-    if (k === 'f' && this.mode === 'play') {
-      e.preventDefault();
-      if (!e.repeat) this.interact();
-      return;
-    }
-    const editKeys = this.mode === 'edit' ? ['shift'] : [];
-    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e', ...editKeys].includes(k)) {
-      e.preventDefault();
-      if (k === 'e' && this.mode === 'play') this.waveUntil = performance.now() + 2200;
-      this.keys.add(k);
-    }
+    // atalhos escolhidos pela pessoa (menu de pausa); Esc fica com o navegador (solta o mouse e pausa)
+    const code = normalizeCode(e.code);
+    if (code === 'Escape') return;
+    const bound = actionsOf(code).length > 0 || code.startsWith('Arrow') || (this.mode === 'edit' && code === 'Shift');
+    if (!bound) return;
+    e.preventDefault();
+    this.press(code, e.repeat);
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
-    this.keys.delete(e.key.toLowerCase());
+    this.release(normalizeCode(e.code));
   };
 
   private onBlur = () => this.keys.clear();
@@ -915,13 +928,12 @@ export class SpaceScene {
   };
 
   private stepPlayer(dt: number, now: number) {
-    const k = this.keys;
     let fx = 0;
     let fz = 0;
-    if (k.has('w') || k.has('arrowup')) fz += 1;
-    if (k.has('s') || k.has('arrowdown')) fz -= 1;
-    if (k.has('d') || k.has('arrowright')) fx += 1;
-    if (k.has('a') || k.has('arrowleft')) fx -= 1;
+    if (this.held('forward')) fz += 1;
+    if (this.held('back')) fz -= 1;
+    if (this.held('right')) fx += 1;
+    if (this.held('left')) fx -= 1;
     if (this.bike) {
       this.stepRace(dt, now);
       return;
@@ -936,7 +948,7 @@ export class SpaceScene {
     }
     const moving = fx !== 0 || fz !== 0;
     // correr: segurar o botão direito (no x1 o direito é defender)
-    const run = this.rightHeld && !this.fight;
+    const run = this.held('run') && !this.fight;
     if (this.sitting) {
       if (!moving) {
         // sentado: fica no assento, virado para a frente da peça
@@ -1005,12 +1017,12 @@ export class SpaceScene {
     const k = this.keys;
     let fx = 0;
     let fz = 0;
-    if (k.has('w') || k.has('arrowup')) fz += 1;
-    if (k.has('s') || k.has('arrowdown')) fz -= 1;
-    if (k.has('d') || k.has('arrowright')) fx += 1;
-    if (k.has('a') || k.has('arrowleft')) fx -= 1;
+    if (this.held('forward')) fz += 1;
+    if (this.held('back')) fz -= 1;
+    if (this.held('right')) fx += 1;
+    if (this.held('left')) fx -= 1;
     if (fx || fz) {
-      const sp = (k.has('shift') ? 18 : 9) * dt;
+      const sp = (k.has('Shift') ? 18 : 9) * dt;
       this.focus.x += (-Math.sin(this.yaw) * fz + Math.cos(this.yaw) * fx) * sp;
       this.focus.z += (-Math.cos(this.yaw) * fz - Math.sin(this.yaw) * fx) * sp;
       this.clampFocus();

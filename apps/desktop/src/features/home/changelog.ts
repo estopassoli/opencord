@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-09',
+    time: '03:30',
+    kind: 'melhoria',
+    icon: 'keyboard',
+    title: 'Pausa e atalhos do Espaço 3D do seu jeito',
+    body: 'No Espaço 3D, Shift corre e Espaço pula. Esc abre o menu de pausa: continue, saia do espaço ou mude qualquer comando para a tecla ou o botão do mouse que preferir (fica salvo neste computador). Corrigido: com o mouse preso na visão, os cliques do jogo (bater, chutar, socar, tacar) não chegavam.',
+  },
+  {
+    date: '2026-11-09',
     time: '02:30',
     kind: 'melhoria',
     icon: 'gamepad',

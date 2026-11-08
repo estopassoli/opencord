@@ -3,7 +3,8 @@
  * prender o mouse na visão e a mira no centro. Teclado só tem W A S D, E e F; o resto é no mouse.
  */
 import type { SportZone } from '@opencord/contracts';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { ACTION_LABELS, ACTIONS, codeLabel, isMouse, normalizeCode, useBindings, type Action } from './bindings';
 
 type Btn = 'left' | 'right' | 'middle' | 'move';
 
@@ -50,65 +51,88 @@ function Keys({ keys }: { keys: string[] }) {
   );
 }
 
-type Row = { input: { keys: string[] } | { mouse: Btn; hold?: boolean } | { text: string }; label: string };
+type Row = {
+  input: { acts: Action[]; hold?: boolean } | { mouse: Btn } | { text: string };
+  label: string;
+};
+const MOVE: Action[] = ['forward', 'left', 'back', 'right'];
 
 const ROOM: Row[] = [
-  { input: { keys: ['W', 'A', 'S', 'D'] }, label: 'Andar' },
+  { input: { acts: MOVE }, label: 'Andar' },
   { input: { mouse: 'move' }, label: 'Olhar em volta' },
-  { input: { mouse: 'right', hold: true }, label: 'Correr' },
-  { input: { mouse: 'middle' }, label: 'Pular' },
-  { input: { keys: ['E'] }, label: 'Acenar' },
-  { input: { keys: ['F'] }, label: 'Interagir · desafiar para um x1' },
+  { input: { acts: ['run'], hold: true }, label: 'Correr' },
+  { input: { acts: ['jump'] }, label: 'Pular' },
+  { input: { acts: ['wave'] }, label: 'Acenar' },
+  { input: { acts: ['interact'] }, label: 'Interagir · desafiar para um x1' },
 ];
 
 const FIGHT: Row[] = [
-  { input: { mouse: 'left' }, label: 'Soco rápido' },
-  { input: { mouse: 'left', hold: true }, label: 'Soltar: soco forte' },
-  { input: { mouse: 'right', hold: true }, label: 'Defender' },
-  { input: { keys: ['W', 'A', 'S', 'D'] }, label: 'Mover no ringue' },
+  { input: { acts: ['primary'] }, label: 'Soco rápido' },
+  { input: { acts: ['primary'], hold: true }, label: 'Soltar: soco forte' },
+  { input: { acts: ['secondary'], hold: true }, label: 'Defender' },
+  { input: { acts: MOVE }, label: 'Mover no ringue' },
 ];
 
 const SPORT: Record<SportZone, Row[]> = {
   1: [
-    { input: { keys: ['F'] }, label: 'Pegar ou roubar a bola' },
-    { input: { mouse: 'left', hold: true }, label: 'Arremessar: solte na faixa verde' },
-    { input: { mouse: 'right', hold: true }, label: 'Correr' },
+    { input: { acts: ['interact'] }, label: 'Pegar ou roubar a bola' },
+    { input: { acts: ['primary'], hold: true }, label: 'Arremessar: solte na faixa verde' },
+    { input: { acts: ['run'], hold: true }, label: 'Correr' },
   ],
   2: [
     { input: { text: 'Encostar' }, label: 'Chutar (correndo chuta mais forte)' },
-    { input: { mouse: 'left' }, label: 'Chute forte para onde olha' },
-    { input: { mouse: 'right', hold: true }, label: 'Correr' },
+    { input: { acts: ['primary'] }, label: 'Chute forte para onde olha' },
+    { input: { acts: ['run'], hold: true }, label: 'Correr' },
   ],
   3: [
-    { input: { mouse: 'left' }, label: 'Rebater ou sacar' },
+    { input: { acts: ['primary'] }, label: 'Rebater ou sacar' },
     { input: { mouse: 'move' }, label: 'Olhar para um lado puxa a bola' },
-    { input: { mouse: 'right', hold: true }, label: 'Correr' },
+    { input: { acts: ['run'], hold: true }, label: 'Correr' },
   ],
   4: [
-    { input: { mouse: 'left' }, label: 'Bater na bola ou sacar' },
+    { input: { acts: ['primary'] }, label: 'Bater na bola ou sacar' },
     { input: { mouse: 'move' }, label: 'Olhar para um lado puxa a bola' },
-    { input: { mouse: 'right', hold: true }, label: 'Correr' },
+    { input: { acts: ['run'], hold: true }, label: 'Correr' },
   ],
   5: [
-    { input: { mouse: 'left' }, label: 'Rebater ou sacar' },
+    { input: { acts: ['primary'] }, label: 'Rebater ou sacar' },
     { input: { mouse: 'move' }, label: 'Olhar para um lado puxa a bola' },
   ],
   6: [
     { input: { mouse: 'move' }, label: 'Mirar (gira em volta da branca)' },
-    { input: { mouse: 'left', hold: true }, label: 'Força da tacada: solte para tacar' },
+    { input: { acts: ['primary'], hold: true }, label: 'Força da tacada: solte para tacar' },
   ],
   7: [
-    { input: { keys: ['W', 'S'] }, label: 'Acelerar e frear' },
-    { input: { keys: ['A', 'D'] }, label: 'Virar' },
-    { input: { mouse: 'left' }, label: 'Usar o turbo guardado' },
+    { input: { acts: ['forward', 'back'] }, label: 'Acelerar e frear' },
+    { input: { acts: ['left', 'right'] }, label: 'Virar' },
+    { input: { acts: ['primary'] }, label: 'Usar o turbo guardado' },
   ],
 };
+
+/** o atalho escolhido para uma ação: tecla desenhada ou mouse com o botão em destaque */
+export function Binding({ action, hold }: { action: Action; hold?: boolean }) {
+  const code = useBindings((b) => b.map[action]);
+  if (isMouse(code)) {
+    const btn: Btn = code === 'Mouse0' ? 'left' : code === 'Mouse2' ? 'right' : 'middle';
+    return code === 'Mouse0' || code === 'Mouse1' || code === 'Mouse2' ? (
+      <MouseIcon btn={btn} {...(hold ? { hold: true } : {})} />
+    ) : (
+      <span className="space3d-tag">{codeLabel(code)}</span>
+    );
+  }
+  return (
+    <span className="space3d-mouse">
+      <Keys keys={[codeLabel(code)]} />
+      {hold && <span className="space3d-hold">segure</span>}
+    </span>
+  );
+}
 
 /** Painel de comandos do contexto (sala, x1 ou esporte), recolhível. */
 export function ControlsPanel({ zone, fighting }: { zone: number; fighting: boolean }) {
   const [open, setOpen] = useState(true);
   const rows = fighting ? FIGHT : zone ? SPORT[zone as SportZone] : ROOM;
-  const extra: Row[] = zone ? [{ input: { keys: ['W', 'A', 'S', 'D'] }, label: 'Andar' }] : [];
+  const extra: Row[] = zone ? [{ input: { acts: MOVE }, label: 'Andar' }] : [];
   const all = zone === 7 || fighting ? rows : [...rows, ...extra];
   return (
     <div className="space3d-controls" data-open={open ? 'true' : undefined}>
@@ -117,25 +141,32 @@ export function ControlsPanel({ zone, fighting }: { zone: number; fighting: bool
       </button>
       {open && (
         <ul>
-          {all.map((r) => (
-            <li key={r.label}>
-              <span className="space3d-input">
-                {'keys' in r.input ? (
-                  <Keys keys={r.input.keys} />
-                ) : 'mouse' in r.input ? (
-                  <MouseIcon btn={r.input.mouse} {...(r.input.hold ? { hold: true } : {})} />
-                ) : (
-                  <span className="space3d-tag">{r.input.text}</span>
-                )}
-              </span>
-              <span>{r.label}</span>
-            </li>
-          ))}
+          {all.map((r) => {
+            const inp = r.input;
+            return (
+              <li key={r.label}>
+                <span className="space3d-input">
+                  {'acts' in inp ? (
+                    <span className="space3d-keys">
+                      {inp.acts.map((a, i) => (
+                        <Binding key={a} action={a} {...(inp.hold && i === 0 ? { hold: true } : {})} />
+                      ))}
+                    </span>
+                  ) : 'mouse' in inp ? (
+                    <MouseIcon btn={inp.mouse} />
+                  ) : (
+                    <span className="space3d-tag">{inp.text}</span>
+                  )}
+                </span>
+                <span>{r.label}</span>
+              </li>
+            );
+          })}
           <li className="space3d-controls-esc">
             <span className="space3d-input">
               <Keys keys={['Esc']} />
             </span>
-            <span>Soltar o mouse (para usar os botões)</span>
+            <span>Pausar · mudar os atalhos</span>
           </li>
         </ul>
       )}
@@ -155,5 +186,103 @@ export function LockHint({ locked, fighting }: { locked: boolean; fighting: bool
         <span className="small">o mouse controla a visão · Esc solta</span>
       </span>
     </div>
+  );
+}
+
+/**
+ * Menu de pausa (Esc solta o mouse e abre): continuar, mudar os atalhos (tecla ou botão do mouse) e sair do espaço.
+ */
+export function PauseMenu({ onResume, onLeave }: { onResume: () => void; onLeave: () => void }) {
+  const [view, setView] = useState<'menu' | 'keys'>('menu');
+  const [listening, setListening] = useState<Action | null>(null);
+  const map = useBindings((b) => b.map);
+
+  // esperando a tecla/botão: a próxima tecla ou clique vira o atalho (Esc cancela)
+  useEffect(() => {
+    if (!listening) return;
+    let armed = false;
+    const arm = window.setTimeout(() => (armed = true), 0);
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.code !== 'Escape') useBindings.getState().set(listening, normalizeCode(e.code));
+      setListening(null);
+    };
+    const onMouse = (e: MouseEvent) => {
+      if (!armed) return;
+      e.preventDefault();
+      e.stopPropagation();
+      useBindings.getState().set(listening, `Mouse${e.button}`);
+      setListening(null);
+    };
+    const noMenu = (e: Event) => e.preventDefault();
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('mousedown', onMouse, true);
+    window.addEventListener('contextmenu', noMenu, true);
+    return () => {
+      window.clearTimeout(arm);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('mousedown', onMouse, true);
+      // o menu do botão direito some só depois do clique que acabou de virar atalho
+      window.setTimeout(() => window.removeEventListener('contextmenu', noMenu, true), 0);
+    };
+  }, [listening]);
+
+  return (
+    <>
+      {/* esperando o atalho: cobre a cena, para o clique virar atalho em vez de prender o mouse */}
+      {listening && <div className="space3d-capture" aria-hidden="true" />}
+      <div className="space3d-pause" role="dialog" aria-label="Pausa">
+        {view === 'menu' ? (
+          <>
+            <h3>Pausado</h3>
+            <button className="space3d-gbtn space3d-gbtn-play space3d-pause-main" onClick={onResume} autoFocus>
+              Continuar
+            </button>
+            <button className="space3d-gbtn space3d-pause-main" onClick={() => setView('keys')}>
+              Comandos
+            </button>
+            <button className="space3d-gbtn space3d-pause-main" onClick={onLeave}>
+              Sair do espaço
+            </button>
+            <p className="small">Clique na cena para voltar. Esc pausa de novo.</p>
+          </>
+        ) : (
+          <>
+            <h3>Comandos</h3>
+            <p className="small">Clique em Alterar e aperte a tecla ou o botão do mouse que quiser.</p>
+            <ul className="space3d-binds">
+              {ACTIONS.map((a) => (
+                <li key={a}>
+                  <span>{ACTION_LABELS[a]}</span>
+                  <span className="space3d-bind-cur">
+                    {listening === a ? (
+                      <span className="space3d-listening">Aperte uma tecla ou botão…</span>
+                    ) : (
+                      <Binding action={a} />
+                    )}
+                  </span>
+                  <button
+                    className="space3d-gbtn space3d-gbtn-sm"
+                    aria-label={`Alterar: ${ACTION_LABELS[a]} (agora ${codeLabel(map[a])})`}
+                    onClick={() => setListening(listening === a ? null : a)}
+                  >
+                    {listening === a ? 'Cancelar' : 'Alterar'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="space3d-pause-row">
+              <button className="space3d-gbtn" onClick={() => useBindings.getState().reset()}>
+                Restaurar padrão
+              </button>
+              <button className="space3d-gbtn space3d-gbtn-play" onClick={() => setView('menu')}>
+                Voltar
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
