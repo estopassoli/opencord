@@ -21,7 +21,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { SpaceEditor } from './editor';
 import { SpaceScene, type ScreenSource } from './scene';
-import { TelaoSource } from './Telao';
+import { TelaoSource, useTelaoPlayer } from './Telao';
 import './space3d.css';
 
 const SWATCHES = [
@@ -97,6 +97,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
         onBlur={() => setFocused(false)}
       />
       <TelaoSource onSource={onSource} />
+      {!editing && <TelaoControls />}
       <SpaceBar serverId={serverId} />
       {!editing && (
         <p className="space3d-hint" data-dim={focused ? 'true' : undefined}>
@@ -126,8 +127,6 @@ function SpaceBar({ serverId }: { serverId: string }) {
     [voiceParticipants],
   );
   const activity = useActivity((a) => a.state);
-  const meId = useData((s) => s.me?.id);
-  const owner = activity && activity.startedBy === meId;
 
   const pick = (s: Parameters<ReturnType<typeof useSpace.getState>['setScreen']>[0]) => {
     setMenu(false);
@@ -187,20 +186,6 @@ function SpaceBar({ serverId }: { serverId: string }) {
           </ul>
         )}
       </div>
-      {screen?.kind === 'activity' && activity && owner && (
-        <Button
-          size="sm"
-          variant="secondary"
-          icon={activity.playing ? 'pause' : 'play'}
-          onClick={() =>
-            void useActivity
-              .getState()
-              .control(activity.playing ? 'pause' : 'play', useActivity.getState().expectedPosition())
-          }
-        >
-          {activity.playing ? 'Pausar para todos' : 'Tocar para todos'}
-        </Button>
-      )}
       <span className="space3d-spacer" />
       {canEdit && (
         <Button size="sm" variant="secondary" icon="edit" onClick={() => useSpace.getState().setEditing(true)}>
@@ -412,6 +397,166 @@ function Swatches({ value, onChange, label }: { value: string | null; onChange: 
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+const fmtTime = (sec: number) => {
+  const t = Math.max(0, Math.floor(sec));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const ss = String(t % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+};
+
+/** Controles do que está no telão: vídeo do YouTube (grupo ou só para mim) ou volume da live. */
+function TelaoControls() {
+  const screen = useSpace((s) => s.session?.screen ?? null);
+  const activity = useActivity((a) => a.state);
+  const meId = useData((s) => s.me?.id);
+  const p = useTelaoPlayer();
+  const liveVolume = useVoice((v) => (screen?.kind === 'stream' ? (v.screenVolume[screen.userId] ?? 1) : 1));
+  const ownerName = useVoice((v) =>
+    activity ? (v.participants.find((x) => x.identity === activity.startedBy)?.name ?? 'quem pôs o vídeo') : '',
+  );
+  const [scrub, setScrub] = useState<number | null>(null);
+  // a posição do grupo anda sozinha: redesenha a barra 2x por segundo
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (screen?.kind !== 'activity') return;
+    const t = setInterval(() => tick((n) => n + 1), 500);
+    return () => clearInterval(t);
+  }, [screen?.kind]);
+
+  if (screen?.kind === 'stream') {
+    const muted = liveVolume === 0;
+    return (
+      <div className="space3d-player" role="group" aria-label="Som da live no telão">
+        <button
+          className="space3d-pbtn"
+          aria-label={muted ? 'Ativar som da live' : 'Silenciar a live'}
+          data-tip={muted ? 'Ativar som' : 'Silenciar'}
+          onClick={() => useVoice.getState().setScreenVolume(screen.userId, muted ? 1 : 0)}
+        >
+          <Icon name={muted ? 'speaker-off' : 'speaker'} size={18} />
+        </button>
+        <div className="space3d-pvol">
+          <Slider
+            aria-label="Volume da live"
+            min={0}
+            max={200}
+            value={Math.round(liveVolume * 100)}
+            format={(v) => `${v}%`}
+            onChange={(v) => useVoice.getState().setScreenVolume(screen.userId, v / 100)}
+          />
+        </div>
+      </div>
+    );
+  }
+  if (screen?.kind !== 'activity' || !activity) return null;
+
+  const owner = activity.startedBy === meId;
+  const groupPausedForMe = !owner && !activity.playing;
+  const playing = owner ? activity.playing : activity.playing && !p.localPaused;
+  const position = scrub ?? (p.localPaused ? p.currentTime : useActivity.getState().expectedPosition());
+  const duration = p.duration || 0;
+  const seek = (to: number) =>
+    void useActivity.getState().control('seek', Math.max(0, duration ? Math.min(duration - 1, to) : to));
+  const toggle = () => {
+    if (groupPausedForMe) return;
+    if (owner)
+      void useActivity
+        .getState()
+        .control(activity.playing ? 'pause' : 'play', useActivity.getState().expectedPosition());
+    else p.set({ localPaused: !p.localPaused });
+  };
+  const toggleLabel = owner
+    ? activity.playing
+      ? 'Pausar para todos'
+      : 'Tocar para todos'
+    : groupPausedForMe
+      ? `Pausado por ${ownerName}`
+      : p.localPaused
+        ? 'Voltar a assistir (alcança o grupo)'
+        : 'Pausar só para você';
+
+  return (
+    <div className="space3d-player" role="group" aria-label="Controles do vídeo no telão">
+      <button
+        className="space3d-pbtn"
+        aria-label={toggleLabel}
+        data-tip={toggleLabel}
+        disabled={groupPausedForMe}
+        onClick={toggle}
+      >
+        <Icon name={playing ? 'pause' : 'play'} size={18} />
+      </button>
+      {owner && (
+        <>
+          <button
+            className="space3d-pbtn space3d-ptext"
+            aria-label="Voltar 10 segundos"
+            onClick={() => seek(position - 10)}
+          >
+            −10 s
+          </button>
+          <button
+            className="space3d-pbtn space3d-ptext"
+            aria-label="Avançar 10 segundos"
+            onClick={() => seek(position + 10)}
+          >
+            +10 s
+          </button>
+        </>
+      )}
+      <span className="space3d-ptime">{fmtTime(position)}</span>
+      <input
+        type="range"
+        className="space3d-pbar"
+        aria-label={owner ? 'Posição do vídeo (para todos)' : 'Posição do vídeo'}
+        min={0}
+        max={Math.max(1, duration)}
+        step={1}
+        value={Math.min(position, Math.max(1, duration))}
+        disabled={!owner || !duration}
+        onChange={(e) => setScrub(Number(e.target.value))}
+        onPointerUp={() => {
+          if (scrub !== null) seek(scrub);
+          setScrub(null);
+        }}
+        onKeyUp={() => {
+          if (scrub !== null) seek(scrub);
+          setScrub(null);
+        }}
+      />
+      <span className="space3d-ptime">{duration ? fmtTime(duration) : '--:--'}</span>
+      <button
+        className="space3d-pbtn"
+        aria-label={p.muted || p.volume === 0 ? 'Ativar som' : 'Silenciar'}
+        data-tip={p.muted || p.volume === 0 ? 'Ativar som' : 'Silenciar'}
+        onClick={() => p.set({ muted: !p.muted })}
+      >
+        <Icon name={p.muted || p.volume === 0 ? 'speaker-off' : 'speaker'} size={18} />
+      </button>
+      <div className="space3d-pvol">
+        <Slider
+          aria-label="Volume do vídeo (só para você)"
+          min={0}
+          max={100}
+          value={p.muted ? 0 : p.volume}
+          format={(v) => `${v}%`}
+          onChange={(v) => p.set({ volume: v, muted: false })}
+        />
+      </div>
+      <button
+        className="space3d-pbtn space3d-ptext"
+        aria-pressed={p.captions}
+        aria-label={p.captions ? 'Desligar legendas' : 'Ligar legendas'}
+        data-tip={p.captions ? 'Desligar legendas' : 'Ligar legendas'}
+        onClick={() => p.set({ captions: !p.captions })}
+      >
+        Legendas
+      </button>
     </div>
   );
 }

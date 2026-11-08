@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { create } from 'zustand';
 import { useActivity } from '../../store/activity';
 import { useSpace } from '../../store/space';
 import { useVoice } from '../../store/voice';
@@ -12,13 +13,51 @@ import type { ScreenSource } from './scene';
 
 const DRIFT_S = 2;
 
-/** Player do telão: só segue o estado do grupo (tocar/pausar/posição); os controles ficam na barra do espaço. */
+/**
+ * Estado local do player do telão (por pessoa): volume, legendas, pausa só para mim e o que o player informa.
+ * A barra de controles (TelaoControls) lê e escreve aqui; o player do YouTube segue.
+ */
+interface TelaoPlayer {
+  volume: number;
+  muted: boolean;
+  captions: boolean;
+  /** quem não pôs o vídeo pausa só para si; ao voltar, alcança o grupo */
+  localPaused: boolean;
+  currentTime: number;
+  duration: number;
+  send: ((func: string, args?: unknown[]) => void) | null;
+  set(p: Partial<Omit<TelaoPlayer, 'set'>>): void;
+}
+export const useTelaoPlayer = create<TelaoPlayer>()((set) => ({
+  volume: 80,
+  muted: false,
+  captions: true,
+  localPaused: false,
+  currentTime: 0,
+  duration: 0,
+  send: null,
+  set: (p) => set(p),
+}));
+
+/** Player do telão: segue o estado do grupo (tocar/pausar/posição); os controles ficam na barra do espaço. */
 function TelaoYouTube({ videoId }: { videoId: string }) {
   const { frame, src, info, ready, send } = useYouTubeFrame(videoId);
   const revision = useActivity((a) => a.state?.revision);
+  const { volume, muted, captions, localPaused } = useTelaoPlayer();
   const lastApplied = useRef(0);
   useEffect(() => {
+    useTelaoPlayer.getState().set({ send, localPaused: false });
+    return () => useTelaoPlayer.getState().set({ send: null, currentTime: 0, duration: 0 });
+  }, [send]);
+  useEffect(() => {
+    useTelaoPlayer.getState().set({ currentTime: info.currentTime, duration: info.duration });
+  }, [info.currentTime, info.duration]);
+  useEffect(() => {
     if (!ready) return;
+    if (localPaused) {
+      if (info.state === 1) send('pauseVideo');
+      return;
+    }
     const sync = () => {
       const cur = useActivity.getState().state;
       if (!cur) return;
@@ -34,10 +73,16 @@ function TelaoYouTube({ videoId }: { videoId: string }) {
     sync();
     const t = setInterval(sync, 1000);
     return () => clearInterval(t);
-  }, [ready, info.state, info.currentTime, revision, send]);
+  }, [ready, info.state, info.currentTime, revision, send, localPaused]);
   useEffect(() => {
-    if (ready) send('setVolume', [80]);
-  }, [ready, send]);
+    if (!ready) return;
+    send('setVolume', [volume]);
+    send(muted ? 'mute' : 'unMute');
+  }, [ready, volume, muted, send]);
+  useEffect(() => {
+    // legendas: o player oficial liga/desliga pelo módulo "captions"
+    if (ready) send(captions ? 'loadModule' : 'unloadModule', ['captions']);
+  }, [ready, captions, send]);
   return (
     <iframe
       ref={frame}
