@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import { mat } from './models';
+import { bikeMesh } from './race';
 
 export const AVATAR_COLORS = [
   '#e05a5a',
@@ -86,7 +87,7 @@ export class Avatar {
   constructor(
     readonly id: string,
     name: string,
-    color = avatarColor(id),
+    readonly color = avatarColor(id),
   ) {
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(BODY_R, BODY_LEN, 3, 8), mat(color));
     body.position.y = FEET + BODY_R + BODY_LEN / 2;
@@ -246,6 +247,35 @@ export class Avatar {
     g.position.set(0, -0.36, 0.02);
     this.arms[1]!.add(g);
     this.racket = g;
+  }
+
+  /** corrida: a moto embaixo do boneco (sentado nela) */
+  private bike: THREE.Group | null = null;
+  setBike(on: boolean) {
+    if (on === !!this.bike) return;
+    if (this.bike) {
+      this.root.remove(this.bike);
+      this.bike.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          o.geometry.dispose();
+          (o.material as THREE.Material).dispose();
+        }
+      });
+      this.bike = null;
+      return;
+    }
+    const g = bikeMesh(new THREE.Color(this.color).getHex());
+    // o boneco fica a ~0,45 m do chão: a moto vai abaixo dele
+    g.position.y = -0.45;
+    this.root.add(g);
+    this.bike = g;
+  }
+
+  /** gira as rodas conforme a velocidade */
+  spinWheels(v: number, dt: number) {
+    this.bike?.traverse((o) => {
+      if (o.name === 'wheel') o.rotation.x += (v / 0.28) * dt;
+    });
   }
 
   /** levou um golpe: balança e recua um pouco */

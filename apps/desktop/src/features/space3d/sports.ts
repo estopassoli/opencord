@@ -161,7 +161,17 @@ export const ARENAS: Record<SportZone, Arena> = {
   },
   6: {
     zone: 6,
-    layout: floorLayout('lounge', 12, 10, '#5a4636', '#3b2f2a', 3),
+    // mesa de sinuca como paredes baixas (o jogador não atravessa)
+    layout: {
+      ...floorLayout('lounge', 12, 10, '#5a4636', '#3b2f2a', 3),
+      walls: [
+        ...floorLayout('lounge', 12, 10, '#5a4636', '#3b2f2a', 3).walls,
+        { x1: -1.4, z1: -0.76, x2: 1.4, z2: -0.76, h: 0.8 },
+        { x1: 1.4, z1: -0.76, x2: 1.4, z2: 0.76, h: 0.8 },
+        { x1: 1.4, z1: 0.76, x2: -1.4, z2: 0.76, h: 0.8 },
+        { x1: -1.4, z1: 0.76, x2: -1.4, z2: -0.76, h: 0.8 },
+      ],
+    },
     r: 0.03,
     bounce: 0.5,
     roll: 1,

@@ -13,6 +13,9 @@ import {
   type SportZone,
 } from '@opencord/contracts';
 import { buildArenaDecor } from './arena3d';
+import { PoolPlay, type PoolMsg } from './pool';
+import { buildPoolDecor } from './pooldecor';
+import { buildRaceDecor, startGrid, stepBike, fireBoost, type Bike } from './race';
 import { SportPlay, type RemoteBall } from './sportplay';
 import { ARENAS, type BallState } from './sports';
 import * as THREE from 'three';
@@ -53,6 +56,11 @@ export interface SceneHooks {
   onCharge?(c: number | null): void;
   /** x1: mira travada (cursor preso no centro) ou não */
   onAimLock?(locked: boolean): void;
+  /** sinuca: bolas e vez para a rede */
+  sendPool?(m: PoolMsg): void;
+  /** corrida: volta, item e turbo (para o painel) e a chegada (tempo de prova) */
+  onRace?(s: { lap: number; item: boolean; boost: boolean; speed: number }): void;
+  onRaceFinish?(ms: number): void;
 }
 
 export interface FightState {
@@ -133,6 +141,11 @@ export class SpaceScene {
   private decor: THREE.Group | null = null;
   private lastCharge: number | null = null;
   private swingUntil = 0;
+  pool: PoolPlay | null = null;
+  private bike: Bike | null = null;
+  private raceInfo: { localStart: number | null; laps: number } = { localStart: null, laps: 3 };
+  private raceFinished = false;
+  private lastRaceHud = '';
   /** meu time nas arenas */
   team: 'a' | 'b' = 'a';
   private readonly ro: ResizeObserver;
@@ -179,7 +192,7 @@ export class SpaceScene {
 
   setTeam(t: 'a' | 'b') {
     this.team = t;
-    this.me.setTeam(this.zone ? t : null);
+    this.me.setTeam(this.zone && this.zone !== 7 ? t : null);
     this.lastSend = 0;
   }
 
@@ -189,6 +202,10 @@ export class SpaceScene {
     this.team = team;
     this.sport?.dispose();
     this.sport = null;
+    this.pool?.dispose();
+    this.pool = null;
+    this.bike = null;
+    this.me.setBike(false);
     if (this.decor) {
       this.scene.remove(this.decor);
       this.decor.traverse((o) => o instanceof THREE.Mesh && o.geometry.dispose());
@@ -201,9 +218,26 @@ export class SpaceScene {
     this.hooks.onCharge?.(null);
     const l = z ? ARENAS[z].layout : this.mainLayout;
     if (l) this.applyLayout(l, false);
-    this.me.setTeam(z ? team : null);
+    this.me.setTeam(z && z !== 7 ? team : null);
     this.me.setRacket(racketOf(z));
-    if (z) {
+    if (z === 6 || z === 7) {
+      const a = ARENAS[z];
+      this.pose = { x: 0, y: 0, z: z === 6 ? 1.6 : a.layout.depth / 2 - 2, ry: Math.PI, a: 0 };
+      this.yaw = 0;
+      this.me.place(this.pose);
+      this.decor = z === 6 ? buildPoolDecor() : buildRaceDecor();
+      this.scene.add(this.decor);
+      if (z === 6)
+        this.pool = new PoolPlay(this.scene, this.selfId, {
+          send: (m) => this.hooks.sendPool?.(m),
+          score: (side, points) => this.hooks.onScore?.(6, side, points),
+        });
+      else {
+        this.bike = startGrid(this.gridSlot());
+        this.me.setBike(true);
+        this.raceFinished = false;
+      }
+    } else if (z) {
       // começa na própria metade (azul defende o lado −x)
       const side = team === 'a' ? -1 : 1;
       const a = ARENAS[z];
@@ -232,6 +266,78 @@ export class SpaceScene {
     }
     this.lastSend = 0;
     this.lastPrompt = 0;
+  }
+
+  /** sinuca: bolas que chegaram pela rede */
+  remotePool(m: PoolMsg & { by: string }) {
+    this.pool?.remote(m);
+  }
+
+  /** sinuca: arrumar a mesa de novo */
+  rerack() {
+    this.pool?.rerack(performance.now());
+  }
+
+  /** corrida: largada (no meu relógio) — uma largada nova põe a moto de volta no grid */
+  setRace(localStart: number | null, laps: number) {
+    const changed = localStart !== this.raceInfo.localStart;
+    this.raceInfo = { localStart, laps };
+    if (changed && this.zone === 7 && localStart !== null) {
+      this.bike = startGrid(this.gridSlot());
+      this.raceFinished = false;
+    }
+  }
+
+  /** posição no grid: ordem dos ids de quem está na pista (igual em todos os apps) */
+  private gridSlot(): number {
+    const ids = [this.selfId, ...[...peers.entries()].filter(([, p]) => p.zone === 7).map(([id]) => id)].sort();
+    return Math.max(0, ids.indexOf(this.selfId));
+  }
+
+  private stepRace(dt: number, now: number) {
+    const b = this.bike!;
+    const k = this.keys;
+    const start = this.raceInfo.localStart;
+    const go = start !== null && Date.now() >= start && !this.raceFinished;
+    const events = stepBike(
+      b,
+      {
+        up: k.has('w') || k.has('arrowup'),
+        down: k.has('s') || k.has('arrowdown'),
+        left: k.has('a') || k.has('arrowleft'),
+        right: k.has('d') || k.has('arrowright'),
+      },
+      dt,
+      Date.now(),
+      go,
+    );
+    for (const e of events)
+      if (e.kind === 'lap' && start !== null && e.lap >= this.raceInfo.laps && !this.raceFinished) {
+        this.raceFinished = true;
+        this.hooks.onRaceFinish?.(Date.now() - start);
+      }
+    this.pose = { x: b.x, y: 0.45, z: b.z, ry: b.h, a: 5 };
+    this.me.place(this.pose);
+    this.me.spinWheels(b.v, dt);
+    // câmera de perseguição: atrás da moto, acompanhando a direção
+    const want = b.h + Math.PI;
+    let d = want - this.yaw;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    this.yaw += d * Math.min(1, dt * 4);
+    this.pitch = 0.28;
+    this.dist = 6;
+    const hud = {
+      lap: Math.min(this.raceInfo.laps, b.lap + 1),
+      item: b.item,
+      boost: Date.now() < b.boostUntil,
+      speed: Math.round(Math.abs(b.v) * 3.6),
+    };
+    const key = JSON.stringify(hud);
+    if (key !== this.lastRaceHud) {
+      this.lastRaceHud = key;
+      this.hooks.onRace?.(hud);
+    }
+    this.maybeSend(now);
   }
 
   /** bola que chegou pela rede */
@@ -426,6 +532,12 @@ export class SpaceScene {
     else if (this.sport) {
       this.current = null;
       label = this.sport.prompt();
+    } else if (this.pool) {
+      this.current = null;
+      label = this.pool.prompt(this.team);
+    } else if (this.bike) {
+      this.current = null;
+      label = this.bike.item ? 'Usar turbo' : null;
     } else if (this.fight) this.current = null;
     else if (this.sitting) {
       this.current = null;
@@ -619,6 +731,16 @@ export class SpaceScene {
       this.keys.add('l');
       return;
     }
+    if (k === 'f' && this.mode === 'play' && this.bike) {
+      e.preventDefault();
+      if (!e.repeat) fireBoost(this.bike, Date.now());
+      return;
+    }
+    if (k === 'f' && this.mode === 'play' && this.pool) {
+      e.preventDefault();
+      if (!e.repeat) this.pool.press(this.team);
+      return;
+    }
     if (k === 'f' && this.mode === 'play' && this.sport) {
       e.preventDefault();
       // bateu na bola: o braço (com a raquete) faz o movimento, e os outros veem
@@ -642,6 +764,8 @@ export class SpaceScene {
   private onKeyUp = (e: KeyboardEvent) => {
     const k = e.key.toLowerCase();
     if (k === 'f' && this.sport) this.sport.release(performance.now());
+    if (k === 'f' && this.pool)
+      this.pool.release(performance.now(), this.team, Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)));
     this.keys.delete(k);
   };
 
@@ -738,6 +862,10 @@ export class SpaceScene {
     if (k.has('s') || k.has('arrowdown')) fz -= 1;
     if (k.has('d') || k.has('arrowright')) fx += 1;
     if (k.has('a') || k.has('arrowleft')) fx -= 1;
+    if (this.bike) {
+      this.stepRace(dt, now);
+      return;
+    }
     if (now < this.koUntil) {
       this.pose.a = 9;
       this.pose.y = 0;
@@ -795,9 +923,10 @@ export class SpaceScene {
       this.pose.y = Math.max(0, this.pose.y + this.vy * dt);
       if (this.pose.y === 0) this.vy = 0;
     }
-    if (this.sport) {
-      this.sport.update(dt, now, { ...this.pose, moving, running: run });
-      const c = this.sport.charging;
+    if (this.sport || this.pool) {
+      if (this.sport) this.sport.update(dt, now, { ...this.pose, moving, running: run });
+      if (this.pool) this.pool.update(dt, now, Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)));
+      const c = this.sport ? this.sport.charging : (this.pool?.charging ?? null);
       if ((c === null) !== (this.lastCharge === null) || (c !== null && Math.abs(c - (this.lastCharge ?? 0)) > 0.02)) {
         this.lastCharge = c;
         this.hooks.onCharge?.(c);
@@ -871,8 +1000,9 @@ export class SpaceScene {
       }
       av.setTarget(pose);
       av.setSpeaking(info.speaking);
-      av.setTeam(this.zone && pose.team ? pose.team : null);
+      av.setTeam(this.zone && this.zone !== 7 && pose.team ? pose.team : null);
       av.setRacket(racketOf(this.zone));
+      av.setBike(this.zone === 7);
     }
     for (const [id, av] of this.others) {
       const p = peers.get(id);
@@ -905,6 +1035,11 @@ export class SpaceScene {
       this.mode === 'play'
         ? new THREE.Vector3(this.pose.x, this.pose.y + 1.35, this.pose.z)
         : new THREE.Vector3(this.focus.x, 0.5, this.focus.z);
+    if (this.pool && this.mode === 'play' && this.pool.canShoot(this.team)) {
+      // minha vez na sinuca: a câmera gira em volta da bola branca
+      target.copy(this.pool.cueBall());
+      target.y += 0.15;
+    }
     if (this.fight && this.mode === 'play') {
       // por cima do ombro direito: a mira no centro fica livre, à frente do boneco
       target.x += Math.cos(this.yaw) * 0.6;
@@ -929,7 +1064,9 @@ export class SpaceScene {
     if (this.camera.position.y < 0.3) this.camera.position.y = 0.3;
     this.camera.lookAt(target);
     // perto demais: o próprio avatar some para não tampar a visão
-    this.me.root.visible = this.mode === 'edit' || d > 1.1;
+    // (na sinuca, mirando, o próprio boneco também some para não tampar a mesa)
+    const aimingPool = !!this.pool && this.mode === 'play' && this.pool.canShoot(this.team);
+    this.me.root.visible = (this.mode === 'edit' || d > 1.1) && !aimingPool;
   }
 
   private resize() {
@@ -946,6 +1083,7 @@ export class SpaceScene {
   dispose() {
     this.disposed = true;
     this.sport?.dispose();
+    this.pool?.dispose();
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);

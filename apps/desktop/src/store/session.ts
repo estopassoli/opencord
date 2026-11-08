@@ -445,6 +445,14 @@ function wireRealtime(rt: RealtimeClient) {
           if (st.openChannelId === b.channelId) st.ballListener?.(b);
         }),
     );
+    rt.on(
+      'space:pool',
+      (m) =>
+        void import('./space').then(({ useSpace }) => {
+          const st = useSpace.getState();
+          if (st.openChannelId === m.channelId) st.poolListener?.(m);
+        }),
+    );
     rt.on('space:duel', (d) => void import('./space').then(({ useSpace }) => useSpace.getState().applyDuel(d)));
     rt.on(
       'space:left',

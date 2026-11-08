@@ -679,3 +679,31 @@
 .space3d-myteam[data-team='b'] strong {
   color: #ff7b7b;
 }
+.space3d-boost {
+  color: #ffd23f;
+  letter-spacing: 0.04em;
+}
+.space3d-item {
+  color: #c9b8ff;
+  font-size: 13px;
+}
+.space3d-results {
+  position: absolute;
+  z-index: 2;
+  top: 104px;
+  right: 12px;
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+  margin: 0;
+  padding: 10px 12px;
+  list-style: none;
+  border-radius: var(--radius-lg);
+  background: rgb(10 12 18 / 0.82);
+  color: #fff;
+  font-size: 13px;
+}
+.space3d-results li[data-me='true'] {
+  color: #ffd23f;
+  font-weight: 700;
+}

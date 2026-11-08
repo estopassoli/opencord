@@ -63,6 +63,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   const [prompt, setPrompt] = useState<string | null>(null);
   const [charge, setCharge] = useState<number | null>(null);
   const [aimLocked, setAimLocked] = useState(false);
+  const [race, setRace] = useState<{ lap: number; item: boolean; boost: boolean; speed: number } | null>(null);
   const zone = useSpace((s) => s.zone);
   const toggles = useSpace((s) => s.session?.toggles);
 
@@ -77,6 +78,9 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       onPrompt: (p) => setPrompt(p?.label ?? null),
       onCharge: setCharge,
       onAimLock: setAimLocked,
+      sendPool: (m) => useSession.getState().realtime?.sendVolatile('space:pool', { channelId, ...m }),
+      onRace: setRace,
+      onRaceFinish: (ms) => void useSpace.getState().finishRace(ms),
       sendBall: (z, b) => useSession.getState().realtime?.sendVolatile('space:ball', { channelId, zone: z, ...b }),
       onScore: (z, side, points) => useSpace.getState().score(z, side, points),
       onPunch: (strong) => {
@@ -104,11 +108,11 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     });
     sceneRef.current = s;
     setScene(s);
-    useSpace.setState({ ballListener: (b) => s.remoteBall(b) });
+    useSpace.setState({ ballListener: (b) => s.remoteBall(b), poolListener: (m) => s.remotePool(m) });
     el.focus({ preventScroll: true });
     return () => {
       s.dispose();
-      useSpace.setState({ ballListener: null });
+      useSpace.setState({ ballListener: null, poolListener: null });
       useVoice.getState().engine()?.clearSpatialGains();
       sceneRef.current = null;
       setScene(null);
@@ -135,6 +139,11 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   useEffect(() => {
     scene?.setTeam(team);
   }, [scene, team]);
+  const raceLocalStart = useSpace((s) => s.raceLocalStart);
+  const raceLaps = useSpace((s) => s.session?.race?.laps ?? 3);
+  useEffect(() => {
+    scene?.setRace(raceLocalStart, raceLaps);
+  }, [scene, raceLocalStart, raceLaps, zone]);
 
   useDuelScene(scene);
 
@@ -153,7 +162,10 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       {!editing && zone === 0 && <TelaoControls />}
       <SpaceBar serverId={serverId} />
       {!editing && zone === 0 && <DuelHud aimLocked={aimLocked} />}
-      {!editing && zone !== 0 && <SportHud zone={zone as SportZone} charge={charge} />}
+      {!editing && zone !== 0 && zone !== 7 && (
+        <SportHud zone={zone as SportZone} charge={charge} onRerack={() => sceneRef.current?.rerack()} />
+      )}
+      {!editing && zone === 7 && <RaceHud hud={race} />}
       {!editing && prompt && (
         <button
           className="space3d-prompt"
@@ -692,7 +704,7 @@ const TARGET: Record<SportZone, [string, string]> = {
   7: ['', ''],
 };
 
-function SportHud({ zone, charge }: { zone: SportZone; charge: number | null }) {
+function SportHud({ zone, charge, onRerack }: { zone: SportZone; charge: number | null; onRerack: () => void }) {
   const score = useSpace((s) => s.session?.scores?.[String(zone)]) ?? { a: 0, b: 0 };
   const team = useSpace((s) => s.team);
   const sweet = charge !== null && charge >= 0.55 && charge <= 0.8;
@@ -719,9 +731,14 @@ function SportHud({ zone, charge }: { zone: SportZone; charge: number | null }) 
       </div>
       <div className="space3d-myteam" data-team={team}>
         <span>
-          Você é do time <strong>{team === 'a' ? 'Azul' : 'Vermelho'}</strong>: ataque{' '}
-          {TARGET[zone][team === 'a' ? 0 : 1]}
+          Você é do time <strong>{team === 'a' ? 'Azul' : 'Vermelho'}</strong>
+          {zone === 6 ? ' · jogam em vezes: encaçapou, joga de novo' : `: ataque ${TARGET[zone][team === 'a' ? 0 : 1]}`}
         </span>
+        {zone === 6 && (
+          <Button size="sm" variant="ghost" onClick={onRerack}>
+            Arrumar a mesa
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={() => useSpace.getState().setTeam(team === 'a' ? 'b' : 'a')}>
           Trocar de time
         </Button>
@@ -749,4 +766,63 @@ function SportHud({ zone, charge }: { zone: SportZone; charge: number | null }) 
 }
 
 /** esportes que já aparecem no menu Jogos */
-const SPORTS_READY = [1, 2, 3, 4, 5] as const satisfies readonly SportZone[];
+const SPORTS_READY = [1, 2, 3, 4, 5, 6, 7] as const satisfies readonly SportZone[];
+
+const fmtRace = (ms: number) => {
+  const t = Math.max(0, ms);
+  const m = Math.floor(t / 60000);
+  const s = ((t % 60000) / 1000).toFixed(1).padStart(4, '0');
+  return `${m}:${s}`;
+};
+
+/** Corrida: largar, contagem, volta, velocidade, turbo guardado e o resultado (todos na pista veem). */
+function RaceHud({ hud }: { hud: { lap: number; item: boolean; boost: boolean; speed: number } | null }) {
+  const race = useSpace((s) => s.session?.race ?? null);
+  const localStart = useSpace((s) => s.raceLocalStart);
+  const participants = useVoice((v) => v.participants);
+  const meId = useData((s) => s.me?.id);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 100);
+    return () => clearInterval(t);
+  }, []);
+  const now = Date.now();
+  const nameOf = (id: string) => participants.find((p) => p.identity === id)?.name ?? 'alguém';
+  const counting = localStart !== null && now < localStart;
+  const running = localStart !== null && now >= localStart;
+  const mine = race?.results.find((r) => r.userId === meId);
+  return (
+    <>
+      <div className="space3d-score" role="status" aria-live="polite">
+        {counting ? (
+          <strong className="space3d-duel-count">{Math.ceil((localStart - now) / 1000)}</strong>
+        ) : running && !mine ? (
+          <>
+            <span>
+              Volta <strong>{hud?.lap ?? 1}</strong>/{race?.laps ?? 3}
+            </span>
+            <span className="space3d-ptime">{fmtRace(now - localStart)}</span>
+            <span className="space3d-ptime">{hud?.speed ?? 0} km/h</span>
+            {hud?.boost && <strong className="space3d-boost">TURBO</strong>}
+            {hud?.item && !hud.boost && <span className="space3d-item">Turbo guardado (F)</span>}
+          </>
+        ) : (
+          <span>{race ? 'Corrida encerrada para você' : 'Ninguém correndo ainda'}</span>
+        )}
+        <Button size="sm" variant="secondary" icon="play" onClick={() => void useSpace.getState().startRace()}>
+          {race ? 'Nova corrida' : 'Largar corrida'}
+        </Button>
+      </div>
+      {race && race.results.length > 0 && (
+        <ol className="space3d-results" aria-label="Chegada">
+          {race.results.map((r, i) => (
+            <li key={r.userId} data-me={r.userId === meId ? 'true' : undefined}>
+              <span>{i + 1}º</span> {nameOf(r.userId)} <span className="space3d-ptime">{fmtRace(r.ms)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="space3d-sport-help">{SPORT_HELP[7]}</p>
+    </>
+  );
+}

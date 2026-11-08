@@ -21,6 +21,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-09',
+    time: '00:40',
+    kind: 'novo',
+    icon: 'trophy',
+    title: 'Sinuca e corrida de moto no Espaço 3D',
+    body: 'No menu Jogos: sinuca em times (mire com o mouse, segure F e solte para tacar; encaçapou, joga de novo) e corrida de moto de 3 voltas, com largada para todos, setas de turbo na pista, caixas que dão um turbo para usar com F e a classificação com o tempo de cada um.',
+  },
+  {
     date: '2026-11-08',
     time: '23:55',
     kind: 'novo',

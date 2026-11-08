@@ -88,3 +88,10 @@ chamada sem abrir o espaço fala em volume normal.
   maior visto + 1; empate decidido pelo id, igual em todos os apps). Times nas arenas: entra no time com menos gente,
   pode trocar, faixa e disco da cor do time no boneco, gol/cesta/fundo da cor de quem defende; no tênis quem ganha o
   ponto saca, com a bola aparecendo na frente de quem está daquele lado.
+- 2026-11-09: vôlei de areia (4), ping pong (5, a bolinha quica na mesa), sinuca (6) e corrida de moto (7) — arenas
+  próprias como os outros esportes. Raquete na mão no tênis e no ping pong. Regras de ponto dos jogos de rede numa
+  função testada (`netPoint`). Sinuca: física das 16 bolas no cliente de quem tacou (`space:pool`, contador de tacadas
+  como a posse da bola), vez por time, 1 ponto por bola. Corrida: cada um simula a própria moto (posição pelo
+  `space:move`), pontos de controle a cada terço impedem cortar caminho; largada (`space:race:start`, contagem de 4 s)
+  e chegada (`space:race:finish`) no servidor, que recusa tempo menor que 12 s por volta ou maior que o tempo desde a
+  largada (+3 s). Estilo de corrida arcade original (não reproduz personagens, pistas ou itens de outros jogos).

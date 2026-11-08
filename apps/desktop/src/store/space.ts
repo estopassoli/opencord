@@ -5,7 +5,9 @@ import {
   type SpaceLayout,
   type SpaceMove,
   type SpaceScreen,
+  RACE_COUNTDOWN_MS,
   type SpaceBall,
+  type SpacePool,
   type SpaceDuel,
   type SpaceSession,
 } from '@opencord/contracts';
@@ -67,6 +69,13 @@ interface SpaceStore {
   setTeam(t: 'a' | 'b'): void;
   /** bola que chegou pela rede (a cena registra quem recebe) */
   ballListener: ((b: SpaceBall & { by: string }) => void) | null;
+  /** sinuca: bolas que chegaram pela rede */
+  poolListener: ((p: SpacePool & { by: string }) => void) | null;
+  /** corrida: largada no MEU relógio (estimada ao receber a largada) e chave da corrida atual */
+  raceLocalStart: number | null;
+  raceKey: number | null;
+  startRace(): Promise<void>;
+  finishRace(ms: number): Promise<void>;
   score(zone: number, side: 'a' | 'b', points: number): void;
   resetScore(zone: number): Promise<void>;
   /** x1 no soco: lutas da chamada (convites, em andamento e as que acabaram há pouco) */
@@ -130,6 +139,11 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
   applySession(s) {
     const cur = get().session;
     if (cur && cur.channelId === s.channelId && s.revision < cur.revision) return;
+    // corrida nova: a contagem começa agora no meu relógio (o do servidor pode estar adiantado ou atrasado)
+    const key = s.race?.startAt ?? null;
+    // (quem abriu o espaço com uma corrida já em andamento espera a próxima)
+    if (key !== get().raceKey)
+      set({ raceKey: key, raceLocalStart: key !== null && cur ? Date.now() + RACE_COUNTDOWN_MS : null });
     set({ session: s });
   },
   ended(channelId) {
@@ -225,6 +239,28 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     set({ team: t });
   },
   ballListener: null,
+  poolListener: null,
+  raceLocalStart: null,
+  raceKey: null,
+  async startRace() {
+    const channelId = get().openChannelId;
+    const rt = useSession.getState().realtime;
+    if (!channelId || !rt) return;
+    try {
+      get().applySession(await rt.command('space:race:start', { channelId }));
+    } catch (e) {
+      useUi.getState().toast('error', `Não foi possível largar: ${describeError(e)}`);
+    }
+  },
+  async finishRace(ms) {
+    const channelId = get().openChannelId;
+    const rt = useSession.getState().realtime;
+    if (!channelId || !rt) return;
+    await rt
+      .command('space:race:finish', { channelId, ms })
+      .then((s) => get().applySession(s))
+      .catch(() => undefined);
+  },
   score(zone, side, points) {
     const channelId = get().openChannelId;
     const rt = useSession.getState().realtime;
