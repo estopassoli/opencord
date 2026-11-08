@@ -162,4 +162,33 @@ describe('Espaço 3D', () => {
     for (const u of [owner, alice]) await http.req('POST', '/voice/leave', { token: u.token });
     expect((await ended).channelId).toBe(voiceId);
   });
+
+  it('liga/desliga só luminária, lareira e fliperama do ambiente, para todos da chamada', async () => {
+    const { owner, alice, serverId, voiceId, so, sa } = await setup();
+    const base = generateSpace(serverId);
+    const layout = {
+      ...base,
+      items: [
+        { id: 'lamp1', kind: 'lamp', x: 0, z: 0, rot: 0 },
+        { id: 'sofa1', kind: 'sofa', x: 2, z: 0, rot: 0 },
+      ],
+    };
+    expect(
+      (await http.req('PUT', `/servers/${serverId}/space`, { token: owner.token, body: { layout, baseRevision: 0 } }))
+        .status,
+    ).toBe(200);
+    expect((await command(so, 'space:toggle', { channelId: voiceId, itemId: 'lamp1', on: false })).ok).toBe(false);
+    for (const u of [owner, alice]) await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token });
+
+    const got = nextEvent<SpaceSession>(sa, 'space:state', (s) => s.channelId === voiceId);
+    const off = await command<SpaceSession>(so, 'space:toggle', { channelId: voiceId, itemId: 'lamp1', on: false });
+    expect(off.ok).toBe(true);
+    expect((await got).toggles).toEqual({ lamp1: false });
+    // trocar o telão mantém as luzes
+    const scr = await command<SpaceSession>(so, 'space:screen', { channelId: voiceId, screen: { kind: 'activity' } });
+    expect(scr.data?.toggles).toEqual({ lamp1: false });
+
+    expect((await command(so, 'space:toggle', { channelId: voiceId, itemId: 'sofa1', on: false })).ok).toBe(false);
+    expect((await command(so, 'space:toggle', { channelId: voiceId, itemId: 'naoexiste', on: true })).ok).toBe(false);
+  });
 });

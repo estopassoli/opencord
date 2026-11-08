@@ -187,11 +187,27 @@ export class Avatar {
     this.root.rotation.y = this.ry;
 
     const a = this.target.a;
+    if (a === 5) {
+      // sentado: corpo apoiado no assento, pés à frente no chão, braços no colo
+      this.body.position.y = Math.sin(t * 1.6) * 0.006;
+      this.body.rotation.z = 0;
+      for (const [i, f] of this.feet.entries()) {
+        f.position.set(i ? 0.13 : -0.13, FEET / 2 - pos.y, 0.34);
+      }
+      for (const [i, arm] of this.arms.entries()) {
+        arm.rotation.x = -0.75;
+        arm.rotation.z = i ? 0.18 : -0.18;
+      }
+      this.blink(dt);
+      return;
+    }
     const moving = a === 1 || a === 2;
     this.phase += dt * (a === 2 ? 14 : 9) * (moving ? 1 : 0);
     const s = moving ? Math.sin(this.phase) : 0;
     this.body.position.y = moving ? Math.abs(Math.sin(this.phase)) * 0.06 : Math.sin(t * 1.6) * 0.01;
     this.body.rotation.z = s * 0.05;
+    this.feet[0]!.position.x = -0.13;
+    this.feet[1]!.position.x = 0.13;
     this.feet[0]!.position.z = 0.03 + s * 0.14;
     this.feet[1]!.position.z = 0.03 - s * 0.14;
     this.feet[0]!.position.y = FEET / 2 + Math.max(0, s) * 0.06;
@@ -206,6 +222,10 @@ export class Avatar {
       this.arms[1]!.rotation.z = 0.18;
     }
 
+    this.blink(dt);
+  }
+
+  private blink(dt: number) {
     this.blinkIn -= dt;
     const blink = this.blinkIn < 0.12 && this.blinkIn > 0;
     for (const e of this.eyes) e.scale.y = blink ? 0.15 : 1;

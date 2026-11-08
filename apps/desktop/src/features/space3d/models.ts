@@ -59,6 +59,38 @@ export const SCREEN_Y = 2.05;
 
 const darker = (c: string, k = 0.7) => new THREE.Color(c).multiplyScalar(k).getHex();
 
+/** parte que acende: guarda o material aceso e o apagado (luminária, lareira, fliperama) */
+function glow(m: THREE.Mesh, off: THREE.Material) {
+  m.userData.glow = { on: m.material, off };
+  return m;
+}
+
+/** luz de verdade da peça (só nas primeiras peças que acendem; ver world.ts) */
+export function addItemLight(g: THREE.Group, color: number, y: number, z = 0, intensity = 4, distance = 7) {
+  const l = new THREE.PointLight(color, intensity, distance, 1.6);
+  l.position.set(0, y, z);
+  l.name = 'item-light';
+  l.userData.intensity = intensity;
+  g.add(l);
+}
+
+export const LIGHT_SPOT: Partial<Record<SpaceItemKind, { color: number; y: number; z?: number; intensity?: number }>> =
+  {
+    lamp: { color: 0xffd9a0, y: 1.55 },
+    fireplace: { color: 0xff9a4a, y: 0.6, z: 0.6, intensity: 5 },
+    arcade: { color: 0xff6fc0, y: 1.4, z: 0.6, intensity: 1.6 },
+  };
+
+/** acende/apaga a peça */
+export function setItemOn(g: THREE.Object3D, on: boolean) {
+  g.traverse((o) => {
+    const gl = (o.userData as { glow?: { on: THREE.Material; off: THREE.Material } }).glow;
+    if (gl && o instanceof THREE.Mesh) o.material = on ? gl.on : gl.off;
+    // apagar pela intensidade (esconder a luz mudaria a contagem de luzes e recompilaria os materiais)
+    if (o instanceof THREE.PointLight) o.intensity = on ? (o.userData.intensity as number) : 0;
+  });
+}
+
 interface Spec {
   w: number;
   d: number;
@@ -280,6 +312,9 @@ export const ITEM_SPECS: Record<SpaceItemKind, Spec> = {
       );
       shade.position.set(0, 1.62, 0);
       (shade.material as THREE.MeshLambertMaterial).side = THREE.DoubleSide;
+      const offShade = mat(darker(c, 0.75));
+      (offShade as THREE.MeshLambertMaterial).side = THREE.DoubleSide;
+      glow(shade, offShade);
       g.add(shade);
     },
   },
@@ -306,6 +341,7 @@ export const ITEM_SPECS: Record<SpaceItemKind, Spec> = {
       const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.45), mat(darker(c, 0.6), { emissive: darker(c, 0.6) }));
       scr.position.set(0, 1.35, 0.36);
       scr.rotation.x = -0.15;
+      glow(scr, mat('#101018'));
       g.add(scr);
       box(g, 0.7, 0.06, 0.3, '#2a2540', 0, 0.98, 0.3);
       cyl(g, 0.03, 0.03, 0.1, '#e05a5a', -0.15, 1.04, 0.32, 6);
@@ -332,10 +368,13 @@ export const ITEM_SPECS: Record<SpaceItemKind, Spec> = {
       box(g, 1.8, 1.2, 0.7, c);
       box(g, 2, 0.12, 0.8, darker(c, 0.8), 0, 1.2);
       box(g, 0.9, 0.7, 0.2, '#1a1412', 0, 0.15, 0.26);
-      blob(g, 0.2, 0xff8a2a, -0.1, 0.32, 0.3, 1.4);
-      (g.children[g.children.length - 1] as THREE.Mesh).material = mat(0xff8a2a, { emissive: 0xc0501a });
-      blob(g, 0.14, 0xffc04a, 0.12, 0.28, 0.32, 1.3);
-      (g.children[g.children.length - 1] as THREE.Mesh).material = mat(0xffc04a, { emissive: 0xc08a20 });
+      // brasa apagada: as chamas viram carvão
+      const f1 = blob(g, 0.2, 0xff8a2a, -0.1, 0.32, 0.3, 1.4);
+      f1.material = mat(0xff8a2a, { emissive: 0xc0501a });
+      glow(f1, mat('#2a2220'));
+      const f2 = blob(g, 0.14, 0xffc04a, 0.12, 0.28, 0.32, 1.3);
+      f2.material = mat(0xffc04a, { emissive: 0xc08a20 });
+      glow(f2, mat('#2a2220'));
       box(g, 1.0, 1.6, 0.5, darker(c, 0.9), 0, 1.32, -0.1);
     },
   },

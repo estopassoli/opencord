@@ -301,6 +301,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         const d = p as { channelId: string; screen: SpaceScreen | null };
         return (await this.space.setScreen(userId, d.channelId, d.screen)) as R;
       }
+      case 'space:toggle': {
+        const d = p as { channelId: string; itemId: string; on: boolean };
+        return (await this.space.toggle(userId, d.channelId, d.itemId, d.on)) as R;
+      }
       case 'sync:resume': {
         const d = p as { channels: { channelId: string; lastMessageId: string | null }[] };
         await this.realtime.syncUserRooms(userId);

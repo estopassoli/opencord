@@ -4,7 +4,9 @@
  */
 import type { SpaceLayout, SpaceTheme } from '@opencord/contracts';
 import * as THREE from 'three';
-import { buildItem, mat } from './models';
+import { addItemLight, buildItem, LIGHT_SPOT, mat } from './models';
+
+const MAX_ITEM_LIGHTS = 6;
 
 interface ThemeLook {
   sky: number;
@@ -237,6 +239,7 @@ export function buildWorld(l: SpaceLayout): BuiltWorld {
 
   const items = new Map<string, THREE.Group>();
   const screens: BuiltWorld['screens'] = [];
+  let lights = 0;
   for (const it of l.items) {
     const g = buildItem(it.kind, it.color);
     g.position.set(it.x, 0, it.z);
@@ -244,6 +247,12 @@ export function buildWorld(l: SpaceLayout): BuiltWorld {
     g.userData = { itemId: it.id };
     group.add(g);
     items.set(it.id, g);
+    // luz de verdade só nas primeiras peças que acendem (cada luz pesa em todos os materiais)
+    const spot = LIGHT_SPOT[it.kind];
+    if (spot && lights < MAX_ITEM_LIGHTS) {
+      addItemLight(g, spot.color, spot.y, spot.z ?? 0, spot.intensity);
+      lights++;
+    }
     if (it.kind === 'screen' || it.kind === 'tv') {
       const s = g.getObjectByName('screen-surface') as THREE.Mesh | undefined;
       if (s) screens.push({ itemId: it.id, kind: it.kind, mesh: s });

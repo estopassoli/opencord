@@ -41,6 +41,11 @@ interface SpaceStore {
   applySession(s: SpaceSession): void;
   ended(channelId: string): void;
   setScreen(screen: SpaceScreen | null): Promise<void>;
+  /** liga/desliga luminária, lareira ou fliperama (para todos da chamada) */
+  toggle(itemId: string, on: boolean): Promise<void>;
+  /** menu "o que passa no telão" aberto (pela barra ou pela televisão no espaço) */
+  screenMenu: boolean;
+  setScreenMenu(on: boolean): void;
   setEditing(on: boolean): void;
   save(serverId: string, layout: SpaceLayout, baseRevision: number): Promise<boolean>;
   reset(serverId: string): Promise<void>;
@@ -116,6 +121,20 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
   },
   setEditing(on) {
     set({ editing: on });
+  },
+  screenMenu: false,
+  setScreenMenu(on) {
+    set({ screenMenu: on });
+  },
+  async toggle(itemId, on) {
+    const channelId = get().openChannelId;
+    const rt = useSession.getState().realtime;
+    if (!channelId || !rt) return;
+    try {
+      get().applySession(await rt.command('space:toggle', { channelId, itemId, on }));
+    } catch (e) {
+      useUi.getState().toast('error', `Não foi possível: ${describeError(e)}`);
+    }
   },
   async save(serverId, layout, baseRevision) {
     try {

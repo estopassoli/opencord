@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { askConfirm } from '../../components/AskDialog';
 import { useActivity } from '../../store/activity';
 import { useData } from '../../store/data';
+import { useMusic } from '../../store/music';
 import { useSession } from '../../store/session';
 import { canEditSpace, useSpace } from '../../store/space';
 import { useUi } from '../../store/ui';
@@ -56,6 +57,8 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   );
   const [focused, setFocused] = useState(false);
   const [slow, setSlow] = useState(false);
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const toggles = useSpace((s) => s.session?.toggles);
 
   // a cena nasce uma vez por chamada; ambiente, pessoas e telão chegam depois
   useEffect(() => {
@@ -65,6 +68,16 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       sendPose: (p) => useSession.getState().realtime?.sendVolatile('space:move', { channelId, ...p }),
       setGain: (id, g) => useVoice.getState().engine()?.setSpatialGain(id, g),
       onFps: (fps) => setSlow(fps < 24),
+      onPrompt: (p) => setPrompt(p?.label ?? null),
+      onAction: (i) => {
+        if (i.kind === 'toggle') void useSpace.getState().toggle(i.itemId, !i.on);
+        else if (i.kind === 'screen') useSpace.getState().setScreenMenu(true);
+        else if (i.kind === 'music') {
+          const m = useMusic.getState();
+          if (m.state) m.join(true);
+          else m.setOpen(true);
+        }
+      },
     });
     sceneRef.current = s;
     setScene(s);
@@ -85,6 +98,10 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     scene?.setParticipants(participants);
   }, [scene, participants]);
 
+  useEffect(() => {
+    scene?.setToggles(toggles ?? {});
+  }, [scene, toggles]);
+
   const onSource = useCallback((src: ScreenSource) => sceneRef.current?.setScreen(src), []);
 
   return (
@@ -99,10 +116,21 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       <TelaoSource onSource={onSource} />
       {!editing && <TelaoControls />}
       <SpaceBar serverId={serverId} />
+      {!editing && prompt && (
+        <button
+          className="space3d-prompt"
+          onClick={() => {
+            sceneRef.current?.interact();
+            host.current?.focus({ preventScroll: true });
+          }}
+        >
+          <kbd>F</kbd> {prompt}
+        </button>
+      )}
       {!editing && (
         <p className="space3d-hint" data-dim={focused ? 'true' : undefined}>
           {focused
-            ? 'W A S D andar · Shift correr · Espaço pular · E acenar · arraste para girar a câmera · roda do mouse para aproximar'
+            ? 'W A S D andar · Shift correr · Espaço pular · E acenar · F interagir · arraste para girar a câmera'
             : 'Clique no espaço para andar com o teclado'}
         </p>
       )}
@@ -120,7 +148,9 @@ function SpaceBar({ serverId }: { serverId: string }) {
   const screen = useSpace((s) => s.session?.screen ?? null);
   const theme = useSpace((s) => s.spaces[serverId]?.layout.theme);
   const canEdit = useData(() => canEditSpace(serverId));
-  const [menu, setMenu] = useState(false);
+  const menu = useSpace((s) => s.screenMenu);
+  const setMenu = (v: boolean | ((m: boolean) => boolean)) =>
+    useSpace.getState().setScreenMenu(typeof v === 'function' ? v(useSpace.getState().screenMenu) : v);
   const voiceParticipants = useVoice((s) => s.participants);
   const streamers = useMemo(
     () => voiceParticipants.filter((p) => p.hasScreen).map((p) => ({ id: p.identity, name: p.name })),

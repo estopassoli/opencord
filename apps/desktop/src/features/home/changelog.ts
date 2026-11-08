@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-08',
+    time: '19:30',
+    kind: 'melhoria',
+    icon: 'activities',
+    title: 'Interagir com o Espaço 3D',
+    body: 'Chegue perto de algo e aperte F: sente no sofá, na cadeira, no puff ou na cama, acenda ou apague luminárias, a lareira e o fliperama para todo mundo, escolha o que passa no telão pela televisão e abra a música pela caixa de som. O vídeo do telão agora tem controles: pausar, voltar e avançar, volume e legendas.',
+  },
+  {
+    date: '2026-11-08',
     time: '16:00',
     kind: 'novo',
     icon: 'activities',

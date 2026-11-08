@@ -38,7 +38,7 @@ import {
   YouTubePlaylistId,
   YouTubeVideoId,
 } from './activities.js';
-import { type ServerSpace, type SpaceMove, SpaceScreen, type SpaceSession } from './space.js';
+import { type ServerSpace, SpaceItemId, type SpaceMove, SpaceScreen, type SpaceSession } from './space.js';
 
 /** Versão do protocolo realtime; incrementar ao quebrar compatibilidade. */
 export const REALTIME_SCHEMA_VERSION = 1 as const;
@@ -94,6 +94,8 @@ export const ClientCommands = {
   /** Espaço 3D (ADR-0055): o que passa no telão da chamada */
   'space:get': z.object({ channelId: Id }),
   'space:screen': z.object({ channelId: Id, screen: SpaceScreen.nullable() }),
+  /** liga/desliga uma luminária, lareira ou fliperama do espaço (para todos da chamada) */
+  'space:toggle': z.object({ channelId: Id, itemId: SpaceItemId, on: z.boolean() }),
   'sync:resume': z.object({
     /** último eventId/seq visto por canal, para ressincronização por cursor */
     channels: z.array(z.object({ channelId: Id, lastMessageId: Id.nullable() })).max(500),
@@ -126,6 +128,7 @@ export interface ClientCommandResults {
   'sound:play': null;
   'space:get': SpaceSession | null;
   'space:screen': SpaceSession;
+  'space:toggle': SpaceSession;
 }
 
 // ---------- Eventos servidor → cliente ----------

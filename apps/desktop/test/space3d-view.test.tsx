@@ -9,6 +9,8 @@ vi.mock('../src/features/space3d/scene', () => ({
     setLayout() {}
     setParticipants() {}
     setScreen() {}
+    setToggles() {}
+    interact() {}
     setMode() {}
     dispose() {}
   },

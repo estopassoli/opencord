@@ -171,23 +171,32 @@ export const SpaceScreen = z.discriminatedUnion('kind', [
 ]);
 export type SpaceScreen = z.infer<typeof SpaceScreen>;
 
+/** Peças que se ligam e desligam (para todos da chamada); sem registro = ligada. */
+export const SPACE_TOGGLE_KINDS = ['lamp', 'fireplace', 'arcade'] as const satisfies readonly SpaceItemKind[];
+export const SpaceItemId = z.string().regex(/^[a-z0-9]{1,12}$/);
+
 export const SpaceSession = z.object({
   channelId: Id,
   serverId: Id,
   screen: SpaceScreen.nullable(),
+  /** luminárias, lareiras e fliperamas desligados/ligados nesta chamada (id da peça → ligada) */
+  toggles: z.record(z.string(), z.boolean()).optional(),
   updatedBy: Id.nullable(),
   revision: z.number().int(),
 });
 export type SpaceSession = z.infer<typeof SpaceSession>;
 
-/** Posição de um avatar (enviada ~10x/s enquanto anda, 1x/s parado). `a`: 0 parado, 1 andando, 2 correndo, 3 pulando, 4 acenando. */
+/**
+ * Posição de um avatar (enviada ~10x/s enquanto anda, 1x/s parado).
+ * `a`: 0 parado, 1 andando, 2 correndo, 3 pulando, 4 acenando, 5 sentado.
+ */
 export const SpaceMove = z.object({
   channelId: Id,
   x: Coord,
   y: z.number().finite().min(0).max(10),
   z: Coord,
   ry: z.number().finite().min(-7).max(7),
-  a: z.number().int().min(0).max(4),
+  a: z.number().int().min(0).max(5),
 });
 export type SpaceMove = z.infer<typeof SpaceMove>;
 export const SpaceLeave = z.object({ channelId: Id });

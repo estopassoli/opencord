@@ -3,12 +3,13 @@
  * dos outros (posições pela rede), voz pela distância e o telão (live como textura; YouTube em CSS 3D atrás do canvas).
  * No modo edição a câmera vira livre e o editor (editor.ts) recebe os cliques.
  */
-import { spaceVoiceGain, type SpaceLayout } from '@opencord/contracts';
+import { SPACE_TOGGLE_KINDS, spaceVoiceGain, type SpaceLayout } from '@opencord/contracts';
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 import { peers, PEER_TIMEOUT_MS } from '../../store/space';
 import { Avatar, type Pose } from './avatar';
-import { SCREEN_H, SCREEN_W } from './models';
+import { findInteraction, standUpSpot, type Interaction } from './interact';
+import { SCREEN_H, SCREEN_W, setItemOn } from './models';
 import { obstaclesOf, resolve, type Obstacles } from './physics';
 import { buildWorld, THEME_LOOK, type BuiltWorld } from './world';
 
@@ -26,6 +27,10 @@ export interface SceneHooks {
   setGain(identity: string, g: number | null): void;
   /** quadros por segundo atuais (para a dica de desempenho) */
   onFps?(fps: number): void;
+  /** o que dá para fazer agora com F (null = nada ao alcance) */
+  onPrompt?(p: { label: string } | null): void;
+  /** interações que não são da cena: ligar/desligar (para todos), telão, música */
+  onAction?(i: Exclude<Interaction, { kind: 'sit' }>): void;
 }
 
 export type ScreenSource = { kind: 'video'; el: HTMLVideoElement } | { kind: 'html'; el: HTMLElement } | null;
@@ -80,6 +85,11 @@ export class SpaceScene {
   });
   private videoMat: THREE.MeshBasicMaterial | null = null;
   private disposed = false;
+  private sitting: { itemId: string; seat: { x: number; y: number; z: number; ry: number } } | null = null;
+  private toggles: Record<string, boolean> = {};
+  private current: Interaction | null = null;
+  private promptLabel: string | null = null;
+  private lastPrompt = 0;
   private readonly ro: ResizeObserver;
   /** editor: recebe os eventos do canvas quando mode === 'edit' */
   editorInput: {
@@ -137,9 +147,78 @@ export class SpaceScene {
       this.pose.x = p.x;
       this.pose.z = p.z;
     }
+    if (this.sitting && !l.items.some((i) => i.id === this.sitting?.itemId)) this.sitting = null;
     this.me.place(this.pose);
     this.applyScreen();
     this.applyCutaway();
+    this.applyToggles();
+  }
+
+  // ---------- peças que ligam/desligam ----------
+  setToggles(t: Record<string, boolean>) {
+    this.toggles = t;
+    this.applyToggles();
+    this.lastPrompt = 0;
+  }
+
+  private applyToggles() {
+    const w = this.world;
+    const l = this.layout;
+    if (!w || !l) return;
+    for (const it of l.items) {
+      if (!(SPACE_TOGGLE_KINDS as readonly string[]).includes(it.kind)) continue;
+      const g = w.items.get(it.id);
+      if (g) setItemOn(g, this.toggles[it.id] ?? true);
+    }
+  }
+
+  // ---------- interação (F) ----------
+  /** executa o que o aviso mostra: sentar/levantar aqui; o resto vai para o app */
+  interact() {
+    if (this.mode !== 'play') return;
+    if (this.sitting) {
+      this.standUp();
+      return;
+    }
+    const i = this.current;
+    if (!i) return;
+    if (i.kind === 'sit') {
+      this.sitting = { itemId: i.itemId, seat: i.seat };
+      this.vy = 0;
+      this.lastPrompt = 0;
+      return;
+    }
+    this.hooks.onAction?.(i);
+  }
+
+  private standUp() {
+    const st = this.sitting;
+    if (!st) return;
+    this.sitting = null;
+    const spot = standUpSpot(st.seat);
+    const p = this.obstacles ? resolve(this.obstacles, spot.x, spot.z) : spot;
+    this.pose = { x: p.x, y: 0, z: p.z, ry: st.seat.ry, a: 0 };
+    this.lastPrompt = 0;
+  }
+
+  private updatePrompt(now: number) {
+    if (now - this.lastPrompt < 150) return;
+    this.lastPrompt = now;
+    const l = this.layout;
+    let label: string | null = null;
+    if (this.mode !== 'play' || !l) this.current = null;
+    else if (this.sitting) {
+      this.current = null;
+      label = 'Levantar';
+    } else {
+      const occupied = [...peers.values()].filter((p) => p.a === 5);
+      this.current = findInteraction(l, this.pose, occupied, this.toggles);
+      label = this.current?.label ?? null;
+    }
+    if (label !== this.promptLabel) {
+      this.promptLabel = label;
+      this.hooks.onPrompt?.(label ? { label } : null);
+    }
   }
 
   /** no editor as paredes baixam (como no The Sims) para enxergar a sala inteira */
@@ -289,9 +368,15 @@ export class SpaceScene {
       return;
     }
     const k = e.key.toLowerCase();
+    if (k === 'f' && this.mode === 'play') {
+      e.preventDefault();
+      if (!e.repeat) this.interact();
+      return;
+    }
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'shift', 'e', 'q'].includes(k)) {
       e.preventDefault();
-      if (k === ' ' && this.mode === 'play' && this.pose.y <= 0.001) this.vy = JUMP_V;
+      if (k === ' ' && this.mode === 'play' && this.sitting) this.standUp();
+      else if (k === ' ' && this.mode === 'play' && this.pose.y <= 0.001) this.vy = JUMP_V;
       if (k === 'e' && this.mode === 'play') this.waveUntil = performance.now() + 2200;
       this.keys.add(k);
     }
@@ -322,6 +407,9 @@ export class SpaceScene {
     this.mode = m;
     this.keys.clear();
     this.applyCutaway();
+    this.sitting = null;
+    this.lastPrompt = 0;
+    this.updatePrompt(performance.now());
     if (m === 'edit') {
       this.focus.set(this.pose.x, 0, this.pose.z);
       this.dist = Math.max(14, this.dist);
@@ -393,6 +481,18 @@ export class SpaceScene {
     if (k.has('a') || k.has('arrowleft')) fx -= 1;
     const moving = fx !== 0 || fz !== 0;
     const run = k.has('shift');
+    if (this.sitting) {
+      if (!moving) {
+        // sentado: fica no assento, virado para a frente da peça
+        const st = this.sitting.seat;
+        this.pose = { x: st.x, y: Math.max(0, st.y - 0.14), z: st.z, ry: st.ry, a: 5 };
+        this.me.place(this.pose);
+        this.updatePrompt(now);
+        this.maybeSend(now);
+        return;
+      }
+      this.standUp();
+    }
     if (moving) {
       const len = Math.hypot(fx, fz);
       fx /= len;
@@ -419,6 +519,7 @@ export class SpaceScene {
     }
     this.pose.a = this.pose.y > 0.01 ? 3 : moving ? (run ? 2 : 1) : now < this.waveUntil ? 4 : 0;
     this.me.place(this.pose);
+    this.updatePrompt(now);
     this.maybeSend(now);
   }
 

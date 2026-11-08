@@ -1,9 +1,10 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import {
   generateSpace,
   Permission,
   rooms,
   SpaceLayout,
+  SPACE_TOGGLE_KINDS,
   type ServerSpace,
   type SpaceMove,
   type SpaceScreen,
@@ -118,8 +119,37 @@ export class SpaceService {
 
   async session(userId: string, channelId: string): Promise<SpaceSession | null> {
     await this.requireInCall(userId, channelId);
+    return this.loadSession(channelId);
+  }
+
+  private async loadSession(channelId: string): Promise<SpaceSession | null> {
     const raw = await this.r.get(key(channelId));
     return raw ? (JSON.parse(raw) as SpaceSession) : null;
+  }
+
+  private async publishSession(s: SpaceSession): Promise<SpaceSession> {
+    await this.r.set(key(s.channelId), JSON.stringify(s), 'EX', TTL_S);
+    this.realtime.emit(rooms.channel(s.channelId), 'space:state', s);
+    return s;
+  }
+
+  /** Liga/desliga luminária, lareira ou fliperama do ambiente do servidor (vale para todos da chamada). */
+  async toggle(userId: string, channelId: string, itemId: string, on: boolean): Promise<SpaceSession> {
+    const serverId = await this.requireInCall(userId, channelId);
+    const { layout } = await this.load(serverId);
+    const item = layout.items.find((i) => i.id === itemId);
+    if (!item || !(SPACE_TOGGLE_KINDS as readonly string[]).includes(item.kind))
+      throw new BadRequestException('essa peça não liga nem desliga');
+    const prev = await this.loadSession(channelId);
+    const toggles = { ...(prev?.toggles ?? {}), [itemId]: on };
+    return this.publishSession({
+      channelId,
+      serverId,
+      screen: prev?.screen ?? null,
+      toggles,
+      updatedBy: userId,
+      revision: (prev?.revision ?? 0) + 1,
+    });
   }
 
   async setScreen(userId: string, channelId: string, screen: SpaceScreen | null): Promise<SpaceSession> {
@@ -128,12 +158,15 @@ export class SpaceService {
       const target = await this.voice.stateOf(screen.userId);
       if (!target || target.channelId !== channelId) throw forbidden('essa pessoa não está na chamada');
     }
-    const prev = await this.r.get(key(channelId));
-    const revision = prev ? (JSON.parse(prev) as SpaceSession).revision + 1 : 1;
-    const out: SpaceSession = { channelId, serverId, screen, updatedBy: userId, revision };
-    await this.r.set(key(channelId), JSON.stringify(out), 'EX', TTL_S);
-    this.realtime.emit(rooms.channel(channelId), 'space:state', out);
-    return out;
+    const prev = await this.loadSession(channelId);
+    return this.publishSession({
+      channelId,
+      serverId,
+      screen,
+      ...(prev?.toggles ? { toggles: prev.toggles } : {}),
+      updatedBy: userId,
+      revision: (prev?.revision ?? 0) + 1,
+    });
   }
 
   // ---------- posições ----------
