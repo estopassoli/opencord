@@ -4,7 +4,7 @@
  * sonoros do servidor.
  */
 import { askConfirm } from '../../components/AskDialog';
-import { Button, Icon } from '@opencord/ui';
+import { Button, Icon, Slider } from '@opencord/ui';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { ClipInfo } from '../../../electron/shared/ipc';
 import { exportMixed, exportRange, loadSources, mixSources, type ClipSources } from '../../clips/edit';
@@ -86,8 +86,12 @@ function Viewer({ clip }: { clip: ClipInfo }) {
   const [sound, setSound] = useState<File | null>(null);
   const [sharing, setSharing] = useState(false);
   const [sources, setSources] = useState<ClipSources | null>(null);
-  const [on, setOn] = useState<boolean[]>([]);
-  const player = useRef<{ ctx: AudioContext; nodes: AudioBufferSourceNode[] } | null>(null);
+  /** volume de cada fonte de som (0–2; 0 = silenciada) e o volume de antes de silenciar */
+  const [gains, setGains] = useState<number[]>([]);
+  const lastGain = useRef<number[]>([]);
+  const gainsRef = useRef<number[]>([]);
+  gainsRef.current = gains;
+  const player = useRef<{ ctx: AudioContext; nodes: AudioBufferSourceNode[]; gains?: GainNode[] } | null>(null);
   const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
   const frames = useStrip(url, duration);
   // efeitos sonoros vão para o servidor da chamada ou o que está aberto
@@ -114,7 +118,8 @@ function Viewer({ clip }: { clip: ClipInfo }) {
       .then((src) => {
         if (!alive || !src) return;
         setSources(src);
-        setOn(src.buffers.map(() => true));
+        setGains(src.buffers.map(() => 1));
+        lastGain.current = src.buffers.map(() => 1);
       })
       .catch(() => undefined);
     return () => {
@@ -134,13 +139,15 @@ function Viewer({ clip }: { clip: ClipInfo }) {
       if (v.paused) return;
       const ctx = (player.current ??= { ctx: new AudioContext(), nodes: [] }).ctx;
       void ctx.resume();
-      sources.buffers.forEach((b, i) => {
-        if (!on[i]) return;
+      player.current!.gains = sources.buffers.map((b, i) => {
         const n = ctx.createBufferSource();
         n.buffer = b;
-        n.connect(ctx.destination);
+        const g = ctx.createGain();
+        g.gain.value = gainsRef.current[i] ?? 1;
+        n.connect(g).connect(ctx.destination);
         n.start(ctx.currentTime, v.currentTime);
         player.current!.nodes.push(n);
+        return g;
       });
     };
     start();
@@ -153,14 +160,18 @@ function Viewer({ clip }: { clip: ClipInfo }) {
       v.removeEventListener('pause', stop);
       stop();
     };
-  }, [sources, on, url]);
+  }, [sources, url]);
+  // volume muda na hora, sem recomeçar o som
+  useEffect(() => {
+    player.current?.gains?.forEach((g, i) => (g.gain.value = gains[i] ?? 1));
+  }, [gains]);
   useEffect(() => () => void player.current?.ctx.close(), []);
-  const allOn = !sources || on.every(Boolean);
+  const allOn = !sources || gains.every((g) => g === 1);
   /** o arquivo do trecho, com só as fontes de som ligadas */
   const render = async (kind: 'video' | 'audio'): Promise<Uint8Array<ArrayBuffer>> => {
     if (!blob) throw new Error('clipe não carregado');
     const r = { start: range.start / 1000, end: range.end / 1000 };
-    if (sources && !allOn) return exportMixed(blob, r, kind, await mixSources(sources, on, r.start, r.end));
+    if (sources && !allOn) return exportMixed(blob, r, kind, await mixSources(sources, gains, r.start, r.end));
     if (kind === 'video' && !trimmed && !sources) return new Uint8Array(await blob.arrayBuffer());
     return exportRange(blob, r, kind);
   };
@@ -391,21 +402,45 @@ function Viewer({ clip }: { clip: ClipInfo }) {
             <>
               <h3 className="clip-side-title">Áudio</h3>
               <ul className="clip-audio" aria-label="Fontes de som do clipe">
-                {sources.names.map((n, i) => (
-                  <li key={n}>
-                    <Icon name={SOURCE_ICON[n] ?? 'speaker'} size={16} />
-                    <span className="truncate">{n}</span>
-                    <button
-                      className="icon-btn"
-                      aria-pressed={!on[i]}
-                      aria-label={on[i] ? `Silenciar ${n}` : `Ativar ${n}`}
-                      data-tip={on[i] ? 'Silenciar (também na exportação)' : 'Ativar'}
-                      onClick={() => setOn((o) => o.map((x, j) => (j === i ? !x : x)))}
-                    >
-                      <Icon name={on[i] ? 'speaker' : 'speaker-off'} size={16} />
-                    </button>
-                  </li>
-                ))}
+                {sources.names.map((n, i) => {
+                  const g = gains[i] ?? 1;
+                  const on = g > 0;
+                  const set = (v: number) => setGains((o) => o.map((x, j) => (j === i ? v : x)));
+                  return (
+                    <li key={n}>
+                      <div className="clip-audio-row">
+                        <Icon name={SOURCE_ICON[n] ?? 'speaker'} size={16} />
+                        <span className="truncate">{n}</span>
+                        <button
+                          className="icon-btn"
+                          aria-pressed={!on}
+                          aria-label={on ? `Silenciar ${n}` : `Ativar ${n}`}
+                          data-tip={on ? 'Silenciar (também na exportação)' : 'Ativar'}
+                          onClick={() => {
+                            if (on) {
+                              lastGain.current[i] = g;
+                              set(0);
+                            } else set(lastGain.current[i] || 1);
+                          }}
+                        >
+                          <Icon name={on ? 'speaker' : 'speaker-off'} size={16} />
+                        </button>
+                      </div>
+                      <Slider
+                        aria-label={`Volume de ${n} (também na exportação)`}
+                        min={0}
+                        max={200}
+                        step={5}
+                        value={Math.round(g * 100)}
+                        format={(v) => `${v}%`}
+                        onChange={(v) => {
+                          if (v > 0) lastGain.current[i] = v / 100;
+                          set(v / 100);
+                        }}
+                      />
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}

@@ -63,15 +63,18 @@ export async function loadSources(file: Blob): Promise<ClipSources | null> {
   return { names, buffers };
 }
 
-/** Mistura as fontes ligadas no trecho [start, end) (segundos). */
-export async function mixSources(src: ClipSources, on: boolean[], start: number, end: number): Promise<AudioBuffer> {
+/** Mistura as fontes no trecho [start, end) (segundos), cada uma com o seu volume (0 = fora; 1 = original). */
+export async function mixSources(src: ClipSources, gains: number[], start: number, end: number): Promise<AudioBuffer> {
   const rate = 48_000;
   const ctx = new OfflineAudioContext(2, Math.max(1, Math.round((end - start) * rate)), rate);
   src.buffers.forEach((b, i) => {
-    if (!on[i]) return;
+    const g = gains[i] ?? 1;
+    if (g <= 0) return;
     const node = ctx.createBufferSource();
     node.buffer = b;
-    node.connect(ctx.destination);
+    const gain = ctx.createGain();
+    gain.gain.value = g;
+    node.connect(gain).connect(ctx.destination);
     node.start(0, start, end - start);
   });
   return ctx.startRendering();

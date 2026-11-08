@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-09',
+    time: '01:10',
+    kind: 'melhoria',
+    icon: 'scissors',
+    title: 'Volume de cada som no clipe',
+    body: 'No clipe, cada fonte de som (jogo, fones, microfone, vozes da chamada, efeitos sonoros) agora tem o próprio volume, de 0 a 200%, além do botão de silenciar. Vale para ouvir o clipe e para exportar o vídeo ou o áudio.',
+  },
+  {
+    date: '2026-11-09',
     time: '00:40',
     kind: 'novo',
     icon: 'trophy',

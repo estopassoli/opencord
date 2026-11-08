@@ -22,6 +22,7 @@ import { useActivity } from './activity';
 import { useMusic } from './music';
 import { useScenes } from './scenes';
 import { nameFor } from '../lib/names';
+import { useGames } from './games';
 import { useSpace } from './space';
 import { attachRemoteControl, detachRemoteControl, remoteControl } from '../voice/remote-control';
 
@@ -503,6 +504,9 @@ export const useVoice = create<VoiceStore>()((set, get) => {
           codec,
           video?.streamBitrate ?? 'medium',
           useScenes.getState().active(),
+          // com um jogo aberto o cursor sai da transmissão (jogos de tiro escondem o mouse, mas a captura do Windows
+          // ainda o desenha); na área de trabalho ele continua aparecendo
+          { hideCursor: useGames.getState().mine !== null },
         );
         // `live` só após a publicação ser confirmada pela SFU
         sdispatch({ type: 'PUBLISHED', audioPublished: r.audioPublished });

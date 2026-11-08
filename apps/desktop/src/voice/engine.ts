@@ -633,6 +633,7 @@ export class VoiceEngine {
     codec: VideoCodec,
     bitrate: StreamBitrateLevel = 'high',
     scene: Scene | null = null,
+    opts: { hideCursor?: boolean } = {},
   ): Promise<{ audioPublished: boolean }> {
     if (!this.room) throw new Error('não conectado');
     const profile = effectiveProfile(profileId, { hardware: codec === 'h264' ? null : false });
@@ -651,7 +652,9 @@ export class VoiceEngine {
           // cada 1/60 s e, com a variação de tempo, perde quadros novos: medido no E2E golive-fps, 57,7 quadros distintos
           // no espectador com 60 pedidos × 59,5 com 120 (conteúdo a 60 e a 120 fps, com e sem cena).
           frameRate: { ideal: profile.fps * 2, max: profile.fps * 2 },
-        },
+          // restrição padrão da captura de tela (`cursor`); navegador que não a conhece simplesmente ignora
+          ...(opts.hideCursor ? { cursor: 'never' } : {}),
+        } as MediaTrackConstraints,
         // restrictOwnAudio: exclui as vozes da chamada tocadas pelo próprio OpenCord (evita eco para quem assiste)
         audio: chromiumAudio
           ? ({

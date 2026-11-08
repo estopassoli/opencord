@@ -339,14 +339,25 @@ button.recent-clip:focus-visible {
   background: var(--chat);
 }
 .clip-audio > li {
+  display: grid;
+  gap: 2px;
+  padding: 4px 4px 6px 8px;
+  min-width: 0;
+}
+.clip-audio > li + li {
+  border-top: 1px solid var(--border);
+}
+.clip-audio-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 4px 4px 8px;
   min-width: 0;
 }
-.clip-audio > li > .truncate {
+.clip-audio-row > .truncate {
   flex: 1;
+}
+.clip-audio .oc-field {
+  margin: 0;
 }
 .clip-audio .icon-btn[aria-pressed='true'] {
   color: var(--danger-text);
