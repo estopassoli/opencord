@@ -58,6 +58,8 @@ export interface SceneHooks {
   onCharge?(c: number | null): void;
   /** x1: mira travada (cursor preso no centro) ou não */
   onAimLock?(locked: boolean): void;
+  /** o sistema não deixou prender o mouse (o jogo segue com arrastar para olhar) */
+  onLockFailed?(): void;
   /** sinuca: bolas e vez para a rede */
   sendPool?(m: PoolMsg): void;
   /** corrida: volta, item e turbo (para o painel) e a chegada (tempo de prova) */
@@ -180,6 +182,7 @@ export class SpaceScene {
     this.bindInput();
     document.addEventListener('visibilitychange', this.onVisibility);
     document.addEventListener('pointerlockchange', this.onLockChange);
+    document.addEventListener('pointerlockerror', this.onLockError);
     document.addEventListener('mousemove', this.onAimMove);
     document.addEventListener('mousedown', this.onMouseDownDoc);
     document.addEventListener('mouseup', this.onMouseUpDoc);
@@ -714,12 +717,25 @@ export class SpaceScene {
   private leftHeld = false;
   private leftAt = 0;
 
+  /** o sistema recusou prender o mouse: a câmera gira arrastando e os cliques vão direto (sem trava) */
+  noLock = false;
+
+  /** o último pedido de trava veio de um clique (só aí uma recusa significa "o sistema não deixa") */
+  private lockByGesture = false;
+
+  private onLockError = () => {
+    if (this.noLock || !this.lockByGesture) return;
+    this.noLock = true;
+    this.hooks.onLockFailed?.();
+  };
+
   /** prende o mouse na visão (mexer o mouse gira a câmera, sem clicar); Esc solta */
-  lockPointer() {
-    if (this.mode !== 'play' || this.aimLocked) return;
+  lockPointer(byGesture = true) {
+    if (this.mode !== 'play' || this.aimLocked || this.noLock) return;
+    this.lockByGesture = byGesture;
     try {
       const r = this.renderer.domElement.requestPointerLock?.() as unknown as Promise<void> | undefined;
-      void r?.catch?.(() => undefined);
+      void r?.catch?.(() => this.onLockError());
     } catch {
       /* sem gesto do usuário: o aviso "clique para jogar" pede o clique */
     }
@@ -768,6 +784,13 @@ export class SpaceScene {
       // jogando, o mouse fica preso na visão: o clique solto (sem trava) só prende de novo; com a trava, os botões
       // chegam por mousedown/mouseup no documento (onMouseDownDoc). Sem preventDefault aqui: cancelar o pointerdown
       // faz o navegador não gerar o mousedown, e os cliques do jogo não chegariam.
+      if (this.noLock) {
+        // sem trava: o clique já é o botão do jogo, e arrastar gira a câmera
+        this.press(`Mouse${e.button}`, false);
+        this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, button: e.button, editor: false };
+        this.renderer.domElement.setPointerCapture(e.pointerId);
+        return;
+      }
       if (!this.aimLocked) this.lockPointer();
       return;
     }
@@ -808,6 +831,7 @@ export class SpaceScene {
   };
 
   private onPointerUp = (e: PointerEvent) => {
+    if (this.noLock && this.mode === 'play') this.release(`Mouse${e.button}`);
     if (this.drag?.editor) this.editorInput?.up(e);
     this.clickStart = null;
     this.drag = null;
@@ -1161,6 +1185,7 @@ export class SpaceScene {
     this.ro.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);
     document.removeEventListener('pointerlockchange', this.onLockChange);
+    document.removeEventListener('pointerlockerror', this.onLockError);
     document.removeEventListener('mousemove', this.onAimMove);
     document.removeEventListener('mousedown', this.onMouseDownDoc);
     document.removeEventListener('mouseup', this.onMouseUpDoc);

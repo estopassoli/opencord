@@ -99,6 +99,8 @@ const POPOUT_NAME = 'opencord-live';
 const DEV_URL = process.env.OPENCORD_DEV_URL; // ex.: http://localhost:5173 (apenas desenvolvimento)
 const RENDERER_INDEX = path.join(__dirname, '../dist/index.html');
 const ALLOWED_PERMISSIONS = new Set([
+  // Espaço 3D (ADR-0055): o mouse fica preso na visão; só nas páginas do app (permissionAllowed)
+  'pointerLock',
   'media',
   'notifications',
   'clipboard-sanitized-write',

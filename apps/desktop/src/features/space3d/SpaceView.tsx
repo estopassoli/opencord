@@ -63,6 +63,9 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   const [prompt, setPrompt] = useState<string | null>(null);
   const [charge, setCharge] = useState<number | null>(null);
   const [aimLocked, setAimLocked] = useState(false);
+  /** o sistema não deixou prender o mouse: joga arrastando; a pausa abre pelo botão */
+  const [noLock, setNoLock] = useState(false);
+  const [paused, setPaused] = useState(false);
   const fighting = useSpace((s) =>
     Object.values(s.duels).some(
       (d) => (d.status === 'countdown' || d.status === 'fighting') && (d.a === me?.id || d.b === me?.id),
@@ -83,6 +86,13 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       onPrompt: (p) => setPrompt(p?.label ?? null),
       onCharge: setCharge,
       onAimLock: setAimLocked,
+      onLockFailed: () => {
+        setNoLock(true);
+        setPaused(false);
+        useUi
+          .getState()
+          .toast('info', 'Não foi possível prender o mouse na visão: arraste com o mouse para olhar em volta.');
+      },
       sendPool: (m) => useSession.getState().realtime?.sendVolatile('space:pool', { channelId, ...m }),
       onRace: setRace,
       onRaceFinish: (ms) => void useSpace.getState().finishRace(ms),
@@ -114,7 +124,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     sceneRef.current = s;
     setScene(s);
     // quem abriu o espaço acabou de clicar: tenta já prender o mouse na visão (sem gesto, o aviso pede um clique)
-    s.lockPointer();
+    s.lockPointer(false);
     useSpace.setState({ ballListener: (b) => s.remoteBall(b), poolListener: (m) => s.remotePool(m) });
     el.focus({ preventScroll: true });
     return () => {
@@ -180,14 +190,20 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       )}
       {!editing && <ControlsPanel zone={zone} fighting={fighting} />}
       {!editing && aimLocked && <LockHint locked fighting={fighting} />}
-      {!editing && !aimLocked && (
+      {!editing && ((!noLock && !aimLocked) || (noLock && paused)) && (
         <PauseMenu
           onResume={() => {
+            setPaused(false);
             sceneRef.current?.lockPointer();
             host.current?.focus({ preventScroll: true });
           }}
           onLeave={() => useSpace.getState().close()}
         />
+      )}
+      {!editing && noLock && !paused && (
+        <button className="space3d-gbtn space3d-pausebtn" onClick={() => setPaused(true)}>
+          Pausa
+        </button>
       )}
       {slow && !editing && (
         <p className="space3d-slow">O espaço está pesado neste computador: feche-o enquanto joga.</p>

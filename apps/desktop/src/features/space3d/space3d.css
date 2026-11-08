@@ -1042,3 +1042,10 @@
   inset: 0;
   background: rgb(0 0 0 / 0.25);
 }
+.space3d-pausebtn {
+  position: absolute;
+  z-index: 2;
+  top: 56px;
+  right: 12px;
+  background: rgb(10 12 18 / 0.78);
+}
