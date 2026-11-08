@@ -41,6 +41,10 @@ const mutedKey = (serverId: string) => `voice:muted:${serverId}`;
 interface StoredState extends VoiceMemberState {
   roomName: string;
   confirmed: boolean;
+  /** conexão atual na SFU (sid do participante, vindo do webhook participant_joined); null até ela chegar */
+  sid?: string | null;
+  /** último /join (a carência de conexão do reconcile conta daqui, não do joinedAt, que sobrevive a reconexões) */
+  connectAt?: string;
 }
 
 /** Gravação, soundboard, atividades e música pertencem a um servidor: em chamada privada (ADR-0038) não existem. */
@@ -276,7 +280,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
   }
 
   private publicState(s: StoredState): VoiceMemberState {
-    const { roomName: _r, confirmed: _c, ...pub } = s;
+    const { roomName: _r, confirmed: _c, sid: _s, connectAt: _a, ...pub } = s;
     return pub;
   }
 
@@ -352,7 +356,10 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       joinedAt: current?.channelId === channelId ? current.joinedAt : new Date().toISOString(),
       callStartedAt: await this.callStartFor(channelId, current),
       roomName,
-      confirmed: current?.channelId === channelId ? current.confirmed : false,
+      // cada /join abre uma conexão nova na SFU: ela ainda não foi vista (o aviso atrasado da conexão antiga não a derruba)
+      confirmed: false,
+      sid: null,
+      connectAt: new Date().toISOString(),
     };
     await this.save(state);
     if (current?.channelId !== channelId)
@@ -437,7 +444,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       joinedAt: same ? current.joinedAt : new Date().toISOString(),
       callStartedAt: await this.callStartFor(conversationId, current),
       roomName,
-      confirmed: same ? current.confirmed : false,
+      confirmed: false,
+      sid: null,
+      connectAt: new Date().toISOString(),
     };
     await this.save(state);
     if (!same) {
@@ -519,6 +528,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     reason: 'left' | 'kicked' | 'timeout' | 'moved',
     notifyUser?: 'kicked' | 'revoked' | 'replaced',
   ) {
+    this.log.log(
+      `voz: fim da sessão de ${s.userId} em ${s.channelId} (${reason}${notifyUser ? `, aviso ${notifyUser}` : ''})`,
+    );
     await this.clear(s);
     // o aviso vai antes de tirar da SFU: o app mostra o motivo certo em vez de "removido da chamada"
     if (notifyUser)
@@ -725,8 +737,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
           if (!s.confirmed) await this.save({ ...s, confirmed: true });
           continue;
         }
-        const age = Date.now() - new Date(s.joinedAt).getTime();
+        const age = Date.now() - new Date(s.connectAt ?? s.joinedAt).getTime();
         if (s.confirmed || age > CONNECT_GRACE_MS) {
+          this.log.log(`voz: ${uid} fora da SFU em ${channelId} (${s.confirmed ? 'saiu sem aviso' : 'não conectou'})`);
           await this.endSession(s, 'timeout');
           removed++;
         }
@@ -751,7 +764,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     if (ev.event === 'room_finished') {
       for (const uid of await this.r.smembers(`voice:channel:${channelId}`)) {
         const s = await this.stateOf(uid);
-        if (s?.channelId === channelId) await this.endSession(s, 'left');
+        // quem está reconectando (novo /join, conexão ainda não vista) não sai junto com a sala antiga: o reconcile cuida
+        if (s?.channelId === channelId && s.confirmed) await this.endSession(s, 'left');
       }
       return;
     }
@@ -759,15 +773,25 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     const s = await this.stateOf(identity);
     if (!s || s.channelId !== channelId) {
       // participante na SFU sem autorização lógica atual: remover
-      if (ev.event === 'participant_joined')
+      if (ev.event === 'participant_joined') {
+        this.log.log(`voz: ${identity} entrou na SFU (${roomName}) sem estar na chamada; removido`);
         await this.rooms.removeParticipant(roomName, identity).catch(() => undefined);
+      }
       return;
     }
     switch (ev.event) {
       case 'participant_joined':
-        await this.save({ ...s, confirmed: true });
+        await this.save({ ...s, confirmed: true, sid: ev.participant?.sid ?? null });
         break;
       case 'participant_left':
+        // só a conexão atual encerra a sessão: numa reconexão, o aviso da conexão antiga chega depois de a nova entrar
+        // (ou entre o /join e a entrada dela) e derrubava a nova. Saída real sem conexão confirmada: o reconcile pega.
+        if (!s.sid || s.sid !== ev.participant?.sid) {
+          this.log.log(
+            `voz: saída ignorada de ${identity} em ${roomName} (conexão antiga ${ev.participant?.sid ?? '?'})`,
+          );
+          break;
+        }
         await this.endSession(s, 'left');
         break;
       case 'track_published':

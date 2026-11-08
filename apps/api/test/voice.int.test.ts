@@ -357,7 +357,7 @@ describe('voz com LiveKit real', () => {
     expect((await startOf(alice.id))! > start!).toBe(true);
   });
 
-    it('mute/deafen próprios refletidos para os demais; deafen implica mute', async () => {
+  it('mute/deafen próprios refletidos para os demais; deafen implica mute', async () => {
     const { alice, owner, voiceId } = await setup();
     const so = await sock(owner.token);
     await http.req('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
@@ -376,11 +376,47 @@ describe('voz com LiveKit real', () => {
     const { VoiceService } = await import('../src/voice/voice.service.js');
     const svc = app.get(VoiceService);
     expect((await svc.reconcile()).removed).toBe(0);
-    const raw = JSON.parse((await svc['redis'].client.get(`voice:user:${alice.id}`)) as string) as { joinedAt: string };
-    raw.joinedAt = new Date(Date.now() - 60_000).toISOString();
+    const raw = JSON.parse((await svc['redis'].client.get(`voice:user:${alice.id}`)) as string) as {
+      joinedAt: string;
+      connectAt: string;
+    };
+    raw.joinedAt = raw.connectAt = new Date(Date.now() - 60_000).toISOString();
     await svc['redis'].client.set(`voice:user:${alice.id}`, JSON.stringify(raw));
     expect((await svc.reconcile()).removed).toBe(1);
     expect(await svc.stateOf(alice.id)).toBeNull();
+  });
+
+  it('reconexão: a saída atrasada da conexão antiga não derruba a nova; a saída da atual encerra', async () => {
+    const { alice, owner, serverId, voiceId } = await setup();
+    const svc = app.get(VoiceService);
+    const so = await sock(owner.token);
+    const j1 = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    const room1 = await connectRoom(j1.body);
+    await waitUntil(async () => !!(await svc['stateOf'](alice.id))?.['sid']);
+
+    // o app reconecta: novo /join e, antes de a conexão nova entrar, chega a saída da antiga
+    const j2 = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    const leftEarly = noEvent(so, 'voice:member:left', () => true, 3000);
+    await room1.disconnect();
+    await leftEarly;
+    expect(await svc.stateOf(alice.id)).not.toBeNull();
+
+    const room2 = await connectRoom(j2.body);
+    await waitUntil(async () => (await participants(j2.body.roomName)).includes(alice.id));
+    await sleep(1500);
+    expect(room2.isConnected).toBe(true);
+    const list = await http.req<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`, { token: owner.token });
+    expect(list.body.map((s) => s.userId)).toContain(alice.id);
+    expect(list.body.find((s) => s.userId === alice.id)).not.toHaveProperty('sid');
+
+    const left = nextEvent<{ userId: string; reason: string }>(
+      so,
+      'voice:member:left',
+      (p) => p.userId === alice.id,
+      10000,
+    );
+    await room2.disconnect();
+    expect((await left).reason).toBe('left');
   });
 
   it('webhook com assinatura inválida é rejeitado', async () => {

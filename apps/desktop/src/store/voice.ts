@@ -194,7 +194,7 @@ export const useVoice = create<VoiceStore>()((set, get) => {
           playSound('reconnect');
           dispatch({ type: 'RECONNECTED' });
         },
-        onDisconnected: (reason) => void handleDisconnect(reason),
+        onDisconnected: (reason, detail) => void handleDisconnect(reason, detail),
         onHangupRequested: () => void get().leave(),
         onStreamEnded: () => {
           sdispatch({ type: 'SOURCE_ENDED' });
@@ -235,13 +235,15 @@ export const useVoice = create<VoiceStore>()((set, get) => {
   }
 
   /** SFU caiu sem ser intencional: reentrar com token novo e backoff; remoção/duplicação não reconecta. */
-  async function handleDisconnect(reason: 'removed' | 'replaced' | 'failed' | 'ended') {
+  async function handleDisconnect(reason: 'removed' | 'replaced' | 'failed' | 'ended', detail?: string) {
     const { machine, serverId } = get();
     if (reason === 'removed') return get().forcedOut('Você foi removido da chamada.');
     if (reason === 'replaced') return get().forcedOut('Você entrou nesta chamada em outro dispositivo.');
     if (!machine.channelId || !serverId) return;
     sdispatch({ type: 'RESET' });
     playSound('disconnect');
+    // o motivo técnico vai no aviso final: sem ele não dá para saber por que alguém cai da chamada
+    let last = detail ?? '';
     for (let attempt = 0; attempt < RECONNECT.maxAttempts; attempt++) {
       dispatch({ type: 'CONNECTION_LOST' });
       await new Promise((r) => setTimeout(r, RECONNECT.delay(attempt)));
@@ -254,11 +256,11 @@ export const useVoice = create<VoiceStore>()((set, get) => {
         dispatch({ type: 'RECONNECTED' });
         playSound('reconnect');
         return;
-      } catch {
-        /* próxima tentativa */
+      } catch (e) {
+        last = e instanceof Error ? e.message : String(e);
       }
     }
-    dispatch({ type: 'FAILED', error: 'Não foi possível reconectar à chamada.' });
+    dispatch({ type: 'FAILED', error: `Não foi possível reconectar à chamada.${last ? ` (${last})` : ''}` });
     await disconnectEngine();
   }
 
