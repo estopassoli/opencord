@@ -10,7 +10,7 @@ import {
   type BallState,
 } from '../src/features/space3d/sports';
 
-function run(zone: 1 | 2 | 3, b: BallState, secs: number, from?: { x: number; y: number; z: number }) {
+function run(zone: 1 | 2 | 3 | 4 | 5, b: BallState, secs: number, from?: { x: number; y: number; z: number }) {
   const ev: BallEvent[] = [];
   for (let t = 0; t < secs; t += 1 / 60) ev.push(...stepBall(ARENAS[zone], b, 1 / 60, from));
   return ev;
