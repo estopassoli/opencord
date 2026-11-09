@@ -342,7 +342,7 @@ function TopScore() {
 
 /** trocou de arma: o que há em 1, 2 e 3 (a da mão em destaque), por um instante */
 function SlotList() {
-  const loadout = useGunHud((s) => s.inHand ?? s.loadout);
+  const loadout = useGunHud((s) => s.loadout);
   const slot = useGunHud((s) => s.slot);
   return (
     <div className="gf-slots" aria-hidden="true">
@@ -505,7 +505,7 @@ export function GunMatchPanel({
   useEffect(() => () => releasePreviews(), []);
   const blocked = others > 0;
   // trocar arma e personalizar ocupam a aba inteira (Esc volta uma tela)
-  if (view.kind !== 'home') return <LoadoutEditor view={view} onView={setView} others={others} />;
+  if (view.kind !== 'home') return <LoadoutEditor view={view} onView={setView} />;
   return (
     <div className="gf-panel">
       <header className="gm-head">
@@ -517,7 +517,7 @@ export function GunMatchPanel({
       </header>
       <section aria-labelledby="gf-loadout">
         <h3 id="gf-loadout">Equipamento</h3>
-        <LoadoutCards onOpen={setView} others={others} />
+        <LoadoutCards onOpen={setView} />
       </section>
       <div className="gf-settings">
         <section aria-labelledby="gf-mouse">

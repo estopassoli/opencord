@@ -82,11 +82,6 @@ export interface GunHudState {
   winnerAt: number;
   firstPerson: boolean;
   loadout: Loadout;
-  /**
-   * o que está de verdade nas mãos (o jogo atualiza): com gente na arena, o equipamento novo do menu só entra ao
-   * renascer, e até lá a lista de armas mostra este; null = o mesmo do menu
-   */
-  inHand: Loadout | null;
   /** os acessórios escolhidos para cada arma (o armeiro do menu) */
   builds: Builds;
   bot: BotLevel | null;
@@ -220,7 +215,6 @@ export const useGunHud = create<GunHudState>()((set) => ({
   winnerAt: 0,
   firstPerson: true,
   loadout: saved.loadout,
-  inHand: null,
   builds: saved.builds,
   bot: null,
   botCount: 3,

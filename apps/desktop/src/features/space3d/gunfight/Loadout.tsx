@@ -203,7 +203,7 @@ function AttChips({ id, build }: { id: GunId; build?: GunBuild }) {
 // ---------------------------------------------------------------- cartões
 
 /** os três cartões do equipamento (na aba "Esta partida") */
-export function LoadoutCards({ onOpen, others }: { onOpen: (v: LoadoutView) => void; others: number }) {
+export function LoadoutCards({ onOpen }: { onOpen: (v: LoadoutView) => void }) {
   const loadout = useGunHud((s) => s.loadout);
   const builds = useGunHud((s) => s.builds);
   return (
@@ -261,11 +261,7 @@ export function LoadoutCards({ onOpen, others }: { onOpen: (v: LoadoutView) => v
           );
         })}
       </div>
-      <p className="gf-note">
-        {others > 0
-          ? 'O equipamento vale na próxima vez que você nascer.'
-          : 'Sozinho ou contra bots, o equipamento troca assim que você volta ao jogo.'}
-      </p>
+      <p className="gf-note">O equipamento troca assim que você volta ao jogo, com a munição cheia.</p>
     </>
   );
 }
@@ -313,11 +309,9 @@ function EdHead({
 export function LoadoutEditor({
   view,
   onView,
-  others,
 }: {
   view: Exclude<LoadoutView, { kind: 'home' }>;
   onView: (v: LoadoutView) => void;
-  others: number;
 }) {
   const back = () => onView(view.kind === 'smith' ? { kind: 'list', slot: view.slot } : { kind: 'home' });
   return (
@@ -335,7 +329,7 @@ export function LoadoutEditor({
       {view.kind === 'list' ? (
         <WeaponList slot={view.slot} onBack={back} onSmith={(gun) => onView({ kind: 'smith', slot: view.slot, gun })} />
       ) : (
-        <Gunsmith key={view.gun} gun={view.gun} slot={view.slot} onBack={back} others={others} />
+        <Gunsmith key={view.gun} gun={view.gun} slot={view.slot} onBack={back} />
       )}
     </div>
   );
@@ -452,7 +446,7 @@ function defaultDesc(spec: GunSpec, slot: AttSlot): string {
 }
 
 /** o armeiro: encaixes em abas, as opções com prós e contras, a imagem e as barras com a opção em foco */
-function Gunsmith({ gun, slot, onBack, others }: { gun: GunId; slot: GunSlot; onBack: () => void; others: number }) {
+function Gunsmith({ gun, slot, onBack }: { gun: GunId; slot: GunSlot; onBack: () => void }) {
   const builds = useGunHud((s) => s.builds);
   const build = builds[gun] ?? {};
   const slots = slotsFor(gun);
@@ -501,9 +495,7 @@ function Gunsmith({ gun, slot, onBack, others }: { gun: GunId; slot: GunSlot; on
           </div>
           <StatBars base={gunStats(base)} next={gunStats(next)} />
           <Specs base={base} next={next} />
-          <p className="gf-note">
-            {others > 0 ? 'Vale na próxima vez que você nascer.' : 'Vale assim que você volta ao jogo.'}
-          </p>
+          <p className="gf-note">Vale assim que você volta ao jogo.</p>
         </div>
         <div className="gf-smith-pick">
           <div

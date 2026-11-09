@@ -848,22 +848,15 @@ describe('gunfight: contrato', () => {
 });
 
 describe('gunfight: rodada 3 (integração)', () => {
-  it('com gente na arena, o equipamento novo espera o renascer: a lista mostra a arma da mão e avisa', async () => {
+  it('com gente na arena, trocar o equipamento no menu troca na hora (com a munição cheia)', async () => {
     const { g, setPlayers } = await started();
     setPlayers([{ id: BOB, name: 'Bob', x: 30, y: 0, z: 30, ry: 0, crouch: false, alive: true }]);
     const t = performance.now() + 1000;
     g.switchTo('secondary', t);
     useGunHud.getState().set({ loadout: { primary: 'ak47', secondary: 'm9', melee: 'karambit' } });
     g.step(1 / 60, t + 50);
-    expect(useGunHud.getState().inHand?.primary).toBe('m4');
-    expect(useGunHud.getState().notice).toMatch(/renascer/);
     g.switchTo('primary', t + 900);
-    expect(g.weapon).toBe('m4');
-    // sozinho de novo: troca na hora e a lista volta a ser a do menu
-    setPlayers([]);
-    g.step(1 / 60, t + 1800);
     expect(g.weapon).toBe('ak47');
-    expect(useGunHud.getState().inHand).toBeNull();
     g.dispose();
   });
 
