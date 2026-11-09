@@ -440,6 +440,14 @@ function wireRealtime(rt: RealtimeClient) {
     rt.on('space:ended', (e) => void import('./space').then(({ useSpace }) => useSpace.getState().ended(e.channelId)));
     rt.on('space:moved', (m) => void import('./space').then(({ useSpace }) => useSpace.getState().moved(m)));
     rt.on(
+      'space:gun',
+      (g) =>
+        void import('./space').then(({ useSpace }) => {
+          const st = useSpace.getState();
+          if (st.openChannelId === g.channelId) st.gunListener?.(g);
+        }),
+    );
+    rt.on(
       'space:ball',
       (b) =>
         void import('./space').then(({ useSpace }) => {

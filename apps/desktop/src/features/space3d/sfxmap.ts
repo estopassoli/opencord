@@ -3,7 +3,7 @@
  * mixagem (distância, panorâmica leve, ducking e teto do volume). Sem Web Audio aqui: o motor fica em `sfx.ts`.
  * Todos os sons são sintetizados por nós (receitas em `sfx.ts`); nenhum arquivo nem som de outro jogo.
  */
-import { SPACE_VOICE_FLOOR, spaceVoiceGain } from '@opencord/contracts';
+import { SPACE_VOICE_FLOOR, spaceVoiceGain, type GunId } from '@opencord/contracts';
 import type { At, GameEvent, GameEventKind } from './events';
 
 export type SfxName =
@@ -54,7 +54,30 @@ export type SfxName =
   | 'sweetSpot'
   | 'uiMove'
   | 'uiOk'
-  | 'uiBack';
+  | 'uiBack'
+  // gunfight
+  | 'shotRifle'
+  | 'shotAk'
+  | 'shotSmg'
+  | 'shotSniper'
+  | 'shotPistol'
+  | 'shotDeagle'
+  | 'knifeSwing'
+  | 'magOut'
+  | 'magIn'
+  | 'charge'
+  | 'boltOpen'
+  | 'boltClose'
+  | 'dryFire'
+  | 'hitmarker'
+  | 'headshot'
+  | 'killConfirm'
+  | 'hurt'
+  | 'slideFx'
+  | 'land'
+  | 'impactWall'
+  | 'impactFlesh'
+  | 'drawGun';
 
 /** um som a tocar */
 export interface SfxCue {
@@ -160,6 +183,28 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
   // drible: o vento do corpo passando (a bicicleta ainda tem o chute forte, pelo evento do chute)
   trick: (e) => [{ name: 'swing', gain: e.trick === 'bicicleta' ? 0.9 : 0.6, pitch: e.trick === 'elastico' ? 1.2 : 1 }],
   // falta: apito; desarme limpo: o choque na bola
+  gunshot: (e) => [{ name: SHOT_SOUND[e.w], gain: e.by === 'me' ? 1 : 0.9 }],
+  impact: (e) => [e.flesh ? { name: 'impactFlesh', gain: 0.6 } : { name: 'impactWall', gain: 0.45 }],
+  gunfx: (e) => {
+    const g: Record<string, [SfxName, number]> = {
+      draw: ['drawGun', 0.5],
+      magOut: ['magOut', 0.6],
+      magIn: ['magIn', 0.7],
+      charge: ['charge', 0.7],
+      boltOpen: ['boltOpen', 0.7],
+      boltClose: ['boltClose', 0.7],
+      dry: ['dryFire', 0.6],
+      hitmarker: ['hitmarker', 0.8],
+      headshot: ['headshot', 0.9],
+      kill: ['killConfirm', 0.9],
+      hurt: ['hurt', 0.8],
+      slide: ['slideFx', 0.55],
+      land: ['land', 0.4],
+      swing: ['knifeSwing', 0.7],
+    };
+    const [name, gain] = g[e.what] ?? ['dryFire', 0.5];
+    return [{ name, gain, info: e.what === 'kill' || e.what === 'hitmarker' || e.what === 'headshot' }];
+  },
   tackle: (e) =>
     e.foul
       ? [
@@ -167,6 +212,21 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
           { name: 'whistle', gain: 0.8, info: true },
         ]
       : [{ name: 'kick', gain: 0.7, pitch: 0.9 }],
+};
+
+/** o estampido de cada arma (as facas usam o vento do golpe) */
+const SHOT_SOUND: Record<GunId, SfxName> = {
+  m4: 'shotRifle',
+  ak47: 'shotAk',
+  mp7: 'shotSmg',
+  mp5: 'shotSmg',
+  l115: 'shotSniper',
+  m200: 'shotSniper',
+  kar98k: 'shotSniper',
+  m9: 'shotPistol',
+  deagle: 'shotDeagle',
+  karambit: 'knifeSwing',
+  bayonet: 'knifeSwing',
 };
 
 /** sons de um evento (vazio = sem som) */

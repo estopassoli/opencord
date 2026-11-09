@@ -5,6 +5,8 @@
  * Sem three.js: o barramento é síncrono e as funções de física só empurram eventos numa lista.
  */
 
+import type { GunId } from '@opencord/contracts';
+
 export interface At {
   x: number;
   y: number;
@@ -51,7 +53,28 @@ export type GameEvent = Base &
     | { kind: 'control'; by: string }
     | { kind: 'trick'; by: string; trick: Trick }
     | { kind: 'tackle'; by: string; on: string | null; foul: boolean; slide: boolean }
+    // gunfight (2026-11-09)
+    | { kind: 'gunshot'; by: string; w: GunId }
+    | { kind: 'impact'; flesh: boolean; head: boolean }
+    | { kind: 'gunfx'; what: GunFx; w: GunId }
   );
+
+/** sons curtos da arma e do jogador no gunfight */
+export type GunFx =
+  | 'draw'
+  | 'magOut'
+  | 'magIn'
+  | 'charge'
+  | 'boltOpen'
+  | 'boltClose'
+  | 'dry'
+  | 'hitmarker'
+  | 'headshot'
+  | 'kill'
+  | 'hurt'
+  | 'slide'
+  | 'land'
+  | 'swing';
 
 /** dribles e lances de efeito do futebol */
 export type Trick = 'carretilha' | 'elastico' | 'bicicleta';

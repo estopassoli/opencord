@@ -25,6 +25,13 @@ import { attackHoop, clampToHalf, GOOD_BAND, netSideOf, type PoolSeat } from './
 import { sfx } from './sfx';
 import { chargeStep } from './sfxmap';
 import { SLIDE_MS, SportPlay, type FootMove, type RemoteBall } from './sportplay';
+import { GunGame, type GunAction, type GunHost } from './gunfight/game';
+import { GUN_BOXES, gunObstacles } from './gunfight/map';
+import { buildGunMap } from './gunfight/mapmesh';
+import { rayBox } from './gunfight/weapons';
+import { floorLayout } from './sports';
+import type { SpaceGun } from '@opencord/contracts';
+import type { BotLevel } from './bots/level';
 import { ARENAS, GOAL_X, HOOP_X, RIM_Y, type BallState } from './sports';
 import type { TutorialTarget } from './tutorial';
 import * as THREE from 'three';
@@ -60,6 +67,8 @@ export interface SceneHooks {
   onStatus?(text: string | null): void;
   /** atalho do placar segurado (true) ou solto (false) */
   onScoreboard?(held: boolean): void;
+  /** gunfight: tiro, acerto, morte e renascer para os outros */
+  sendGun?(g: Omit<SpaceGun, 'channelId'>): void;
   /** atalho de começar partida / revanche */
   onRematch?(): void;
   /** interações que não são da cena: ligar/desligar (para todos), telão, música, desafiar */
@@ -106,6 +115,9 @@ const TURN_SPEED = 2.4;
 const GRAVITY = 15;
 const YT_PX_W = 1280;
 const YT_PX_H = 720;
+
+/** gunfight: o chão e o céu do tema; os muros e caixas vêm de `gunfight/map.ts` (sem paredes do layout) */
+const GUN_LAYOUT = { ...floorLayout('station', 48, 48, '#3a3c40', '#4a4d55', 0.01), walls: [] };
 
 export class SpaceScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -165,7 +177,10 @@ export class SpaceScene {
   private readonly lastPunch = { j: 0, s: 0 };
   private clickStart: { x: number; y: number } | null = null;
   /** 0 = sala do servidor; 1–3 = arenas */
-  zone: 0 | SportZone = 0;
+  zone: 0 | SportZone | 8 = 0;
+  /** gunfight (zona 8) */
+  gun: GunGame | null = null;
+  private readonly botAvs = new Map<string, Avatar>();
   private mainLayout: SpaceLayout | null = null;
   private sport: SportPlay | null = null;
   /** efeitos do jogo (ADR-0056): som, partículas, faixa de ponto e tutorial se penduram aqui */
@@ -346,7 +361,7 @@ export class SpaceScene {
   }
 
   /** vai para uma arena de esporte (1–3) ou volta para a sala (0) */
-  setZone(z: 0 | SportZone, team: 'a' | 'b' = this.team) {
+  setZone(z: 0 | SportZone | 8, team: 'a' | 'b' = this.team) {
     if (z === this.zone) return;
     this.team = team;
     this.sport?.dispose();
@@ -355,6 +370,11 @@ export class SpaceScene {
     this.pool = null;
     this.bike = null;
     this.me.setBike(false);
+    this.gun?.dispose();
+    this.gun = null;
+    this.me.setGun(null);
+    this.camera.fov = 60;
+    this.camera.updateProjectionMatrix();
     // o aviso e o selo da zona anterior não ficam na tela (a sinuca na pista de corrida)
     this.lastPrompt = 0;
     if (this.promptLabel !== null) {
@@ -372,10 +392,19 @@ export class SpaceScene {
     this.wasHolding = false;
     this.lastCharge = null;
     this.hooks.onCharge?.(null);
-    const l = z ? ARENAS[z].layout : this.mainLayout;
+    const l = z === 8 ? GUN_LAYOUT : z ? ARENAS[z].layout : this.mainLayout;
     if (l) this.applyLayout(l, false);
-    this.me.setTeam(z && z !== 7 ? team : null);
-    this.me.setRacket(racketOf(z));
+    this.me.setTeam(z && z !== 7 && z !== 8 ? team : null);
+    this.me.setRacket(z === 8 ? null : racketOf(z));
+    if (z === 8) {
+      // gunfight: o mapa de contêineres, a colisão dele e o jogo
+      this.decor = buildGunMap();
+      this.scene.add(this.decor);
+      this.obstacles = gunObstacles();
+      this.gun = new GunGame(this.gunHost());
+      this.yaw = 0;
+      this.pitch = 0.05;
+    }
     if (z === 6 || z === 7) {
       const a = ARENAS[z];
       this.pose = { x: 0, y: 0, z: z === 6 ? 1.6 : a.layout.depth / 2 - 2, ry: Math.PI, a: 0 };
@@ -399,7 +428,7 @@ export class SpaceScene {
         this.raceFinished = false;
         this.raceCount = null;
       }
-    } else if (z) {
+    } else if (z && z !== 8) {
       this.placeOnHalf(z, team);
       this.decor = buildArenaDecor(z);
       this.scene.add(this.decor);
@@ -554,7 +583,7 @@ export class SpaceScene {
     if (onSide(this.pose.x)) cands.push(this.pose);
     for (const p of peers.values())
       if (p.zone === this.zone && now - p.at < PEER_TIMEOUT_MS && onSide(p.x)) cands.push(p);
-    const baseX = (side === 'a' ? -1 : 1) * (this.zone ? (ARENAS[this.zone].serveX ?? 11) : 11);
+    const baseX = (side === 'a' ? -1 : 1) * (this.zone && this.zone !== 8 ? (ARENAS[this.zone].serveX ?? 11) : 11);
     const who = cands.sort((a, b) => Math.abs(a.x - baseX) - Math.abs(b.x - baseX))[0];
     if (!who) return null;
     return { x: who.x + Math.sin(who.ry) * 0.7, y: 1.2, z: who.z + Math.cos(who.ry) * 0.7 };
@@ -733,6 +762,13 @@ export class SpaceScene {
     if (!this.aimLocked) return;
     if (this.freeLooking) {
       this.lookAround(e.movementX * 0.0026, e.movementY * 0.002);
+      return;
+    }
+    if (this.gun) {
+      // mirando com zoom, o mouse fica mais lento na mesma proporção
+      const k = this.camera.fov / 70;
+      this.yaw -= e.movementX * 0.0026 * k;
+      this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch + e.movementY * 0.002 * k));
       return;
     }
     this.yaw -= e.movementX * 0.0026;
@@ -1011,8 +1047,13 @@ export class SpaceScene {
     const now = performance.now();
     const arrow = ARROW_ACTION[code];
     if (arrow) this.inputs.emit({ kind: 'press', action: arrow });
+    if (this.gun && code.startsWith('Digit')) {
+      const n = Number(code.slice(5));
+      if (n >= 1 && n <= 3) this.gun.switchTo((['primary', 'secondary', 'melee'] as const)[n - 1]!, now);
+    }
     for (const a of actionsOf(code)) {
       this.inputs.emit({ kind: 'press', action: a });
+      if (this.gun && this.gunPress(a, now)) continue;
       if (a === 'jump') {
         if (this.sitting) this.standUp();
         else if (this.pose.y <= 0.001 && !this.bike && this.sport?.zone === 2 && this.sport.footJump(now)) {
@@ -1040,6 +1081,7 @@ export class SpaceScene {
   private release(code: string) {
     this.keys.delete(code);
     const acts = actionsOf(code);
+    if (this.gun && acts.includes('primary')) this.gun.release('fire');
     if (acts.includes('primary')) this.primaryUp(performance.now());
     if (acts.includes('scoreboard')) this.showScoreboard(false);
   }
@@ -1296,6 +1338,10 @@ export class SpaceScene {
 
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
+    if (this.gun && this.mode === 'play') {
+      this.gun.cycle(Math.sign(e.deltaY));
+      return;
+    }
     const max = this.mode === 'edit' ? 45 : 12;
     this.dist = Math.max(2.2, Math.min(max, this.dist * (1 + Math.sign(e.deltaY) * 0.12)));
   };
@@ -1312,7 +1358,11 @@ export class SpaceScene {
     // atalhos escolhidos pela pessoa (menu de pausa); Esc fica com o navegador (solta o mouse e pausa)
     const code = normalizeCode(e.code);
     if (code === 'Escape') return;
-    const bound = actionsOf(code).length > 0 || code.startsWith('Arrow') || (this.mode === 'edit' && code === 'Shift');
+    const bound =
+      actionsOf(code).length > 0 ||
+      code.startsWith('Arrow') ||
+      (this.mode === 'edit' && code === 'Shift') ||
+      (!!this.gun && /^Digit[1-3]$/.test(code));
     if (!bound) return;
     e.preventDefault();
     this.press(code, e.repeat);
@@ -1425,6 +1475,8 @@ export class SpaceScene {
       this.updateGains();
     }
     this.renderer.render(this.scene, this.camera);
+    if (this.gun && this.mode === 'play') this.gun.render(this.renderer);
+    this.stepBotAvatars(gdt, t, dt);
     if (this.css && this.cssScene) this.css.render(this.cssScene, this.camera);
     this.fpsFrames++;
     if (now - this.fpsAt > 2000) {
@@ -1445,6 +1497,15 @@ export class SpaceScene {
     if (this.held('left')) fx -= 1;
     if (this.bike) {
       this.stepRace(dt, now);
+      return;
+    }
+    if (this.gun) {
+      this.gun.step(dt, now);
+      this.pose.a = this.gun.anim();
+      this.me.place(this.pose);
+      this.me.setGun(this.gun.weapon);
+      this.me.setGunPose(this.gun.pose());
+      this.maybeSend(now);
       return;
     }
     if (now < this.koUntil) {
@@ -1600,10 +1661,12 @@ export class SpaceScene {
       Math.abs(l.z - p.z) > 0.01 ||
       Math.abs(l.y - p.y) > 0.01 ||
       l.a !== p.a ||
-      Math.abs(l.ry - p.ry) > 0.02;
+      Math.abs(l.ry - p.ry) > 0.02 ||
+      (!!this.gun && this.gunPoseKey() !== this.lastGunKey);
     const gap = now - this.lastSend;
     if ((changed && gap >= 100) || gap >= 1000) {
       this.lastSend = now;
+      if (this.gun) this.lastGunKey = this.gunPoseKey();
       this.lastSent = { ...p };
       this.hooks.sendPose({
         x: round(p.x),
@@ -1612,7 +1675,8 @@ export class SpaceScene {
         ry: round(p.ry),
         a: p.a,
         zone: this.zone,
-        ...(this.zone ? { team: this.team } : {}),
+        ...(this.zone && this.zone !== 8 ? { team: this.team } : {}),
+        ...(this.gun ? { gun: this.gun.pose() } : {}),
       });
     }
   }
@@ -1636,8 +1700,10 @@ export class SpaceScene {
       av.setSpeaking(info.speaking);
       av.setVoiceLevel(info.speaking ? (this.hooks.audioLevel?.(id) ?? 0) : 0);
       av.setTeam(this.zone && this.zone !== 7 && pose.team ? pose.team : null);
-      av.setRacket(racketOf(this.zone));
+      av.setRacket(this.zone === 8 ? null : racketOf(this.zone));
       av.setBike(this.zone === 7);
+      av.setGun(this.zone === 8 ? (pose.gun?.w ?? null) : null);
+      if (pose.gun) av.setGunPose(pose.gun);
     }
     for (const [id, av] of this.others) {
       const p = peers.get(id);
@@ -1759,7 +1825,7 @@ export class SpaceScene {
       case 'gol':
         return this.zone === 2 ? { x: atk * GOAL_X, y: 2.8, z: 0, floor: 0.02 } : null;
       case 'rede': {
-        const z = this.zone;
+        const z = this.zone === 8 ? 0 : this.zone;
         const net = z ? ARENAS[z].net : undefined;
         if (!z || !net) return null;
         // o lado de lá, no meio da quadra: onde a bola tem que cair
@@ -1799,7 +1865,161 @@ export class SpaceScene {
     if (arrow && !this.reducedMotion) arrow.rotation.y = t * 1.5;
   }
 
+  private lastGunKey = '';
+  private gunPoseKey() {
+    const g = this.gun?.pose();
+    return g ? `${g.w}:${g.pitch.toFixed(2)}:${g.crouch}:${g.ads}:${g.alive}` : '';
+  }
+
+  /** a ação do atalho no gunfight (devolve se tratou) */
+  private gunPress(a: Action, now: number): boolean {
+    const g = this.gun;
+    if (!g) return false;
+    const map: Partial<Record<Action, GunAction>> = {
+      primary: 'fire',
+      secondary: 'ads',
+      rematch: 'reload',
+      interact: 'melee',
+      wave: 'inspect',
+      crouch: 'crouch',
+      jump: 'jump',
+      run: 'run',
+      view: 'view',
+    };
+    const ga = map[a];
+    if (!ga) return false;
+    g.press(ga, now);
+    return true;
+  }
+
+  /** fala com o jogo: entra o que a cena sabe (teclas, câmera, gente, rede) */
+  private gunHost(): GunHost {
+    return {
+      selfId: this.selfId,
+      scene: this.scene,
+      camera: this.camera,
+      obstacles: this.obstacles ?? gunObstacles(),
+      skin: new THREE.Color(this.me.color).getHex(),
+      yaw: () => this.yaw,
+      pitch: () => this.pitch,
+      turn: (dy, dp) => {
+        this.yaw += dy;
+        this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch + dp));
+      },
+      wish: () => ({
+        f: (this.held('forward') ? 1 : 0) - (this.held('back') ? 1 : 0),
+        r: (this.held('right') ? 1 : 0) - (this.held('left') ? 1 : 0),
+      }),
+      held: (a) => this.held(a === 'fire' ? 'primary' : a === 'ads' ? 'secondary' : 'run'),
+      players: () => {
+        const now = performance.now();
+        const inCall = new Set(this.participants.map((p) => p.identity));
+        const out = [];
+        for (const [id, p] of peers) {
+          if (id === this.selfId || p.zone !== 8 || !inCall.has(id) || now - p.at > PEER_TIMEOUT_MS) continue;
+          out.push({
+            id,
+            name: this.nameOf(id),
+            x: p.x,
+            y: p.y,
+            z: p.z,
+            ry: p.ry,
+            crouch: p.gun?.crouch ?? false,
+            alive: p.gun?.alive ?? true,
+          });
+        }
+        return out;
+      },
+      nameOf: (id) => this.nameOf(id),
+      send: (g) => this.hooks.sendGun?.(g),
+      emit: (e) => this.events.emit(e),
+      place: (p) => {
+        this.pose.x = p.x;
+        this.pose.y = p.y;
+        this.pose.z = p.z;
+        this.pose.ry = p.ry;
+      },
+      spawnAvatar: (id, name) => {
+        const av = new Avatar(id, name);
+        this.scene.add(av.root);
+        this.botAvs.set(id, av);
+        let first = true;
+        return {
+          root: av.root,
+          place: (bp) => {
+            av.setTarget({ x: bp.x, y: bp.y, z: bp.z, ry: bp.ry, a: bp.a }, first);
+            first = false;
+            av.setGun(bp.gun.w);
+            av.setGunPose(bp.gun);
+          },
+          dispose: () => {
+            this.scene.remove(av.root);
+            av.dispose();
+            this.botAvs.delete(id);
+          },
+        };
+      },
+    };
+  }
+
+  private stepBotAvatars(dt: number, t: number, realDt: number) {
+    for (const av of this.botAvs.values()) av.update(dt, t, realDt);
+  }
+
+  /** gunfight: chegou da rede */
+  remoteGun(g: SpaceGun & { sender: string }) {
+    this.gun?.remote(g);
+  }
+
+  /** gunfight: os bots de treino (null tira) */
+  setGunBots(level: BotLevel | null, count: number) {
+    this.gun?.setBots(level, count);
+  }
+
+  /** gunfight: placar zerado, todos renascem */
+  restartGun() {
+    this.gun?.restart();
+  }
+
+  /** gunfight: primeira pessoa (V) */
+  toggleGunView() {
+    this.gun?.setFirstPerson(!this.gun.firstPerson);
+  }
+
+  /** gunfight: primeira pessoa (no olho) ou terceira (sobre o ombro direito); a mira muda o zoom */
+  private placeGunCamera(g: GunGame) {
+    const e = g.eye;
+    const yaw = this.yaw + this.freeYaw;
+    const pitch = this.pitch + this.freePitch;
+    const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+    const fov = g.fov(70);
+    if (Math.abs(this.camera.fov - fov) > 0.01) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    const fp = g.firstPerson && g.isAlive;
+    if (fp) {
+      this.camera.position.set(e.x, e.y, e.z);
+    } else {
+      // por cima do ombro direito; morto, a câmera se afasta um pouco
+      const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+      const target = new THREE.Vector3(e.x, e.y + 0.15, e.z).addScaledVector(right, 0.45);
+      let d = g.isAlive ? 2.3 - g.aiming * 0.9 : 3.5;
+      const back = dir.clone().negate();
+      for (const b of GUN_BOXES) {
+        const t = rayBox(target, back, b);
+        if (t < d) d = Math.max(0.4, t - 0.2);
+      }
+      this.camera.position.copy(target).addScaledVector(back, d);
+    }
+    this.camera.lookAt(this.camera.position.clone().add(dir));
+    if (this.juice.shake.amplitude > 0) this.camera.position.add(this.juice.shakeOffset(this.shakeOff));
+    this.me.root.visible = !fp;
+    g.vm.setAspect(this.camera.aspect);
+  }
+
   private placeCamera() {
+    if (this.gun && this.mode === 'play') return this.placeGunCamera(this.gun);
     const target =
       this.mode === 'play'
         ? new THREE.Vector3(this.pose.x, this.pose.y + 1.35, this.pose.z)

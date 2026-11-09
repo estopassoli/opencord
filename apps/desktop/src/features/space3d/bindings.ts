@@ -26,6 +26,8 @@ export const ACTIONS = [
   'help',
   'cursor',
   'freeLook',
+  'crouch',
+  'view',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -48,6 +50,8 @@ export const ACTION_LABELS: Record<Action, string> = {
   help: 'Mostrar ou esconder os comandos',
   cursor: 'Soltar o cursor (sem abrir o menu)',
   freeLook: 'Visão livre (segurar)',
+  crouch: 'Gunfight: agachar · correndo, deslizar',
+  view: 'Gunfight: primeira ou terceira pessoa',
 };
 
 export const DEFAULT_BINDINGS: Record<Action, string> = {
@@ -69,6 +73,8 @@ export const DEFAULT_BINDINGS: Record<Action, string> = {
   help: 'KeyH',
   cursor: 'Mouse1',
   freeLook: 'Alt',
+  crouch: 'KeyC',
+  view: 'KeyV',
 };
 
 /**
@@ -78,7 +84,7 @@ export const DEFAULT_BINDINGS: Record<Action, string> = {
 const LEGACY_DEFAULTS: Partial<Record<Action, string>> = { wave: 'KeyE' };
 
 /** teclas livres para uma ação nova quando o padrão dela já foi escolhido pela pessoa para outra coisa */
-const SPARE_CODES = ['KeyZ', 'KeyC', 'KeyV', 'KeyB', 'KeyJ', 'KeyK', 'KeyL', 'KeyN', 'KeyM', 'KeyT', 'KeyY'];
+const SPARE_CODES = ['KeyZ', 'KeyB', 'KeyJ', 'KeyK', 'KeyL', 'KeyN', 'KeyM', 'KeyT', 'KeyY'];
 
 const KEY = 'opencord.space3d.bindings';
 

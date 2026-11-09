@@ -35,7 +35,7 @@ export interface Arena {
   reach?: number;
 }
 
-const floorLayout = (
+export const floorLayout = (
   theme: SpaceLayout['theme'],
   width: number,
   depth: number,

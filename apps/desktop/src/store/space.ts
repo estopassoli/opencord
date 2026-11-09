@@ -8,6 +8,8 @@ import {
   MATCH_COUNTDOWN_MS,
   RACE_COUNTDOWN_MS,
   type SpaceBall,
+  type SpaceGun,
+  type SpaceGunPose,
   type SpacePool,
   type SpaceDuel,
   type SpaceSession,
@@ -31,6 +33,8 @@ export interface PeerPose {
   zone: number;
   /** time na arena */
   team?: 'a' | 'b';
+  /** gunfight: arma, mira, agachado, mirando, vivo */
+  gun?: SpaceGunPose;
   /** quando chegou (ms, relógio local); sem notícia por PEER_TIMEOUT_MS o avatar some */
   at: number;
 }
@@ -72,6 +76,8 @@ interface SpaceStore {
   ballListener: ((b: SpaceBall & { by: string }) => void) | null;
   /** sinuca: bolas que chegaram pela rede */
   poolListener: ((p: SpacePool & { by: string }) => void) | null;
+  /** gunfight: tiros, acertos e mortes que chegaram pela rede */
+  gunListener: ((g: SpaceGun & { sender: string }) => void) | null;
   /** corrida: largada no MEU relógio (estimada ao receber a largada) e chave da corrida atual */
   raceLocalStart: number | null;
   raceKey: number | null;
@@ -249,6 +255,7 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
       a: m.a,
       zone: m.zone ?? 0,
       ...(m.team ? { team: m.team } : {}),
+      ...(m.gun ? { gun: m.gun } : {}),
       at: performance.now(),
     });
   },
@@ -291,6 +298,7 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     set({ team: t });
   },
   ballListener: null,
+  gunListener: null,
   poolListener: null,
   raceLocalStart: null,
   raceKey: null,

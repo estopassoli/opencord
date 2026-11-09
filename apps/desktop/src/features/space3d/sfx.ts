@@ -78,6 +78,49 @@ const note = (f: number, t: number, d: number, g = 0.8): Part[] => [
 ];
 
 export const RECIPES: Record<SfxName, Part[]> = {
+  // gunfight: estampido = estalo curto (ruído aberto) + corpo grave + cauda filtrada; cada arma muda o peso
+  shotRifle: [
+    noise('highpass', 1800, 0.03, 1),
+    tone(150, 0.09, 0.9, { f2: 55 }),
+    noise('lowpass', 2200, 0.22, 0.55, { f2: 500 }),
+  ],
+  shotAk: [
+    noise('highpass', 1400, 0.035, 1),
+    tone(120, 0.11, 1, { f2: 45 }),
+    noise('lowpass', 1800, 0.26, 0.6, { f2: 400 }),
+  ],
+  shotSmg: [noise('highpass', 2400, 0.022, 0.9), tone(190, 0.06, 0.7, { f2: 80 }), noise('lowpass', 2600, 0.14, 0.4)],
+  shotSniper: [
+    noise('highpass', 1200, 0.05, 1),
+    tone(90, 0.2, 1, { f2: 30 }),
+    noise('lowpass', 1400, 0.6, 0.7, { f2: 250 }),
+  ],
+  shotPistol: [
+    noise('highpass', 2000, 0.025, 0.9),
+    tone(210, 0.07, 0.7, { f2: 90 }),
+    noise('lowpass', 2400, 0.15, 0.4),
+  ],
+  shotDeagle: [
+    noise('highpass', 1500, 0.04, 1),
+    tone(110, 0.14, 1, { f2: 40 }),
+    noise('lowpass', 1600, 0.35, 0.6, { f2: 300 }),
+  ],
+  knifeSwing: [noise('bandpass', 900, 0.16, 0.5, { f2: 3200, q: 2, a: 0.04 })],
+  magOut: [tone(900, 0.03, 0.5, { type: 'square' }), noise('bandpass', 1500, 0.05, 0.4, { q: 3 })],
+  magIn: [noise('bandpass', 1200, 0.04, 0.8, { q: 4 }), tone(600, 0.04, 0.6, { type: 'square', t: 0.02 })],
+  charge: [noise('bandpass', 2200, 0.05, 0.7, { q: 3 }), noise('bandpass', 1600, 0.05, 0.8, { q: 3, t: 0.12 })],
+  boltOpen: [noise('bandpass', 1800, 0.06, 0.7, { q: 4 }), tone(700, 0.04, 0.4, { f2: 900, t: 0.04 })],
+  boltClose: [tone(900, 0.04, 0.4, { f2: 600 }), noise('bandpass', 1400, 0.05, 0.8, { q: 4, t: 0.03 })],
+  dryFire: [tone(1500, 0.015, 0.5, { type: 'square' })],
+  hitmarker: [tone(2600, 0.03, 0.5, { type: 'triangle' }), noise('highpass', 5000, 0.02, 0.3)],
+  headshot: [tone(3100, 0.05, 0.6, { type: 'triangle' }), tone(4200, 0.08, 0.3, { t: 0.02 })],
+  killConfirm: [tone(1900, 0.06, 0.6, { type: 'triangle' }), tone(2850, 0.12, 0.5, { t: 0.05, type: 'triangle' })],
+  hurt: [tone(160, 0.12, 0.7, { f2: 90 }), noise('lowpass', 500, 0.1, 0.4)],
+  slideFx: [noise('bandpass', 600, 0.5, 0.45, { f2: 250, q: 0.8, a: 0.03 })],
+  land: [tone(90, 0.08, 0.6, { f2: 50 }), noise('lowpass', 400, 0.06, 0.4)],
+  impactWall: [noise('bandpass', 2500, 0.04, 0.6, { q: 2 }), tone(1200, 0.03, 0.2, { f2: 700 })],
+  impactFlesh: [noise('lowpass', 700, 0.06, 0.7), tone(140, 0.05, 0.4, { f2: 90 })],
+  drawGun: [noise('bandpass', 1400, 0.08, 0.4, { q: 2, f2: 2200 }), tone(800, 0.03, 0.3, { type: 'square', t: 0.08 })],
   // bola de borracha: "tum" grave caindo e um estalo curto
   bounce: [tone(180, 0.07, 1, { f2: 70 }), noise('lowpass', 1200, 0.012, 0.4)],
   // bolinha na mesa: "tic" agudo e seco

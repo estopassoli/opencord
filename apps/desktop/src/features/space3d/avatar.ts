@@ -5,6 +5,9 @@
  */
 import * as THREE from 'three';
 import { bikeMesh } from './race';
+import { makeHand, type Hand } from './hand';
+import { disposeGun, gunsReady, makeGun, type GunModel } from './gunfight/models';
+import type { GunId } from '@opencord/contracts';
 import {
   buildFace,
   cloneDoll,
@@ -146,6 +149,12 @@ export class Avatar {
   private mixer: THREE.AnimationMixer | null = null;
   private tpl: DollTemplate | null = null;
   private face: DollFace | null = null;
+  /** mãos com dedos (presas aos ossos das mãos) */
+  private hands: { r: Hand; l: Hand } | null = null;
+  /** gunfight: a arma na mão (terceira pessoa) e como ela está */
+  private gun: GunModel | null = null;
+  private gunId: GunId | null = null;
+  private gunPose = { pitch: 0, crouch: false, ads: false, alive: true };
   private skin: THREE.MeshStandardMaterial;
   private readonly ring: THREE.Mesh;
   private nameSprite: THREE.Sprite;
@@ -229,6 +238,9 @@ export class Avatar {
       if (b) this.bones[n] = b;
     }
     this.face = buildFace(doll, t.info);
+    this.hands = { r: makeHand(this.color, 1), l: makeHand(this.color, -1) };
+    this.attachHand(doll, 'r', this.hands.r);
+    this.attachHand(doll, 'l', this.hands.l);
     this.mixer = new THREE.AnimationMixer(doll);
     const team = this.team;
     this.team = null;
@@ -556,6 +568,18 @@ export class Avatar {
     if (isSwing(a) && swingU >= 0 && swingU < 1) this.swingPose(a, swingU);
     if (a === 4) this.wave(t);
     if (this.hold && a !== 5 && a < 6) this.reach(this.hold, this.holdBoth);
+    if (this.gun && a !== 9) {
+      if (this.gunPose.crouch && a !== 15) {
+        this.model.position.y -= 0.26;
+        this.crouchPose();
+      }
+      this.holdGun();
+    } else if (this.hands) {
+      // sem nada na mão: dedos relaxados (no soco do x1, fechados)
+      const fist = a >= 6 && a <= 8;
+      this.hands.r.setCurl(fist ? 1 : 0.18, fist ? 0.9 : 0.15);
+      this.hands.l.setCurl(fist ? 1 : 0.18, fist ? 0.9 : 0.15);
+    }
     this.faceUpdate(dt, t);
   }
 
@@ -753,8 +777,122 @@ export class Avatar {
     this.root.updateMatrixWorld(true);
   }
 
+  /**
+   * Prende a mão ao osso da mão, com os dedos seguindo o antebraço e a palma virada para o corpo (pose de referência).
+   * A mão é de tamanho real; o boneco é menor, então ela vai na mesma escala dele.
+   */
+  private attachHand(doll: THREE.Object3D, sd: 'l' | 'r', h: Hand) {
+    const hand = doll.getObjectByName(`hand_${sd}`);
+    const low = doll.getObjectByName(`lowerarm_${sd}`);
+    if (!hand || !low) return;
+    this.root.updateMatrixWorld(true);
+    const hp = hand.getWorldPosition(new THREE.Vector3());
+    const f = hp.clone().sub(low.getWorldPosition(new THREE.Vector3())).normalize();
+    // a palma olha para o corpo: a mão direita (−x do boneco) para +x, a esquerda para −x
+    const palm = new THREE.Vector3(sd === 'r' ? 1 : -1, 0, 0).applyQuaternion(
+      doll.getWorldQuaternion(new THREE.Quaternion()),
+    );
+    const z = f.clone().negate();
+    const y = palm.clone().negate();
+    y.sub(z.clone().multiplyScalar(y.dot(z))).normalize();
+    const x = new THREE.Vector3().crossVectors(y, z);
+    const world = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+    const parentQ = hand.getWorldQuaternion(new THREE.Quaternion()).invert();
+    h.root.quaternion.copy(parentQ.multiply(world));
+    const s = hand.getWorldScale(new THREE.Vector3()).x;
+    // a mão do arquivo é de adulto de 1,88 m; no mundo ela fica na escala do boneco
+    // boneco de massinha: mão um pouco mais cheia que a de gente
+    h.root.scale.setScalar((DOLL_SCALE * 1.35 * this.root.getWorldScale(new THREE.Vector3()).x) / (s || 1));
+    // o pulso sai da ponta arredondada do braço (senão a palma fica dentro dela)
+    h.root.position.set(0, 0, 0);
+    h.root.translateZ(-0.075 / (s || 1));
+    hand.add(h.root);
+    h.setCurl(0.35, 0.3);
+  }
+
+  /** gunfight: a arma na mão (null = sem arma) */
+  setGun(id: GunId | null) {
+    if (id === this.gunId && (this.gun || !id)) return;
+    if (this.gun) disposeGun(this.gun);
+    this.gun = null;
+    this.gunId = id;
+    if (!id || !gunsReady()) return;
+    const g = makeGun(id);
+    if (!g) return;
+    g.root.scale.setScalar(DOLL_SCALE);
+    this.root.add(g.root);
+    this.gun = g;
+  }
+
+  setGunPose(p: { pitch: number; crouch: boolean; ads: boolean; alive: boolean }) {
+    this.gunPose = p;
+  }
+
+  /** a arma na frente do peito (mirando: na altura do ombro), apontada pela mira; os braços vão até ela */
+  private holdGun() {
+    const g = this.gun;
+    if (!g) return;
+    const p = this.gunPose;
+    g.root.visible = p.alive;
+    if (!p.alive) return;
+    const knife = this.gunId === 'karambit' || this.gunId === 'bayonet';
+    const pistol = this.gunId === 'm9' || this.gunId === 'deagle';
+    const crouch = p.crouch ? -0.26 : 0;
+    const y = (p.ads ? 0.98 : knife ? 0.72 : 0.84) + crouch;
+    // no quadril a arma fica mais baixa e virada para dentro; mirando, no ombro direito, perto do rosto
+    g.root.position.set(p.ads ? -0.06 : -0.1, y, p.ads ? (pistol ? 0.4 : 0.18) : pistol ? 0.28 : 0.14);
+    g.root.rotation.set(-p.pitch + (p.ads || knife ? 0 : 0.18), Math.PI + (p.ads ? 0 : 0.12), 0, 'YXZ');
+    g.root.updateMatrixWorld(true);
+    // mão direita no punho; a esquerda no guarda-mão (ou envolvendo a direita, na pistola)
+    const right = g.root.localToWorld(G_R.set(0.018, -0.03, 0.06));
+    this.reachTo('r', right);
+    if (!knife) {
+      const left = pistol
+        ? g.root.localToWorld(G_L.set(-0.03, -0.05, 0.07))
+        : g.root.localToWorld(G_L.copy(g.support).add(G_OFF.set(-0.045, -0.03, 0)));
+      this.reachTo('l', left);
+    }
+    this.hands?.r.setCurl(0.88, 0.5);
+    this.hands?.l.setCurl(knife ? 0.35 : 0.75, 0.6);
+  }
+
+  /** o pulso de um lado até `goal` (mundo): o braço estica ou dobra no cotovelo */
+  private reachTo(sd: 'l' | 'r', goal: THREE.Vector3) {
+    const up = this.bones[`upperarm_${sd}`];
+    const low = this.bones[`lowerarm_${sd}`];
+    const hand = this.bones[`hand_${sd}`];
+    if (!up || !low || !hand) return;
+    // a mão sai da ponta do braço: o osso da mão para um pouco antes do ponto de pegada
+    const sh = up.getWorldPosition(R_SH);
+    goal = R_GOAL2.copy(goal).addScaledVector(R_BACK.copy(sh).sub(goal).normalize(), 0.06);
+    const dir = R_DIR.copy(goal).sub(sh);
+    const len = dir.length();
+    dir.normalize();
+    const reachLen = 0.55 * DOLL_SCALE;
+    const bend = Math.acos(Math.min(1, len / reachLen)) * 0.9;
+    R_AXIS.crossVectors(dir, DOWN).normalize();
+    aim(up, low, dir.applyAxisAngle(R_AXIS, -bend));
+    aim(low, hand, low.getWorldPosition(R_DIR).negate().add(goal));
+  }
+
+  /** agachado: quadril desce, coxas para a frente, canelas para trás */
+  private crouchPose() {
+    const B = this.bones;
+    for (const sd of ['l', 'r'] as const) {
+      const sx = sd === 'l' ? 1 : -1;
+      const th = B[`thigh_${sd}`];
+      const ca = B[`calf_${sd}`];
+      const ft = B[`foot_${sd}`];
+      if (th && ca) aimBlend(th, ca, dirIn(sx * 0.18, -0.35, 0.92), 1);
+      if (ca && ft) aimBlend(ca, ft, dirIn(0, -0.92, -0.38), 1);
+    }
+  }
+
   dispose() {
     this.disposed = true;
+    if (this.gun) disposeGun(this.gun);
+    this.hands?.r.dispose();
+    this.hands?.l.dispose();
     this.mixer?.stopAllAction();
     if (this.doll) this.mixer?.uncacheRoot(this.doll);
     this.setTeam(null);
@@ -800,6 +938,13 @@ const R_AXIS = new THREE.Vector3();
 const DOWN = new THREE.Vector3(0, -1, 0);
 
 /** gira o osso `a` para que o filho `b` fique na direção `dir` (mundo) */
+const G_R = new THREE.Vector3();
+const R_SH = new THREE.Vector3();
+const R_GOAL2 = new THREE.Vector3();
+const R_BACK = new THREE.Vector3();
+const G_L = new THREE.Vector3();
+const G_OFF = new THREE.Vector3();
+
 function aim(a: THREE.Object3D, b: THREE.Object3D, dir: THREE.Vector3) {
   a.getWorldPosition(PA);
   b.getWorldPosition(PB);

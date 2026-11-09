@@ -618,6 +618,14 @@ export class Juice {
         }
         break;
       }
+      case 'impact':
+        // tiro na parede: faísca e poeira; no corpo: um borrifo escuro (sem sangue vermelho)
+        if (e.flesh) p.burst(at, { ...FX.puff, count: e.head ? 9 : 6, color: 0x4a2a2a }, k);
+        else {
+          p.burst(at, { ...FX.spark, count: 6 }, k * 0.7);
+          p.burst(at, FX.puff, k * 0.5);
+        }
+        break;
       case 'tackle':
         p.burst(floorAt(at), FX.dust, k * (e.slide ? 1.5 : 0.8));
         this.label(e.foul ? 'falta' : 'desarme', { x: at.x, y: at.y + 1.6, z: at.z }, now);
