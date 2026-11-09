@@ -146,6 +146,35 @@ chamada sem abrir o espaço fala em volume normal.
 - **Limitação.** A audição real (timbre, volume relativo à voz, cansaço) **ainda não foi validada**. Ela fica com o
   mantenedor, em fone e caixa, no Electron. Pulo, aterrissar, sentar e passos continuam sem som.
 
+## Adendo 2026-11-09: sons reais gravados (amostras) no lugar da síntese, começando pelo gunfight
+- **Decisão.** A pedido do mantenedor ("odeio sons sintetizados"), o gunfight passa a tocar **gravações reais**:
+  tiro de cada arma (M4, AK-47, MP7, MP5, L115, M200, Kar98k, M9, Desert Eagle), tiro distante, recarga por família
+  (fuzil, AK, SMG, pistola: pente sai, pente entra, alavanca/ferrolho, slide), ferrolho (abre, puxa, fecha), clique
+  seco, saque, vento da faca, impactos (concreto, metal, carne), acerto, cabeça, abate, dano, passos em concreto,
+  aterrissagem, deslize e cartucho caindo. Isto substitui a frase "não há arquivo de áudio nem som de terceiros" do
+  adendo de som acima, só para esses sons.
+- **Fonte e licença.** Só **CC0** (Freesound), gravações de verdade (estandes, festim em reconstituição, foley), nada
+  de som tirado de jogo comercial, nada NC. Autor, fonte, trecho e processamento de cada arquivo em
+  `features/space3d/assets/sfx/CREDITS.md`. Como é tudo CC0, não há linha nova de créditos no app.
+- **Formato.** 67 arquivos Opus em Ogg, mono 48 kHz (tiros 64 kbps, o resto 48), recortados e normalizados, cerca de
+  **300 KB** no total (orçamento de 3 MB conferido em teste). Entram no build pelo Vite (`import.meta.glob` com
+  `?url`, com hash, como os `.glb`). 2–4 variações para os sons repetidos (tiros, passos, impactos, cartuchos); cada
+  toque sorteia uma diferente da anterior, com tom ±1,5% e ganho até −10% aleatórios.
+- **Carga.** O banco (`sfxbank.ts`) diz que arquivos cada som tem; o motor (`sfx.ts`) baixa (fetch, com
+  `XMLHttpRequest` de reserva para o `file://` do app empacotado) e decodifica (`decodeAudioData`) no mesmo
+  AudioContext **ao entrar na zona 8**, e guarda em cache. Enquanto não carregou, ou se falhar, toca a receita
+  sintetizada de antes (um aviso só no console). A CSP já cobre: `connect-src 'self' blob: data: …` (o arquivo é do
+  próprio app, a mesma origem dos `.glb`).
+- **Mixagem inalterada.** Distância, piso, ducking, mestre 0,25·vol², compressor, 12 vozes, anti-rajada, cortes,
+  zona e silêncio valem igual para as gravações. Novo: gravação a mais de 4 m passa por um **passa-baixa pela
+  distância** (`sfxLowpassHz`: 20 kHz caindo até 1,8 kHz), e o tiro de outra pessoa além de 25 m usa gravações de
+  tiro distante. A gravação exata da arma ignora o tom da família (`SHOT_PITCH`), que fica só para a síntese.
+- **Fora desta fatia.** Bolas, sinuca, corrida, x1, contagem, placar e menu seguem sintetizados (próxima fatia). Facada
+  que acerta usa o impacto de carne (o evento de impacto não diz a arma).
+- **Limitação.** Não ouvimos os arquivos nesta fatia (regra de não tocar som em teste): a escolha e os recortes foram
+  conferidos por espectrograma, duração e loudness. Timbre, volume relativo entre armas e recortes da recarga
+  **precisam ser validados de ouvido** pelo mantenedor no Electron.
+
 ## Adendo 2026-11-09: treino contra bot (Fácil, Médio, Difícil)
 - **Decisão.** Em cada minigame (basquete, futebol, tênis, vôlei, ping pong, sinuca, corrida e x1 na sala) dá para
   jogar contra um bot em três níveis (`bots/level.ts`: reação, erro, escolha da jogada e velocidade). O bot é um

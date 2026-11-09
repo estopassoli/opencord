@@ -140,7 +140,12 @@ export function VoiceStage({ channelId, serverId }: { channelId: string; serverI
   const camFocus = participants.find((p) => p.hasCamera && focused === camKey(p.identity)) ?? null;
 
   return (
-    <section className="stage" aria-label={`Chamada em ${channel?.name ?? ''}`} ref={stageRef}>
+    <section
+      className="stage"
+      data-space={spaceOpen && serverId ? 'true' : undefined}
+      aria-label={`Chamada em ${channel?.name ?? ''}`}
+      ref={stageRef}
+    >
       <StageHeader
         channelId={channelId}
         channelName={stageName}

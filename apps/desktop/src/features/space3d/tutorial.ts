@@ -309,7 +309,7 @@ export const TUTORIALS: Record<TutorialKey, Tutorial> = {
       },
       {
         id: 'gun-tactical',
-        text: 'Toque duas vezes no correr: corrida tática, mais rápida',
+        text: 'Correndo, toque de novo no correr: corrida tática, mais rápida (gasta o vigor)',
         action: 'run',
         vezes: 3,
         quando: (e) => e.kind === 'gunfx' && e.what === 'slide',

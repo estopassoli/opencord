@@ -28,7 +28,9 @@ import { attackHoop, clampToHalf, GOOD_BAND, netSideOf, type PoolSeat } from './
 import { sfx } from './sfx';
 import { chargeStep } from './sfxmap';
 import { SLIDE_MS, SportPlay, type FootMove, type RemoteBall } from './sportplay';
+import { lockPointerRaw, lookDelta } from './gunfight/aim';
 import { GunGame, type GunAction, type GunHost, type GunPlayer } from './gunfight/game';
+import { useGunHud } from './gunfight/state';
 import { deathCam, shoulderCam } from './gunfight/camera';
 import { GUN_BOXES, gunObstacles } from './gunfight/map';
 import { buildGunMap } from './gunfight/mapmesh';
@@ -858,10 +860,12 @@ export class SpaceScene {
       return;
     }
     if (this.gun) {
-      // mirando com zoom, o mouse fica mais lento na mesma proporção do que se vê (pela tangente, não pelo ângulo)
+      // graus por contagem do mouse (o ajuste da pessoa), igual na horizontal e na vertical; mirando com zoom, mais lento
+      // na mesma proporção do que se vê (pela tangente, não pelo ângulo) e com o multiplicador de mirando
       const k = Math.tan((this.camera.fov * Math.PI) / 360) / GUN_BASE_TAN;
-      this.yaw -= e.movementX * 0.0026 * k;
-      this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch + e.movementY * 0.002 * k));
+      const d = lookDelta(e.movementX, e.movementY, k, this.gun.adsFrac, useGunHud.getState().aim);
+      this.yaw += d.yaw;
+      this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch + d.pitch));
       return;
     }
     this.yaw -= e.movementX * 0.0026;
@@ -1250,8 +1254,12 @@ export class SpaceScene {
     if (this.mode !== 'play' || this.aimLocked || this.noLock) return;
     this.lockByGesture = byGesture;
     try {
-      const r = this.renderer.domElement.requestPointerLock?.() as unknown as Promise<void> | undefined;
-      void r?.catch?.(() => this.onLockError());
+      // mouse cru (sem a aceleração do sistema) quando dá; senão a trava normal
+      lockPointerRaw(
+        this.renderer.domElement,
+        () => this.onLockError(),
+        (ok) => useGunHud.getState().set({ rawMouse: ok }),
+      );
     } catch {
       /* sem gesto do usuário: o aviso "clique para jogar" pede o clique */
     }

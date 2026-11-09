@@ -79,7 +79,7 @@ export type GunFx =
   | 'swing'
   /** um passo (meu, de outra pessoa ou de um bot; `by` = de quem) */
   | 'step'
-  /** ligou a corrida tática (dois toques no correr): sem som, serve ao tutorial */
+  /** ligou a corrida tática (outro toque no correr, já correndo): sem som, serve ao tutorial */
   | 'tactical';
 
 /** dribles e lances de efeito do futebol */

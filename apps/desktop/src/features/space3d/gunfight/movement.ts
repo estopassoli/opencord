@@ -1,11 +1,17 @@
 /**
- * Movimento do gunfight (puro, testável): andar, correr, corrida tática (dois toques no correr; dura pouco e recarrega),
- * agachar, deslizar (agachar correndo), cancelar o deslize (agachar de novo ou pular: levanta na hora e a corrida
- * tática volta cheia), pulo e bunny hop (pular no instante em que toca o chão mantém a velocidade, com um pouco de
- * controle no ar). A velocidade de cada arma e a mira mudam o ritmo.
+ * Movimento do gunfight (puro, testável): andar, correr (um toque no correr liga, sem segurar), corrida tática (outro
+ * toque correndo), vigor, agachar, deslizar (agachar correndo), cancelar o deslize (agachar de novo ou pular: levanta
+ * na hora e volta a correr), pulo e bunny hop (pular no instante em que toca o chão mantém a velocidade, com um pouco
+ * de controle no ar). A velocidade de cada arma e a mira mudam o ritmo.
  *
- * Limites (para nada virar velocidade infinita): o deslize tem teto (`slideMax`) e recarga (`slideCooldownMs`), a
- * tática recarrega aos poucos depois de acabar (por qualquer motivo) e o bunny hop não passa de `bhopMax` × arma.
+ * Correr fica ligado enquanto anda para a frente; parar de andar para a frente, mirar, atirar, agachar ou deslizar
+ * desliga (segurar o correr continua valendo, como antes). O vigor (0–1) gasta correndo — rápido na tática, devagar na
+ * normal — e volta sozinho depois de um tempo sem correr: a tática acaba em `tacFloor` (cai para a corrida) e a
+ * corrida acaba em zero (cai para o andar). Tudo por tempo (dt), igual em qualquer FPS.
+ *
+ * Limites (para nada virar velocidade infinita): o deslize tem teto (`slideMax`) e recarga (`slideCooldownMs`), o
+ * vigor não volta durante o encadeamento deslize → correr (a espera é maior que o deslize) e o bunny hop não passa de
+ * `bhopMax` × arma.
  */
 export const MOVE = {
   walk: 3.4,
@@ -24,12 +30,20 @@ export const MOVE = {
   slideCooldownMs: 600,
   slideMs: 750,
   slideEnd: 2.4,
-  tacMs: 3000,
-  /** tempo para encher a tática do zero (depois de `tacDelayMs` sem usar) */
-  tacRechargeMs: 4000,
-  tacDelayMs: 800,
-  /** janela para o segundo toque do correr (ms) e para guardar o pulo antes de tocar o chão */
-  doubleTapMs: 320,
+  /** vigor: tempo (ms) para gastar de cheio a vazio na tática e na corrida normal */
+  tacDrainMs: 5000,
+  sprintDrainMs: 9000,
+  /** a tática acaba neste vigor (cai para a corrida; de cheio, ~3,5 s de tática) e só liga com pelo menos `tacMin` */
+  tacFloor: 0.3,
+  tacMin: 0.45,
+  /** cansado (vigor zerado), só volta a correr com isto */
+  runMin: 0.15,
+  /** o vigor volta depois de `regenDelayMs` sem correr, de vazio a cheio em `regenMs` */
+  regenDelayMs: 1000,
+  regenMs: 4500,
+  /** apertou correr parado (ou mirando): o pedido vale por este tempo, à espera do W */
+  runArmMs: 600,
+  /** janela para guardar o pulo antes de tocar o chão */
   jumpBufferMs: 140,
   /** teto do bunny hop (m/s, vezes a velocidade da arma): um pouco acima da tática */
   bhopMax: 7.1,
@@ -51,11 +65,13 @@ export interface MoveState {
   slideAt: number;
   /** velocidade no começo do deslize (a queda é em linha a partir dela, igual em qualquer FPS) */
   slideV0: number;
-  /** corrida tática: quanto resta (ms) e quando acabou (para recarregar) */
-  tacLeft: number;
-  tacEmptyAt: number;
-  /** último toque no correr (dois toques = tática) e último pedido de pulo (guardado) */
-  runTapAt: number;
+  /** vigor (0–1) e a última vez que gastou (a volta espera `regenDelayMs` a contar daqui) */
+  stamina: number;
+  tiredAt: number;
+  /** correr ligado pelo toque (sem segurar) e quando foi o toque */
+  runOn: boolean;
+  runArmAt: number;
+  /** último pedido de pulo (guardado) */
   jumpAt: number;
 }
 
@@ -72,9 +88,10 @@ export function newMove(): MoveState {
     slideUntil: 0,
     slideAt: -1e9,
     slideV0: 0,
-    tacLeft: MOVE.tacMs,
-    tacEmptyAt: 0,
-    runTapAt: -1e9,
+    stamina: 1,
+    tiredAt: -1e9,
+    runOn: false,
+    runArmAt: -1e9,
     jumpAt: -1e9,
   };
 }
@@ -83,6 +100,7 @@ export interface MoveInput {
   /** direção desejada no mundo (já girada pela câmera), comprimento 0–1 */
   wx: number;
   wz: number;
+  /** segurando o correr (também corre; o toque sozinho já liga, ver `pressRun`) */
   runHeld: boolean;
   /** frente pura (correr só vale andando para a frente) */
   forward: boolean;
@@ -96,23 +114,28 @@ export interface MoveInput {
 export const sliding = (s: MoveState, now: number) => now < s.slideUntil;
 
 /**
- * Apertou correr: corre (agachado no chão, levanta); dois toques seguidos (com fôlego) ligam a corrida tática. Segurar
- * já corre sozinho no `stepMove`. Devolve se a tática ligou agora
+ * Apertou correr (um toque, sem segurar): liga a corrida (agachado no chão, levanta); já correndo, liga a tática (se
+ * houver vigor). Devolve se a tática ligou agora
  */
 export function pressRun(s: MoveState, now: number): boolean {
-  const was = s.tactical;
   if (s.crouch && s.grounded && !sliding(s, now)) s.crouch = false;
-  if (now - s.runTapAt < MOVE.doubleTapMs && s.tacLeft > 300) s.tactical = true;
-  s.runTapAt = now;
-  s.sprint = true;
-  return s.tactical && !was;
+  if (s.sprint && !s.tactical) {
+    if (s.stamina < MOVE.tacMin) return false;
+    s.tactical = true;
+    return true;
+  }
+  if (!s.sprint) {
+    s.runOn = true;
+    s.runArmAt = now;
+  }
+  return false;
 }
 
-/** a corrida tática acabou (soltou, parou, atirou, deslizou ou esvaziou): a recarga conta daqui */
-function endTactical(s: MoveState, now: number) {
-  if (!s.tactical) return;
+/** para de correr de vez (atirou): o toque precisa ser dado de novo */
+export function stopRun(s: MoveState) {
+  s.sprint = false;
   s.tactical = false;
-  s.tacEmptyAt = now;
+  s.runOn = false;
 }
 
 /** apertou agachar: correndo no chão desliza; deslizando, cancela; senão alterna agachado */
@@ -130,20 +153,20 @@ export function pressCrouch(s: MoveState, now: number): 'slide' | 'cancel' | 'cr
     s.slideUntil = now + MOVE.slideMs;
     s.slideAt = now;
     s.crouch = true;
-    s.sprint = false;
-    endTactical(s, now);
+    stopRun(s);
     return 'slide';
   }
   s.crouch = !s.crouch;
   return s.crouch ? 'crouch' : 'stand';
 }
 
-/** cancelar o deslize: levanta, volta a correr e a corrida tática recarrega na hora (o "slide cancel") */
-export function cancelSlide(s: MoveState, _now: number) {
+/** cancelar o deslize: levanta e volta a correr na hora (o "slide cancel"; o vigor não volta de graça) */
+export function cancelSlide(s: MoveState, now: number) {
   s.slideUntil = 0;
   s.crouch = false;
-  s.sprint = true;
-  s.tacLeft = MOVE.tacMs;
+  s.sprint = s.stamina > 0;
+  s.runOn = true;
+  s.runArmAt = now;
 }
 
 /** apertou pular (guardado por um instante: no ar, vale quando tocar o chão — o bunny hop) */
@@ -164,26 +187,34 @@ function doJump(s: MoveState) {
 
 /** um passo: devolve o deslocamento (dx, dz) e se aterrissou neste quadro (e se foi bunny hop) */
 export function stepMove(s: MoveState, inp: MoveInput, dt: number, now: number) {
-  // o deslize acabou sozinho: segurando o correr, levanta e volta a correr; senão fica agachado
+  // o deslize acabou sozinho: com o correr ligado (ou segurado), levanta e volta a correr; senão fica agachado
   if (s.slideUntil && now >= s.slideUntil) {
     s.slideUntil = 0;
-    if (inp.runHeld) s.crouch = false;
+    if (inp.runHeld || s.runOn) s.crouch = false;
   }
   const slide = sliding(s, now);
   const wl = Math.hypot(inp.wx, inp.wz);
-  // correr só andando para a frente, sem mirar nem atirar; segurar o correr liga (inclusive depois de atirar ou
-  // mirar, ou apertando o correr antes do W); a tática gasta e recarrega
-  const canRun = inp.runHeld && inp.forward && !inp.ads && !inp.firing && !s.crouch;
-  if (!slide) s.sprint = canRun && (s.sprint || s.grounded);
-  if (!s.sprint) endTactical(s, now);
-  if (s.tactical) {
-    s.tacLeft -= dt * 1000;
-    if (s.tacLeft <= 0) {
-      s.tacLeft = 0;
-      endTactical(s, now);
+  if (!slide) {
+    // correr só andando para a frente, sem mirar nem atirar; ligado pelo toque (ou segurando); cansado, só volta com
+    // um pouco de vigor
+    const was = s.sprint;
+    const ok = (inp.runHeld || s.runOn) && inp.forward && !inp.ads && !inp.firing && !s.crouch && s.stamina > 0;
+    s.sprint = ok && (was || (s.grounded && s.stamina >= MOVE.runMin));
+    // parou de correr (soltou o W, mirou, atirou, agachou): o toque desliga; o pedido sem correr expira
+    if (s.runOn && !s.sprint && (was || now - s.runArmAt > MOVE.runArmMs)) s.runOn = false;
+  }
+  if (!s.sprint || s.stamina <= MOVE.tacFloor) s.tactical = false;
+  if (s.sprint) {
+    s.stamina -= (dt * 1000) / (s.tactical ? MOVE.tacDrainMs : MOVE.sprintDrainMs);
+    s.tiredAt = now;
+    if (s.stamina <= MOVE.tacFloor) s.tactical = false;
+    if (s.stamina <= 0) {
+      // sem vigor: volta a andar (e o toque precisa ser dado de novo)
+      s.stamina = 0;
+      stopRun(s);
     }
-  } else if (s.tacLeft < MOVE.tacMs && now - s.tacEmptyAt > MOVE.tacDelayMs)
-    s.tacLeft = Math.min(MOVE.tacMs, s.tacLeft + (dt * 1000 * MOVE.tacMs) / MOVE.tacRechargeMs);
+  } else if (s.stamina < 1 && now - s.tiredAt > MOVE.regenDelayMs)
+    s.stamina = Math.min(1, s.stamina + (dt * 1000) / MOVE.regenMs);
 
   let landed = false;
   let bhop = false;

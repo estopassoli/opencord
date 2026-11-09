@@ -317,19 +317,113 @@ describe('gunfight: movimento tático', () => {
     expect(dist / ((t - start) / 1000)).toBeLessThan(mv.MOVE.slideMax);
   });
 
-  it('a tática acaba, recarrega aos poucos (não na hora ao soltar)', () => {
+  it('um toque no correr corre sem segurar; parar de andar para a frente desliga (e pede outro toque)', () => {
     const s = mv.newMove();
-    let t = step(s, { runHeld: true }, 400);
+    let t = step(s, {}, 200);
     mv.pressRun(s, t);
-    mv.pressRun(s, t + 100);
-    t = step(s, { runHeld: true }, 1000, t + 100);
-    expect(s.tactical).toBe(true);
-    const left = s.tacLeft;
-    t = step(s, { runHeld: false }, 100, t);
+    t = step(s, {}, 600, t);
+    expect(s.sprint).toBe(true);
     expect(s.tactical).toBe(false);
-    expect(s.tacLeft).toBeLessThan(left + 200);
-    step(s, { runHeld: false }, 6000, t);
-    expect(s.tacLeft).toBe(mv.MOVE.tacMs);
+    expect(Math.hypot(s.vx, s.vz)).toBeGreaterThan(mv.MOVE.walk + 1);
+    t = step(s, { wz: 0, forward: false }, 100, t);
+    expect(s.sprint).toBe(false);
+    t = step(s, {}, 600, t);
+    expect(s.sprint).toBe(false);
+    // tocar antes do W também vale (o pedido espera um instante)
+    const b = mv.newMove();
+    mv.pressRun(b, 0);
+    const tb = step(b, { wz: 0, forward: false }, 300);
+    step(b, {}, 300, tb);
+    expect(b.sprint).toBe(true);
+    // mas não para sempre
+    const c = mv.newMove();
+    mv.pressRun(c, 0);
+    const tc = step(c, { wz: 0, forward: false }, mv.MOVE.runArmMs + 200);
+    step(c, {}, 300, tc);
+    expect(c.sprint).toBe(false);
+  });
+
+  it('mirar, atirar ou agachar desliga a corrida ligada pelo toque', () => {
+    for (const inp of [{ ads: true }, { firing: true }]) {
+      const s = mv.newMove();
+      mv.pressRun(s, 0);
+      let t = step(s, {}, 400);
+      expect(s.sprint).toBe(true);
+      t = step(s, inp, 100, t);
+      step(s, {}, 800, t);
+      expect(s.sprint).toBe(false);
+    }
+    const s = mv.newMove();
+    mv.pressRun(s, 0);
+    const t = step(s, {}, 400);
+    mv.stopRun(s);
+    step(s, {}, 400, t);
+    expect(s.sprint).toBe(false);
+  });
+
+  it('outro toque correndo liga a tática; o vigor acaba a tática (~3,5 s) e depois a corrida (igual em qualquer fps)', () => {
+    const run = (fps: number) => {
+      const s = mv.newMove();
+      const dt = 1 / fps;
+      let t = 0;
+      let tacEnd = 0;
+      let runEnd = 0;
+      mv.pressRun(s, 0);
+      for (let i = 0; i < fps * 20; i++) {
+        t += dt * 1000;
+        mv.stepMove(s, { wx: 0, wz: -1, runHeld: false, forward: true, ads: false, gunK: 1, firing: false }, dt, t);
+        if (s.sprint && !s.tactical && !tacEnd && t > 100 && t < 200) expect(mv.pressRun(s, t)).toBe(true);
+        if (!tacEnd && t > 300 && !s.tactical) tacEnd = t;
+        if (!runEnd && t > 300 && !s.sprint) runEnd = t;
+      }
+      return { tacEnd, runEnd, s };
+    };
+    const a = run(30);
+    const b = run(240);
+    expect(b.tacEnd).toBeGreaterThan(3200);
+    expect(b.tacEnd).toBeLessThan(4000);
+    // a corrida segue com o que sobrou e então volta a andar (sem segurar, o toque desliga)
+    expect(b.runEnd).toBeGreaterThan(b.tacEnd + 2000);
+    expect(b.s.runOn).toBe(false);
+    expect(Math.abs(a.tacEnd - b.tacEnd)).toBeLessThan(80);
+    expect(Math.abs(a.runEnd - b.runEnd)).toBeLessThan(80);
+    // só correndo normal (sem a tática): ~9 s
+    const s = mv.newMove();
+    mv.pressRun(s, 0);
+    let t = 0;
+    while (s.sprint || t < 100) t = step(s, {}, 16, t);
+    expect(t).toBeGreaterThan(8500);
+    expect(t).toBeLessThan(9600);
+  });
+
+  it('o vigor volta depois de um tempo sem correr; com pouco vigor a tática não liga', () => {
+    const s = mv.newMove();
+    s.stamina = 0.3;
+    mv.pressRun(s, 0);
+    let t = step(s, {}, 300);
+    expect(s.sprint).toBe(true);
+    expect(mv.pressRun(s, t)).toBe(false);
+    expect(s.tactical).toBe(false);
+    t = step(s, { wz: 0, forward: false }, 100, t);
+    const low = s.stamina;
+    // antes da espera, não volta
+    t = step(s, { wz: 0, forward: false }, mv.MOVE.regenDelayMs - 200, t);
+    expect(s.stamina).toBeCloseTo(low, 5);
+    step(s, { wz: 0, forward: false }, mv.MOVE.regenMs + 400, t);
+    expect(s.stamina).toBe(1);
+  });
+
+  it('segurar o correr com o vigor zerado só volta a correr com um pouco de vigor', () => {
+    const s = mv.newMove();
+    s.stamina = 0.01;
+    s.sprint = true;
+    let t = step(s, { runHeld: true }, 200);
+    expect(s.stamina).toBe(0);
+    expect(s.sprint).toBe(false);
+    t = step(s, { runHeld: true }, mv.MOVE.regenDelayMs + 200, t);
+    expect(s.sprint).toBe(false);
+    step(s, { runHeld: true }, mv.MOVE.regenMs * mv.MOVE.runMin + 200, t);
+    expect(s.sprint).toBe(true);
   });
 
   it('bunny hop não passa do teto da arma', () => {
@@ -463,6 +557,67 @@ describe('gunfight: o controlador', () => {
     expect(useGunHud.getState().reloading).toBe(true);
     expect(g.aiming).toBe(0);
     expect(g.scoped).toBe(false);
+    g.dispose();
+  });
+
+  it('ferrolho: trocar de arma logo depois do tiro engatilha; voltando, atira depois do saque (L115, M200, Kar98k)', async () => {
+    for (const id of ['l115', 'm200', 'kar98k'] as const) {
+      const { g, sent } = await started();
+      useGunHud.getState().set({ loadout: { primary: id, secondary: 'm9', melee: 'karambit' } });
+      g.restart();
+      let t = performance.now() + 2000;
+      for (let i = 0; i < 40; i++) g.step(0.016, (t += 16));
+      g.press('fire', t);
+      g.release('fire');
+      expect(fires(sent)).toBe(1);
+      // quickscope e troca: antes do ferrolho começar
+      g.step(0.016, (t += 16));
+      g.switchTo('secondary', t);
+      // nada do ferrolho fica na fila para rodar na pistola
+      expect(Reflect.get(g, 'jobs').some((j: { tag: string }) => j.tag === 'bolt')).toBe(false);
+      // a pistola atira depois do saque dela (a cadência da sniper não segura a outra arma)
+      const pistolDraw = Reflect.get(g, 'drawUntil') as number;
+      while (t < pistolDraw) g.step(0.016, (t += 16));
+      g.press('fire', t);
+      g.release('fire');
+      expect(fires(sent)).toBe(2);
+      g.step(0.016, (t += 16));
+      g.switchTo('primary', t);
+      const drawUntil = Reflect.get(g, 'drawUntil') as number;
+      expect(Reflect.get(g, 'boltPending')).toBe(0);
+      while (t < drawUntil) g.step(0.016, (t += 16));
+      g.press('fire', t);
+      g.release('fire');
+      expect(fires(sent)).toBe(3);
+      g.dispose();
+    }
+  });
+
+  it('ferrolho: sem trocar, o segundo tiro espera o ferrolho', async () => {
+    const { g, sent } = await started();
+    useGunHud.getState().set({ loadout: { primary: 'l115', secondary: 'm9', melee: 'karambit' } });
+    g.restart();
+    let t = performance.now() + 2000;
+    for (let i = 0; i < 40; i++) g.step(0.016, (t += 16));
+    g.press('fire', t);
+    g.release('fire');
+    for (let i = 0; i < 30; i++) g.step(0.016, (t += 16));
+    g.press('fire', t);
+    g.release('fire');
+    for (let i = 0; i < 5; i++) g.step(0.016, (t += 16));
+    expect(fires(sent)).toBe(1);
+    for (let i = 0; i < 80; i++) g.step(0.016, (t += 16));
+    g.press('fire', t);
+    g.release('fire');
+    expect(fires(sent)).toBe(2);
+    g.dispose();
+  });
+
+  it('o vigor vai para a interface', async () => {
+    const { g } = await started();
+    Reflect.get(g, 'move').stamina = 0.42;
+    g.step(0.016, performance.now() + 5000);
+    expect(useGunHud.getState().stamina).toBeCloseTo(0.42, 2);
     g.dispose();
   });
 
@@ -1482,5 +1637,55 @@ describe('gunfight: recuo (Téo, pegada/recoil r2)', () => {
     for (let i = 0; i < 150; i++) g.step(0.016, (t += 16));
     expect(view.pitch).toBeLessThanOrEqual(p0 + 1e-3);
     g.dispose();
+  });
+});
+
+describe('gunfight: mira com o mouse cru', () => {
+  it('graus por contagem fixos (horizontal = vertical), mais lento com zoom e com o multiplicador mirando', async () => {
+    const aim = await import('../src/features/space3d/gunfight/aim');
+    const a = { sens: 2, adsSens: 0.5 };
+    const d = aim.lookDelta(100, 100, 1, 0, a);
+    expect(d.yaw).toBeCloseTo(-((100 * 2 * 0.022 * Math.PI) / 180), 9);
+    expect(d.pitch).toBeCloseTo(-d.yaw, 9);
+    // a soma de vários eventos pequenos é igual a um grande (nada depende do quadro)
+    let sum = 0;
+    for (let i = 0; i < 100; i++) sum += aim.lookDelta(1, 0, 1, 0, a).yaw;
+    expect(sum).toBeCloseTo(d.yaw, 9);
+    expect(aim.lookDelta(100, 0, 0.5, 0, a).yaw).toBeCloseTo(d.yaw * 0.5, 9);
+    expect(aim.lookDelta(100, 0, 0.5, 1, a).yaw).toBeCloseTo(d.yaw * 0.25, 9);
+  });
+
+  it('o ajuste salvo volta para dentro da faixa', async () => {
+    const aim = await import('../src/features/space3d/gunfight/aim');
+    expect(aim.validAim({ sens: 999, adsSens: 'x' })).toEqual({ sens: aim.SENS_RANGE.max, adsSens: 1 });
+    expect(aim.validAim(null)).toEqual(aim.AIM_DEFAULT);
+  });
+
+  it('pede o movimento cru; se o sistema não tiver, prende do jeito normal e não pede de novo', async () => {
+    vi.resetModules();
+    const aim = await import('../src/features/space3d/gunfight/aim');
+    const el = document.createElement('canvas');
+    const calls: unknown[] = [];
+    Reflect.set(el, 'requestPointerLock', (o?: unknown) => {
+      calls.push(o);
+      return o ? Promise.reject(new DOMException('no', 'NotSupportedError')) : Promise.resolve();
+    });
+    const raw: boolean[] = [];
+    const fail = vi.fn();
+    aim.lockPointerRaw(el, fail, (ok) => raw.push(ok));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toEqual([{ unadjustedMovement: true }, undefined]);
+    expect(raw).toEqual([false]);
+    expect(fail).not.toHaveBeenCalled();
+    aim.lockPointerRaw(el, fail);
+    expect(calls.length).toBe(3);
+    expect(calls[2]).toBeUndefined();
+    // outra recusa (sem gesto, cedo demais) conta como falha da trava
+    vi.resetModules();
+    const aim2 = await import('../src/features/space3d/gunfight/aim');
+    Reflect.set(el, 'requestPointerLock', () => Promise.reject(new DOMException('cedo', 'SecurityError')));
+    aim2.lockPointerRaw(el, fail);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fail).toHaveBeenCalledTimes(1);
   });
 });

@@ -49,6 +49,20 @@ export interface DollTemplate {
   drivePelvis: THREE.Vector3;
   /** velocidade (m/s no espaço, já com a escala) em que cada animação de andar/correr não escorrega */
   gait: Partial<Record<ClipName, number>>;
+  /** o tronco parado em pé (começo de `Idle_Loop`), para segurar a arma andando: ver `uprightPose` */
+  idleUpper: IdleUpper;
+}
+
+/** ossos do tronco que ficam na pose parada quando o boneco anda com uma arma na mão */
+export const UPPER_BONES = ['spine_02', 'spine_03', 'neck_01', 'Head', 'clavicle_l', 'clavicle_r'] as const;
+
+export interface IdleUpper {
+  /** giro de `spine_01` no espaço do modelo */
+  spine: THREE.Quaternion;
+  /** giro local de cada osso de `UPPER_BONES` */
+  local: Map<string, THREE.Quaternion>;
+  /** ombro direito (`upperarm_r`) no espaço do modelo (unidades do arquivo) */
+  shoulderR: THREE.Vector3;
 }
 
 let loading: Promise<DollTemplate> | null = null;
@@ -70,6 +84,29 @@ function pelvisAt(scene: THREE.Object3D, clip: THREE.AnimationClip | undefined):
   mixer.stopAllAction();
   mixer.uncacheRoot(c);
   return p;
+}
+
+/** o tronco no começo de uma animação (num clone): ver `IdleUpper` */
+function upperAt(scene: THREE.Object3D, clip: THREE.AnimationClip | undefined): IdleUpper {
+  const c = SkeletonUtils.clone(scene);
+  const mixer = new THREE.AnimationMixer(c);
+  if (clip) mixer.clipAction(clip).play();
+  mixer.update(0);
+  c.updateMatrixWorld(true);
+  const local = new Map<string, THREE.Quaternion>();
+  for (const n of UPPER_BONES) {
+    const b = c.getObjectByName(n);
+    if (b) local.set(n, b.quaternion.clone());
+  }
+  const sp = c.getObjectByName('spine_01');
+  const out: IdleUpper = {
+    spine: sp ? sp.getWorldQuaternion(new THREE.Quaternion()) : new THREE.Quaternion(),
+    local,
+    shoulderR: c.getObjectByName('upperarm_r')?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3(),
+  };
+  mixer.stopAllAction();
+  mixer.uncacheRoot(c);
+  return out;
 }
 
 /**
@@ -125,6 +162,7 @@ export function loadDoll(): Promise<DollTemplate> {
         Jog_Fwd_Loop: gaitSpeed(scene, clips.get('Jog_Fwd_Loop'), 0.42),
         Sprint_Loop: gaitSpeed(scene, clips.get('Sprint_Loop'), 0.35),
       },
+      idleUpper: upperAt(scene, clips.get('Idle_Loop')),
     };
     ready = t;
     return t;

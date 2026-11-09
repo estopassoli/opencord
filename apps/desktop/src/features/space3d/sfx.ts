@@ -1,7 +1,9 @@
 /**
- * Motor de efeitos sonoros do Espaço 3D (plano 2026-11-09, P6). Tudo sintetizado na hora com Web Audio (osciladores,
- * ruído filtrado e envelopes): nenhum arquivo de áudio, nada de terceiros. Usa o mesmo AudioContext e o mesmo
- * dispositivo de saída das notificações (`lib/sounds.ts`).
+ * Motor de efeitos sonoros do Espaço 3D (plano 2026-11-09, P6). O gunfight toca gravações reais (CC0, banco em
+ * `sfxbank.ts`, créditos em `assets/sfx/CREDITS.md`): baixadas e decodificadas no mesmo AudioContext ao entrar na
+ * zona, guardadas em cache. O resto (e qualquer som cuja gravação ainda não carregou ou falhou) é sintetizado na hora
+ * com Web Audio (osciladores, ruído filtrado e envelopes). Usa o mesmo AudioContext e o mesmo dispositivo de saída das
+ * notificações (`lib/sounds.ts`). Gravação de longe passa por um passa-baixa pela distância (`sfxLowpassHz`).
  *
  * Regras (revisão da Iara): volume baixo (mestre 0,25·vol²), distância pela curva da voz com piso 0,15, panorâmica
  * leve (±0,5), abaixa quando alguém fala perto (0,4; placar e apito 0,7), silêncio com Sons desligados, Não perturbe,
@@ -12,9 +14,11 @@
 import { create } from 'zustand';
 import { applySink, context as sharedContext, soundVolume } from '../../lib/sounds';
 import type { GameBus, GameEvent } from './events';
+import { sampleSetFor, sampleUrl, zoneSampleFiles } from './sfxbank';
 import {
   enginePitch,
   sfxFor,
+  sfxLowpassHz,
   sfxMix,
   sfxPan,
   SFX_FAR_M,
@@ -123,6 +127,8 @@ export const RECIPES: Record<SfxName, Part[]> = {
   impactWall: [noise('bandpass', 2500, 0.04, 0.6, { q: 2 }), tone(1200, 0.03, 0.2, { f2: 700 })],
   impactFlesh: [noise('lowpass', 700, 0.06, 0.7), tone(140, 0.05, 0.4, { f2: 90 })],
   drawGun: [noise('bandpass', 1400, 0.08, 0.4, { q: 2, f2: 2200 }), tone(800, 0.03, 0.3, { type: 'square', t: 0.08 })],
+  // cartucho de latão no chão: dois "tins" agudos (o quique)
+  shellCase: [tone(4200, 0.04, 0.3, { type: 'triangle' }), tone(5300, 0.05, 0.18, { t: 0.11, type: 'triangle' })],
   // passo no asfalto: um baque abafado curto
   step: [noise('lowpass', 900, 0.05, 0.35), tone(70, 0.04, 0.3)],
   // tiro de longe: sem o estalo, só o estrondo grave que chega abafado
@@ -298,6 +304,8 @@ export interface SfxDeps {
   now?: () => number;
   /** antes de tocar (dispositivo de saída) */
   prepare?: (c: AudioContext) => void;
+  /** baixa uma gravação do banco (padrão: fetch, com XHR de reserva no file:// do app empacotado) */
+  fetchAudio?: (url: string) => Promise<ArrayBuffer>;
 }
 
 export interface PlayOpts {
@@ -310,6 +318,35 @@ export interface PlayOpts {
   info?: boolean;
   /** de quem é o som (o intervalo anti-rajada vale por nome e por quem: dois atirando juntos tocam os dois) */
   by?: string;
+  /** variante da gravação (`SfxCue.sample`): a arma no tiro, a família da arma na recarga */
+  sample?: string;
+  /** só a variação aleatória do tom (sem o tom da família): vale para a gravação exata da variante */
+  vary?: number;
+  /** atraso (s) antes de tocar */
+  delay?: number;
+}
+
+/** baixa um arquivo: fetch; se o esquema file:// do app empacotado for recusado, XMLHttpRequest */
+export async function fetchAudio(url: string): Promise<ArrayBuffer> {
+  try {
+    const r = await fetch(url);
+    // file:// responde com status 0 quando dá certo
+    if (!r.ok && r.status !== 0) throw new Error(`HTTP ${r.status}`);
+    return await r.arrayBuffer();
+  } catch (err) {
+    if (typeof XMLHttpRequest === 'undefined') throw err;
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open('GET', url);
+      x.responseType = 'arraybuffer';
+      x.onload = () =>
+        x.response instanceof ArrayBuffer && x.response.byteLength > 0
+          ? resolve(x.response)
+          : reject(new Error(`XHR ${x.status}`));
+      x.onerror = () => reject(err instanceof Error ? err : new Error(String(err)));
+      x.send();
+    });
+  }
 }
 
 interface Voice {
@@ -347,19 +384,31 @@ export class Sfx {
   private noiseBuf: AudioBuffer | null = null;
   private out: AudioNode | null = null;
   private outCtx: AudioContext | null = null;
+  private readonly fetchAudio: (url: string) => Promise<ArrayBuffer>;
+  /** gravações decodificadas por arquivo (do contexto `bufCtx`); 'loading' = baixando, 'failed' = fica na síntese */
+  private readonly buffers = new Map<string, AudioBuffer | 'loading' | 'failed'>();
+  private bufCtx: AudioContext | null = null;
+  /** última variação tocada de cada conjunto (a seguinte sorteia outra) */
+  private readonly lastPick = new Map<string, number>();
+  private warned = false;
 
   constructor(deps: SfxDeps = {}) {
     this.getContext = deps.context ?? sharedContext;
     this.volume = deps.volume ?? sfxVolume;
     this.now = deps.now ?? (() => performance.now());
     this.prepare = deps.prepare ?? ((c) => void applySink(c));
+    this.fetchAudio = deps.fetchAudio ?? fetchAudio;
   }
 
   /** quem ouve (meu boneco e a câmera), uma vez por quadro */
   listen(l: Listener) {
     const zoneChanged = l.zone !== this.listener.zone;
     this.listener = { ...l };
-    if (zoneChanged) this.stopEngines();
+    if (zoneChanged) {
+      this.stopEngines();
+      // entrou numa zona com gravações (o gunfight): já baixa e decodifica tudo dela
+      this.preload(l.zone);
+    }
     // motores sem notícia (o piloto saiu) param
     const now = this.now();
     for (const [id, e] of this.engines) if (now - e.seen > ENGINE_STALE_MS) this.stopEngine(id);
@@ -397,8 +446,83 @@ export class Sfx {
     let name = c.name;
     if (c.far && o.at && Math.hypot(o.at.x - this.listener.x, o.at.z - this.listener.z) > SFX_FAR_M) name = c.far;
     let pitch = c.pitch ?? o.pitch;
-    if (c.jitter) pitch = (pitch ?? 1) * (1 + c.jitter * (2 * Math.random() - 1));
-    return this.play(name, { ...o, gain: c.gain, pitch, info: c.info ?? o.info });
+    const vary = c.jitter ? 1 + c.jitter * (2 * Math.random() - 1) : 1;
+    if (c.jitter) pitch = (pitch ?? 1) * vary;
+    return this.play(name, {
+      ...o,
+      gain: c.gain,
+      pitch,
+      vary,
+      info: c.info ?? o.info,
+      ...(c.sample ? { sample: c.sample } : {}),
+      ...(c.delay ? { delay: c.delay } : {}),
+    });
+  }
+
+  // ---------- gravações ----------
+
+  /** baixa e decodifica as gravações que a zona pede (nada sem AudioContext) */
+  preload(zone: number) {
+    for (const f of zoneSampleFiles(zone)) this.load(f);
+  }
+
+  /** gravações de um arquivo prontas (diagnóstico e testes) */
+  get loadedSamples(): number {
+    let n = 0;
+    for (const b of this.buffers.values()) if (typeof b === 'object') n++;
+    return n;
+  }
+
+  private load(file: string) {
+    const c = this.getContext();
+    if (!c || typeof c.decodeAudioData !== 'function') return;
+    if (c !== this.bufCtx) {
+      // contexto novo (trocou o dispositivo): as gravações decodificadas no outro não servem
+      this.buffers.clear();
+      this.bufCtx = c;
+    }
+    if (this.buffers.has(file)) return;
+    const url = sampleUrl(file);
+    if (!url) {
+      this.buffers.set(file, 'failed');
+      return;
+    }
+    this.buffers.set(file, 'loading');
+    void this.fetchAudio(url)
+      .then((data) => c.decodeAudioData(data))
+      .then((buf) => {
+        if (this.bufCtx === c) this.buffers.set(file, buf);
+      })
+      .catch((err: unknown) => {
+        if (this.bufCtx === c) this.buffers.set(file, 'failed');
+        if (!this.warned) {
+          this.warned = true;
+          console.warn('[space3d] gravação não carregou; fica o som sintetizado', file, err);
+        }
+      });
+  }
+
+  /** a gravação para tocar agora (sorteia a variação, sem repetir a última); null = síntese */
+  private pickSample(c: AudioContext, name: SfxName, variant?: string) {
+    const found = sampleSetFor(name, variant);
+    if (!found) return null;
+    if (c !== this.bufCtx) {
+      this.buffers.clear();
+      this.bufCtx = c;
+    }
+    const ready: number[] = [];
+    found.set.files.forEach((f, i) => {
+      const b = this.buffers.get(f);
+      if (b === undefined) this.load(f);
+      else if (typeof b === 'object') ready.push(i);
+    });
+    if (!ready.length) return null;
+    const last = this.lastPick.get(found.key);
+    const pool = ready.length > 1 ? ready.filter((i) => i !== last) : ready;
+    const i = pool[Math.floor(Math.random() * pool.length)] ?? ready[0]!;
+    this.lastPick.set(found.key, i);
+    const buf = this.buffers.get(found.set.files[i]!) as AudioBuffer;
+    return { buf, gain: found.set.gain ?? 1, exact: found.exact };
   }
 
   /** som da interface (menu, contagem): sem distância nem zona */
@@ -442,17 +566,80 @@ export class Sfx {
     this.log.push(name);
     if (this.log.length > LOG_MAX) this.log.shift();
     this.lastGain = gain;
-    const voice: Voice = { name, gain, start: now, end: now + recipeDuration(name) * 1000 + 30 };
+    const delay = Math.max(0, o.delay ?? 0);
+    const start = now + delay * 1000;
+    const voice: Voice = { name, gain, start, end: start + recipeDuration(name) * 1000 + 30 };
     this.voices.push(voice);
     const c = this.ready();
     if (!c) return true;
     const pan = o.at ? sfxPan(this.listener, o.at) : 0;
     try {
-      voice.stop = this.synth(c, name, gain, o.pitch ?? 1, pan);
+      const s = this.pickSample(c, name, o.sample);
+      if (s) {
+        // a gravação exata da variante (a arma) só varia um pouco; a da família leva o tom pedido
+        const rate = (s.exact ? (o.vary ?? 1) : (o.pitch ?? 1)) * (1 + 0.015 * (2 * Math.random() - 1));
+        voice.end = start + (s.buf.duration / rate) * 1000 + 30;
+        // ganho levemente aleatório (nunca acima do calculado): o mesmo arquivo não soa idêntico em sequência
+        const g = gain * s.gain * (0.9 + 0.1 * Math.random());
+        voice.stop = this.sample(c, s.buf, g, rate, pan, sfxLowpassHz(d), delay);
+      } else voice.stop = this.synth(c, name, gain, o.pitch ?? 1, pan, delay);
     } catch (err) {
       console.error('[space3d] som falhou', err);
     }
     return true;
+  }
+
+  /** toca uma gravação; devolve como parar antes da hora */
+  private sample(
+    c: AudioContext,
+    buf: AudioBuffer,
+    gain: number,
+    rate: number,
+    pan: number,
+    lowpass: number | null,
+    delay: number,
+  ): () => void {
+    const out = this.output(c);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = c.createGain();
+    g.gain.value = Math.min(1, gain);
+    let head: AudioNode = g;
+    if (lowpass !== null) {
+      // de longe: perde o estalo e fica o estrondo
+      const f = c.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 0.7;
+      f.frequency.value = lowpass;
+      f.connect(g);
+      head = f;
+    }
+    src.connect(head);
+    let tail: AudioNode = g;
+    if (pan !== 0 && typeof c.createStereoPanner === 'function') {
+      const p = c.createStereoPanner();
+      p.pan.value = pan;
+      g.connect(p);
+      tail = p;
+    }
+    tail.connect(out);
+    src.onended = () => {
+      try {
+        tail.disconnect();
+        src.disconnect();
+      } catch {
+        // já desligado
+      }
+    };
+    src.start(c.currentTime + 0.005 + delay);
+    return () => {
+      try {
+        src.stop();
+      } catch {
+        // já parou
+      }
+    };
   }
 
   /** contexto pronto para tocar (null = sem áudio ou ainda sem gesto) */
@@ -498,7 +685,7 @@ export class Sfx {
   }
 
   /** monta os nós de uma receita; devolve como parar antes da hora */
-  private synth(c: AudioContext, name: SfxName, gain: number, pitch: number, pan: number): () => void {
+  private synth(c: AudioContext, name: SfxName, gain: number, pitch: number, pan: number, delay = 0): () => void {
     const out = this.output(c);
     const master = c.createGain();
     master.gain.value = gain;
@@ -510,7 +697,7 @@ export class Sfx {
       tail = p;
     }
     tail.connect(out);
-    const t0 = c.currentTime + 0.005;
+    const t0 = c.currentTime + 0.005 + delay;
     const sources: AudioScheduledSourceNode[] = [];
     for (const part of RECIPES[name]) {
       const start = t0 + (part.t ?? 0);

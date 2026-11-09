@@ -10,11 +10,11 @@
 import type { GunId } from '@opencord/contracts';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import ak47Url from '../assets/guns/ak47.glb?url';
 import kar98kUrl from '../assets/guns/kar98k.glb?url';
 import l115Url from '../assets/guns/l115.glb?url';
-import m24Url from '../assets/guns/m24.glb?url';
 import m4Url from '../assets/guns/m4.glb?url';
 import m9Url from '../assets/guns/m9.glb?url';
 import mp5Url from '../assets/guns/mp5.glb?url';
@@ -38,6 +38,8 @@ export interface GunModel {
   /** pontos no espaço da arma: cano (saída), linha de mira (olho ao mirar) e mão de apoio */
   muzzle: THREE.Vector3;
   sight: THREE.Vector3;
+  /** mira de ferro: quanto a arma inclina mirando para a massa ficar na linha do furo de trás (rad) */
+  sightPitch?: number;
   support: THREE.Vector3;
   /** meia largura do guarda-mão no apoio (m): a mão de apoio fecha mais no fino */
   supportW?: number;
@@ -60,7 +62,6 @@ const SUPPORT_AT: Partial<Record<GunId, number>> = {
   m4: 0.48,
   ak47: 0.44,
   l115: 0.3,
-  m200: 0.3,
   kar98k: 0.3,
   mp7: 0.7,
   mp5: 0.7,
@@ -75,12 +76,25 @@ const SIGHT_AT: Partial<Record<GunId, number>> = {
   mp7: 0.45,
 };
 
+/**
+ * Mira de ferro medida no modelo (raios ao longo do cano em x = 0): [altura, z] do centro da alça/furo de trás e da
+ * ponta da massa. A linha passa pelos dois (a arma inclina o pouquinho que falta) e o furo de trás fica centrado na
+ * tela com a massa dentro dele. Sem entrada aqui, vale a busca pela massa (`SIGHT_AT`).
+ */
+const IRON: Partial<Record<GunId, { rear: [number, number]; front: [number, number] }>> = {
+  m4: { rear: [0.145, 0.02], front: [0.14, -0.42] },
+  ak47: { rear: [0.107, -0.2], front: [0.106, -0.54] },
+  mp7: { rear: [0.1255, 0.09], front: [0.1255, -0.14] },
+  mp5: { rear: [0.139, 0.04], front: [0.139, -0.31] },
+  kar98k: { rear: [0.102, -0.27], front: [0.102, -0.77] },
+};
+
 interface Template {
   scene: THREE.Object3D;
   build: () => GunModel;
 }
 
-const FILE: Partial<Record<GunId | 'm24', string>> = {
+const FILE: Partial<Record<GunId, string>> = {
   m4: m4Url,
   ak47: ak47Url,
   mp7: mp7Url,
@@ -88,7 +102,6 @@ const FILE: Partial<Record<GunId | 'm24', string>> = {
   l115: l115Url,
   kar98k: kar98kUrl,
   m9: m9Url,
-  m24: m24Url,
 };
 
 /** nome do osso no arquivo → peça */
@@ -111,21 +124,14 @@ export function loadGuns(): Promise<void> {
   loading ??= (async () => {
     const loader = new GLTFLoader();
     const files = await Promise.all(
-      (Object.entries(FILE) as [GunId | 'm24', string][]).map(
-        async ([id, url]) => [id, await loader.loadAsync(url)] as const,
-      ),
+      (Object.entries(FILE) as [GunId, string][]).map(async ([id, url]) => [id, await loader.loadAsync(url)] as const),
     );
     const scenes = new Map(files.map(([id, g]) => [id, g.scene]));
     const kar = scenes.get('kar98k');
     if (kar) darkenWood(kar);
-    // a M24 é a base da M200, que tinge o material inteiro (precisa dele sozinho, sem a lista de dois materiais)
-    for (const [id, scene] of scenes) if (id !== 'm24') splitRounds(scene);
-    for (const [id, scene] of scenes) {
-      if (id === 'm24') continue;
-      templates.set(id, { scene, build: () => fromFile(id, scene) });
-    }
-    const m24 = scenes.get('m24');
-    if (m24) templates.set('m200', { scene: m24, build: () => m200(m24) });
+    for (const scene of scenes.values()) splitRounds(scene);
+    for (const [id, scene] of scenes) templates.set(id, { scene, build: () => fromFile(id, scene) });
+    templates.set('m200', { scene: new THREE.Group(), build: m200 });
     templates.set('deagle', { scene: new THREE.Group(), build: deagle });
     templates.set('karambit', { scene: new THREE.Group(), build: () => knife('karambit') });
     templates.set('bayonet', { scene: new THREE.Group(), build: () => knife('bayonet') });
@@ -314,11 +320,14 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   // linha de mira: na mira de ferro, o topo da massa (o ponto mais alto da parte da frente da arma: a ponta dela fica
   // no centro da tela, onde a bala vai); na luneta, o eixo óptico (o centro do tubo, um pouco abaixo do topo)
   const scoped = id === 'l115' || id === 'm200';
+  const iron = IRON[id];
   const sight = new THREE.Vector3(
     0,
-    scoped ? box.max.y - 0.025 : (frontTop(holder, box.min.z * (SIGHT_AT[id] ?? 0.6)) ?? box.max.y),
+    scoped ? box.max.y - 0.025 : (iron?.rear[0] ?? frontTop(holder, box.min.z * (SIGHT_AT[id] ?? 0.6)) ?? box.max.y),
     -0.05,
   );
+  // inclinação que põe a massa na linha do furo de trás (positiva: a boca sobe)
+  const sightPitch = iron ? Math.atan2(iron.rear[0] - iron.front[0], iron.rear[1] - iron.front[1]) : 0;
   // mão de apoio: o ponto da arma (`SUPPORT_AT`). A altura é a da primeira superfície de baixo para cima no meio da
   // arma naquela fatia (a palma encosta nela), só se estiver perto do eixo do cano — senão logo abaixo do cano
   const sz = box.min.z * (SUPPORT_AT[id] ?? 0.6);
@@ -335,6 +344,7 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
     parts,
     muzzle,
     sight,
+    ...(sightPitch ? { sightPitch } : {}),
     support,
     ...(supportW ? { supportW } : {}),
     ...(rounds ? { rounds } : {}),
@@ -460,76 +470,490 @@ function mesh(geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number
   return o;
 }
 
-/**
- * M200: a mesma base do ferrolho do M24 (receptor, gatilho, pente e luneta com esqueleto), com o cano grosso de
- * capa canelada, a coronha de esqueleto e o bipé, em areia — a silhueta da M200.
- */
-function m200(m24: THREE.Object3D): GunModel {
-  const g = fromFile('m200', m24);
-  const tan = mat(0xb59a6a, 0.7, 0.1);
-  g.root.traverse((o) => {
-    if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshStandardMaterial) {
-      const m = own(o.material.clone());
-      m.color.lerp(new THREE.Color(0xb59a6a), 0.55);
-      o.material = m;
-    }
-  });
-  const dark = mat(0x2b2c2f, 0.5, 0.6);
-  // capa do cano: tubo grosso com caneluras, do receptor até perto da boca
-  const z0 = -0.22;
-  const z1 = g.muzzle.z + 0.08;
-  const y = g.muzzle.y;
-  const len = z0 - z1;
-  const mid = (z0 + z1) / 2;
-  g.root.add(mesh(new THREE.CylinderGeometry(0.028, 0.028, len, 10).rotateX(Math.PI / 2), tan, 0, y, mid));
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    g.root.add(
-      mesh(new THREE.BoxGeometry(0.007, 0.007, len * 0.85), dark, Math.cos(a) * 0.029, y + Math.sin(a) * 0.029, mid),
+/** peças de um modelo feito em código, juntadas por material numa malha só (menos chamadas de desenho por arma) */
+class Kit {
+  private readonly geos = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  add(geo: THREE.BufferGeometry, m: THREE.Material): this {
+    const list = this.geos.get(m) ?? [];
+    // as geometrias prontas do three têm índice e a extrusão não: todas sem índice para poder juntar
+    list.push(geo.index ? geo.toNonIndexed() : geo);
+    if (geo.index) geo.dispose();
+    this.geos.set(m, list);
+    return this;
+  }
+  /** caixa centrada em (x, y, z) */
+  box(m: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number): this {
+    return this.add(new THREE.BoxGeometry(w, h, d).translate(x, y, z), m);
+  }
+  /** cilindro deitado ao longo de z, de `z0` (trás) a `z1` (frente), raio `r0` atrás e `r1` na frente */
+  tube(m: THREE.Material, r0: number, r1: number, z0: number, z1: number, x: number, y: number, seg = 12): this {
+    const geo = new THREE.CylinderGeometry(r1, r0, Math.abs(z0 - z1), seg).rotateX(-Math.PI / 2);
+    return this.add(geo.translate(x, y, (z0 + z1) / 2), m);
+  }
+  /** cilindro entre dois pontos quaisquer */
+  rod(m: THREE.Material, r: number, a: THREE.Vector3, b: THREE.Vector3, seg = 8): this {
+    const d = b.clone().sub(a);
+    const geo = new THREE.CylinderGeometry(r, r, d.length(), seg);
+    geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
+    return this.add(geo.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2), m);
+  }
+  /** perfil de lado (pontos [z, y] da arma) com a largura `w` em x, centrado em `x` */
+  side(m: THREE.Material, pts: [number, number][], w: number, x = 0, hole?: [number, number][]): this {
+    const sh = new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(-z, y)));
+    if (hole) sh.holes.push(new THREE.Path(hole.map(([z, y]) => new THREE.Vector2(-z, y))));
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: false });
+    // o x do perfil vira −z da arma e a espessura vira x
+    return this.add(
+      geo
+        .translate(0, 0, -w / 2)
+        .rotateY(Math.PI / 2)
+        .translate(x, 0, 0),
+      m,
     );
   }
-  // freio de boca largo e o bipé dobrado embaixo da capa
-  g.root.add(mesh(new THREE.BoxGeometry(0.055, 0.045, 0.08), dark, 0, y, g.muzzle.z + 0.04));
-  for (const sx of [1, -1])
-    g.root.add(mesh(new THREE.BoxGeometry(0.012, 0.012, 0.22), dark, sx * 0.02, y - 0.04, z0 - 0.15));
-  g.muzzle.z -= 0.01;
-  return g;
+  /** perfil de frente (pontos [x, y]) puxado ao longo de z, de `z0` (trás) a `z1` (frente) */
+  front(m: THREE.Material, sh: THREE.Shape, z0: number, z1: number): this {
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: z0 - z1, bevelEnabled: false, curveSegments: 4 });
+    return this.add(geo.translate(0, 0, z1), m);
+  }
+  /** põe uma malha por material no grupo */
+  bake(into: THREE.Object3D) {
+    for (const [m, list] of this.geos) {
+      const geo = mergeGeometries(list, false);
+      for (const g of list) g.dispose();
+      if (geo) into.add(meshG(geo, m));
+    }
+    this.geos.clear();
+  }
 }
 
-/** Desert Eagle: ferrolho de perfil triangular, cano longo, punho grosso; ferrolho e pente separados para animar */
+/** perfil de frente: retângulo de `w` × (`y0`..`y1`) com os cantos de cima chanfrados em `c` e os de baixo em `cb` */
+function chamfered(w: number, y0: number, y1: number, c: number, cb = c): THREE.Shape {
+  const h = w / 2;
+  return new THREE.Shape([
+    new THREE.Vector2(-h + cb, y0),
+    new THREE.Vector2(h - cb, y0),
+    new THREE.Vector2(h, y0 + cb),
+    new THREE.Vector2(h, y1 - c),
+    new THREE.Vector2(h - c, y1),
+    new THREE.Vector2(-h + c, y1),
+    new THREE.Vector2(-h, y1 - c),
+    new THREE.Vector2(-h, y0 + cb),
+  ]);
+}
+
+/**
+ * CheyTac M200 Intervention, feita em código: cano canelado solto dentro do tubo do guarda-mão (com recortes e o trilho
+ * em cima, do fim da culatra até a ponta), freio de boca grande, culatra de topo plano, luneta longa nos anéis, pente
+ * na frente do guarda-mato, punho em pé, coronha retrátil de esqueleto (duas hastes, apoio de rosto e soleira) e bipé
+ * dobrado sob o cano. Origem no punho, cano em −z, em metros (~1,35 m, como a L115 no jogo).
+ */
+function m200(): GunModel {
+  const root = new THREE.Group();
+  const body = mat(0x33363a, 0.5, 0.55);
+  const steel = mat(0x232528, 0.42, 0.65);
+  const black = mat(0x141516, 0.85, 0.1);
+  const hole = mat(0x08090a, 0.9, 0.1);
+  const glass = mat(0x1d2a3a, 0.12, 0.9);
+  const brass = mat(0xb08a3e, 0.35, 0.8);
+  brass.visible = false;
+  /** altura do eixo do cano e do eixo óptico da luneta */
+  const BORE = 0.076;
+  const OPT = 0.155;
+  const MUZZLE = -0.952;
+  const k = new Kit();
+
+  // culatra: topo plano, cantos chanfrados, da coronha (z 0,075) até o tubo do guarda-mão
+  k.front(body, chamfered(0.054, 0.035, 0.108, 0.008, 0.005), 0.075, -0.215);
+  // janela de ejeção e o rasgo da alavanca do ferrolho, do lado direito
+  k.box(hole, 0.002, 0.02, 0.078, 0.0272, 0.087, -0.085);
+  k.box(hole, 0.002, 0.03, 0.022, 0.0272, 0.077, 0.004);
+  // poço do pente (embaixo da culatra) e o retém na frente dele
+  k.front(body, chamfered(0.04, 0.018, 0.04, 0.003), -0.062, -0.16);
+  k.box(steel, 0.016, 0.01, 0.008, 0, 0.016, -0.162);
+  // trilho de cima, da traseira da culatra até a ponta do guarda-mão, com as fendas (passo de 1 cm)
+  k.box(body, 0.026, 0.004, 0.71, 0, 0.11, -0.285);
+  k.box(steel, 0.021, 0.007, 0.71, 0, 0.1155, -0.285);
+  for (let z = 0.06; z > -0.635; z -= 0.01) k.box(hole, 0.0215, 0.004, 0.0045, 0, 0.1165, z);
+
+  // tubo do guarda-mão (oito faces, livre do cano), com os recortes compridos dos lados e embaixo
+  const HG0 = -0.215;
+  const HG1 = -0.64;
+  const tube = new THREE.CylinderGeometry(0.033, 0.033, HG0 - HG1, 8).rotateX(-Math.PI / 2).rotateZ(Math.PI / 8);
+  k.add(tube.translate(0, BORE, (HG0 + HG1) / 2), body);
+  const flat = 0.033 * Math.cos(Math.PI / 8);
+  for (const z of [-0.275, -0.37, -0.465, -0.56]) {
+    for (const sx of [1, -1]) k.box(hole, 0.003, 0.012, 0.075, sx * flat, BORE, z);
+    k.box(hole, 0.01, 0.003, 0.075, 0, BORE - flat, z);
+  }
+  // anel da ponta do guarda-mão
+  k.tube(steel, 0.0345, 0.0345, HG1 + 0.012, HG1, 0, BORE, 8);
+  // trilhos curtos dos lados, na frente (onde se prende acessório)
+  for (const sx of [1, -1]) k.box(steel, 0.006, 0.014, 0.08, sx * (flat + 0.003), BORE, HG1 + 0.06);
+
+  // cano canelado (seis caneluras), da culatra até o freio
+  const fl = new THREE.Shape();
+  const N = 36;
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const r = i % 6 === 2 || i % 6 === 3 ? 0.0128 : 0.0158;
+    const p = new THREE.Vector2(Math.cos(a) * r, BORE + Math.sin(a) * r);
+    if (i === 0) fl.moveTo(p.x, p.y);
+    else fl.lineTo(p.x, p.y);
+  }
+  k.front(steel, fl, -0.2, -0.862);
+  // freio de boca: bloco grande de oito faces, com as janelas dos lados e a boca na frente
+  k.tube(steel, 0.0175, 0.0175, -0.855, -0.866, 0, BORE, 12);
+  k.add(
+    new THREE.CylinderGeometry(0.024, 0.024, 0.088, 8)
+      .rotateX(-Math.PI / 2)
+      .rotateZ(Math.PI / 8)
+      .translate(0, BORE, -0.906),
+    body,
+  );
+  for (const z of [-0.88, -0.903, -0.926])
+    for (const sx of [1, -1]) k.box(hole, 0.004, 0.026, 0.011, sx * 0.0222, BORE, z);
+  k.tube(hole, 0.009, 0.009, -0.948, MUZZLE, 0, BORE, 10);
+
+  // bipé dobrado para a frente, por baixo do cano: articulação na ponta do guarda-mão e as duas pernas
+  k.box(steel, 0.034, 0.014, 0.03, 0, BORE - flat - 0.006, HG1 + 0.02);
+  for (const sx of [1, -1]) {
+    const a = new THREE.Vector3(sx * 0.012, BORE - flat - 0.01, HG1 + 0.01);
+    const b = new THREE.Vector3(sx * 0.012, BORE - flat - 0.008, -0.83);
+    k.rod(steel, 0.0065, a, b);
+    k.box(black, 0.012, 0.012, 0.022, b.x, b.y, b.z + 0.004);
+  }
+
+  // punho em pé (borracha), guarda-mato e a base do punho na culatra
+  k.side(
+    black,
+    [
+      [0.026, 0.036],
+      [0.032, -0.02],
+      [0.045, -0.1],
+      [0.05, -0.11],
+      [0.088, -0.11],
+      [0.091, -0.1],
+      [0.078, -0.02],
+      [0.074, 0.036],
+    ],
+    0.03,
+  );
+  k.side(
+    body,
+    [
+      [-0.066, 0.036],
+      [-0.064, 0.006],
+      [-0.052, -0.008],
+      [0.034, -0.008],
+      [0.034, 0.036],
+    ],
+    0.014,
+    0,
+    [
+      [-0.058, 0.034],
+      [-0.057, 0.008],
+      [-0.049, 0.0],
+      [0.024, 0.0],
+      [0.024, 0.034],
+    ],
+  );
+
+  // coronha retrátil: bloco de encaixe, duas hastes até a soleira, apoio de rosto e o monopé dobrado
+  k.front(body, chamfered(0.046, 0.026, 0.102, 0.008, 0.004), 0.165, 0.075);
+  k.tube(steel, 0.011, 0.011, 0.385, 0.165, 0, 0.086, 10);
+  k.rod(steel, 0.0095, new THREE.Vector3(0, 0.036, 0.16), new THREE.Vector3(0, -0.036, 0.38), 10);
+  k.side(
+    body,
+    [
+      [0.37, 0.112],
+      [0.37, -0.072],
+      [0.388, -0.076],
+      [0.388, 0.116],
+    ],
+    0.036,
+  );
+  k.side(
+    black,
+    [
+      [0.388, 0.12],
+      [0.388, -0.08],
+      [0.408, -0.074],
+      [0.411, 0.02],
+      [0.408, 0.114],
+    ],
+    0.042,
+  );
+  // apoio de rosto em cima da haste, com os dois pinos de ajuste
+  k.side(
+    black,
+    [
+      [0.19, 0.095],
+      [0.205, 0.122],
+      [0.335, 0.124],
+      [0.345, 0.095],
+    ],
+    0.032,
+  );
+  for (const z of [0.215, 0.315]) k.tube(steel, 0.006, 0.006, z + 0.006, z - 0.006, 0, 0.098, 6);
+  k.rod(steel, 0.006, new THREE.Vector3(0, -0.012, 0.3), new THREE.Vector3(0, -0.07, 0.31), 6);
+  k.box(black, 0.02, 0.008, 0.024, 0, -0.074, 0.31);
+
+  // luneta: tubo longo, sino da objetiva grande, ocular, torres em cima e dos lados, nos dois anéis do trilho
+  k.tube(steel, 0.016, 0.016, 0.06, -0.215, 0, OPT, 16);
+  k.tube(steel, 0.016, 0.0285, -0.215, -0.262, 0, OPT, 16);
+  k.tube(steel, 0.0285, 0.0285, -0.262, -0.33, 0, OPT, 16);
+  k.tube(black, 0.029, 0.029, -0.318, -0.332, 0, OPT, 16);
+  k.add(new THREE.CircleGeometry(0.025, 16).rotateY(Math.PI).translate(0, OPT, -0.3325), glass);
+  k.tube(steel, 0.017, 0.0205, 0.06, 0.075, 0, OPT, 16);
+  k.tube(black, 0.0205, 0.0205, 0.075, 0.098, 0, OPT, 16);
+  k.add(new THREE.CircleGeometry(0.016, 16).translate(0, OPT, 0.0985), glass);
+  k.tube(steel, 0.0195, 0.0195, -0.045, -0.105, 0, OPT, 12);
+  k.add(new THREE.CylinderGeometry(0.0115, 0.0115, 0.026, 12).translate(0, OPT + 0.029, -0.075), steel);
+  k.add(new THREE.CylinderGeometry(0.0125, 0.0125, 0.008, 12).translate(0, OPT + 0.044, -0.075), black);
+  k.add(new THREE.CylinderGeometry(0.0115, 0.0115, 0.024, 12).rotateZ(Math.PI / 2).translate(0.03, OPT, -0.075), steel);
+  k.add(new THREE.CylinderGeometry(0.014, 0.014, 0.014, 12).rotateZ(Math.PI / 2).translate(-0.027, OPT, -0.075), black);
+  for (const z of [0.01, -0.17]) {
+    k.add(new THREE.TorusGeometry(0.0195, 0.0045, 6, 16).translate(0, OPT, z), body);
+    k.box(body, 0.014, 0.014, 0.018, 0, OPT - 0.028, z);
+    k.box(body, 0.032, 0.008, 0.022, 0, 0.123, z);
+    k.box(steel, 0.006, 0.006, 0.01, 0.019, 0.123, z);
+  }
+  k.bake(root);
+
+  // ferrolho: corpo e alavanca giram juntos (em volta do eixo do ferrolho) e correm para trás; a capa de trás só corre
+  const boltRot = new THREE.Group();
+  boltRot.position.set(0, 0.082, -0.065);
+  new Kit()
+    .tube(steel, 0.011, 0.011, 0.14, -0.105, 0, 0, 10)
+    .rod(steel, 0.0045, new THREE.Vector3(0.008, -0.002, 0.068), new THREE.Vector3(0.04, -0.024, 0.071))
+    .add(new THREE.SphereGeometry(0.0105, 10, 8).translate(0.045, -0.027, 0.072), black)
+    .bake(boltRot);
+  root.add(boltRot);
+  const bolt = new THREE.Group();
+  bolt.position.set(0, 0.082, 0.085);
+  new Kit().tube(steel, 0.0125, 0.012, 0.012, -0.01, 0, 0, 10).box(body, 0.006, 0.01, 0.012, 0, 0.012, 0.0).bake(bolt);
+  root.add(bolt);
+  // gatilho (corre um pouco para trás ao atirar)
+  const trigger = new THREE.Group();
+  trigger.position.set(0, 0.03, -0.02);
+  new Kit()
+    .side(
+      steel,
+      [
+        [-0.005, 0.004],
+        [0.003, 0.004],
+        [0.001, -0.01],
+        [0.005, -0.024],
+        [-0.001, -0.024],
+        [-0.004, -0.01],
+      ],
+      0.006,
+    )
+    .bake(trigger);
+  root.add(trigger);
+  // pente: caixa com a base mais larga; os cartuchos de cima só aparecem com ele fora do lugar
+  const mag = new THREE.Group();
+  mag.position.set(0, 0.04, -0.11);
+  const mk = new Kit()
+    .box(body, 0.03, 0.104, 0.08, 0, -0.054, 0)
+    .box(black, 0.034, 0.01, 0.086, 0, -0.109, 0.0)
+    .box(hole, 0.031, 0.05, 0.004, 0, -0.06, -0.025)
+    .box(hole, 0.031, 0.05, 0.004, 0, -0.06, 0.025);
+  for (const x of [-0.006, 0.006]) {
+    mk.tube(brass, 0.0065, 0.0065, 0.036, -0.022, x, 0.004, 8);
+    mk.tube(steel, 0.0055, 0.0015, -0.022, -0.044, x, 0.004, 8);
+  }
+  mk.bake(mag);
+  root.add(mag);
+  root.traverse((o) => (o.castShadow = true));
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  return {
+    id: 'm200',
+    root,
+    parts: {
+      boltRot: part(boltRot, root),
+      bolt: part(bolt, root),
+      trigger: part(trigger, root),
+      mag: part(mag, root),
+    },
+    muzzle: new THREE.Vector3(0, BORE, MUZZLE),
+    // eixo óptico: o centro do tubo da luneta
+    sight: new THREE.Vector3(0, OPT, -0.05),
+    // mão de apoio por baixo do tubo do guarda-mão, logo na frente da culatra
+    support: new THREE.Vector3(0, BORE - flat, -0.3),
+    supportW: 0.024,
+    rounds: brass,
+    length: box.max.z - box.min.z,
+  };
+}
+
+/**
+ * Desert Eagle: cano fixo de perfil triangular (estreito em cima, com o trilho) por todo o comprimento, ferrolho alto
+ * atrás com a frente chanfrada, as ranhuras, a janela de ejeção à direita e a trava ambidestra; cão externo,
+ * guarda-mato grande e redondo, punho grosso com placas e o pé do carregador. Só o ferrolho recua no tiro (como na
+ * de verdade); o carregador sai para a recarga. Origem no punho, cano em −z.
+ */
 function deagle(): GunModel {
   const root = new THREE.Group();
   const steel = mat(0x8e9296, 0.35, 0.85);
   const dark = mat(0x26272a, 0.5, 0.5);
   const grip = mat(0x1c1c1e, 0.85, 0.05);
-  const frame = new THREE.Group();
-  root.add(frame);
-  frame.add(mesh(new THREE.BoxGeometry(0.034, 0.03, 0.2), steel, 0, 0.035, -0.05));
-  frame.add(mesh(new THREE.BoxGeometry(0.03, 0.012, 0.04), dark, 0, 0.0, -0.03));
-  const handle = mesh(new THREE.BoxGeometry(0.032, 0.13, 0.055), grip, 0, -0.05, 0.03);
-  handle.rotation.x = -0.2;
-  frame.add(handle);
-  const guard = mesh(new THREE.TorusGeometry(0.022, 0.004, 4, 10, Math.PI).rotateY(Math.PI / 2), dark, 0, 0.005, -0.03);
-  guard.rotation.x = Math.PI;
-  frame.add(guard);
-  // ferrolho: corpo com o topo chanfrado (prisma) e o cano por dentro
+  const hole = mat(0x0b0b0c, 0.9, 0.1);
+  /** altura do eixo do cano, da linha de mira (fundo do entalhe de trás = topo da massa) e da boca */
+  const BORE = 0.066;
+  const SIGHT = 0.1;
+  const MUZZLE = -0.218;
+
+  const k = new Kit();
+  // cano: perfil de frente triangular (largo embaixo, estreito em cima), da boca até dentro do ferrolho
+  const tri = new THREE.Shape([
+    new THREE.Vector2(-0.0155, 0.048),
+    new THREE.Vector2(0.0155, 0.048),
+    new THREE.Vector2(0.0155, 0.064),
+    new THREE.Vector2(0.006, 0.088),
+    new THREE.Vector2(-0.006, 0.088),
+    new THREE.Vector2(-0.0155, 0.064),
+  ]);
+  k.front(steel, tri, -0.04, MUZZLE);
+  // boca e o trilho de cima, com as fendas, até a massa
+  k.tube(hole, 0.0062, 0.0062, MUZZLE + 0.004, MUZZLE - 0.0005, 0, BORE, 10);
+  k.box(steel, 0.01, 0.006, 0.13, 0, 0.091, -0.135);
+  for (let z = -0.08; z > -0.195; z -= 0.012) k.box(hole, 0.0105, 0.0025, 0.004, 0, 0.0925, z);
+  // massa (pequena, em cima da ponta do trilho)
+  k.side(
+    dark,
+    [
+      [-0.205, 0.094],
+      [-0.2, SIGHT],
+      [-0.19, SIGHT],
+      [-0.188, 0.094],
+    ],
+    0.004,
+  );
+  // armação: por baixo do cano até perto da boca, com a ponta chanfrada, e o rabo de andorinha atrás
+  k.side(
+    dark,
+    [
+      [-0.212, 0.049],
+      [-0.205, 0.03],
+      [-0.07, 0.022],
+      [0.05, 0.022],
+      [0.07, 0.035],
+      [0.075, 0.05],
+      [0.06, 0.05],
+    ],
+    0.03,
+  );
+  // guarda-mato grande e redondo, na frente do punho
+  k.side(
+    dark,
+    [
+      [-0.062, 0.024],
+      [-0.074, 0.002],
+      [-0.07, -0.022],
+      [-0.054, -0.036],
+      [0.006, -0.034],
+      [0.012, 0.024],
+    ],
+    0.012,
+    0,
+    [
+      [-0.057, 0.02],
+      [-0.065, 0.002],
+      [-0.062, -0.018],
+      [-0.05, -0.027],
+      [0.002, -0.026],
+      [0.005, 0.02],
+    ],
+  );
+  // gatilho
+  k.side(
+    steel,
+    [
+      [-0.034, 0.022],
+      [-0.026, 0.022],
+      [-0.028, 0.006],
+      [-0.022, -0.012],
+      [-0.028, -0.012],
+      [-0.034, 0.004],
+    ],
+    0.006,
+  );
+  // punho grosso inclinado (armação de aço) e as placas de borracha dos dois lados
+  const handle: [number, number][] = [
+    [-0.004, 0.024],
+    [0.018, -0.112],
+    [0.072, -0.112],
+    [0.058, 0.024],
+  ];
+  k.side(dark, handle, 0.03);
+  k.side(
+    grip,
+    [
+      [0.004, 0.012],
+      [0.022, -0.1],
+      [0.064, -0.1],
+      [0.052, 0.012],
+    ],
+    0.036,
+  );
+  // cão externo (com a espora) atrás do ferrolho
+  k.side(
+    dark,
+    [
+      [0.056, 0.05],
+      [0.062, 0.084],
+      [0.074, 0.088],
+      [0.072, 0.078],
+      [0.066, 0.05],
+    ],
+    0.008,
+  );
+  k.bake(root);
+
+  // ferrolho alto: lado com a frente chanfrada, tampa de cima mais estreita (o chanfro de cima), ranhuras atrás,
+  // janela de ejeção à direita, trava ambidestra e a alça de mira com o entalhe
   const slide = new THREE.Group();
-  const shape = new THREE.Shape();
-  shape.moveTo(-0.019, 0);
-  shape.lineTo(0.019, 0);
-  shape.lineTo(0.016, 0.03);
-  shape.lineTo(0.006, 0.042);
-  shape.lineTo(-0.006, 0.042);
-  shape.lineTo(-0.016, 0.03);
-  shape.closePath();
-  const body = new THREE.ExtrudeGeometry(shape, { depth: 0.26, bevelEnabled: false });
-  body.translate(0, 0, -0.2);
-  slide.add(mesh(body, steel, 0, 0.045, 0));
-  slide.add(mesh(new THREE.BoxGeometry(0.006, 0.012, 0.012), dark, 0, 0.093, -0.19));
-  slide.add(mesh(new THREE.BoxGeometry(0.02, 0.01, 0.01), dark, 0, 0.093, 0.05));
+  const sk = new Kit()
+    .side(
+      steel,
+      [
+        [-0.098, 0.048],
+        [-0.072, 0.088],
+        [0.056, 0.088],
+        [0.058, 0.048],
+      ],
+      0.032,
+    )
+    .side(
+      steel,
+      [
+        [-0.07, 0.088],
+        [-0.066, 0.094],
+        [0.052, 0.094],
+        [0.055, 0.088],
+      ],
+      0.022,
+    )
+    .box(hole, 0.0015, 0.014, 0.034, 0.0162, 0.078, -0.03)
+    .box(dark, 0.042, 0.008, 0.014, 0, 0.074, 0.046)
+    .box(dark, 0.004, 0.012, 0.01, 0.0055, SIGHT, 0.046)
+    .box(dark, 0.004, 0.012, 0.01, -0.0055, SIGHT, 0.046)
+    .box(dark, 0.016, 0.006, 0.01, 0, SIGHT - 0.003, 0.046);
+  for (let i = 0; i < 7; i++)
+    for (const sx of [1, -1]) sk.box(hole, 0.0012, 0.03, 0.0025, sx * 0.0162, 0.068, 0.012 + i * 0.0055);
+  sk.bake(slide);
   root.add(slide);
-  const magazine = mesh(new THREE.BoxGeometry(0.024, 0.1, 0.04), dark, 0, -0.06, 0.03);
-  magazine.rotation.x = -0.2;
+
+  // carregador: corpo dentro do punho (inclinado como ele) e o pé embaixo
+  const magazine = new THREE.Group();
+  magazine.position.set(0, -0.06, 0.035);
+  new Kit()
+    .add(new THREE.BoxGeometry(0.022, 0.1, 0.034).rotateX(-0.16), dark)
+    .box(grip, 0.034, 0.01, 0.058, 0, -0.056, 0.008)
+    .bake(magazine);
   root.add(magazine);
   root.traverse((o) => (o.castShadow = true));
   const parts: GunModel['parts'] = { slide: part(slide, root), mag: part(magazine, root) };
@@ -537,10 +961,11 @@ function deagle(): GunModel {
     id: 'deagle',
     root,
     parts,
-    muzzle: new THREE.Vector3(0, 0.065, -0.22),
-    sight: new THREE.Vector3(0, 0.1, 0.03),
+    muzzle: new THREE.Vector3(0, BORE, MUZZLE),
+    // linha de mira: o fundo do entalhe da alça de trás, alinhado com o topo da massa
+    sight: new THREE.Vector3(0, SIGHT, 0.03),
     support: new THREE.Vector3(0.01, -0.03, 0.03),
-    length: 0.27,
+    length: 0.075 - MUZZLE,
   };
 }
 

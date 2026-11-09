@@ -2,14 +2,16 @@
  * Interface do gunfight: mira (abre com a dispersão; some mirando; ponto na faca), marcador de acerto (branco; vermelho
  * quando mata; também por cima da luneta), luneta das snipers (com um escurecer curto na entrada), vida (o número ao
  * lado da barra, com a borda vermelha quando está baixa), de onde veio o tiro, munição, lista de abates, placar (Tab),
- * tela de abatido com o renascer, fim da partida com o placar final e o painel do menu (equipamento, primeira/terceira
- * pessoa e bots). Abates, a própria morte e o vencedor são lidos pela região viva única (`useAnnounce`).
+ * vigor da corrida (barra fina só quando não está cheio), tela de abatido com o renascer, fim da partida com o placar
+ * final e o painel do menu (equipamento, sensibilidade do mouse, primeira/terceira pessoa e bots). Abates, a própria morte e o vencedor são lidos pela região viva única (`useAnnounce`).
  */
-import { Button, Icon } from '@opencord/ui';
+import { Button, Icon, Slider } from '@opencord/ui';
 import { useEffect, useRef, useState } from 'react';
 import { BOT_LEVELS, BOT_LEVEL_LABEL, type BotLevel } from '../bots/level';
 import { Binding } from '../GameHud';
 import { useAnnounce } from '../MatchHud';
+import { ADS_SENS_RANGE, SENS_RANGE, saveAim, type AimSettings } from './aim';
+import { MOVE } from './movement';
 import { saveLoadout, useGunHud, type ScoreRow } from './state';
 import { CLASS_LABEL, GUNS, SLOT_GUNS, WINNER_MS, type GunSlot } from './weapons';
 
@@ -120,7 +122,8 @@ export function GunHud() {
             (['t', 'b', 'l', 'r'] as const).map((s) => (
               <span key={s} className={`gf-line gf-line-${s}`} style={{ ['--gap' as string]: `${gap}px` }} />
             ))}
-          {!h.scoped && <span className="gf-dot" />}
+          {/* mirando em primeira pessoa, só a mira da arma (o ponto some junto com as linhas) */}
+          {!h.scoped && (h.ads < 0.6 || thirdAds || knife) && <span className="gf-dot" />}
           {hit && <HitMarker kill={h.hitKill} head={h.hitHead} />}
         </div>
       )}
@@ -155,6 +158,22 @@ export function GunHud() {
             <span className="gf-health-bar" style={{ width: `${h.hp}%` }} data-low={lowHp ? 'true' : undefined} />
           </div>
           <strong data-low={lowHp ? 'true' : undefined}>{h.hp}</strong>
+        </div>
+      )}
+      {!h.dead && h.stamina < 1 && (
+        // vigor: discreto, só gastando ou voltando; abaixo do mínimo da tática fica apagado
+        <div
+          className="gf-stamina"
+          role="meter"
+          aria-label="Vigor"
+          aria-valuenow={Math.round(h.stamina * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <span
+            style={{ width: `${Math.round(h.stamina * 100)}%` }}
+            data-low={h.stamina < MOVE.tacMin ? 'true' : undefined}
+          />
         </div>
       )}
       {!h.dead && (
@@ -370,7 +389,48 @@ export function LoadoutPicker() {
   );
 }
 
-/** aba "Esta partida" no gunfight: objetivo, equipamento, visão e bots de treino */
+/** pt-BR: vírgula decimal */
+const dec = (v: number, n: number) => v.toFixed(n).replace('.', ',');
+
+/** sensibilidade do mouse (graus por contagem, igual em qualquer FPS e janela) e o multiplicador mirando */
+function AimSettingsPanel() {
+  const aim = useGunHud((s) => s.aim);
+  const raw = useGunHud((s) => s.rawMouse);
+  const put = (p: Partial<AimSettings>) => {
+    const a = { ...aim, ...p };
+    saveAim(a);
+    useGunHud.getState().set({ aim: a });
+  };
+  return (
+    <div className="gf-aim">
+      <Slider
+        label="Sensibilidade do mouse"
+        hint="Na escala dos jogos de tiro: 1 = 0,022° por contagem do mouse."
+        {...SENS_RANGE}
+        value={aim.sens}
+        format={(v) => dec(v, 1)}
+        onChange={(v) => put({ sens: Math.round(v * 10) / 10 })}
+      />
+      <Slider
+        label="Sensibilidade mirando"
+        hint="Multiplica a sensibilidade com a mira (além da queda pelo zoom)."
+        {...ADS_SENS_RANGE}
+        value={aim.adsSens}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => put({ adsSens: Math.round(v * 100) / 100 })}
+      />
+      <p className="gf-note">
+        {raw === true
+          ? 'Entrada direta do mouse ativa: sem a aceleração do sistema.'
+          : raw === false
+            ? 'Este sistema não oferece a entrada direta do mouse: o movimento vem com a aceleração do sistema.'
+            : 'A entrada direta do mouse liga quando o mouse fica preso no jogo.'}
+      </p>
+    </div>
+  );
+}
+
+/** aba "Esta partida" no gunfight: objetivo, equipamento, mouse, visão e bots de treino */
 export function GunMatchPanel({
   others,
   onBots,
@@ -400,6 +460,10 @@ export function GunMatchPanel({
       <section>
         <h3>Equipamento</h3>
         <LoadoutPicker />
+      </section>
+      <section>
+        <h3>Mouse</h3>
+        <AimSettingsPanel />
       </section>
       <section>
         <h3 id="gf-view">Visão</h3>

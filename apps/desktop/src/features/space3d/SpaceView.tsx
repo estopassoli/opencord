@@ -209,6 +209,15 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   const loose = !editing && !noLock && !aimLocked && !menuFree.current && !screenMenu;
   const menuOpen = !editing && (noLock ? paused : loose && (forced || (!dismissed && !fighting && !racing)));
   const strip = loose && !menuOpen;
+  // jogando (mouse preso), os controles da chamada somem de vez; com o mouse solto, aparecem ao passar embaixo
+  useEffect(() => {
+    const root = document.documentElement;
+    if (aimLocked) root.dataset.spaceLocked = 'true';
+    else delete root.dataset.spaceLocked;
+    return () => {
+      delete root.dataset.spaceLocked;
+    };
+  }, [aimLocked]);
   useEffect(() => {
     if (!aimLocked) return;
     setDismissed(false);

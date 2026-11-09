@@ -1,7 +1,8 @@
 /**
  * Som do jogo do Espaço 3D (plano 2026-11-09, P6), parte pura: que som cada `GameEvent` faz e com que ganho, e a
  * mixagem (distância, panorâmica leve, ducking e teto do volume). Sem Web Audio aqui: o motor fica em `sfx.ts`.
- * Todos os sons são sintetizados por nós (receitas em `sfx.ts`); nenhum arquivo nem som de outro jogo.
+ * O gunfight toca gravações reais CC0 (`sfxbank.ts`, créditos em `assets/sfx/CREDITS.md`); o que não tem gravação,
+ * ou cuja gravação não carregou, cai na receita sintetizada de `sfx.ts`. Nenhum som de outro jogo.
  */
 import { SPACE_VOICE_FLOOR, spaceVoiceGain, type GunId } from '@opencord/contracts';
 import type { At, GameEvent, GameEventKind } from './events';
@@ -80,7 +81,8 @@ export type SfxName =
   | 'impactFlesh'
   | 'drawGun'
   | 'step'
-  | 'shotFar';
+  | 'shotFar'
+  | 'shellCase';
 
 /** um som a tocar */
 export interface SfxCue {
@@ -95,6 +97,13 @@ export interface SfxCue {
   jitter?: number;
   /** de longe (além de `SFX_FAR_M`), toca este no lugar (o estampido abafado de longe) */
   far?: SfxName;
+  /**
+   * variante da gravação dentro do som (ex.: a arma no tiro, "pistol" na recarga): se o banco tem `nome:variante`,
+   * toca essa gravação (e o `pitch` da família não se aplica: a gravação já é daquela arma); senão, a do nome
+   */
+  sample?: string;
+  /** atraso (s) antes de tocar (o cartucho caindo depois do tiro) */
+  delay?: number;
 }
 
 /** a partir de quantos metros o tiro de outra pessoa soa de longe */
@@ -193,15 +202,20 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
   // drible: o vento do corpo passando (a bicicleta ainda tem o chute forte, pelo evento do chute)
   trick: (e) => [{ name: 'swing', gain: e.trick === 'bicicleta' ? 0.9 : 0.6, pitch: e.trick === 'elastico' ? 1.2 : 1 }],
   // falta: apito; desarme limpo: o choque na bola
-  gunshot: (e, ctx) => [
-    {
+  gunshot: (e, ctx) => {
+    const mine = e.by === ctx.me;
+    const shot: SfxCue = {
       name: SHOT_SOUND[e.w],
-      gain: e.by === ctx.me ? 1 : 0.9,
+      gain: mine ? 1 : 0.9,
       pitch: SHOT_PITCH[e.w] ?? 1,
       jitter: 0.03,
-      ...(e.by === ctx.me ? {} : { far: 'shotFar' as const }),
-    },
-  ],
+      sample: e.w,
+      ...(mine ? {} : { far: 'shotFar' as const }),
+    };
+    // o meu cartucho caindo no chão (o das facas não existe; o das snipers de ferrolho sai no ferrolho)
+    if (!mine || !SHELL_AFTER_SHOT.has(e.w)) return [shot];
+    return [shot, { name: 'shellCase', gain: 0.22, jitter: 0.06, delay: 0.32 }];
+  },
   impact: (e) => [e.flesh ? { name: 'impactFlesh', gain: 0.6 } : { name: 'impactWall', gain: 0.45 }],
   gunfx: (e) => {
     // a corrida tática não tem som próprio (o passo já muda)
@@ -226,7 +240,15 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
       swing: ['knifeSwing', 0.7],
     };
     const [name, gain] = g[e.what] ?? ['dryFire', 0.5];
-    return [{ name, gain, info: e.what === 'kill' || e.what === 'hitmarker' || e.what === 'headshot' }];
+    const cue: SfxCue = { name, gain, info: e.what === 'kill' || e.what === 'hitmarker' || e.what === 'headshot' };
+    // recarga, ferrolho, saque e clique seco: a gravação da família da arma (pistola, SMG, AK, fuzil, ferrolho)
+    if (GUN_HANDLING.has(e.what)) cue.sample = GUN_CLASS[e.w];
+    // vento do golpe, passo e deslize variam um pouco: não soam como o mesmo arquivo repetido
+    if (e.what === 'swing' || e.what === 'slide' || e.what === 'land') cue.jitter = 0.05;
+    // o cartucho do ferrolho sai quando ele abre
+    if (e.what === 'boltPull' && e.by === undefined)
+      return [cue, { name: 'shellCase', gain: 0.22, jitter: 0.06, delay: 0.25 }];
+    return [cue];
   },
   tackle: (e) =>
     e.foul
@@ -251,6 +273,28 @@ const SHOT_SOUND: Record<GunId, SfxName> = {
   karambit: 'knifeSwing',
   bayonet: 'knifeSwing',
 };
+
+/** família da arma para as gravações de manuseio (recarga, ferrolho, saque, clique seco) */
+export const GUN_CLASS: Record<GunId, string> = {
+  m4: 'rifle',
+  ak47: 'ak',
+  mp7: 'smg',
+  mp5: 'smg',
+  l115: 'bolt',
+  m200: 'bolt',
+  // a Kar98k não tem pente que sai: recarrega por pente-lâmina pela janela do ferrolho
+  kar98k: 'clip',
+  m9: 'pistol',
+  deagle: 'pistol',
+  karambit: 'knife',
+  bayonet: 'knife',
+};
+
+/** sons de manuseio que têm gravação por família de arma */
+const GUN_HANDLING = new Set<string>(['draw', 'magOut', 'magIn', 'charge', 'boltOpen', 'boltClose', 'boltPull', 'dry']);
+
+/** armas cujo cartucho cai logo depois do tiro (as de ferrolho soltam o cartucho ao abrir; facas não têm) */
+const SHELL_AFTER_SHOT = new Set<GunId>(['m4', 'ak47', 'mp7', 'mp5', 'm9', 'deagle']);
 
 /** o tom de cada arma por cima do estampido da família (as três snipers e as duas SMGs não soam iguais) */
 const SHOT_PITCH: Partial<Record<GunId, number>> = { kar98k: 1.12, m200: 0.9, mp7: 1.1, mp5: 0.95 };
@@ -315,6 +359,15 @@ export function sfxPan(l: Listener, at: Pick<At, 'x' | 'z'>): number {
   const side = (dx * Math.cos(l.yaw) - dz * Math.sin(l.yaw)) / d;
   const max = l.zone === 8 ? SFX_PAN_GUN : SFX_PAN_MAX;
   return Math.max(-max, Math.min(max, side * max));
+}
+
+/**
+ * Gravação de longe soa abafada: corte do passa-baixa (Hz) pela distância (m). Até 4 m sem filtro (null); depois cai
+ * exponencialmente até o piso de 1,8 kHz (o estampido distante perde o estalo e fica só o estrondo).
+ */
+export function sfxLowpassHz(d: number | undefined): number | null {
+  if (d === undefined || !Number.isFinite(d) || d <= 4) return null;
+  return Math.max(1800, 20000 * Math.exp(-(d - 4) / 22));
 }
 
 /** curva perceptual do mestre: 0,25·vol² */

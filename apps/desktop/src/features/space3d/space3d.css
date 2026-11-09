@@ -2057,7 +2057,7 @@
 .gf-health {
   position: absolute;
   left: 20px;
-  bottom: 84px;
+  bottom: 28px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2091,10 +2091,40 @@
 .gf-health strong[data-low='true'] {
   color: #ffd2cc;
 }
+/* vigor: fino, embaixo da vida, só quando não está cheio (aparece devagar) */
+.gf-stamina {
+  position: absolute;
+  left: 44px;
+  bottom: 16px;
+  width: 200px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 0.45);
+  overflow: hidden;
+  animation: gf-stamina-in 160ms ease-out;
+}
+.gf-stamina span {
+  display: block;
+  height: 100%;
+  background: rgb(232 237 243 / 0.85);
+  transition: width 80ms linear;
+}
+.gf-stamina span[data-low='true'] {
+  background: rgb(232 237 243 / 0.45);
+}
+@keyframes gf-stamina-in {
+  from {
+    opacity: 0;
+  }
+}
+.gf-aim {
+  display: grid;
+  gap: 12px;
+}
 .gf-ammo {
   position: absolute;
   right: 22px;
-  bottom: 84px;
+  bottom: 28px;
   display: grid;
   justify-items: end;
   gap: 2px;
@@ -2267,8 +2297,12 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .gf-line,
-  .gf-health-bar {
+  .gf-health-bar,
+  .gf-stamina span {
     transition: none;
+  }
+  .gf-stamina {
+    animation: none;
   }
 }
 
@@ -2300,8 +2334,8 @@
 .gf-slots {
   position: absolute;
   right: 22px;
-  /* acima da munição (que fica a 84 px do fundo e ocupa ~70 px) */
-  bottom: 164px;
+  /* acima da munição (que fica a 28 px do fundo e ocupa ~70 px) */
+  bottom: 108px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2341,10 +2375,15 @@
 .gf-shield {
   position: absolute;
   left: 20px;
-  bottom: 112px;
+  bottom: 56px;
   padding: 2px 8px;
   border-radius: 6px;
   background: rgb(0 0 0 / 0.45);
   font-size: 12px;
   color: #bfe3ff;
+}
+
+/* gunfight: os controles da chamada ficam escondidos, então a vida e a munição descem; "Comandos" fica acima delas */
+body:has(.gf-health) .space3d-controls {
+  bottom: 96px;
 }

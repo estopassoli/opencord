@@ -46,13 +46,21 @@ function basis(x: THREE.Vector3Tuple, y: THREE.Vector3Tuple, z: THREE.Vector3Tup
   return new THREE.Quaternion().setFromRotationMatrix(m);
 }
 const rotX = (a: number) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), a);
+const rotY = (a: number) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a);
 
 // pegadas fixas (calculadas uma vez)
 /** mão direita de lado no punho: dorso para a direita, dedos para a frente dando a volta, indicador em cima */
 const PUNHO = basis([0, -1, 0], [1, 0, 0], [0, 0, 1]);
 /** o punho de pistola é inclinado (~17°): a mão acompanha, o pulso mais para trás embaixo */
 const PUNHO_INCL = rotX(-0.3).multiply(PUNHO);
-const MARTELO = basis([0, 0, 1], [1, 0, 0], [0, -1, 0]);
+/** o cabo cruza a palma na diagonal (~17°), a ponta do cabo indo para a base do mindinho, como numa mão de verdade */
+const MARTELO_DIAG = 0.3;
+/**
+ * martelo (baioneta): o cabo atravessa a mão fechada de lado a lado (eixo x da mão ao longo do cabo, o indicador do
+ * lado da lâmina), o dorso para a direita e os nós dos dedos para o lado do fio. Antes a base era espelhada
+ * (determinante −1) e o giro que saía dela punha o cabo atravessando a palma de frente, como um prolongamento do braço.
+ */
+const MARTELO = basis([0, 0, 1], [1, 0, 0], [0, 1, 0]).multiply(rotY(MARTELO_DIAG));
 /** apoio da pistola: palma para a direita (encostando nos dedos da direita), dedos descendo ~35° por cima deles */
 const APOIO_PISTOLA = rotX(-0.6).multiply(basis([0, 1, 0], [-1, 0, 0], [0, 0, 1]));
 const C_CLAMP = basis([0, 0, -1], [0, -1, 0], [-1, 0, 0]);
@@ -61,6 +69,8 @@ const C_CLAMP = basis([0, 0, -1], [0, -1, 0], [-1, 0, 0]);
  * delgado (menos inclinada, as pontas passavam ~1 cm abaixo da madeira)
  */
 const DELGADO = rotX(-0.7).multiply(PUNHO);
+/** o punho fechado encostado na guarda (o indicador logo atrás dela): só a ponta do cabo sobra, do lado do mindinho */
+const MARTELO_FWD = new THREE.Vector3(0, 0, -0.022);
 /** onde o vão da mão fechada fica em relação ao pulso, já no giro de martelo e no de punho (espaço da arma) */
 const MARTELO_HOLE = FIST_HOLE.clone().applyQuaternion(MARTELO);
 const PUNHO_HOLE = FIST_HOLE.clone().applyQuaternion(PUNHO);
@@ -100,7 +110,11 @@ export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass): Gr
     return { pos, quat: PUNHO.clone(), curl: [1, 0.8, 1] };
   }
   if (cls === 'knife')
-    return { pos: handle.clone().sub(MARTELO_HOLE), quat: MARTELO.clone(), curl: [FIST_CURL, 0.7, FIST_CURL] };
+    return {
+      pos: handle.clone().add(MARTELO_FWD).sub(MARTELO_HOLE),
+      quat: MARTELO.clone(),
+      curl: [FIST_CURL, 0.7, FIST_CURL],
+    };
   // o vão da mão fechada no meio do punho (todo modelo tem o punho na origem), um pouco para a direita: a palma
   // encosta sem entrar
   if (g.id === 'kar98k')

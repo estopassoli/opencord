@@ -1,5 +1,7 @@
-import { defaultUserSettings } from '@opencord/contracts';
-import { afterEach, describe, expect, it } from 'vitest';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { defaultUserSettings, type GunId } from '@opencord/contracts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameBus, type GameEvent, type GameEventKind } from '../src/features/space3d/events';
 import {
   RECIPES,
@@ -10,6 +12,7 @@ import {
   sfxVolume,
   useSfxPrefs,
 } from '../src/features/space3d/sfx';
+import { SAMPLE_SETS, sampleSetFor, sampleUrl, zoneSampleFiles } from '../src/features/space3d/sfxbank';
 import {
   chargeStep,
   enginePitch,
@@ -19,6 +22,7 @@ import {
   SFX_PAN_MAX,
   sfxDistanceGain,
   sfxFor,
+  sfxLowpassHz,
   sfxMaster,
   sfxMix,
   sfxPan,
@@ -97,6 +101,7 @@ class FakeNode {
   readonly ratio = new FakeParam();
   readonly attack = new FakeParam();
   readonly release = new FakeParam();
+  readonly playbackRate = new FakeParam();
   type = '';
   buffer: unknown = null;
   onended: (() => void) | null = null;
@@ -154,14 +159,30 @@ class FakeContext {
     return Promise.resolve();
   }
 }
-function withAudio(state: 'running' | 'suspended' = 'running', vol = 1) {
-  const c = new FakeContext(state);
+/** contexto falso que também decodifica (a "gravação" vira um buffer de 0,5 s) */
+class FakeDecodingContext extends FakeContext {
+  decoded = 0;
+  decodeAudioData(data: ArrayBuffer) {
+    this.decoded++;
+    return Promise.resolve({ duration: 0.5, bytes: data.byteLength });
+  }
+}
+const flush = async () => {
+  for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
+};
+function withAudio(
+  state: 'running' | 'suspended' = 'running',
+  vol = 1,
+  c: FakeContext = new FakeContext(state),
+  fetchAudio: (url: string) => Promise<ArrayBuffer> = () => Promise.reject(new Error('sem rede no teste')),
+) {
   let t = 1000;
   const s = new Sfx({
     context: () => c as unknown as AudioContext,
     volume: () => vol,
     now: () => t,
     prepare: () => undefined,
+    fetchAudio,
   });
   return {
     s,
@@ -453,5 +474,118 @@ describe('Espaço 3D: som do jogo (sfx, P6)', () => {
     off();
     bus.emit({ kind: 'whiff', by: 'x', power: 0.5, zone: 2, at });
     expect(s.log).toEqual(['kick']);
+  });
+  it('banco de gravações: todo arquivo existe, tem crédito e cabe no orçamento; cada arma tem o tiro dela', () => {
+    const dir = join(__dirname, '../src/features/space3d/assets/sfx');
+    const credits = readFileSync(join(dir, 'CREDITS.md'), 'utf8');
+    const used = new Set<string>();
+    for (const [key, set] of Object.entries(SAMPLE_SETS)) {
+      // a chave é um som que existe (com receita sintetizada de reserva)
+      expect(RECIPES[key.split(':')[0] as SfxName], key).toBeDefined();
+      expect(set!.files.length, key).toBeGreaterThan(0);
+      for (const f of set!.files) {
+        expect(sampleUrl(f), f).toBeTruthy();
+        used.add(f);
+      }
+    }
+    const files = readdirSync(dir).filter((f) => f.endsWith('.ogg'));
+    // nenhum arquivo sobrando sem uso e todos com autor/licença no CREDITS.md
+    expect(files.map((f) => f.replace(/\.ogg$/, '')).sort()).toEqual([...used].sort());
+    for (const f of files) expect(credits, f).toContain(`\`${f}\``);
+    const total = files.reduce((n, f) => n + statSync(join(dir, f)).size, 0);
+    expect(total).toBeLessThan(3 * 1024 * 1024);
+    const guns: GunId[] = ['m4', 'ak47', 'mp7', 'mp5', 'l115', 'm200', 'kar98k', 'm9', 'deagle'];
+    for (const w of guns) {
+      const cue = sfxFor({ kind: 'gunshot', by: 'eu', w, power: 1, zone: 8, at }, ctx)[0]!;
+      expect(sampleSetFor(cue.name, cue.sample)?.exact, w).toBe(true);
+    }
+    // o gunfight pede as gravações ao entrar na zona; as outras zonas seguem sintetizadas
+    expect(zoneSampleFiles(8).length).toBe(used.size);
+    expect(zoneSampleFiles(2)).toEqual([]);
+  });
+
+  it('gravação de longe fica abafada: passa-baixa cai com a distância e não existe perto', () => {
+    expect(sfxLowpassHz(undefined)).toBeNull();
+    expect(sfxLowpassHz(3)).toBeNull();
+    let prev = Infinity;
+    for (let d = 5; d <= 120; d += 5) {
+      const f = sfxLowpassHz(d)!;
+      expect(f).toBeLessThanOrEqual(prev);
+      expect(f).toBeGreaterThanOrEqual(1800);
+      prev = f;
+    }
+    expect(sfxLowpassHz(40)!).toBeLessThan(5000);
+  });
+
+  it('gunfight: entra na zona, carrega as gravações e toca o arquivo (não a síntese), com o meu cartucho depois', async () => {
+    const c = new FakeDecodingContext();
+    const fetchAudio = vi.fn((url: string) => Promise.resolve(new ArrayBuffer(url.length)));
+    const { s, tick } = withAudio('running', 1, c, fetchAudio);
+    s.listen({ x: 0, z: 0, yaw: 0, zone: 8 });
+    expect(fetchAudio).toHaveBeenCalledTimes(zoneSampleFiles(8).length);
+    await flush();
+    expect(s.loadedSamples).toBe(zoneSampleFiles(8).length);
+    const before = c.nodes.length;
+    s.event({ kind: 'gunshot', by: 'eu', w: 'kar98k', power: 1, zone: 8, at }, ctx);
+    const fresh = c.nodes.slice(before);
+    expect(fresh.some((n) => n.kind === 'osc')).toBe(false);
+    const src = fresh.filter((n) => n.kind === 'noise');
+    expect(src.length).toBe(1);
+    expect(src[0]!.buffer).toMatchObject({ duration: 0.5 });
+    // a gravação é da própria Kar98k: o tom da família (1,12) não entra, só a variação pequena
+    expect(Math.abs(src[0]!.playbackRate.value - 1)).toBeLessThan(0.05);
+    // perto: sem passa-baixa
+    expect(fresh.some((n) => n.kind === 'filter')).toBe(false);
+    tick(100);
+    // M4: tiro e o cartucho caindo depois (atrasado)
+    const n0 = c.nodes.length;
+    s.event({ kind: 'gunshot', by: 'eu', w: 'm4', power: 1, zone: 8, at }, ctx);
+    expect(s.log.slice(-2)).toEqual(['shotRifle', 'shellCase']);
+    expect(c.nodes.slice(n0).filter((n) => n.kind === 'noise').length).toBe(2);
+  });
+
+  it('gunfight: tiro de outra pessoa longe toca a gravação distante com passa-baixa', async () => {
+    const c = new FakeDecodingContext();
+    const { s } = withAudio('running', 1, c, (url) => Promise.resolve(new ArrayBuffer(url.length)));
+    s.listen({ x: 0, z: 0, yaw: 0, zone: 8 });
+    await flush();
+    const before = c.nodes.length;
+    s.event({ kind: 'gunshot', by: 'ana', w: 'ak47', power: 1, zone: 8, at: { x: 45, y: 1, z: 0 } }, ctx);
+    expect(s.log.at(-1)).toBe('shotFar');
+    const lp = c.nodes.slice(before).find((n) => n.kind === 'filter');
+    expect(lp?.type).toBe('lowpass');
+    expect(lp!.frequency.value).toBeLessThan(5000);
+  });
+
+  it('variações: o mesmo conjunto não repete o arquivo duas vezes seguidas', async () => {
+    const c = new FakeDecodingContext();
+    // cada arquivo decodifica num buffer diferente (o tamanho da url distingue)
+    c.decodeAudioData = (data: ArrayBuffer) => Promise.resolve({ duration: 0.3, bytes: data.byteLength });
+    const { s, tick } = withAudio('running', 1, c, (url) => Promise.resolve(new ArrayBuffer(url.length)));
+    s.listen({ x: 0, z: 0, yaw: 0, zone: 8 });
+    await flush();
+    const picks: unknown[] = [];
+    for (let i = 0; i < 20; i++) {
+      const before = c.nodes.length;
+      s.play('step', { gain: 0.5 });
+      picks.push(c.nodes.slice(before).find((n) => n.kind === 'noise')?.buffer);
+      tick(100);
+    }
+    for (let i = 1; i < picks.length; i++) expect(picks[i]).not.toBe(picks[i - 1]);
+  });
+
+  it('gravação que não carrega (rede, arquivo quebrado) cai na receita sintetizada sem erro', async () => {
+    const c = new FakeDecodingContext();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { s } = withAudio('running', 1, c, () => Promise.reject(new Error('offline')));
+    s.listen({ x: 0, z: 0, yaw: 0, zone: 8 });
+    await flush();
+    expect(s.loadedSamples).toBe(0);
+    // um aviso só, não um por arquivo
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+    const before = c.nodes.length;
+    expect(() => s.event({ kind: 'gunshot', by: 'eu', w: 'm9', power: 1, zone: 8, at }, ctx)).not.toThrow();
+    expect(c.nodes.slice(before).some((n) => n.kind === 'osc')).toBe(true);
   });
 });

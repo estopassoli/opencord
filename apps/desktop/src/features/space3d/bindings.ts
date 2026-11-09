@@ -36,7 +36,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   back: 'Andar para trás',
   left: 'Andar para a esquerda',
   right: 'Andar para a direita',
-  run: 'Correr (segurar) · gunfight: 2 toques, corrida tática',
+  run: 'Correr (segurar) · gunfight: um toque corre, outro toque liga a corrida tática',
   jump: 'Pular',
   wave: 'Acenar · gunfight: inspecionar a arma',
   interact: 'Interagir · pegar a bola · desafiar · gunfight: coronhada',

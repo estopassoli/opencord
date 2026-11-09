@@ -9,7 +9,7 @@ import https from 'node:https';
 const remote = new URL(process.env.OPENCORD_REMOTE ?? 'https://api.opencord.pro');
 const port = Number(process.env.PORT ?? 5180);
 const client = remote.protocol === 'https:' ? https : http;
-const ALLOW_HEADERS = 'Authorization, Content-Type, X-Device-Id';
+const ALLOW_HEADERS = 'Authorization, Content-Type, X-Device-Id, X-Hardware-Id';
 
 function upstreamHeaders(req) {
   const h = { ...req.headers, host: remote.host };

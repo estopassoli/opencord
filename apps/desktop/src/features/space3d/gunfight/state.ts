@@ -5,6 +5,7 @@
 import type { GunId } from '@opencord/contracts';
 import { create } from 'zustand';
 import type { BotLevel } from '../bots/level';
+import { loadAim, type AimSettings } from './aim';
 import { DEFAULT_LOADOUT, SLOT_GUNS, type GunSlot, type Loadout } from './weapons';
 
 export interface KillFeedItem {
@@ -45,6 +46,12 @@ export interface GunHudState {
   /** a luneta sobe com o tranco do tiro (px para cima) */
   scopeKick: number;
   sprint: boolean;
+  /** vigor da corrida (0–1; a barra só aparece abaixo de cheio) */
+  stamina: number;
+  /** sensibilidade do mouse no gunfight (ver `aim.ts`) */
+  aim: AimSettings;
+  /** o mouse preso veio cru (sem a aceleração do sistema): sim, não dá aqui, ou ainda não se sabe */
+  rawMouse: boolean | null;
   /** quando apareceu o último marcador de acerto (e se matou / foi na cabeça) */
   hitAt: number;
   hitKill: boolean;
@@ -126,6 +133,9 @@ export const useGunHud = create<GunHudState>()((set) => ({
   spreadPx: 20,
   scopeKick: 0,
   sprint: false,
+  stamina: 1,
+  aim: loadAim(),
+  rawMouse: null,
   hitAt: 0,
   hitKill: false,
   hitHead: false,

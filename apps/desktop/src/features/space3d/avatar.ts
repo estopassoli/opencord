@@ -21,6 +21,7 @@ import {
   type ClipName,
   type DollFace,
   type DollTemplate,
+  UPPER_BONES,
 } from './doll';
 
 export const AVATAR_COLORS = [
@@ -185,6 +186,12 @@ export class Avatar {
   /** o tronco para trás neste quadro: quanto o ombro direito andou (espaço do boneco) e o giro (rad) */
   private readonly leanD = new THREE.Vector3();
   private leanA = 0;
+  /** andando com a arma (0–1, suave): o tronco fica na pose parada (`uprightPose`) */
+  private uprightW = 0;
+  /** os ossos de `UPPER_BONES` deste boneco (na mesma ordem) */
+  private upper: (THREE.Object3D | null)[] = [];
+  /** quanto o ombro direito está fora do lugar dele parado neste quadro (espaço do boneco): a arma vai junto */
+  private readonly torsoD = new THREE.Vector3();
   private skin: THREE.MeshStandardMaterial;
   private readonly ring: THREE.Mesh;
   /** sombra redonda no chão (do boneco: liberada no `dispose`) */
@@ -269,6 +276,7 @@ export class Avatar {
       const b = doll.getObjectByName(n);
       if (b) this.bones[n] = b;
     }
+    this.upper = UPPER_BONES.map((n) => doll.getObjectByName(n) ?? null);
     this.face = buildFace(doll, t.info);
     this.root.updateMatrixWorld(true);
     for (const sd of ['l', 'r'] as const) {
@@ -645,6 +653,9 @@ export class Avatar {
         this.model.position.y -= 0.26;
         this.crouchPose();
       }
+      // andando, correndo ou no ar: o tronco fica em pé (as pernas seguem a animação)
+      this.uprightW += ((a >= 1 && a <= 3 ? 1 : 0) - this.uprightW) * Math.min(1, realDt * 10);
+      this.uprightPose(this.uprightW);
       // o tronco (levar tiro, coice) antes das mãos: a arma vai junto com o ombro e as mãos não soltam dela
       this.leanPose();
       this.holdGun(a === SWING_A.slide, realDt, a === 2);
@@ -1000,7 +1011,7 @@ export class Avatar {
       g.root.position.copy(SHOULDER_PT).sub(G_OFF);
     }
     // o tronco recuou ou levou tiro: a arma vai junto com o ombro
-    g.root.position.add(this.leanD);
+    g.root.position.add(this.leanD).add(this.torsoD);
     // recarga baixa a arma; golpe empurra para a frente; coice para trás; sacar vem de baixo
     g.root.position.y += -reload * 0.06 - draw * 0.22;
     g.root.position.z += melee * 0.16 - kick * vk.back * TP_KICK_BACK;
@@ -1138,6 +1149,38 @@ export class Avatar {
     }
     this.root.worldToLocal(B.upperarm_r.getWorldPosition(this.leanD)).sub(LEAN0);
     this.leanA = k;
+  }
+
+  /**
+   * Com a arma, andando/correndo: as animações de andar da biblioteca inclinam o tronco para a frente e balançam os
+   * ombros (até ~25 cm o ombro à frente do lugar parado, correndo). A arma fica num ponto fixo do boneco (o ombro
+   * parado): com o tronco à frente dela, a coronha entrava no peito, as mãos ficavam atrás do ombro e os braços
+   * dobravam colados no corpo. Aqui o tronco (coluna, pescoço, cabeça e clavículas) volta para a pose parada, preso ao
+   * quadril da animação (que só sobe e desce no passo), na proporção `w`; e `torsoD` guarda quanto o ombro ainda ficou
+   * fora do lugar (o balanço do passo), para a arma ir junto. Parado (`w` = 0) nada muda.
+   */
+  private uprightPose(w: number) {
+    this.torsoD.set(0, 0, 0);
+    const up = this.tpl?.idleUpper;
+    const B = this.bones;
+    const sp = B.spine_01;
+    if (!up || !this.doll || !sp || !B.upperarm_r || w < 1e-3) return;
+    this.root.updateMatrixWorld(true);
+    // spine_01: o giro dele no modelo vira o da pose parada
+    this.model.getWorldQuaternion(QTARGET).multiply(up.spine);
+    if (sp.parent) sp.parent.getWorldQuaternion(QPARENT);
+    else QPARENT.identity();
+    sp.quaternion.slerp(QPARENT.invert().multiply(QTARGET), w);
+    UPPER_BONES.forEach((n, i) => {
+      const q = up.local.get(n);
+      const b = this.upper[i];
+      if (q && b) b.quaternion.slerp(q, w);
+    });
+    sp.updateMatrixWorld(true);
+    // onde o ombro está agora × onde ele fica parado (mesmo quadril/agachado/deslize do modelo)
+    this.root.worldToLocal(B.upperarm_r.getWorldPosition(this.torsoD));
+    this.root.worldToLocal(this.model.localToWorld(LEAN0.copy(up.shoulderR)));
+    this.torsoD.sub(LEAN0).multiplyScalar(w);
   }
 
   /** agachado: quadril desce, coxas para a frente, canelas para trás */
