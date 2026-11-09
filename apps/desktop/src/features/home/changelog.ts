@@ -22,6 +22,22 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-09',
+    time: '14:00',
+    kind: 'correção',
+    icon: 'microphone',
+    title: 'Entrar na chamada sem o microfone salvo',
+    body: 'Se o microfone escolhido nas configurações não existe mais (fone desconectado, outro computador), o app usa o microfone padrão do sistema em vez de dar "Falha na conexão". Sem nenhum microfone, você entra só ouvindo e aparece um aviso.',
+  },
+  {
+    date: '2026-11-09',
+    time: '12:00',
+    kind: 'novo',
+    icon: 'wrench',
+    title: 'Armeiro no gunfight',
+    body: 'O equipamento do gunfight ficou novo: cada arma aparece em um cartão com a imagem dela e barras de dano, cadência, alcance, controle, mobilidade e mira. Em "Personalizar" você monta a arma: ponto vermelho, reflexa mini ou luneta 3x, supressor, compensador ou quebra-chamas, empunhadura e carregador estendido, cada um com os prós e contras. Os acessórios mudam o jogo de verdade, aparecem na arma (para você e para quem vê) e o supressor abafa o tiro para todos. As mãos da primeira pessoa também foram refeitas, com dedos de verdade segurando as armas e as facas.',
+  },
+  {
+    date: '2026-11-09',
     time: '06:00',
     kind: 'melhoria',
     icon: 'gamepad',
