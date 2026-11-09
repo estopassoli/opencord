@@ -115,8 +115,8 @@ const CAPSULE_HAND: HandFit = {
   clamp: 0,
   ring: { row: 0.027, back: 0.05 },
   vgripTilt: 0,
-  clampYaw: 0,
-  clampRoll: 0,
+  clampYaw: 0.45,
+  clampRoll: 0.15,
   clampThumb: 0.8,
   clampThumbUp: 0,
 };
