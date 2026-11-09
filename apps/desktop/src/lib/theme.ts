@@ -1,6 +1,7 @@
 /**
  * Derivação de cores a partir da cor de destaque escolhida pelo usuário,
- * garantindo contraste WCAG AA (4.5:1) para texto sobre o destaque e para texto na cor do destaque.
+ * escolhendo o texto sobre o destaque pelo contraste percebido (APCA) e garantindo WCAG AA (4.5:1)
+ * para texto na cor do destaque.
  */
 
 type Rgb = [number, number, number];
@@ -33,6 +34,26 @@ export function contrast(a: string, b: string): number {
   return (y + 0.05) / (x + 0.05);
 }
 
+/** Luminância da APCA (sRGB com gama simples 2.4 e piso para pretos). */
+function apcaY(hex: string): number {
+  const [r, g, b] = parseHex(hex).map((c) => (c / 255) ** 2.4) as Rgb;
+  const y = 0.2126729 * r + 0.7151522 * g + 0.072175 * b;
+  return y > 0.022 ? y : y + (0.022 - y) ** 1.414;
+}
+
+/**
+ * Contraste percebido do texto sobre o fundo (APCA 0.0.98G, valor Lc absoluto, 0 a ~106).
+ * Diferente da razão do WCAG 2, não exagera o preto sobre cores médias saturadas
+ * (roxo, rosa, azul), em que o branco é o que de fato se lê melhor.
+ */
+export function apcaContrast(text: string, bg: string): number {
+  const t = apcaY(text);
+  const b = apcaY(bg);
+  const s = b > t ? (b ** 0.56 - t ** 0.57) * 1.14 : (b ** 0.65 - t ** 0.62) * 1.14;
+  if (Math.abs(s) < 0.1) return 0;
+  return (Math.abs(s) - 0.027) * 100;
+}
+
 /** Mistura `a` com `b` na proporção `t` (0 = a, 1 = b). */
 export function mix(a: string, b: string, t: number): string {
   const [pa, pb] = [parseHex(a), parseHex(b)];
@@ -63,7 +84,9 @@ export interface AccentTokens {
 export function accentTokens(accent: string, surface: string, dark: boolean): AccentTokens {
   const white = '#ffffff';
   const ink = '#0b0c0e';
-  const textOnBrand = contrast(white, accent) >= 4.5 ? white : ink;
+  // texto sobre o destaque: o que se lê melhor de fato (APCA), não a razão do WCAG 2,
+  // que escolhia preto em roxos e rosas médios
+  const textOnBrand = apcaContrast(white, accent) >= apcaContrast(ink, accent) ? white : ink;
   return {
     brand: accent,
     // hover escurece; destaques quase pretos clareiam para a mudança continuar visível
