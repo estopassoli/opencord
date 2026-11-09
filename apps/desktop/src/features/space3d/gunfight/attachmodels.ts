@@ -389,6 +389,7 @@ function mountOptic(g: GunModel, m: Mount, id: OpticId) {
   if (slide) attachTo(g, slide, o.group);
   // a alça e a massa dobráveis deitam (somem): a alça alta da M4 ficava na frente do ponto
   if (g.irons) g.irons.visible = false;
+  if (g.sightDot) g.sightDot.visible = false;
   // a linha de mira passa a ser a da mira (paralela ao cano): mirando, o olho fica nela
   g.sight.set(x, y + o.axis, g.sight.z);
   delete g.sightPitch;

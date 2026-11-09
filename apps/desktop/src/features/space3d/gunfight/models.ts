@@ -90,6 +90,8 @@ export interface GunModel {
   buildKey?: string;
   /** a alça e a massa que dobram (M4, MP7): escondidas quando há uma mira montada */
   irons?: THREE.Material;
+  /** a tinta clara na ponta da massa (some com uma mira montada) */
+  sightDot?: THREE.Object3D;
   reticles?: Reticle[];
   foregrip?: { kind: 'vertical' | 'angled'; at: THREE.Vector3; h: number };
   magExt?: number;
@@ -605,6 +607,8 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   );
   // inclinação que põe a massa na linha do furo de trás (positiva: a boca sobe)
   const sightPitch = iron ? Math.atan2(iron.rear[0] - iron.front[0], iron.rear[1] - iron.front[1]) : 0;
+  // a ponta da massa pintada (clara, sem luz): escura e fina, ela some no fundo escuro mirando
+  const sightDot = iron ? frontDot(holder, iron.x ?? 0, iron.front[0], iron.front[1]) : undefined;
   // mão de apoio: o ponto da arma (`SUPPORT_AT`). A altura é a da primeira superfície de baixo para cima no meio da
   // arma naquela fatia (a palma encosta nela), só se estiver perto do eixo do cano — senão logo abaixo do cano
   const sz = box.min.z * (SUPPORT_AT[id] ?? 0.6);
@@ -637,6 +641,7 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
     ...(supportW ? { supportW } : {}),
     ...(rounds ? { rounds } : {}),
     ...(irons ? { irons } : {}),
+    ...(sightDot ? { sightDot } : {}),
     length: box.max.z - box.min.z,
     bore,
     ...(ownOptic ? { ownOptic } : {}),
@@ -799,6 +804,33 @@ export function own<M extends THREE.Material>(m: M): M {
 export function meshG(geo: THREE.BufferGeometry, m: THREE.Material): THREE.Mesh {
   return mesh(geo, m, 0, 0, 0);
 }
+
+/**
+ * Tinta na ponta da massa (como a das miras de verdade): um bloquinho claro sem luz logo abaixo da ponta, para a massa
+ * aparecer no entalhe mirando — fina e escura, ela sumia no fundo (AK, Kar98k, PDW). O topo fica 0,2 mm abaixo da
+ * ponta: o ponto de mira continua sendo a ponta da massa.
+ */
+function frontDot(holder: THREE.Object3D, x: number, tipY: number, z: number): THREE.Mesh {
+  const y = tipY - 0.0002 - FRONT_DOT.h / 2;
+  // na face de trás da massa (a que o olho vê): no meio dela, o bloquinho ficava escondido dentro
+  holder.updateMatrixWorld(true);
+  const from = holder.localToWorld(new THREE.Vector3(x, y, z + 0.03));
+  const dir = new THREE.Vector3(0, 0, -1).transformDirection(holder.matrixWorld);
+  const hit = new THREE.Raycaster(from, dir, 0, 0.06).intersectObject(holder, true)[0];
+  const back = hit ? holder.worldToLocal(hit.point.clone()).z : z;
+  const o = mesh(
+    new THREE.BoxGeometry(FRONT_DOT.w, FRONT_DOT.h, 0.0008),
+    own(new THREE.MeshBasicMaterial({ color: FRONT_DOT.color })),
+    x,
+    y,
+    back + 0.0005,
+  );
+  o.castShadow = false;
+  o.name = 'sightDot';
+  holder.add(o);
+  return o;
+}
+const FRONT_DOT = { w: 0.0016, h: 0.0022, color: 0xe4f0d2 };
 
 function mesh(geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number): THREE.Mesh {
   const o = new THREE.Mesh(geo, m);
