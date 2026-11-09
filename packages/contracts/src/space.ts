@@ -257,6 +257,11 @@ export const SpaceGunPose = z.object({
   /** a partida de quem publica: o alvo de abates e os segundos que faltam (quem entra depois usa o mesmo relógio) */
   ft: z.number().int().min(1).max(99).optional(),
   fl: z.number().int().min(0).max(600).optional(),
+  /**
+   * Os acessórios da arma na mão (ADR-0059): o código de cada encaixe na ordem mira, boca, sob o cano e carregador
+   * (0 = o de fábrica). Ausente = arma de fábrica (ou app antigo). Quem recebe ignora o código que não conhece.
+   */
+  att: z.array(z.number().int().min(0).max(15)).max(4).optional(),
 });
 export type SpaceGunPose = z.infer<typeof SpaceGunPose>;
 export type GunAct = NonNullable<SpaceGunPose['act']>;

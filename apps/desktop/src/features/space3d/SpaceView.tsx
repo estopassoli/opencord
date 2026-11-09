@@ -218,6 +218,10 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       delete root.dataset.spaceLocked;
     };
   }, [aimLocked]);
+  // menu aberto com o mouse ainda preso em algum lugar (trava que chegou atrasada): solta para o cursor aparecer
+  useEffect(() => {
+    if (menuOpen && document.pointerLockElement) document.exitPointerLock();
+  }, [menuOpen]);
   useEffect(() => {
     if (!aimLocked) return;
     setDismissed(false);

@@ -67,6 +67,20 @@ describe('Espaço 3D: validação', () => {
     expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 18 }).success).toBe(false);
   });
 
+  it('gunfight: os acessórios da arma vão na pose (até 4 códigos pequenos; app antigo sem o campo continua valendo)', () => {
+    const base = { channelId: randomUUID(), x: 1, y: 0, z: 1, ry: 0, a: 1, zone: 8 };
+    const gun = { w: 'm4', pitch: 0, crouch: false, ads: false, alive: true };
+    expect(SpaceMove.safeParse({ ...base, gun }).success).toBe(true);
+    const ok = SpaceMove.safeParse({ ...base, gun: { ...gun, att: [1, 1, 0, 1] } });
+    expect(ok.success && ok.data.gun?.att).toEqual([1, 1, 0, 1]);
+    expect(SpaceMove.safeParse({ ...base, gun: { ...gun, att: [] } }).success).toBe(true);
+    expect(SpaceMove.safeParse({ ...base, gun: { ...gun, att: [1, 1, 1, 1, 1] } }).success).toBe(false);
+    expect(SpaceMove.safeParse({ ...base, gun: { ...gun, att: [16] } }).success).toBe(false);
+    expect(SpaceMove.safeParse({ ...base, gun: { ...gun, att: [-1] } }).success).toBe(false);
+    expect(SpaceMove.safeParse({ ...base, gun: { ...gun, att: [1.5] } }).success).toBe(false);
+    expect(SpaceMove.safeParse({ ...base, gun: { ...gun, att: 'reddot' } }).success).toBe(false);
+  });
+
   it('bola do futebol leva o lance uma vez (desarme, falta, drible)', () => {
     const base = { channelId: randomUUID(), zone: 2, x: 0, y: 0.2, z: 0, vx: 0, vy: 0, vz: 0, held: null, t: 3 };
     const on = randomUUID();

@@ -104,6 +104,8 @@ export interface SfxCue {
   sample?: string;
   /** atraso (s) antes de tocar (o cartucho caindo depois do tiro) */
   delay?: number;
+  /** abafado: passa-baixa (Hz) na gravação (tiro com supressor) */
+  muffle?: number;
 }
 
 /** a partir de quantos metros o tiro de outra pessoa soa de longe */
@@ -204,14 +206,24 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
   // falta: apito; desarme limpo: o choque na bola
   gunshot: (e, ctx) => {
     const mine = e.by === ctx.me;
-    const shot: SfxCue = {
-      name: SHOT_SOUND[e.w],
-      gain: mine ? 1 : 0.9,
-      pitch: SHOT_PITCH[e.w] ?? 1,
-      jitter: 0.03,
-      sample: e.w,
-      ...(mine ? {} : { far: 'shotFar' as const }),
-    };
+    // com supressor: a mesma gravação da arma, abafada (passa-baixa) e mais baixa, sem o estampido de longe
+    const shot: SfxCue = e.quiet
+      ? {
+          name: SHOT_SOUND[e.w],
+          gain: mine ? 0.5 : 0.42,
+          pitch: SHOT_PITCH[e.w] ?? 1,
+          jitter: 0.03,
+          sample: e.w,
+          muffle: SUPPRESSED_HZ,
+        }
+      : {
+          name: SHOT_SOUND[e.w],
+          gain: mine ? 1 : 0.9,
+          pitch: SHOT_PITCH[e.w] ?? 1,
+          jitter: 0.03,
+          sample: e.w,
+          ...(mine ? {} : { far: 'shotFar' as const }),
+        };
     // o meu cartucho caindo no chão (o das facas não existe; o das snipers de ferrolho sai no ferrolho)
     if (!mine || !SHELL_AFTER_SHOT.has(e.w)) return [shot];
     return [shot, { name: 'shellCase', gain: 0.22, jitter: 0.06, delay: 0.32 }];
@@ -297,6 +309,9 @@ const GUN_HANDLING = new Set<string>(['draw', 'magOut', 'magIn', 'charge', 'bolt
 const SHELL_AFTER_SHOT = new Set<GunId>(['m4', 'ak47', 'mp7', 'mp5', 'm9', 'deagle']);
 
 /** o tom de cada arma por cima do estampido da família (as três snipers e as duas SMGs não soam iguais) */
+/** tiro com supressor: corta o estalo acima disso (Hz) */
+export const SUPPRESSED_HZ = 1200;
+
 const SHOT_PITCH: Partial<Record<GunId, number>> = { kar98k: 1.12, m200: 0.9, mp7: 1.1, mp5: 0.95 };
 
 /** sons de um evento (vazio = sem som) */

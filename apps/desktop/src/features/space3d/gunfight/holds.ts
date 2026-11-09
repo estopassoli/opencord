@@ -57,14 +57,15 @@ const MAG_UNDER = basis([0, 0, -1], [0, -1, 0], [-1, 0, 0]);
 export const PINCH_CURL: readonly [number, number, number] = [0.85, 0.6, 0.85];
 const PINCH: [number, number, number] = [...PINCH_CURL];
 
-const cache = new Map<GunId, Holds>();
+const cache = new Map<string, Holds>();
 
-/** as pegadas medidas desta arma (calcula na primeira vez, depois vem do cache) */
+/** as pegadas medidas desta arma com a montagem dela (calcula na primeira vez, depois vem do cache) */
 export function gunHolds(g: GunModel, cls: GunClass): Holds {
-  const hit = cache.get(g.id);
+  const key = `${g.id}|${g.buildKey ?? ''}`;
+  const hit = cache.get(key);
   if (hit) return clone(hit);
   const h = measure(g, cls);
-  cache.set(g.id, h);
+  cache.set(key, h);
   return clone(h);
 }
 
@@ -85,7 +86,7 @@ export function warmHolds() {
   const next = () => {
     const id = ids.shift();
     if (!id) return;
-    if (!cache.has(id)) {
+    if (!cache.has(`${id}|`)) {
       const g = makeGun(id);
       if (g) {
         gunHolds(g, GUNS[id].cls);
@@ -493,6 +494,13 @@ export function magMesh(g: GunModel): THREE.Object3D | null {
     // a geometria é desta cópia (o material é da arma: quem libera a arma libera ele)
     mesh.userData.ownGeo = true;
     group.add(mesh);
+  });
+  // o carregador estendido preso ao osso do pente cai junto (cópia com a mesma geometria: quem libera é a arma)
+  mag.obj.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || !o.userData.att) return;
+    const copy = new THREE.Mesh(o.geometry, o.material);
+    new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld).decompose(copy.position, copy.quaternion, copy.scale);
+    group.add(copy);
   });
   return group.children.length ? group : null;
 }

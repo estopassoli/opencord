@@ -4005,21 +4005,26 @@ body {
 }
 /* no Espaço 3D os controles ficam escondidos: aparecem ao passar o mouse embaixo (mouse solto) ou com foco do teclado;
    jogando, com o mouse preso, não aparecem */
-.stage[data-space='true'] .call-controls {
+.stage[data-space='true'] .call-controls,
+.stage[data-space='true'] .call-fullscreen {
   opacity: 0;
   transition: opacity 160ms ease;
   padding-top: 40px;
 }
 .stage[data-space='true'] .call-controls:hover,
-.stage[data-space='true'] .call-controls:focus-within {
+.stage[data-space='true'] .call-controls:focus-within,
+.stage[data-space='true'] .call-fullscreen:hover,
+.stage[data-space='true'] .call-fullscreen:focus-visible {
   opacity: 1;
 }
-:root[data-space-locked='true'] .stage[data-space='true'] .call-controls {
+:root[data-space-locked='true'] .stage[data-space='true'] .call-controls,
+:root[data-space-locked='true'] .stage[data-space='true'] .call-fullscreen {
   opacity: 0;
   visibility: hidden;
 }
 @media (prefers-reduced-motion: reduce) {
-  .stage[data-space='true'] .call-controls {
+  .stage[data-space='true'] .call-controls,
+  .stage[data-space='true'] .call-fullscreen {
     transition: none;
   }
 }

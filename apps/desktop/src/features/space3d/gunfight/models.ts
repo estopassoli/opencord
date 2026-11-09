@@ -52,6 +52,25 @@ export interface GunModel {
   /** centro do cabo (facas) ou do punho (armas de fogo): a mão fecha em volta dele, pela medida do modelo */
   handle?: THREE.Vector3;
   length: number;
+  /** a ponta do cano no eixo do furo (onde a peça da boca rosqueia); sem isso, `muzzle` */
+  bore?: THREE.Vector3;
+  /**
+   * Acessórios montados (`attachmodels.ts`): a chave da montagem, o vidro com retículo das miras (a primeira pessoa
+   * põe o ponto onde a linha do olho cruza o vidro), a empunhadura sob o cano (a mão de apoio vai nela) e quanto o
+   * carregador estendido desce abaixo do pente.
+   */
+  buildKey?: string;
+  /** a alça e a massa que dobram (M4, MP7): escondidas quando há uma mira montada */
+  irons?: THREE.Material;
+  reticles?: Reticle[];
+  foregrip?: { kind: 'vertical' | 'angled'; at: THREE.Vector3; h: number };
+  magExt?: number;
+}
+
+/** o vidro de uma mira com retículo aceso (ponto vermelho, holográfica, ponto de pistola) */
+export interface Reticle {
+  mesh: THREE.Mesh;
+  uniforms: { uDot: { value: THREE.Vector2 }; uDist: { value: number } };
 }
 
 /**
@@ -130,7 +149,10 @@ export function loadGuns(): Promise<void> {
     const kar = scenes.get('kar98k');
     if (kar) darkenWood(kar);
     for (const scene of scenes.values()) splitRounds(scene);
-    for (const [id, scene] of scenes) templates.set(id, { scene, build: () => fromFile(id, scene) });
+    for (const [id, scene] of scenes) {
+      if (FOLD[id]) splitIrons(id, scene);
+      templates.set(id, { scene, build: () => fromFile(id, scene) });
+    }
     templates.set('m200', { scene: new THREE.Group(), build: m200 });
     templates.set('deagle', { scene: new THREE.Group(), build: deagle });
     templates.set('karambit', { scene: new THREE.Group(), build: () => knife('karambit') });
@@ -221,6 +243,101 @@ function splitRounds(scene: THREE.Object3D) {
   });
 }
 
+/** nome do material da alça e da massa que dobram (o terceiro da malha) */
+const IRONS = 'gf-irons';
+
+/**
+ * A alça e a massa das armas de mira de ferro dobrável (espaço da arma, caixas [min, max] de x, y, z): com uma mira
+ * montada elas deitam (somem), senão a alça alta da M4 ficava na frente do ponto vermelho.
+ */
+const FOLD: Partial<Record<GunId, [THREE.Vector3Tuple, THREE.Vector3Tuple][]>> = {
+  m4: [
+    [
+      [-0.04, 0.113, -0.035],
+      [0.04, 0.2, 0.055],
+    ],
+    [
+      [-0.04, 0.08, -0.45],
+      [0.04, 0.2, -0.372],
+    ],
+  ],
+  mp7: [
+    [
+      [-0.04, 0.0985, 0.06],
+      [0.04, 0.2, 0.12],
+    ],
+    [
+      [-0.04, 0.0985, -0.17],
+      [0.04, 0.2, -0.11],
+    ],
+  ],
+};
+
+/**
+ * Separa os triângulos da alça e da massa (dentro das caixas de `FOLD`, no espaço da arma) num terceiro grupo da
+ * malha, com material próprio. Uma vez por arquivo, no carregamento: mede numa cópia montada como o `fromFile` (a
+ * geometria é a mesma do arquivo) e troca o índice e os materiais do original.
+ */
+function splitIrons(id: GunId, scene: THREE.Object3D) {
+  const boxes = (FOLD[id] ?? []).map(([a, b]) => new THREE.Box3(new THREE.Vector3(...a), new THREE.Vector3(...b)));
+  const probe = fromFile(id, scene);
+  probe.root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(probe.root.matrixWorld).invert();
+  const copies: THREE.Mesh[] = [];
+  const originals: THREE.Mesh[] = [];
+  probe.root.traverse((o) => {
+    if (o instanceof THREE.SkinnedMesh) copies.push(o);
+  });
+  scene.traverse((o) => {
+    if (o instanceof THREE.SkinnedMesh) originals.push(o);
+  });
+  const v = new THREE.Vector3();
+  copies.forEach((o, n) => {
+    const orig = originals[n];
+    const geo = o.geometry;
+    const index = geo.index;
+    if (!orig || orig.geometry !== geo || !index) return;
+    const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+    const keepGroup = geo.groups[0] ?? { start: 0, count: index.count, materialIndex: 0 };
+    const rest = geo.groups[1];
+    const inside = (i: number) => {
+      o.getVertexPosition(i, v).applyMatrix4(m);
+      return boxes.some((b) => b.containsPoint(v));
+    };
+    const keep: number[] = [];
+    const iron: number[] = [];
+    for (let t = keepGroup.start; t + 2 < keepGroup.start + keepGroup.count; t += 3) {
+      const tri = [index.getX(t), index.getX(t + 1), index.getX(t + 2)];
+      (tri.every(inside) ? iron : keep).push(...tri);
+    }
+    if (!iron.length) return;
+    const roundsIdx: number[] = [];
+    if (rest) for (let t = rest.start; t < rest.start + rest.count; t++) roundsIdx.push(index.getX(t));
+    const arr = index.array.slice();
+    arr.set(keep, 0);
+    arr.set(roundsIdx, keep.length);
+    arr.set(iron, keep.length + roundsIdx.length);
+    geo.setIndex(new THREE.BufferAttribute(arr, 1));
+    geo.clearGroups();
+    geo.addGroup(0, keep.length, 0);
+    geo.addGroup(keep.length, roundsIdx.length, 1);
+    geo.addGroup(keep.length + roundsIdx.length, iron.length, 2);
+    const mats = Array.isArray(orig.material) ? orig.material : [orig.material];
+    const main = mats[0]!;
+    let hidden = mats[1];
+    if (!hidden) {
+      hidden = main.clone();
+      hidden.name = ROUNDS;
+      hidden.visible = false;
+    }
+    const ironMat = main.clone();
+    ironMat.name = IRONS;
+    orig.material = [main, hidden, ironMat];
+  });
+  // a cópia da medida (os materiais próprios e os esqueletos dela; a geometria é a do arquivo e fica)
+  disposeGun(probe);
+}
+
 /** os pixels da textura (paleta pequena do modelo), ou nada fora do navegador */
 function texels(map: THREE.Texture | null): { data: Uint8ClampedArray; w: number; h: number } | null {
   const img: unknown = map?.image;
@@ -287,13 +404,17 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   let trigger: THREE.Vector3 | null = null;
   const bones: [string, THREE.Object3D][] = [];
   let rounds: THREE.Material | undefined;
+  let irons: THREE.Material | undefined;
   src.traverse((o) => {
     if (o instanceof THREE.Mesh) {
       o.castShadow = true;
       // cartuchos: cada cópia tem o seu material (escondido; a recarga mostra só nesta arma)
       if (Array.isArray(o.material) && o.material[1]?.name === ROUNDS) {
         rounds = own(o.material[1].clone());
-        o.material = [o.material[0]!, rounds];
+        // a mira de ferro que dobra (terceiro grupo): material próprio, para esconder com uma mira montada
+        const iron = o.material[2]?.name === IRONS ? own(o.material[2].clone()) : null;
+        o.material = iron ? [o.material[0]!, rounds, iron] : [o.material[0]!, rounds];
+        if (iron) irons = iron;
       }
       // malha com esqueleto: a esfera de corte do three é calculada uma vez, com os ossos de antes de mover a arma, e
       // fica errada (a arma sumia no boneco). Só ela fica sem corte; as peças sem esqueleto são cortadas normalmente
@@ -317,6 +438,7 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   const muzzle = new THREE.Vector3(0, (box.max.y + box.min.y) / 2 + 0.02, box.min.z);
   // eixo do cano: a altura dos pontos da metade da frente (só o cano e o guarda-mão; nada de pente ou coronha)
   const axisY = barrelAxis(holder, box.min.z) ?? muzzle.y;
+  const bore = new THREE.Vector3(0, BORE_Y[id] ?? tipAxis(holder, box.min.z) ?? axisY, box.min.z);
   // linha de mira: na mira de ferro, o topo da massa (o ponto mais alto da parte da frente da arma: a ponta dela fica
   // no centro da tela, onde a bala vai); na luneta, o eixo óptico (o centro do tubo, um pouco abaixo do topo)
   const scoped = id === 'l115' || id === 'm200';
@@ -348,8 +470,28 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
     support,
     ...(supportW ? { supportW } : {}),
     ...(rounds ? { rounds } : {}),
+    ...(irons ? { irons } : {}),
     length: box.max.z - box.min.z,
+    bore,
   };
+}
+
+/** Altura do eixo do furo na boca onde a medida da ponta erra: na Kar98k a massa fica bem na ponta do cano. */
+const BORE_Y: Partial<Record<GunId, number>> = { kar98k: 0.066 };
+
+/**
+ * O eixo do furo bem na ponta (os últimos 1,5 cm, no meio da arma): onde a peça da boca rosqueia. O `barrelAxis`
+ * (12 cm) pegava a massa da MP7, da MP5 e da AK e subia a peça acima do cano.
+ */
+function tipAxis(root: THREE.Object3D, front: number): number | null {
+  let lo = Infinity;
+  let hi = -Infinity;
+  eachPoint(root, (p) => {
+    if (p.z > front + 0.015 || Math.abs(p.x) > 0.03) return;
+    lo = Math.min(lo, p.y);
+    hi = Math.max(hi, p.y);
+  });
+  return Number.isFinite(lo) ? (lo + hi) / 2 : null;
 }
 
 /** cada ponto das malhas da arma (no espaço da arma) */
@@ -439,6 +581,13 @@ export function partBox(g: GunModel, p: Part): THREE.Box3 | null {
   if (box.isEmpty() && !(p.obj instanceof THREE.Bone)) {
     box.setFromObject(p.obj);
     if (!box.isEmpty()) box.applyMatrix4(inv);
+  } else if (p.obj instanceof THREE.Bone) {
+    // acessório preso ao osso (o carregador estendido): conta junto (a mão e a palma encostam nele)
+    const extra = new THREE.Box3();
+    p.obj.traverse((o) => {
+      if (o instanceof THREE.Mesh && o.userData.att) extra.expandByObject(o);
+    });
+    if (!extra.isEmpty()) box.union(extra.applyMatrix4(inv));
   }
   return box.isEmpty() ? null : box;
 }
@@ -451,14 +600,14 @@ export function disposeSkeletons(root: THREE.Object3D) {
 }
 
 /** material feito aqui (é do modelo: `disposeGun` libera) */
-const mat = (color: number, rough = 0.6, metal = 0.3) =>
+export const mat = (color: number, rough = 0.6, metal = 0.3) =>
   own(new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal }));
-function own<M extends THREE.Material>(m: M): M {
+export function own<M extends THREE.Material>(m: M): M {
   m.userData.own = true;
   return m;
 }
 
-function meshG(geo: THREE.BufferGeometry, m: THREE.Material): THREE.Mesh {
+export function meshG(geo: THREE.BufferGeometry, m: THREE.Material): THREE.Mesh {
   return mesh(geo, m, 0, 0, 0);
 }
 
@@ -471,7 +620,7 @@ function mesh(geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number
 }
 
 /** peças de um modelo feito em código, juntadas por material numa malha só (menos chamadas de desenho por arma) */
-class Kit {
+export class Kit {
   private readonly geos = new Map<THREE.Material, THREE.BufferGeometry[]>();
   add(geo: THREE.BufferGeometry, m: THREE.Material): this {
     const list = this.geos.get(m) ?? [];
@@ -528,7 +677,7 @@ class Kit {
 }
 
 /** perfil de frente: retângulo de `w` × (`y0`..`y1`) com os cantos de cima chanfrados em `c` e os de baixo em `cb` */
-function chamfered(w: number, y0: number, y1: number, c: number, cb = c): THREE.Shape {
+export function chamfered(w: number, y0: number, y1: number, c: number, cb = c): THREE.Shape {
   const h = w / 2;
   return new THREE.Shape([
     new THREE.Vector2(-h + cb, y0),
@@ -779,6 +928,7 @@ function m200(): GunModel {
       mag: part(mag, root),
     },
     muzzle: new THREE.Vector3(0, BORE, MUZZLE),
+    bore: new THREE.Vector3(0, BORE, MUZZLE),
     // eixo óptico: o centro do tubo da luneta
     sight: new THREE.Vector3(0, OPT, -0.05),
     // mão de apoio por baixo do tubo do guarda-mão, logo na frente da culatra
@@ -962,6 +1112,7 @@ function deagle(): GunModel {
     root,
     parts,
     muzzle: new THREE.Vector3(0, BORE, MUZZLE),
+    bore: new THREE.Vector3(0, BORE, MUZZLE),
     // linha de mira: o fundo do entalhe da alça de trás, alinhado com o topo da massa
     sight: new THREE.Vector3(0, SIGHT, 0.03),
     support: new THREE.Vector3(0.01, -0.03, 0.03),

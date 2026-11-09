@@ -20,8 +20,10 @@ import type { BotLevel } from '../bots/level';
 import { GunBots, type BotShot } from './bots';
 import { Casings } from './casings';
 import { GunFx } from './fx';
+import { applyAttachments, decodeBuild, encodeBuild, type Builds, type GunBuild } from './attachments';
+import { makeBuiltGun } from './attachmodels';
 import { GUN_BOXES, pickSpawn } from './map';
-import { loadGuns, makeGun } from './models';
+import { loadGuns } from './models';
 import {
   MOVE,
   newMove,
@@ -63,6 +65,7 @@ import {
   shotInterval,
   shotSpread,
   type GunClass,
+  type GunSpec,
   type GunSlot,
   type Loadout,
   type RecoilSpec,
@@ -87,6 +90,8 @@ export interface GunPlayer {
   d?: number;
   /** a arma na mão (da pose; ausente em app antigo) */
   w?: GunId;
+  /** os acessórios da arma na mão (`encodeBuild`; ausente em app antigo ou de fábrica) */
+  att?: number[];
   /** acabou de nascer e está protegido (não leva dano) */
   prot?: boolean;
   /** o alvo de abates e quantos segundos faltam na partida dele (para todos usarem o mesmo relógio) */
@@ -157,6 +162,8 @@ export interface BotPose {
     act?: GunAct;
     an?: number;
     prot?: boolean;
+    /** os acessórios do bot nesta arma */
+    build?: GunBuild;
   };
 }
 
@@ -177,6 +184,8 @@ export interface GunPose {
   /** o alvo de abates da partida e os segundos que faltam */
   ft: number;
   fl: number;
+  /** os acessórios da arma na mão (`encodeBuild`), quando ela não está de fábrica */
+  att?: number[];
 }
 
 interface Ammo {
@@ -246,6 +255,12 @@ export class GunGame {
   private respawnAt = 0;
   private lastHurt = 0;
   private loadout: Loadout;
+  /** os acessórios de cada arma (lidos ao nascer) e as armas já montadas (a conta de `applyAttachments`) */
+  private builds: Builds;
+  private readonly specs = new Map<GunId, GunSpec>();
+  /** o equipamento mudou no menu: vale ao nascer, ou na hora se ninguém de verdade está na arena */
+  private loadoutDirty = false;
+  private readonly unsubLoadout: () => void;
   private slot: GunSlot = 'primary';
   private ammo = new Map<GunId, Ammo>();
   private nextShot = 0;
@@ -342,6 +357,10 @@ export class GunGame {
     this.casings = new Casings(host.scene);
     this.seed = gunSeed(host.selfId, Date.now());
     this.loadout = { ...useGunHud.getState().loadout };
+    this.builds = { ...useGunHud.getState().builds };
+    this.unsubLoadout = useGunHud.subscribe((st, prev) => {
+      if (st.loadout !== prev.loadout || st.builds !== prev.builds) this.loadoutDirty = true;
+    });
     const t0 = performance.now();
     this.target = ffaTarget(1 + host.players().length);
     this.matchAt = t0;
@@ -378,8 +397,24 @@ export class GunGame {
     return this.loadout[this.slot];
   }
 
-  get spec() {
-    return GUNS[this.weapon];
+  /** a arma na mão já com os acessórios */
+  get spec(): GunSpec {
+    return this.specOf(this.weapon);
+  }
+
+  /** uma arma do equipamento com os acessórios dela */
+  private specOf(id: GunId): GunSpec {
+    let sp = this.specs.get(id);
+    if (!sp) {
+      sp = applyAttachments(GUNS[id], this.builds[id]);
+      this.specs.set(id, sp);
+    }
+    return sp;
+  }
+
+  /** os acessórios da arma na mão (para o meu boneco) */
+  get build(): GunBuild | undefined {
+    return this.builds[this.weapon];
   }
 
   /** o quanto está mirando agora (0–1; a sensibilidade mirando entra aos poucos) */
@@ -447,7 +482,20 @@ export class GunGame {
       ...(this.shielded ? { prot: true } : {}),
       ft: this.target,
       fl: Math.max(0, Math.min(600, Math.ceil((this.endsAt - performance.now()) / 1000))),
+      ...this.attField(),
     };
+  }
+
+  private attKey = '';
+  private attCache: number[] | undefined;
+  /** os acessórios da arma na mão no formato da rede (guardado: a pose sai a cada quadro) */
+  private attField(): { att?: number[] } {
+    const key = `${this.weapon}:${this.builds[this.weapon] ? JSON.stringify(this.builds[this.weapon]) : ''}`;
+    if (key !== this.attKey) {
+      this.attKey = key;
+      this.attCache = encodeBuild(this.builds[this.weapon]);
+    }
+    return this.attCache ? { att: this.attCache } : {};
   }
 
   /** acabou de nascer e ainda não atirou: não leva dano */
@@ -522,8 +570,34 @@ export class GunGame {
 
   // ------------------------------------------------------------ nascer, morrer
 
+  /** lê o equipamento e as montagens do menu (as armas montadas são refeitas) */
+  private readLoadout() {
+    const st = useGunHud.getState();
+    this.loadout = { ...st.loadout };
+    this.builds = { ...st.builds };
+    this.specs.clear();
+    this.loadoutDirty = false;
+  }
+
+  /**
+   * Mudou o equipamento no menu e ninguém de verdade está na arena (sozinho ou contra bots): troca na hora, com a
+   * munição cheia, sem renascer. Com gente, só ao nascer (no meio da luta seria trocar de arma de graça).
+   */
+  private applyLoadoutNow(now: number) {
+    if (!this.loadoutDirty || !this.alive || this.over) return;
+    if (this.host.players().length > 0 && !this.shielded) return;
+    const slot = this.slot;
+    this.readLoadout();
+    for (const id of Object.values(this.loadout) as GunId[])
+      this.ammo.set(id, { mag: this.specOf(id).mag, reserve: this.specOf(id).reserve });
+    this.slot = slot;
+    this.needBolt.clear();
+    this.resetRecoil();
+    this.equip(now);
+  }
+
   private respawn(now: number) {
-    this.loadout = { ...useGunHud.getState().loadout };
+    this.readLoadout();
     const enemies = [...this.host.players().filter((p) => p.alive), ...(this.bots?.alivePositions() ?? [])];
     const sp = pickSpawn(enemies, this.rand());
     this.protUntil = now + SPAWN_PROT_MS;
@@ -541,7 +615,7 @@ export class GunGame {
     this.slot = 'primary';
     this.needBolt.clear();
     for (const id of Object.values(this.loadout) as GunId[])
-      this.ammo.set(id, { mag: GUNS[id].mag, reserve: GUNS[id].reserve });
+      this.ammo.set(id, { mag: this.specOf(id).mag, reserve: this.specOf(id).reserve });
     this.equip(now);
     this.host.send({ kind: 'spawn', w: this.weapon });
     useGunHud.getState().set({ dead: false, killedBy: null, killedW: null, killedHead: false, hp: this.hp });
@@ -740,14 +814,14 @@ export class GunGame {
 
   private equip(now: number) {
     const id = this.weapon;
-    const m = makeGun(id);
+    const m = makeBuiltGun(id, this.builds[id]);
     if (!m) return;
     this.burstN = 0;
     // a volta do recuo continua (com a da arma que atirou): trocar logo depois da rajada não deixa a mira lá em cima
     // a arma de antes não tem mais o que fazer (som da recarga, ferrolho, golpe no ar)
     this.cancelJobs('reload', 'bolt', 'melee');
-    this.vm.setGun(m, GUNS[id]);
-    const sp = GUNS[id];
+    const sp = this.specOf(id);
+    this.vm.setGun(m, sp);
     this.drawUntil = now + (sp.cls === 'knife' ? 380 : sp.cls === 'pistol' ? 420 : 600);
     this.reloadUntil = 0;
     this.boltPending = 0;
@@ -1019,8 +1093,16 @@ export class GunGame {
     const to = { x: o.x + d.x * hit.dist, y: o.y + d.y * hit.dist, z: o.z + d.z * hit.dist };
     const muzzle = this.muzzleWorld(o, d);
     this.fx.tracer(muzzle, to, now);
-    if (!this.firstPerson) this.fx.flash(muzzle, now, sp.cls === 'sniper' ? 0.42 : 0.3);
-    this.host.emit({ kind: 'gunshot', by: this.host.selfId, w: this.weapon, power: 1, zone: 8, at: muzzle });
+    if (!this.firstPerson && !sp.noFlash) this.fx.flash(muzzle, now, sp.cls === 'sniper' ? 0.42 : 0.3);
+    this.host.emit({
+      kind: 'gunshot',
+      by: this.host.selfId,
+      w: this.weapon,
+      ...(sp.quiet ? { quiet: true } : {}),
+      power: 1,
+      zone: 8,
+      at: muzzle,
+    });
     // o coice no meu boneco (3ª pessoa)
     this.host.shotFx?.(this.host.selfId);
     this.host.send({ kind: 'fire', w: this.weapon, from: v3(muzzle), to: v3(to) });
@@ -1289,10 +1371,21 @@ export class GunGame {
           const a = this.host.muzzleOf?.(g.sender) ?? { x: g.from[0], y: g.from[1], z: g.from[2] };
           this.host.shotFx?.(g.sender);
           const b = { x: g.to[0], y: g.to[1], z: g.to[2] };
+          const who = this.host.players().find((p) => p.id === g.sender);
+          // os acessórios da arma dele (da pose; a arma do tiro tem que ser a da mão)
+          const sp = applyAttachments(GUNS[g.w], who?.w === g.w ? decodeBuild(g.w, who.att) : undefined);
           this.fx.tracer(a, b, now);
-          this.fx.flash(a, now, GUNS[g.w].cls === 'sniper' ? 0.42 : 0.3);
-          this.ejectThird(g.w, a, b, this.host.players().find((p) => p.id === g.sender)?.y ?? null, now);
-          this.host.emit({ kind: 'gunshot', by: g.sender, w: g.w, power: 1, zone: 8, at: a });
+          if (!sp.noFlash) this.fx.flash(a, now, sp.cls === 'sniper' ? 0.42 : 0.3);
+          this.ejectThird(g.w, a, b, who?.y ?? null, now);
+          this.host.emit({
+            kind: 'gunshot',
+            by: g.sender,
+            w: g.w,
+            ...(sp.quiet ? { quiet: true } : {}),
+            power: 1,
+            zone: 8,
+            at: a,
+          });
           this.host.emit({ kind: 'impact', flesh: false, head: false, power: 0.4, zone: 8, at: b });
           this.markWall({ x: g.from[0], y: g.from[1], z: g.from[2] }, b, now);
         }
@@ -1382,17 +1475,26 @@ export class GunGame {
     for (const t of this.bots?.targets() ?? []) if (t.id !== s.by) targets.push(t);
     const hit = castShot(s.from, s.dir, targets, GUN_BOXES, 160);
     const to = { x: s.from.x + s.dir.x * hit.dist, y: s.from.y + s.dir.y * hit.dist, z: s.from.z + s.dir.z * hit.dist };
+    const sp = applyAttachments(GUNS[s.w], s.build);
     this.fx.tracer(s.muzzle, to, now);
-    this.fx.flash(s.muzzle, now, GUNS[s.w].cls === 'sniper' ? 0.42 : 0.3);
+    if (!sp.noFlash) this.fx.flash(s.muzzle, now, sp.cls === 'sniper' ? 0.42 : 0.3);
     this.ejectThird(s.w, s.muzzle, to, this.bots?.targets().find((t) => t.id === s.by)?.y ?? null, now);
-    this.host.emit({ kind: 'gunshot', by: s.by, w: s.w, power: 1, zone: 8, at: s.muzzle });
+    this.host.emit({
+      kind: 'gunshot',
+      by: s.by,
+      w: s.w,
+      ...(sp.quiet ? { quiet: true } : {}),
+      power: 1,
+      zone: 8,
+      at: s.muzzle,
+    });
     this.host.shotFx?.(s.by);
     if (!hit.target) {
       this.host.emit({ kind: 'impact', flesh: false, head: false, power: 0.4, zone: 8, at: to });
       if (hit.normal) this.fx.mark(to, hit.normal, now);
       return;
     }
-    const dmg = damageAt(GUNS[s.w], hit.dist, hit.head);
+    const dmg = damageAt(sp, hit.dist, hit.head);
     if (hit.target === this.host.selfId) this.hurt(s.by, dmg, s.w, hit.head, { x: s.from.x, z: s.from.z }, now);
     else {
       this.host.emit({ kind: 'impact', flesh: true, head: hit.head, power: 0.5, zone: 8, at: to });
@@ -1407,6 +1509,7 @@ export class GunGame {
     if (this.disposed) return;
     this.runJobs(now);
     this.checkBots(now);
+    this.applyLoadoutNow(now);
     this.trackArms(now);
     // o botão não está mais apertado (soltou fora da janela, sem o evento chegar): solta o gatilho
     if (this.triggerDown && !this.host.held('fire')) this.release('fire');
@@ -1642,7 +1745,7 @@ export class GunGame {
     if (scoped !== this.lastScoped) {
       if (!scoped && this.alive) this.leavingScope = true;
       this.lastScoped = scoped;
-      useGunHud.getState().set({ scoped, scopeAt: Date.now() });
+      useGunHud.getState().set({ scoped, scopeAt: Date.now(), scopeStyle: this.spec.scopeStyle ?? 'sniper' });
     }
     if (now - this.lastHud < 50) return;
     this.lastHud = now;
@@ -1693,6 +1796,7 @@ export class GunGame {
     this.fx.dispose();
     this.casings.dispose();
     this.vm.dispose();
+    this.unsubLoadout();
     useGunHud.getState().set({ active: false, bot: null, scoped: false });
   }
 }

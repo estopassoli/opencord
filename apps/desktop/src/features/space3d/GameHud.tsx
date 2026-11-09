@@ -10,7 +10,7 @@ import { sfx, useSfxPrefs } from './sfx';
 import type { SfxName } from './sfxmap';
 
 /** som do menu (bem baixo); o clique já é o gesto que libera o áudio */
-function uiSound(name: Extract<SfxName, 'uiMove' | 'uiOk' | 'uiBack'>) {
+export function uiSound(name: Extract<SfxName, 'uiMove' | 'uiOk' | 'uiBack'>) {
   sfx.unlock();
   sfx.ui(name, { gain: name === 'uiMove' ? 0.4 : 0.55 });
 }

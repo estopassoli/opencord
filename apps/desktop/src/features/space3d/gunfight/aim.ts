@@ -103,6 +103,9 @@ export function lockPointerRaw(el: HTMLElement, onFail: () => void, onRaw?: (ok:
   r.then(
     () => {
       raw = true;
+      // a trava chegou depois de a cena ser trocada (ao entrar no espaço, a tela pode ser montada de novo): o mouse
+      // ficaria preso num elemento que não está mais na página, sem cursor e com o menu aberto
+      if (!el.isConnected && document.pointerLockElement === el) document.exitPointerLock();
       onRaw?.(true);
     },
     (e: unknown) => {

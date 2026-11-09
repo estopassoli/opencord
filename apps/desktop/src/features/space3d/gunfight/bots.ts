@@ -6,6 +6,7 @@
 import type { GunId } from '@opencord/contracts';
 import { BOT_SKILL, type BotLevel } from '../bots/level';
 import { resolve } from '../physics';
+import { applyAttachments, randomBuild, type GunBuild } from './attachments';
 import type { BotPose, GunHost } from './game';
 import { GUN_BOXES, GUN_HALF, blockedAt, pickSpawn } from './map';
 import {
@@ -23,6 +24,7 @@ import {
   recoilMul,
   shotInterval,
   spreadNow,
+  type GunSpec,
   type Target,
   type V3,
 } from './weapons';
@@ -33,6 +35,8 @@ export interface BotShot {
   from: V3;
   muzzle: V3;
   dir: V3;
+  /** os acessórios da arma do bot (som abafado, sem clarão, alcance) */
+  build?: GunBuild;
 }
 
 interface Ctx {
@@ -60,6 +64,9 @@ interface Bot {
   /** viu alguém agora: o primeiro tiro sai de aviso (erra de propósito) */
   warn: boolean;
   w: GunId;
+  /** acessórios sorteados para a arma (o boneco mostra) e a arma montada com eles */
+  build: GunBuild;
+  spec: GunSpec;
   mag: number;
   nextShot: number;
   reloadUntil: number;
@@ -187,6 +194,9 @@ export class GunBots {
       // o nível aparece na etiqueta do placar (não repete no nome)
       const name = `Bot ${i + 1}`;
       const w = guns[Math.floor(this.rand() * guns.length)]!;
+      // a montagem sai de um sorteio à parte (o do bot continua o mesmo, com ou sem acessórios)
+      const build = randomBuild(w, lcg(this.seed + (i + 1) * 7919));
+      const spec = applyAttachments(GUNS[w], build);
       const b: Bot = {
         id,
         name,
@@ -201,7 +211,9 @@ export class GunBots {
         protUntil: 0,
         warn: false,
         w,
-        mag: GUNS[w].mag,
+        build,
+        spec,
+        mag: spec.mag,
         nextShot: 0,
         reloadUntil: 0,
         burstLeft: 0,
@@ -276,7 +288,7 @@ export class GunBots {
     b.pitch = 0;
     b.hp = MAX_HP;
     b.alive = true;
-    b.mag = GUNS[b.w].mag;
+    b.mag = b.spec.mag;
     b.target = null;
     b.path = [];
     b.reloadUntil = 0;
@@ -393,7 +405,7 @@ export class GunBots {
 
   private act(b: Bot, dt: number, now: number) {
     const sk = this.skill;
-    const spec = GUNS[b.w];
+    const spec = b.spec;
     let mx = 0;
     let mz = 0;
     let speed = 3.2 * sk.speed * spec.move;
@@ -468,7 +480,7 @@ export class GunBots {
   }
 
   private trigger(b: Bot, now: number) {
-    const spec = GUNS[b.w];
+    const spec = b.spec;
     if (b.reloadUntil || now < b.nextShot || now < b.pauseUntil) return;
     if (b.mag <= 0) {
       b.reloadUntil = now + spec.emptyReloadMs;
@@ -522,7 +534,7 @@ export class GunBots {
     const fz = -Math.cos(b.yaw);
     // a boca da arma do boneco (se ele já tem a arma na mão); senão um ponto à frente e à direita do peito
     const muzzle = b.av.muzzle?.() ?? { x: b.x + fx * 0.55 - fz * 0.1, y: eye.y - 0.2, z: b.z + fz * 0.55 + fx * 0.1 };
-    this.ctx.shoot({ by: b.id, w: b.w, from: eye, muzzle, dir });
+    this.ctx.shoot({ by: b.id, w: b.w, from: eye, muzzle, dir, build: b.build });
   }
 
   private place(b: Bot) {
@@ -537,8 +549,9 @@ export class GunBots {
         pitch: b.pitch,
         crouch: b.crouch,
         // faca não mira: com alvo, o bot com faca não estica o braço como se apontasse uma arma
-        ads: !!b.target && GUNS[b.w].cls !== 'knife',
+        ads: !!b.target && b.spec.cls !== 'knife',
         alive: b.alive,
+        build: b.build,
         ...(b.act ? { act: b.act, an: b.an } : {}),
         ...(b.alive && performance.now() < b.protUntil ? { prot: true } : {}),
       },
@@ -550,4 +563,13 @@ export class GunBots {
     for (const b of this.list) b.av.dispose();
     this.list.length = 0;
   }
+}
+
+/** sorteio pequeno e repetível (a montagem de cada bot) */
+function lcg(seed: number): () => number {
+  let x = Math.max(1, Math.floor(Math.abs(seed)) % 2147483646);
+  return () => {
+    x = (x * 48271) % 2147483647;
+    return x / 2147483647;
+  };
 }

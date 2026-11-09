@@ -54,7 +54,7 @@ export type GameEvent = Base &
     | { kind: 'trick'; by: string; trick: Trick }
     | { kind: 'tackle'; by: string; on: string | null; foul: boolean; slide: boolean }
     // gunfight (2026-11-09)
-    | { kind: 'gunshot'; by: string; w: GunId }
+    | { kind: 'gunshot'; by: string; w: GunId; quiet?: boolean }
     | { kind: 'impact'; flesh: boolean; head: boolean }
     | { kind: 'gunfx'; what: GunFx; w: GunId; by?: string }
   );

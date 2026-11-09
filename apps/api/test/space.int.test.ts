@@ -211,6 +211,18 @@ describe('Espaço 3D', () => {
     const none = noEvent(sa, 'space:gun', () => true, 600);
     so.emit('space:gun', { ...hit, w: 'bazuca' });
     await none;
+    // os acessórios da arma vão na pose (ADR-0059): repassados como vieram; código fora do formato descarta a pose
+    const pose = { w: 'm4', pitch: 0, crouch: false, ads: false, alive: true, att: [1, 1, 0, 1] };
+    const moved = nextEvent<{ userId: string; gun?: { att?: number[] } }>(
+      sa,
+      'space:moved',
+      (m) => m.userId === owner.id,
+    );
+    so.emit('space:move', { channelId: voiceId, x: 0, y: 0, z: 0, ry: 0, a: 0, zone: 8, gun: pose });
+    expect((await moved).gun?.att).toEqual([1, 1, 0, 1]);
+    const bad = noEvent(sa, 'space:moved', () => true, 600);
+    so.emit('space:move', { channelId: voiceId, x: 0, y: 0, z: 0, ry: 0, a: 0, zone: 8, gun: { ...pose, att: [99] } });
+    await bad;
   });
 
   it('esportes: bola repassada só na chamada; placar no servidor sem contar o mesmo lance duas vezes', async () => {

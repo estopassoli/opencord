@@ -7,9 +7,12 @@
  * (a Kar98k só na cabeça, em troca do ferrolho e da mira rápidos), pistola com 2–6, faca com 1.
  */
 import type { GunId } from '@opencord/contracts';
+import type { GunBuild } from './attachments';
 
 export type GunClass = 'ar' | 'smg' | 'sniper' | 'pistol' | 'knife';
 export type GunSlot = 'primary' | 'secondary' | 'melee';
+/** retículo da tela de luneta: sniper (padrão), variável, prisma (3x dos fuzis) e poste (a clássica da Kar98k) */
+export type ScopeStyle = 'sniper' | 'lpvo' | 'prism' | 'post';
 
 export interface GunSpec {
   id: GunId;
@@ -44,6 +47,11 @@ export interface GunSpec {
   boltMs?: number;
   /** faca: dano do golpe rápido e do pesado (botão direito), alcance (m) e duração do golpe rápido (ms) */
   melee?: { dmg: number; heavy: number; range: number; ms: number };
+  /** com acessórios (`applyAttachments`): o retículo da luneta, tiro abafado, sem clarão e a montagem */
+  scopeStyle?: ScopeStyle;
+  quiet?: boolean;
+  noFlash?: boolean;
+  build?: GunBuild;
 }
 
 /**

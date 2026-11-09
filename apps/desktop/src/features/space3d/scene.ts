@@ -28,6 +28,7 @@ import { attackHoop, clampToHalf, GOOD_BAND, netSideOf, type PoolSeat } from './
 import { sfx } from './sfx';
 import { chargeStep } from './sfxmap';
 import { SLIDE_MS, SportPlay, type FootMove, type RemoteBall } from './sportplay';
+import { decodeBuild } from './gunfight/attachments';
 import { lockPointerRaw, lookDelta } from './gunfight/aim';
 import { GunGame, type GunAction, type GunHost, type GunPlayer } from './gunfight/game';
 import { useGunHud } from './gunfight/state';
@@ -847,6 +848,9 @@ export class SpaceScene {
   }
 
   private onLockChange = () => {
+    // preso em outro elemento (uma cena anterior, já fora da página): solta para o cursor voltar
+    const el = document.pointerLockElement;
+    if (el && el !== this.renderer.domElement && !el.isConnected) document.exitPointerLock();
     if (this.aimLocked) this.lockFails = 0;
     // soltou (Esc): nada fica "segurado", nem a carga do arremesso ou da tacada
     if (!this.aimLocked) this.cancelHeld();
@@ -1611,7 +1615,7 @@ export class SpaceScene {
       this.gun.step(dt, now);
       this.pose.a = this.gun.anim();
       this.me.place(this.pose);
-      this.me.setGun(this.gun.weapon);
+      this.me.setGun(this.gun.weapon, this.gun.build);
       this.me.setGunPose(this.gun.pose());
       this.maybeSend(now);
       return;
@@ -1812,7 +1816,10 @@ export class SpaceScene {
       av.setTeam(this.zone && this.zone !== 7 && pose.team ? pose.team : null);
       av.setRacket(this.zone === 8 ? null : racketOf(this.zone));
       av.setBike(this.zone === 7);
-      av.setGun(this.zone === 8 ? (pose.gun?.w ?? null) : null);
+      av.setGun(
+        this.zone === 8 ? (pose.gun?.w ?? null) : null,
+        pose.gun?.att ? decodeBuild(pose.gun.w, pose.gun.att) : undefined,
+      );
       if (pose.gun) av.setGunPose(pose.gun);
     }
     for (const [id, av] of this.others) {
@@ -1980,7 +1987,7 @@ export class SpaceScene {
     const g = this.gun?.pose();
     // a ação (recarga, golpe, ferrolho) entra na chave: parado, ela sai no quadro seguinte (não no envio de 1 s)
     return g
-      ? `${g.w}:${g.pitch.toFixed(2)}:${g.crouch}:${g.ads}:${g.alive}:${g.k}:${g.d}:${g.act ?? ''}:${g.an ?? ''}:${g.prot ? 1 : 0}:${g.ft}`
+      ? `${g.w}:${g.pitch.toFixed(2)}:${g.crouch}:${g.ads}:${g.alive}:${g.k}:${g.d}:${g.act ?? ''}:${g.an ?? ''}:${g.prot ? 1 : 0}:${g.ft}:${g.att?.join(',') ?? ''}`
       : '';
   }
 
@@ -2048,6 +2055,7 @@ export class SpaceScene {
             crouch: p.gun?.crouch ?? false,
             alive: p.gun?.alive ?? true,
             ...(p.gun ? { w: p.gun.w } : {}),
+            ...(p.gun?.att ? { att: p.gun.att } : {}),
             ...(p.gun?.k !== undefined && p.gun.d !== undefined ? { k: p.gun.k, d: p.gun.d } : {}),
             ...(p.gun?.prot ? { prot: true } : {}),
             ...(p.gun?.ft !== undefined && p.gun.fl !== undefined ? { ft: p.gun.ft, fl: p.gun.fl } : {}),
@@ -2085,7 +2093,7 @@ export class SpaceScene {
           place: (bp) => {
             av.setTarget({ x: bp.x, y: bp.y, z: bp.z, ry: bp.ry, a: bp.a }, first);
             first = false;
-            av.setGun(bp.gun.w);
+            av.setGun(bp.gun.w, bp.gun.build);
             av.setGunPose(bp.gun);
           },
           muzzle: () => av.muzzleWorld(),
@@ -2244,6 +2252,8 @@ export class SpaceScene {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);
+    // a cena sai com o mouse preso nela: solta (senão o cursor some na próxima tela)
+    if (document.pointerLockElement === this.renderer.domElement) document.exitPointerLock();
     document.removeEventListener('pointerlockchange', this.onLockChange);
     document.removeEventListener('pointerlockerror', this.onLockError);
     document.removeEventListener('mousemove', this.onAimMove);

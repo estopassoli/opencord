@@ -12,8 +12,10 @@ import { Binding } from '../GameHud';
 import { useAnnounce } from '../MatchHud';
 import { ADS_SENS_RANGE, SENS_RANGE, saveAim, type AimSettings } from './aim';
 import { MOVE } from './movement';
-import { saveLoadout, useGunHud, type ScoreRow } from './state';
-import { CLASS_LABEL, GUNS, SLOT_GUNS, WINNER_MS, type GunSlot } from './weapons';
+import { LoadoutCards, LoadoutEditor, type LoadoutView } from './Loadout';
+import { releasePreviews } from './preview';
+import { useGunHud, type ScoreRow } from './state';
+import { GUNS, WINNER_MS, type ScopeStyle } from './weapons';
 
 /** m:ss */
 function clock(ms: number): string {
@@ -59,28 +61,115 @@ function HitMarker({ kill, head }: { kill: boolean; head: boolean }) {
   );
 }
 
-/** retículo da luneta: linhas pretas com um halo claro (lê em fundo escuro e claro) */
-function ScopeReticle() {
-  const lines: [number, number, number, number][] = [
-    [-99, 0, -6, 0],
-    [6, 0, 99, 0],
-    [0, 6, 0, 99],
-    [0, -99, 0, -6],
-  ];
-  const ticks = [-60, -40, -20, 20, 40, 60];
+/** linhas do retículo (x1, y1, x2, y2), num quadro de −100 a 100 */
+type Seg = [number, number, number, number];
+
+/** desenha as linhas duas vezes: um halo claro largo e a tinta preta fina (lê em fundo escuro e claro) */
+function Ink({ lines, w = 0.8 }: { lines: Seg[]; w?: number }) {
   return (
-    <svg viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid meet">
-      <circle cx="0" cy="0" r="99" fill="none" stroke="#000" strokeWidth="2.5" />
+    <>
       {(['halo', 'ink'] as const).map((k) => (
-        <g key={k} stroke={k === 'halo' ? 'rgb(255 255 255 / 0.55)' : '#000'}>
+        <g key={k} stroke={k === 'halo' ? 'rgb(255 255 255 / 0.55)' : '#000'} strokeLinecap="butt">
           {lines.map(([x1, y1, x2, y2]) => (
-            <line key={`${x1}:${y1}`} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth={k === 'halo' ? 1.8 : 0.8} />
-          ))}
-          {ticks.map((x) => (
-            <line key={x} x1={x} y1="-2.5" x2={x} y2="2.5" strokeWidth={k === 'halo' ? 1.5 : 0.6} />
+            <line
+              key={`${x1}:${y1}:${x2}:${y2}`}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              strokeWidth={k === 'halo' ? w + 1 : w}
+            />
           ))}
         </g>
       ))}
+    </>
+  );
+}
+
+/**
+ * Retículo da luneta de cada estilo: sniper (cruz fina com marcas e o ponto vermelho), variável (cruz grossa nas
+ * pontas e fina no meio, com o ponto aceso), prisma 3x da luneta dos fuzis (chevron aceso com as marcas de queda
+ * embaixo) e poste da luneta clássica (poste grosso de baixo e as duas barras dos lados).
+ */
+function ScopeReticle({ style }: { style: ScopeStyle }) {
+  const ring = <circle cx="0" cy="0" r="99" fill="none" stroke="#000" strokeWidth="2.5" />;
+  if (style === 'post')
+    return (
+      <svg viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid meet">
+        {ring}
+        <Ink
+          lines={[
+            [-99, 0, -12, 0],
+            [12, 0, 99, 0],
+          ]}
+          w={3}
+        />
+        <path
+          d="M -2.6 99 L -2.6 4 L 0 0 L 2.6 4 L 2.6 99 Z"
+          fill="#000"
+          stroke="rgb(255 255 255 / 0.5)"
+          strokeWidth="0.8"
+        />
+      </svg>
+    );
+  if (style === 'prism')
+    return (
+      <svg viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid meet">
+        {ring}
+        <Ink
+          lines={[
+            [0, 14, 0, 70],
+            [-6, 26, 6, 26],
+            [-4.5, 38, 4.5, 38],
+            [-3, 50, 3, 50],
+            [-99, 0, -60, 0],
+            [60, 0, 99, 0],
+          ]}
+          w={0.9}
+        />
+        <path d="M -7 7 L 0 0 L 7 7" fill="none" stroke="rgb(0 0 0 / 0.6)" strokeWidth="3" strokeLinejoin="miter" />
+        <path d="M -7 7 L 0 0 L 7 7" fill="none" stroke="#ff3b2f" strokeWidth="1.6" strokeLinejoin="miter" />
+        <circle cx="0" cy="0" r="0.9" fill="#ff3b2f" />
+      </svg>
+    );
+  if (style === 'lpvo')
+    return (
+      <svg viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid meet">
+        {ring}
+        <Ink
+          lines={[
+            [-99, 0, -30, 0],
+            [30, 0, 99, 0],
+            [0, 30, 0, 99],
+            [0, -99, 0, -30],
+          ]}
+          w={3}
+        />
+        <Ink
+          lines={[
+            [-30, 0, -3, 0],
+            [3, 0, 30, 0],
+            [0, 3, 0, 30],
+            [0, -30, 0, -3],
+          ]}
+          w={0.7}
+        />
+        <circle cx="0" cy="0" r="1.3" fill="#ff3b2f" />
+      </svg>
+    );
+  const ticks = [-60, -40, -20, 20, 40, 60];
+  return (
+    <svg viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid meet">
+      {ring}
+      <Ink
+        lines={[
+          [-99, 0, -6, 0],
+          [6, 0, 99, 0],
+          [0, 6, 0, 99],
+          [0, -99, 0, -6],
+          ...ticks.map((x): Seg => [x, -2.5, x, 2.5]),
+        ]}
+      />
       <circle cx="0" cy="0" r="0.9" fill="#d23" />
     </svg>
   );
@@ -112,7 +201,7 @@ export function GunHud() {
         >
           {/* escurecer curto ao encostar o olho na luneta (a arma some no mesmo quadro) */}
           <div key={h.scopeAt} className="gf-scope-fade" />
-          <ScopeReticle />
+          <ScopeReticle style={h.scopeStyle} />
         </div>
       )}
       {!h.dead && (
@@ -353,42 +442,6 @@ export function GunScoreboard() {
   );
 }
 
-const SLOT_LABEL: Record<GunSlot, string> = { primary: 'Principal', secondary: 'Pistola', melee: 'Faca' };
-
-/** escolha do equipamento (vale na próxima vez que nascer) */
-export function LoadoutPicker() {
-  const loadout = useGunHud((s) => s.loadout);
-  const pick = (slot: GunSlot, id: (typeof SLOT_GUNS)[GunSlot][number]) => {
-    const l = { ...loadout, [slot]: id };
-    saveLoadout(l);
-    useGunHud.getState().set({ loadout: l });
-  };
-  return (
-    <div className="gf-loadout">
-      {(Object.keys(SLOT_GUNS) as GunSlot[]).map((slot) => (
-        <fieldset key={slot}>
-          <legend>{SLOT_LABEL[slot]}</legend>
-          <div className="gf-options">
-            {SLOT_GUNS[slot].map((id) => (
-              <button
-                key={id}
-                type="button"
-                className="gf-option"
-                aria-pressed={loadout[slot] === id}
-                onClick={() => pick(slot, id)}
-              >
-                <span>{GUNS[id].name}</span>
-                <small>{CLASS_LABEL[GUNS[id].cls]}</small>
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      ))}
-      <p className="gf-note">Vale na próxima vez que você nascer.</p>
-    </div>
-  );
-}
-
 /** pt-BR: vírgula decimal */
 const dec = (v: number, n: number) => v.toFixed(n).replace('.', ',');
 
@@ -447,7 +500,12 @@ export function GunMatchPanel({
   const fp = useGunHud((s) => s.firstPerson);
   const canRestart = useGunHud((s) => s.canRestart);
   const target = useGunHud((s) => s.target);
+  const [view, setView] = useState<LoadoutView>({ kind: 'home' });
+  // as imagens das armas usam um renderizador só do menu: sai junto com ele
+  useEffect(() => () => releasePreviews(), []);
   const blocked = others > 0;
+  // trocar arma e personalizar ocupam a aba inteira (Esc volta uma tela)
+  if (view.kind !== 'home') return <LoadoutEditor view={view} onView={setView} others={others} />;
   return (
     <div className="gf-panel">
       <header className="gm-head">
@@ -457,9 +515,9 @@ export function GunMatchPanel({
           mais quando os 8 minutos acabarem. Com mais gente, o alvo sobe (até 25).
         </p>
       </header>
-      <section>
-        <h3>Equipamento</h3>
-        <LoadoutPicker />
+      <section aria-labelledby="gf-loadout">
+        <h3 id="gf-loadout">Equipamento</h3>
+        <LoadoutCards onOpen={setView} others={others} />
       </section>
       <section>
         <h3>Mouse</h3>

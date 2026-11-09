@@ -6,7 +6,9 @@
 import * as THREE from 'three';
 import { bikeMesh } from './race';
 import { makeHand, type Hand } from './hand';
-import { disposeGun, disposeSkeletons, gunsReady, makeGun, type GunModel } from './gunfight/models';
+import { buildKey, type GunBuild } from './gunfight/attachments';
+import { makeBuiltGun } from './gunfight/attachmodels';
+import { disposeGun, disposeSkeletons, gunsReady, type GunModel } from './gunfight/models';
 import { TRIGGER_OFF, leftGrip, rightGrip } from './gunfight/grips';
 import { MOVE } from './gunfight/movement';
 import { kickSpring, spring, stepSpring } from './gunfight/spring';
@@ -168,6 +170,8 @@ export class Avatar {
   /** gunfight: a arma na mão (terceira pessoa) e como ela está */
   private gun: GunModel | null = null;
   private gunId: GunId | null = null;
+  /** a chave da montagem da arma na mão (`buildKey`): mudou, o modelo é refeito */
+  private gunBuild = '';
   private gunPose: GunHold = { pitch: 0, crouch: false, ads: false, alive: true };
   /** coice do tiro (mola da arma, 0–~1,5: os tiros de uma rajada se somam) e a ação da mão que os outros veem */
   private readonly kick = spring();
@@ -896,13 +900,16 @@ export class Avatar {
   }
 
   /** gunfight: a arma na mão (null = sem arma) */
-  setGun(id: GunId | null) {
-    if (id === this.gunId && (this.gun || !id)) return;
+  setGun(id: GunId | null, build?: GunBuild) {
+    // a mesma arma com a mesma montagem: nada a refazer (a pose chega a cada quadro)
+    const key = id ? buildKey(build) : '';
+    if (id === this.gunId && key === this.gunBuild && (this.gun || !id)) return;
     if (this.gun) disposeGun(this.gun);
     this.gun = null;
     this.gunId = id;
+    this.gunBuild = key;
     if (!id || !gunsReady()) return;
-    const g = makeGun(id);
+    const g = makeBuiltGun(id, build);
     if (!g) return;
     g.root.scale.setScalar(gunScale(id));
     // na escala do boneco a sombra da arma não aparece, mas cada luz com sombra a desenharia de novo

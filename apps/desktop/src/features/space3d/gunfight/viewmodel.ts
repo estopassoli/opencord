@@ -16,6 +16,7 @@ import { makeHand, type FingerOffsets, type Hand } from '../hand';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { flashTexture } from './fx';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
+import { aimReticles } from './attachmodels';
 import { disposeGun, movePart, partBox, partCenter, type GunModel, type Part } from './models';
 import { PINCH_CURL, fitAt, gunHolds, magMesh, stripperClip, warmHolds, type Holds } from './holds';
 import {
@@ -488,7 +489,8 @@ export class Viewmodel {
     if (kind === 'inspect' && this.spec?.cls === 'knife') ms = KNIFE_INSPECT_MS;
     this.action = { kind, t: 0, ms: Math.max(1, ms), side: this.meleeSide };
     this.joltDone.clear();
-    if (kind === 'fire') {
+    // supressor e quebra-chamas: sem clarão na boca
+    if (kind === 'fire' && !this.spec?.noFlash) {
       this.flashUntil = this.now + 45;
       this.flash.rotation.z = Math.random() * Math.PI;
       this.flash.scale.setScalar(this.spec?.cls === 'sniper' ? 1.8 : this.spec?.cls === 'smg' ? 0.9 : 1.2);
@@ -587,8 +589,11 @@ export class Viewmodel {
     pos.y += Math.sin(now / 900) * 0.0025 * (1 - ads * 0.8) * mo;
     rot.y += this.swayX;
     rot.x += this.swayY;
-    pos.x += this.swayX * 0.05;
-    pos.y -= this.swayY * 0.05;
+    // mirando, a arma fica na linha do olho: os desvios de posição quase somem (a mira de trás fica a poucos cm do olho e
+    // qualquer centímetro a mais tapa a tela); o desvio do tiro no ar vem do espalhamento, não da arma
+    const steady = 1 - ads * 0.9;
+    pos.x += this.swayX * 0.05 * steady;
+    pos.y -= this.swayY * 0.05 * steady;
     // corrida: arma atravessada e baixa; corrida tática: arma para cima, cano para o alto
     const sp = this.sprintK * (1 - this.tacK);
     pos.x += sp * -0.03;
@@ -603,11 +608,11 @@ export class Viewmodel {
     rot.z += this.tacK * 0.5;
     rot.y += this.tacK * 0.25;
     // deslizando: a arma inclina; no ar, sobe um pouco
-    rot.z += this.slideK * 0.45 * mo;
-    pos.y += this.slideK * 0.02 + this.airK * 0.015;
+    rot.z += this.slideK * 0.45 * mo * steady;
+    pos.y += (this.slideK * 0.02 + this.airK * 0.015) * steady;
     // tranco dos encaixes
-    rot.x += this.jolt * 0.035 * mo;
-    pos.y += this.jolt * 0.004;
+    rot.x += this.jolt * 0.035 * mo * (1 - ads * 0.6);
+    pos.y += this.jolt * 0.004 * steady;
     // coice: para trás (sem chegar na câmera), o cano sobe, rola e vai para o lado
     pos.z = Math.min(pos.z + this.kBack.x, Math.max(pos.z, KICK_Z_MAX));
     rot.x += this.kRise.x;
@@ -1054,6 +1059,8 @@ export class Viewmodel {
     this.flash.position.copy(g.muzzle).add(V.set(0, 0, -0.03));
     this.flashLight.position.copy(this.flash.position);
     this.flashLight.intensity = on ? 3 : 0;
+    // mira de ponto: o retículo onde a linha do olho cruza o vidro (fica no centro da tela)
+    aimReticles(g, this.camera);
   }
 
   /**

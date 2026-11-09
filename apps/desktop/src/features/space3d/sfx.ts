@@ -324,6 +324,8 @@ export interface PlayOpts {
   vary?: number;
   /** atraso (s) antes de tocar */
   delay?: number;
+  /** abafado (Hz): passa-baixa na gravação, além do da distância (tiro com supressor) */
+  muffle?: number;
 }
 
 /** baixa um arquivo: fetch; se o esquema file:// do app empacotado for recusado, XMLHttpRequest */
@@ -456,6 +458,7 @@ export class Sfx {
       info: c.info ?? o.info,
       ...(c.sample ? { sample: c.sample } : {}),
       ...(c.delay ? { delay: c.delay } : {}),
+      ...(c.muffle ? { muffle: c.muffle } : {}),
     });
   }
 
@@ -581,7 +584,9 @@ export class Sfx {
         voice.end = start + (s.buf.duration / rate) * 1000 + 30;
         // ganho levemente aleatório (nunca acima do calculado): o mesmo arquivo não soa idêntico em sequência
         const g = gain * s.gain * (0.9 + 0.1 * Math.random());
-        voice.stop = this.sample(c, s.buf, g, rate, pan, sfxLowpassHz(d), delay);
+        const far = sfxLowpassHz(d);
+        const lp = o.muffle ? Math.min(o.muffle, far ?? Infinity) : far;
+        voice.stop = this.sample(c, s.buf, g, rate, pan, lp, delay);
       } else voice.stop = this.synth(c, name, gain, o.pitch ?? 1, pan, delay);
     } catch (err) {
       console.error('[space3d] som falhou', err);

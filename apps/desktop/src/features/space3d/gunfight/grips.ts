@@ -65,6 +65,11 @@ const MARTELO = basis([0, 0, 1], [1, 0, 0], [0, 1, 0]).multiply(rotY(MARTELO_DIA
 const APOIO_PISTOLA = rotX(-0.6).multiply(basis([0, 1, 0], [-1, 0, 0], [0, 0, 1]));
 const C_CLAMP = basis([0, 0, -1], [0, -1, 0], [-1, 0, 0]);
 /**
+ * esquerda na empunhadura vertical: palma para a arma (+x), dedos para a frente dando a volta nela, indicador em cima;
+ * inclinada como o punho (a base dele vai um pouco para a frente)
+ */
+const VGRIP = rotX(0.14).multiply(basis([0, 1, 0], [-1, 0, 0], [0, 0, 1]));
+/**
  * coronha reta (Kar98k, sem punho de pistola): a pegada de punho inclinada ~40° para os dedos seguirem a descida do
  * delgado (menos inclinada, as pontas passavam ~1 cm abaixo da madeira)
  */
@@ -76,6 +81,9 @@ const MARTELO_HOLE = FIST_HOLE.clone().applyQuaternion(MARTELO);
 const PUNHO_HOLE = FIST_HOLE.clone().applyQuaternion(PUNHO);
 const PUNHO_INCL_HOLE = FIST_HOLE.clone().applyQuaternion(PUNHO_INCL);
 const DELGADO_HOLE = FIST_HOLE.clone().applyQuaternion(DELGADO);
+const VGRIP_HOLE = FIST_HOLE.clone().applyQuaternion(VGRIP);
+/** a palma encosta pela esquerda da empunhadura (o vão da mão é mais largo que ela) */
+const VGRIP_SHIFT = new THREE.Vector3(-0.004, 0, 0);
 /** o punho tem ~2,6 cm de largura e o vão da mão é mais largo: a mão encosta pela direita */
 const GRIP_SHIFT = new THREE.Vector3(0.004, 0, 0);
 /** o meio do punho, onde passa o vão da mão (o indicador fica na altura do gatilho, em (0, 0,03, −0,02)) */
@@ -139,9 +147,18 @@ export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass): Gr
  * (fecham mais no guarda-mão fino, para não sobrar dedo acima dele) e polegar por cima. O centro da palma fica a
  * 0,046 do pulso nesse giro.
  */
-export function leftGrip(g: Pick<GunModel, 'support' | 'supportW'>, cls: GunClass): Grip {
+export function leftGrip(g: Pick<GunModel, 'support' | 'supportW' | 'foregrip'>, cls: GunClass): Grip {
   if (cls === 'pistol')
     return { pos: new THREE.Vector3(-0.025, -0.04, 0.055), quat: APOIO_PISTOLA.clone(), curl: [0.78, 0.1, 0.78] };
+  if (g.foregrip?.kind === 'vertical') {
+    // empunhadura vertical: a esquerda fecha em volta dela como a direita no punho (o vão da mão no meio dela, a palma
+    // pela esquerda, o indicador em cima, logo abaixo do guarda-mão)
+    return {
+      pos: g.foregrip.at.clone().sub(VGRIP_HOLE).add(VGRIP_SHIFT),
+      quat: VGRIP.clone(),
+      curl: [0.92, 0.6, 0.92],
+    };
+  }
   const w = g.supportW ?? 0.03;
   const c = Math.max(0.8, Math.min(1, 0.9 + 5 * (0.03 - w)));
   return {
