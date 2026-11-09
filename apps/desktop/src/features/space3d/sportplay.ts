@@ -15,6 +15,9 @@
  * - Tênis, vôlei e ping pong: a ação com a bola perto rebate para o outro lado; com a bola parada no saque, saca.
  *   O lado é o do time (`rules.netSideOf`), não a posição; em jogo, se ninguém sacar em 8 s, o saque sai sozinho.
  * Com partida (`setPhase`): na contagem ninguém pega nem saca.
+ * Treino contra bot (`setLocalBot`): o bot é um segundo jogador simulado neste app; `asBot` roda as mesmas ações como
+ * ele (posição, time, carga e carrinho dele). A bola de quem é local (eu ou o bot) é simulada aqui; a cena não manda
+ * nada para a rede nem para o placar do servidor enquanto há bot.
  */
 import type { MatchPhase, SportZone } from '@opencord/contracts';
 import * as THREE from 'three';
@@ -90,7 +93,7 @@ export interface SportHooks {
   contested?(): boolean;
 }
 
-interface Me {
+export interface Me {
   x: number;
   y: number;
   z: number;
@@ -126,6 +129,13 @@ export function tackleCall(dir: { x: number; z: number }, victimRy: number, wonB
   const behind = dir.x * Math.sin(victimRy) + dir.z * Math.cos(victimRy) > 0.5;
   return wonBall && !behind ? 'clean' : 'foul';
 }
+/** o que é de cada jogador local (eu e o bot): posição, carga do arremesso, carrinho e o tempo sem dominar */
+interface ActorState {
+  me: Me;
+  charge: number | null;
+  slide: { dx: number; dz: number; until: number; done: boolean } | null;
+  regainAt: number;
+}
 const WHIFF: PressResult = { result: 'whiff' };
 const HIT: PressResult = { result: 'hit' };
 
@@ -142,7 +152,6 @@ export class SportPlay {
   /** parada no lugar de saída (sem gravidade) até alguém tocar */
   private parked = true;
   private lastSend = 0;
-  private kickCd = 0;
   private charge: number | null = null;
   private shotFrom: Vec | null = null;
   private resetAt = 0;
@@ -175,16 +184,31 @@ export class SportPlay {
   /** para a bola dominada girar no pé */
   private lastHeldAt: { x: number; z: number } | null = null;
   private spin = 0;
+  /** quem está agindo agora: eu (`owner`) ou, dentro de `asBot`, o bot */
+  private selfId: string;
+  private readonly owner: string;
+  /** treino contra bot: o id do bot (null = sem bot) e o estado dele fora do `asBot` */
+  private botId: string | null = null;
+  private bot: ActorState = {
+    me: { x: 0, y: 0, z: 0, ry: 0, moving: false, running: false },
+    charge: null,
+    slide: null,
+    regainAt: 0,
+  };
+  /** dentro de `asBot`: time e marcação do bot */
+  private actorTeam: Team | null = null;
+  private actorContested: boolean | null = null;
 
   constructor(
     private readonly scene: THREE.Scene,
     readonly zone: SportZone,
-    private readonly selfId: string,
+    selfId: string,
     private readonly hooks: SportHooks,
     private readonly handOf: (id: string) => Vec | null,
     /** tênis: onde fica a bola do saque de um lado (na frente de quem está daquele lado) */
     private readonly servePos: (side: 'a' | 'b') => Vec | null = () => null,
   ) {
+    this.selfId = this.owner = selfId;
     const a = ARENAS[zone];
     this.ball = { ...a.ballStart, vx: 0, vy: 0, vz: 0 };
     this.mesh = ballMesh(zone);
@@ -196,8 +220,76 @@ export class SportPlay {
     this.render();
   }
 
+  /** a bola é simulada aqui (minha ou do bot) */
   get mine() {
-    return this.authority === this.selfId;
+    return this.authority !== null && (this.authority === this.owner || this.authority === this.botId);
+  }
+
+  // ---------------------------------------------------------------- treino contra bot
+  /** liga (id) ou desliga (null) o bot */
+  setLocalBot(id: string | null) {
+    this.botId = id;
+    this.bot = { ...this.bot, charge: null, slide: null, regainAt: 0 };
+    if (!id && this.held && this.held !== this.owner) this.setHeld(null, performance.now());
+  }
+
+  /** roda `fn` como o bot (as ações de `press`, `release`, `footPress`… valem para ele) */
+  asBot<T>(me: Me, team: Team, contested: boolean, fn: () => T): T {
+    if (!this.botId || this.selfId !== this.owner) return fn();
+    const mine: ActorState = { me: this.me, charge: this.charge, slide: this.slide, regainAt: this.regainAt };
+    this.selfId = this.botId;
+    this.me = me;
+    this.charge = this.bot.charge;
+    this.slide = this.bot.slide;
+    this.regainAt = this.bot.regainAt;
+    this.actorTeam = team;
+    this.actorContested = contested;
+    try {
+      return fn();
+    } finally {
+      this.bot = { me, charge: this.charge, slide: this.slide, regainAt: this.regainAt };
+      this.selfId = this.owner;
+      this.me = mine.me;
+      this.charge = mine.charge;
+      this.slide = mine.slide;
+      this.regainAt = mine.regainAt;
+      this.actorTeam = null;
+      this.actorContested = null;
+    }
+  }
+
+  /** a parte do jogador que roda a cada quadro, para o bot: a carga sobe e, no futebol, dominar e o carrinho */
+  botStep(dt: number, now: number, me: Me, team: Team, contested: boolean) {
+    if (!this.botId) return;
+    this.asBot(me, team, contested, () => {
+      if (this.charge !== null) this.charge = Math.min(1, this.charge + dt / 1.1);
+      if (this.zone === 2) this.footUpdate(now);
+    });
+  }
+
+  /** carga do arremesso do bot (null = sem carregar) */
+  get botCharging(): number | null {
+    return this.bot.charge;
+  }
+
+  /** direção do carrinho do bot em andamento */
+  get botSliding(): { x: number; z: number } | null {
+    const sl = this.bot.slide;
+    return sl && performance.now() < sl.until ? { x: sl.dx, z: sl.dz } : null;
+  }
+
+  /** a bola agora (só leitura) e se está parada esperando o saque */
+  ballNow(): Readonly<BallState> {
+    return this.ball;
+  }
+
+  get isParked() {
+    return this.parked;
+  }
+
+  /** há quanto tempo (ms) quem está com a bola está com ela */
+  heldFor(now: number): number {
+    return this.held ? now - this.heldSince : 0;
   }
 
   /** fase da partida da arena (null = jogo livre) */
@@ -213,7 +305,11 @@ export class SportPlay {
   }
 
   private myTeam(): Team {
-    return this.hooks.team?.() ?? (this.me.x < 0 ? 'a' : 'b');
+    return this.actorTeam ?? this.hooks.team?.() ?? (this.me.x < 0 ? 'a' : 'b');
+  }
+
+  private isContested(): boolean {
+    return this.actorContested ?? this.hooks.contested?.() ?? false;
   }
 
   /** basquete: dá para roubar agora (bola na mão de outra pessoa, proteção vencida e eu na frente dela)? */
@@ -226,7 +322,7 @@ export class SportPlay {
   /** basquete: a faixa verde da força agora (null quando não estou com a bola) */
   band(): { lo: number; hi: number } | null {
     if (this.zone !== 1 || !this.holding) return null;
-    return goodBand(hoopDist(this.me, attackHoop(this.myTeam())), this.hooks.contested?.() ?? false);
+    return goodBand(hoopDist(this.me, attackHoop(this.myTeam())), this.isContested());
   }
 
   /** quem está com a bola (id) */
@@ -368,7 +464,7 @@ export class SportPlay {
     const h = this.flat(id);
     if (!h) return false;
     if (h.a === A_ELASTICO) return false;
-    const mine = this.hooks.team?.();
+    const mine = this.actorTeam ?? this.hooks.team?.();
     const theirs = this.hooks.teamOf?.(id);
     if (mine && theirs && mine === theirs) return false;
     return Math.hypot(this.ball.x - this.me.x, this.ball.z - this.me.z) < reach;
@@ -604,7 +700,7 @@ export class SportPlay {
     const hand = this.handOf(this.selfId) ?? { x: this.me.x, y: HAND_Y + 0.6, z: this.me.z };
     const from = { x: hand.x, y: hand.y + 0.2, z: hand.z };
     const charge = this.charge;
-    Object.assign(this.ball, from, basketShot(from, charge, attackHoop(this.myTeam()), this.hooks.contested?.()));
+    Object.assign(this.ball, from, basketShot(from, charge, attackHoop(this.myTeam()), this.isContested()));
     this.shotFrom = { x: this.me.x, y: 0, z: this.me.z };
     this.charge = null;
     this.setHeld(null, now);
@@ -626,7 +722,7 @@ export class SportPlay {
 
   /** estado vindo da rede */
   remote(b: RemoteBall, now = performance.now()) {
-    if (b.by === this.selfId) return;
+    if (b.by === this.owner || (this.botId && b.by === this.botId)) return;
     // quem tocou depois (contador maior) manda; empate (dois toques ao mesmo tempo): o mesmo vencedor em todos os
     // apps, pelo id
     if (!acceptBall(b.t, b.by, this.touchT, this.authority)) return;
@@ -692,9 +788,9 @@ export class SportPlay {
   /** o dono sumiu ou ficou calado: o menor id vivo assume a partir do último estado */
   private checkAuthority(now: number) {
     const a = this.authority;
-    if (!a || a === this.selfId || !this.hooks.alive) return;
+    if (!a || a === this.owner || a === this.botId || !this.hooks.alive) return;
     const alive = this.hooks.alive();
-    if (this.held && this.held !== this.selfId && !alive.includes(this.held)) {
+    if (this.held && this.held !== this.owner && this.held !== this.botId && !alive.includes(this.held)) {
       this.setHeld(null, now);
       this.parked = false;
     }

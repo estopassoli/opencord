@@ -24,6 +24,9 @@ import { useSession } from '../../store/session';
 import { canEditSpace, useSpace } from '../../store/space';
 import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
+import type { BotLevel } from './bots/level';
+import { botMatchPhase } from './bots/match';
+import { botIn, useAllDuels, useBotPlay } from './bots/store';
 import { SpaceEditor } from './editor';
 import { SpaceScene, type ScreenSource } from './scene';
 import { setSfxDeafened } from './sfx';
@@ -38,6 +41,7 @@ import {
   MatchScore,
   PointBanner,
   RaceEnd,
+  useRace,
 } from './MatchHud';
 import { TelaoSource, useTelaoPlayer } from './Telao';
 import { TutorialHud, useTutorial } from './TutorialHud';
@@ -65,6 +69,17 @@ const SWATCHES = [
  */
 function playZone(zone: number, scene: SpaceScene | null) {
   const st = useSpace.getState();
+  // contra o bot: a partida é local (Revanche com o mesmo bot)
+  if (botIn(zone)) {
+    const m = useBotPlay.getState().match;
+    if (m && zone !== 7) {
+      const ph = botMatchPhase(m, Date.now());
+      if (ph === 'countdown' || ph === 'playing') return;
+    }
+    useBotPlay.getState().rematch();
+    scene?.newMatch();
+    return;
+  }
   if (zone === 7) {
     void st.startRace();
     return;
@@ -81,6 +96,8 @@ function playZone(zone: number, scene: SpaceScene | null) {
 /** estou correndo agora (largada no meu relógio, sem ter chegado e com a prova aberta)? */
 function racingNow(meId: string | undefined): boolean {
   const st = useSpace.getState();
+  const vsBot = useBotPlay.getState().race;
+  if (vsBot) return st.zone === 7 && !vsBot.closed && !vsBot.results.some((r) => r.userId === meId);
   const race = st.session?.race;
   if (st.zone !== 7 || st.raceLocalStart === null || !race || race.closed) return false;
   return !race.results.some((r) => r.userId === meId) && !(race.dnf ?? []).includes(meId ?? '');
@@ -98,6 +115,11 @@ function rematchKey(meId: string | undefined, scene: SpaceScene | null) {
     return;
   }
   if (zone === 7) {
+    const vsBot = useBotPlay.getState().race;
+    if (vsBot) {
+      if (vsBot.closed) playZone(7, scene);
+      return;
+    }
     // uma tecla não pode largar de novo por cima de quem ainda está correndo (o menu continua podendo)
     const race = st.session?.race;
     const stale = race ? Date.now() - race.startAt > RACE_STALE_MS : true;
@@ -158,14 +180,19 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     sceneRef.current?.lockPointer();
     forceRender((n) => n + 1);
   }, [screenMenu, musicOpen]);
-  const fighting = useSpace((s) =>
-    Object.values(s.duels).some(
-      (d) => (d.status === 'countdown' || d.status === 'fighting') && (d.a === me?.id || d.b === me?.id),
-    ),
+  const allDuels = useAllDuels();
+  const myFight = useMemo(
+    () =>
+      Object.values(allDuels).find(
+        (d) => (d.status === 'countdown' || d.status === 'fighting') && (d.a === me?.id || d.b === me?.id),
+      ),
+    [allDuels, me?.id],
   );
+  const fighting = Boolean(myFight);
   const [race, setRace] = useState<{ lap: number; item: boolean; boost: boolean; speed: number } | null>(null);
   const zone = useSpace((s) => s.zone);
-  const racing = useSpace((s) => s.zone === 7 && s.raceLocalStart !== null && racingNow(me?.id));
+  const botRace = useBotPlay((s) => s.race);
+  const racing = useSpace((s) => s.zone === 7 && (s.raceLocalStart !== null || !!botRace) && racingNow(me?.id));
   // menu do jogo: aparece com o mouse solto (Esc) ou, sem trava, pela Pausa — nunca no editor nem nos menus do telão.
   // No x1 e na corrida o mouse solto não abre o menu (cobriria a luta): só a faixa; Esc de novo abre.
   const loose = !editing && !noLock && !aimLocked && !menuFree.current && !screenMenu;
@@ -177,11 +204,6 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     setForced(false);
     setMenuTab(null);
   }, [aimLocked]);
-  const myFight = useSpace((s) =>
-    Object.values(s.duels).find(
-      (d) => (d.status === 'countdown' || d.status === 'fighting') && (d.a === me?.id || d.b === me?.id),
-    ),
-  );
   const hasMatch = zone !== 0 || Boolean(myFight);
   const closeMenu = () => {
     // Esc não conta como gesto: o navegador não deixa prender o mouse agora; a faixa pede o clique
@@ -321,6 +343,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     el.focus({ preventScroll: true });
     return () => {
       s.dispose();
+      useBotPlay.getState().stop();
       useSpace.setState({ ballListener: null, poolListener: null });
       useVoice.getState().engine()?.clearSpatialGains();
       sceneRef.current = null;
@@ -348,8 +371,26 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   useEffect(() => {
     scene?.setTeam(team);
   }, [scene, team]);
-  const raceLocalStart = useSpace((s) => s.raceLocalStart);
-  const raceLaps = useSpace((s) => s.session?.race?.laps ?? 3);
+  // treino contra bot: o bot entra na cena da zona dele; trocar de zona tira o bot
+  const bot = useBotPlay((s) => s.bot);
+  useEffect(() => {
+    scene?.setBot(bot);
+  }, [scene, bot, zone]);
+  useEffect(() => {
+    const b = useBotPlay.getState().bot;
+    if (b && b.zone !== zone) useBotPlay.getState().stop();
+  }, [zone]);
+  const botNotice = useBotPlay((s) => s.notice);
+  useEffect(() => {
+    if (!botNotice) return;
+    useUi.getState().toast('info', botNotice);
+    useBotPlay.setState({ notice: null });
+  }, [botNotice]);
+
+  const serverRaceStart = useSpace((s) => s.raceLocalStart);
+  const serverLaps = useSpace((s) => s.session?.race?.laps ?? 3);
+  const raceLocalStart = botRace ? botRace.startAt : serverRaceStart;
+  const raceLaps = botRace ? botRace.laps : serverLaps;
   useEffect(() => {
     scene?.setRace(raceLocalStart, raceLaps);
   }, [scene, raceLocalStart, raceLaps, zone]);
@@ -359,8 +400,17 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   // partida da arena (P2): a cena sabe a fase para travar o saque na contagem e sacar sozinho em jogo
   const match = useSpace((s) => s.session?.matches?.[String(zone)]);
   const matchGo = useSpace((s) => s.matchLocalStart[String(zone)]);
+  const botMatch = useBotPlay((s) => (s.match?.zone === zone ? s.match : null));
   useEffect(() => {
     if (!scene) return;
+    if (botMatch) {
+      // contra o bot: a fase local (a contagem vira jogo no VAI)
+      const left = botMatch.goAt - Date.now();
+      scene.setMatch(botMatchPhase(botMatch, Date.now()));
+      if (botMatch.phase !== 'countdown' || left <= 0) return;
+      const t = setTimeout(() => scene.setMatch('playing'), left);
+      return () => clearTimeout(t);
+    }
     if (!isMatchZone(zone) || !match) return scene.setMatch(null);
     const phase = matchPhase(match, Date.now());
     if (match.phase !== 'countdown') return scene.setMatch(phase);
@@ -370,9 +420,33 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     scene.setMatch('countdown');
     const t = setTimeout(() => scene.setMatch('playing'), left);
     return () => clearTimeout(t);
-  }, [scene, zone, match, matchGo]);
+  }, [scene, zone, match, matchGo, botMatch]);
 
-  const matchCountdownAt = match?.phase === 'countdown' ? (matchGo ?? null) : null;
+  const matchCountdownAt = botMatch
+    ? botMatch.phase === 'countdown'
+      ? botMatch.goAt
+      : null
+    : match?.phase === 'countdown'
+      ? (matchGo ?? null)
+      : null;
+
+  /** chama o bot no nível (null tira): a partida contra ele começa com a contagem */
+  const pickBot = (level: BotLevel | null) => {
+    const st = useBotPlay.getState();
+    if (!level || !me) {
+      st.stop();
+      return;
+    }
+    st.start({
+      zone,
+      level,
+      me: me.id,
+      team: useSpace.getState().team,
+      ...(zone === 0 && sceneRef.current ? { ring: sceneRef.current.botRingSpot() } : {}),
+    });
+    sceneRef.current?.newMatch();
+    resume();
+  };
 
   const onSource = useCallback((src: ScreenSource) => sceneRef.current?.setScreen(src), []);
   // muda quando a cena nasce: o alvo do tutorial chega nela mesmo se o passo começou antes
@@ -456,16 +530,16 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
           counts={counts}
           place={space ? SPACE_THEME_LABELS[space.layout.theme] : ''}
           match={
-            hasMatch ? (
-              <MatchPanel
-                zone={zone}
-                fight={myFight ? { duelId: myFight.id } : null}
-                onPlay={() => {
-                  playZone(zone, sceneRef.current);
-                  resume();
-                }}
-              />
-            ) : null
+            <MatchPanel
+              zone={zone}
+              fight={myFight ? { duelId: myFight.id } : null}
+              others={Math.max(0, (counts[zone] ?? 1) - 1)}
+              onBot={pickBot}
+              onPlay={() => {
+                playZone(zone, sceneRef.current);
+                resume();
+              }}
+            />
           }
           onResume={resume}
           onHowTo={() => {
@@ -1037,8 +1111,10 @@ const fmtRace = (ms: number) => {
  * da região viva; o fim (pódio e DNF) é o RaceEnd. Jogar / Nova corrida ficam no menu (Esta partida) e no atalho.
  */
 function RaceHud({ hud }: { hud: { lap: number; item: boolean; boost: boolean; speed: number } | null }) {
-  const race = useSpace((s) => s.session?.race ?? null);
-  const localStart = useSpace((s) => s.raceLocalStart);
+  const race = useRace();
+  const botStart = useBotPlay((s) => s.race?.startAt ?? null);
+  const serverStart = useSpace((s) => s.raceLocalStart);
+  const localStart = botStart ?? serverStart;
   const meId = useData((s) => s.me?.id);
   const [, tick] = useState(0);
   useEffect(() => {

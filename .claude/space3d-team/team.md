@@ -73,6 +73,12 @@ _Atualize quando o estado do mundo mudar. Última revisão: 2026-11-09._
   time; a rede é parede; trocar de time reposiciona), `AUTO_SERVE_MS` (saque sai sozinho em 8 s, só em jogo).
   `SportPlay.setPhase` trava pegar/sacar na contagem.
 
+- **Treino contra bot (2026-11-09):** Esc → Esta partida → "Jogar contra bot" (Fácil/Médio/Difícil, "Tirar o bot")
+  em todas as arenas; na sala, "x1 contra bot". Só com a arena vazia (Tooltip com o motivo; se alguém entra, o bot sai
+  com aviso). Tudo local: `bots/store.ts` (placar, corrida e x1 do bot; o HUD lê daqui quando há bot), `bots/runner.ts`
+  (boneco e corpo do bot na cena), cérebros puros `bots/sportbot|poolbot|racebot|duelbot.ts` com `rng.ts` (semente).
+  `SportPlay.asBot`/`botStep` = segundo jogador local; `PoolPlay.botShot`. Sinuca contra bot vai até 8 bolas.
+
 ## Controles atuais
 
 W A S D andar · Q/E girar a câmera · Shift correr · Espaço pular · G acenar · F interagir (aceita convite de x1) ·

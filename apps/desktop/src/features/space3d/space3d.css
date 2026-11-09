@@ -1733,6 +1733,22 @@
   max-width: 420px;
   margin-top: 16px;
 }
+/* jogar contra bot (treino local) */
+.gm-bot {
+  max-width: 720px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+}
+.gm-bot h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 800;
+}
+.gm-bot p {
+  margin: 0 0 12px;
+  color: rgb(255 255 255 / 0.62);
+}
 @media (prefers-reduced-motion: reduce) {
   .space3d-mp,
   .space3d-banner,

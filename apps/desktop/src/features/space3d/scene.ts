@@ -15,6 +15,9 @@ import {
   type SportZone,
 } from '@opencord/contracts';
 import { buildArenaDecor } from './arena3d';
+import { isBotDuel } from './bots/match';
+import { BotRunner, type BotHost } from './bots/runner';
+import type { ActiveBot } from './bots/store';
 import { GameBus, type GameEvent } from './events';
 import { cancelHeld, InputBus } from './input';
 import { Juice, type JuiceLabel } from './juice';
@@ -208,6 +211,8 @@ export class SpaceScene {
   private stunUntil = 0;
   private dash: { until: number; x: number; z: number; speed: number; a: number } | null = null;
   pool: PoolPlay | null = null;
+  /** treino contra bot: o boneco do bot e o que ele faz (só neste app) */
+  private botRun: BotRunner | null = null;
   private bike: Bike | null = null;
   private raceInfo: { localStart: number | null; laps: number } = { localStart: null, laps: 3 };
   private raceFinished = false;
@@ -319,6 +324,7 @@ export class SpaceScene {
   private seatsHere(): PoolSeat[] {
     const now = performance.now();
     const seats: PoolSeat[] = [{ id: this.selfId, team: this.team }];
+    if (this.botRun) seats.push({ id: this.botRun.id, team: this.botRun.team });
     for (const [id, p] of peers)
       if (id !== this.selfId && p.zone === 6 && now - p.at < PEER_TIMEOUT_MS)
         seats.push({ id, team: p.team === 'b' ? 'b' : 'a' });
@@ -338,17 +344,67 @@ export class SpaceScene {
         Math.hypot(p.x - this.pose.x, p.z - this.pose.z) < GOOD_BAND.contestR
       )
         return true;
-    return false;
+    const bot = this.botRun;
+    return !!bot && Math.hypot(bot.pose.x - this.pose.x, bot.pose.z - this.pose.z) < GOOD_BAND.contestR;
   }
 
   private nameOf(id: string): string {
+    if (id === this.botRun?.id) return this.botRun.name;
     return this.participants.find((p) => p.identity === id)?.name ?? 'alguém';
+  }
+
+  // ---------- treino contra bot ----------
+  /** liga o bot na zona atual (só neste app; null tira); a cada bot novo, a partida recomeça */
+  setBot(bot: ActiveBot | null) {
+    const want = bot && bot.zone === this.zone ? bot : null;
+    if (want?.id === this.botRun?.id) return;
+    this.botRun?.dispose();
+    this.botRun = null;
+    this.sport?.setLocalBot(null);
+    if (!want) return;
+    this.botRun = new BotRunner(this.botHost(), want);
+    this.sport?.setLocalBot(want.id);
+    this.newMatch();
+  }
+
+  /** x1 contra bot: o ringue fica logo à minha frente */
+  botRingSpot(): { x: number; z: number } {
+    const p = this.pose;
+    const x = p.x + Math.sin(p.ry) * 1.3;
+    const z = p.z + Math.cos(p.ry) * 1.3;
+    return this.obstacles ? resolve(this.obstacles, x, z) : { x, z };
+  }
+
+  private botHost(): BotHost {
+    return {
+      scene: this.scene,
+      zone: () => this.zone,
+      myPose: () => this.pose,
+      myTeam: () => this.team,
+      myBlocking: () => this.blocking,
+      sport: () => this.sport,
+      pool: () => this.pool,
+      phase: () => this.matchPhase,
+      emit: (e) => this.events.emit(e),
+      resolve: (x, z) => (this.obstacles ? resolve(this.obstacles, x, z) : { x, z }),
+      handOf: (id) => this.handOf(id),
+      race: () => this.raceInfo,
+      realPeersHere: () => {
+        const now = performance.now();
+        let n = 0;
+        for (const [id, p] of peers)
+          if (id !== this.selfId && p.zone === this.zone && now - p.at < PEER_TIMEOUT_MS) n++;
+        return n;
+      },
+    };
   }
 
   /** vai para uma arena de esporte (1–3) ou volta para a sala (0) */
   setZone(z: 0 | SportZone, team: 'a' | 'b' = this.team) {
     if (z === this.zone) return;
     this.team = team;
+    this.botRun?.dispose();
+    this.botRun = null;
     this.sport?.dispose();
     this.sport = null;
     this.pool?.dispose();
@@ -385,9 +441,14 @@ export class SpaceScene {
       this.scene.add(this.decor);
       if (z === 6)
         this.pool = new PoolPlay(this.scene, this.selfId, {
-          send: (m) => this.hooks.sendPool?.(m),
+          // contra o bot nada vai para a rede nem para o placar do servidor
+          send: (m) => {
+            if (!this.botRun) this.hooks.sendPool?.(m);
+          },
           score: (side, points) =>
-            this.hooks.onScore?.(6, side, points, side === this.team ? this.selfId : undefined, this.teamsHere()),
+            this.botRun
+              ? this.botRun.score(side, points)
+              : this.hooks.onScore?.(6, side, points, side === this.team ? this.selfId : undefined, this.teamsHere()),
           emit: (e) => this.events.emit(e),
           alive: () => this.aliveHere(),
           players: () => this.seatsHere(),
@@ -408,14 +469,19 @@ export class SpaceScene {
         z,
         this.selfId,
         {
-          sendBall: (b) => this.hooks.sendBall?.(z, b),
+          sendBall: (b) => {
+            if (!this.botRun) this.hooks.sendBall?.(z, b);
+          },
           score: (side, points) =>
-            this.hooks.onScore?.(z, side, points, side === this.team ? this.selfId : undefined, this.teamsHere()),
+            this.botRun
+              ? this.botRun.score(side, points)
+              : this.hooks.onScore?.(z, side, points, side === this.team ? this.selfId : undefined, this.teamsHere()),
           emit: (e) => this.events.emit(e),
           alive: () => this.aliveHere(),
           team: () => this.team,
-          teamOf: (id) => peers.get(id)?.team,
-          poseOf: (id) => (id === this.selfId ? this.pose : (peers.get(id) ?? null)),
+          teamOf: (id) => (id === this.botRun?.id ? this.botRun.team : peers.get(id)?.team),
+          poseOf: (id) =>
+            id === this.selfId ? this.pose : id === this.botRun?.id ? this.botRun.pose : (peers.get(id) ?? null),
           contested: () => this.contested(),
           onTackle: (e) => this.onTackle(e),
         },
@@ -435,6 +501,7 @@ export class SpaceScene {
   private aliveHere(): string[] {
     const now = performance.now();
     const ids = [this.selfId];
+    if (this.botRun) ids.push(this.botRun.id);
     for (const [id, p] of peers)
       if (id !== this.selfId && p.zone === this.zone && now - p.at < PEER_TIMEOUT_MS) ids.push(id);
     return ids;
@@ -470,6 +537,8 @@ export class SpaceScene {
 
   /** posição no grid: ordem dos ids de quem está na pista (igual em todos os apps) */
   private gridSlot(): number {
+    // contra o bot: eu largo num lado do grid, o bot no outro
+    if (this.botRun) return 0;
     const ids = [this.selfId, ...[...peers.entries()].filter(([, p]) => p.zone === 7).map(([id]) => id)].sort();
     return Math.max(0, ids.indexOf(this.selfId));
   }
@@ -514,7 +583,8 @@ export class SpaceScene {
         this.raceFinished = true;
         const ms = Date.now() - start;
         this.events.emit({ kind: 'finish', ms, power: 1, zone: 7, at: { x: b.x, y: 0.5, z: b.z } });
-        this.hooks.onRaceFinish?.(ms);
+        if (this.botRun) this.botRun.finishMine(ms);
+        else this.hooks.onRaceFinish?.(ms);
       }
     this.pose = { x: b.x, y: 0.45, z: b.z, ry: b.h, a: 5 };
     this.me.place(this.pose);
@@ -552,6 +622,7 @@ export class SpaceScene {
     const now = performance.now();
     const cands: { x: number; z: number; ry: number }[] = [];
     if (onSide(this.pose.x)) cands.push(this.pose);
+    if (this.botRun && onSide(this.botRun.pose.x)) cands.push(this.botRun.pose);
     for (const p of peers.values())
       if (p.zone === this.zone && now - p.at < PEER_TIMEOUT_MS && onSide(p.x)) cands.push(p);
     const baseX = (side === 'a' ? -1 : 1) * (this.zone ? (ARENAS[this.zone].serveX ?? 11) : 11);
@@ -565,12 +636,13 @@ export class SpaceScene {
    * quicando no chão ao lado da mão direita; carregando o arremesso, acima da cabeça.
    */
   private handOf(id: string): { x: number; y: number; z: number } | null {
-    const p = id === this.selfId ? this.pose : peers.get(id);
+    const bot = this.botRun && id === this.botRun.id ? this.botRun : null;
+    const p = id === this.selfId ? this.pose : bot ? bot.pose : peers.get(id);
     if (!p) return null;
     const fx = Math.sin(p.ry);
     const fz = Math.cos(p.ry);
     if (this.zone === 2) return this.footOf(id, p);
-    if (id === this.selfId && this.sport?.charging != null)
+    if ((id === this.selfId && this.sport?.charging != null) || (bot && this.sport?.botCharging != null))
       return { x: p.x + fx * 0.14, y: p.y + 1.45, z: p.z + fz * 0.14 };
     if (p.a === 1 || p.a === 2) {
       const ph = Math.abs(Math.sin((performance.now() / 1000) * (p.a === 2 ? 9 : 7)));
@@ -609,6 +681,7 @@ export class SpaceScene {
       this.dash = null;
     } else if (e.by === this.selfId && e.foul) this.stunUntil = Math.max(this.stunUntil, now + 900);
     if (e.on !== this.selfId) this.others.get(e.on)?.hitReact();
+    this.botRun?.onTackle(e, now);
   }
 
   /** futebol: caído, segurado ou no meio de um carrinho/elástico (sem andar nem novo lance) */
@@ -761,11 +834,12 @@ export class SpaceScene {
 
   /** alguém levou um golpe (efeito); `blocked` = defendeu */
   hit(userId: string, blocked = false) {
-    const av = userId === this.selfId ? this.me : this.others.get(userId);
+    const bot = this.botRun && userId === this.botRun.id ? this.botRun : null;
+    const av = userId === this.selfId ? this.me : bot ? bot.avatar : this.others.get(userId);
     av?.hitReact();
     // o corpo de quem levou acende por um instante
     this.juice.flash(av?.material, 110, performance.now());
-    const p = userId === this.selfId ? this.pose : peers.get(userId);
+    const p = userId === this.selfId ? this.pose : bot ? bot.pose : peers.get(userId);
     if (p)
       this.events.emit({
         kind: 'punch',
@@ -799,7 +873,9 @@ export class SpaceScene {
     // a pose do soco sai antes do golpe (o servidor confere a posição e a mira)
     this.lastSend = 0;
     this.maybeSend(now);
-    this.hooks.onPunch?.(strong);
+    // x1 contra o bot: quem decide o acerto é o bot (local), não o servidor
+    if (this.botRun && isBotDuel(f.duelId)) this.botRun.myPunch(strong);
+    else this.hooks.onPunch?.(strong);
     const p = this.pose;
     this.events.emit({
       kind: 'punch',
@@ -1139,8 +1215,10 @@ export class SpaceScene {
           zone: 7,
           at: { x: this.bike.x, y: 0.5, z: this.bike.z },
         });
-    } else if (this.pool) this.pool.press(this.team);
-    else if (this.sport) this.sportPress(now);
+    } else if (this.pool) {
+      // contra o bot, na contagem ninguém taca
+      if (!(this.botRun && this.matchPhase === 'countdown')) this.pool.press(this.team);
+    } else if (this.sport) this.sportPress(now);
   }
 
   /**
@@ -1411,6 +1489,7 @@ export class SpaceScene {
     const gdt = this.mode === 'play' ? dt * this.juice.timeScale(now) : dt;
     if (this.mode === 'play') this.stepPlayer(gdt, now);
     else this.stepEditorCamera(dt);
+    if (this.mode === 'play') this.botRun?.step(gdt, now, t, dt);
     this.me.setVoiceLevel(this.hooks.audioLevel?.(this.selfId) ?? 0);
     this.holdOf(this.selfId, this.me);
     this.me.update(gdt, t, dt);
@@ -1537,7 +1616,9 @@ export class SpaceScene {
         if (holding && !this.wasHolding) this.inputs.emit({ kind: 'grab' });
         this.wasHolding = holding;
       }
-      if (this.pool) this.pool.update(dt, now, Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)));
+      // na vez do bot o taco aponta para a tacada dele
+      if (this.pool)
+        this.pool.update(dt, now, this.botRun?.poolAim() ?? Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)));
       const c = this.sport ? this.sport.charging : (this.pool?.charging ?? null);
       if ((c === null) !== (this.lastCharge === null) || (c !== null && Math.abs(c - (this.lastCharge ?? 0)) > 0.02)) {
         if (c !== null && c >= 0.3 && (this.lastCharge ?? 0) < 0.3) this.inputs.emit({ kind: 'charge', c });
@@ -1857,6 +1938,8 @@ export class SpaceScene {
     this.juice.dispose();
     this.sfxOff();
     sfx.stopEngines();
+    this.botRun?.dispose();
+    this.botRun = null;
     this.sport?.dispose();
     this.pool?.dispose();
     this.events.clear();

@@ -28,3 +28,17 @@ export const BOT_SKILL: Record<BotLevel, BotSkill> = {
   medio: { reaction: 0.4, error: 0.28, smart: 0.65, speed: 0.9 },
   dificil: { reaction: 0.2, error: 0.1, smart: 0.92, speed: 1 },
 };
+
+/** id do bot (começa com "bot:"; nunca é o id de uma pessoa) */
+export function botId(level: BotLevel): string {
+  return `bot:${level}`;
+}
+
+export function isBotId(id: string | null | undefined): boolean {
+  return !!id && id.startsWith('bot:');
+}
+
+/** nome que aparece em cima do boneco e no placar ("Bot · Fácil") */
+export function botName(level: BotLevel): string {
+  return `Bot · ${BOT_LEVEL_LABEL[level]}`;
+}
