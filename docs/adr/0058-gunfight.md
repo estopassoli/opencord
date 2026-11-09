@@ -113,3 +113,19 @@ em Fácil, Médio e Difícil. Nada de mapas, arte, sons ou interface copiados de
   a pose com arma nova). Sem migração.
 - **Limitações:** recarga do revólver simplificada (sem estojos caindo do tambor); dedos da mão de apoio na pegada em
   "C" sobem pela lateral do guarda-mão como nas armas antigas; teste em máquina real (Windows) pendente.
+
+## Adendo (2026-11-09): movimento e tiro no pulo no estilo CoD (MW 2019/2023)
+
+- **Mirando, o tiro vai para o centro da mira** (pedido do mantenedor): no ar, andando ou deslizando, com a mira em
+  cima a bala sai reta; o primeiro tiro mirando é exato e a rajada mirando abre só o pouco de `spread.ads`/`bloom`
+  (igual no chão e no ar). Os castigos de andar, pular e deslizar (`AIR_SPREAD`, `SLIDE_SPREAD`, `spread.move`) valem
+  no quadril e somem junto com a transição da mira (na luneta, de vez). Substitui o "nem com a luneta" de antes.
+- **Corrida:** a normal não cansa; o vigor é só da tática (~3,5 s, volta depois de 1 s sem ela, também correndo).
+  Sair da corrida para atirar: 200/150/110/300 ms (fuzil/SMG/pistola/sniper), ×1,6 da tática; o clique dado correndo
+  sai quando a arma desce, mesmo depois da janela do clique guardado.
+- **Mirando, cada classe no seu ritmo** (`ADS_MOVE`: fuzil 0,55, SMG 0,68, pistola 0,75, sniper 0,42 × peso da arma);
+  de costas, ×0,8.
+- **No ar:** o controle vira a direção mas não passa da velocidade que se teria no chão (pular parado não vira
+  corrida; antes acelerava até o teto do bunny hop); aterrissar sem pular de novo freia para ×0,85. O bunny hop (pulo
+  guardado) segue como antes.
+- Bots e rede sem mudança (os bots usam `spreadNow`, que não mudou; nada novo na pose).

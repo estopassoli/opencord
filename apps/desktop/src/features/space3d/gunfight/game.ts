@@ -25,6 +25,7 @@ import { makeBuiltGun } from './attachmodels';
 import { GUN_BOXES, pickSpawn } from './map';
 import { loadGuns } from './models';
 import {
+  ADS_MOVE,
   MOVE,
   newMove,
   pressCrouch,
@@ -200,9 +201,12 @@ interface Job {
 }
 
 const SLOTS: GunSlot[] = ['primary', 'secondary', 'melee'];
-/** tempo para a arma descer da corrida até poder atirar (ms); na tática (arma para o alto) um pouco mais */
-export const SPRINT_OUT_MS: Record<GunClass, number> = { ar: 180, smg: 140, pistol: 110, sniper: 260, knife: 0 };
-const TACTICAL_OUT_K = 1.25;
+/**
+ * Tempo para a arma descer da corrida até poder atirar (ms, o "sprint-to-fire" do CoD); na tática (arma para o alto),
+ * bem mais: é o preço de correr mais rápido
+ */
+export const SPRINT_OUT_MS: Record<GunClass, number> = { ar: 200, smg: 150, pistol: 110, sniper: 300, knife: 0 };
+export const TACTICAL_OUT_K = 1.6;
 /** um clique guardado vale por tanto tempo (ms): sai assim que a arma puder atirar */
 const FIRE_BUFFER_MS = 320;
 /** com quantas pessoas de verdade na arena os bots saem (conferido a cada tanto) */
@@ -1547,13 +1551,26 @@ export class GunGame {
     const wantsFire = sp.cls !== 'knife' && (this.host.held('fire') || now < this.fireBufferUntil) && !this.over;
     const r = stepMove(
       this.move,
-      { wx, wz, runHeld: this.host.held('run'), forward: w.f > 0.5, ads: adsHeld, gunK: sp.move, firing: wantsFire },
+      {
+        wx,
+        wz,
+        runHeld: this.host.held('run'),
+        forward: w.f > 0.5,
+        ads: adsHeld,
+        adsK: ADS_MOVE[sp.cls],
+        fwd: wl > 1e-6 ? w.f / Math.hypot(w.f, w.r) : 1,
+        gunK: sp.move,
+        firing: wantsFire,
+      },
       dt,
       now,
     );
-    // saiu da corrida: a arma leva um instante para descer até a linha de tiro
-    if (this.wasSprint && !this.move.sprint)
+    // saiu da corrida: a arma leva um instante para descer até a linha de tiro (o clique dado correndo sai quando ela
+    // chegar, mesmo que a descida passe da janela do clique guardado)
+    if (this.wasSprint && !this.move.sprint) {
       this.readyAt = now + SPRINT_OUT_MS[sp.cls] * (this.wasTactical ? TACTICAL_OUT_K : 1);
+      if (now < this.fireBufferUntil) this.fireBufferUntil = Math.max(this.fireBufferUntil, this.readyAt + 50);
+    }
     this.wasSprint = this.move.sprint;
     this.wasTactical = this.move.tactical;
     if (r.landed && !r.bhop)

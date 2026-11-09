@@ -5,21 +5,28 @@
  * de controle no ar). A velocidade de cada arma e a mira mudam o ritmo.
  *
  * Correr fica ligado enquanto anda para a frente; parar de andar para a frente, mirar, atirar, agachar ou deslizar
- * desliga (segurar o correr continua valendo, como antes). O vigor (0–1) gasta correndo — rápido na tática, devagar na
- * normal — e volta sozinho depois de um tempo sem correr: a tática acaba em `tacFloor` (cai para a corrida) e a
- * corrida acaba em zero (cai para o andar). Tudo por tempo (dt), igual em qualquer FPS.
+ * desliga (segurar o correr continua valendo, como antes). Como no CoD (MW 2019/2023), a corrida normal não cansa; o
+ * vigor (0–1) é da tática: gasta nela e volta sozinho depois de um tempo sem ela (também correndo normal). A tática
+ * acaba em `tacFloor` e cai para a corrida. Tudo por tempo (dt), igual em qualquer FPS.
  *
- * Limites (para nada virar velocidade infinita): o deslize tem teto (`slideMax`) e recarga (`slideCooldownMs`), o
- * vigor não volta durante o encadeamento deslize → correr (a espera é maior que o deslize) e o bunny hop não passa de
- * `bhopMax` × arma.
+ * Mirando, cada classe anda no seu ritmo (`ADS_MOVE`); andar de costas é mais lento (`backK`). No ar, um pouco de
+ * controle para virar, sem passar da velocidade que se teria no chão (pular não acelera); aterrissar sem pular de novo
+ * freia um pouco (`landK`).
+ *
+ * Limites (para nada virar velocidade infinita): o deslize tem teto (`slideMax`) e recarga (`slideCooldownMs`) e o
+ * bunny hop não passa de `bhopMax` × arma.
  */
 export const MOVE = {
   walk: 3.4,
   sprint: 5.4,
   tactical: 6.7,
   crouch: 1.8,
-  /** mirando, a velocidade cai para isto */
+  /** mirando, a velocidade cai para isto (sem `MoveInput.adsK`; por classe, ver `ADS_MOVE`) */
   adsK: 0.55,
+  /** andando de costas (só para trás; na diagonal, no meio do caminho) */
+  backK: 0.8,
+  /** aterrissou sem o pulo guardado: a velocidade no chão cai para isto e volta com a aceleração */
+  landK: 0.85,
   accel: 30,
   airAccel: 7,
   gravity: 15,
@@ -30,15 +37,12 @@ export const MOVE = {
   slideCooldownMs: 600,
   slideMs: 750,
   slideEnd: 2.4,
-  /** vigor: tempo (ms) para gastar de cheio a vazio na tática e na corrida normal */
+  /** vigor: tempo (ms) para gastar de cheio a vazio na tática (a corrida normal não gasta) */
   tacDrainMs: 5000,
-  sprintDrainMs: 9000,
   /** a tática acaba neste vigor (cai para a corrida; de cheio, ~3,5 s de tática) e só liga com pelo menos `tacMin` */
   tacFloor: 0.3,
   tacMin: 0.45,
-  /** cansado (vigor zerado), só volta a correr com isto */
-  runMin: 0.15,
-  /** o vigor volta depois de `regenDelayMs` sem correr, de vazio a cheio em `regenMs` */
+  /** o vigor volta depois de `regenDelayMs` sem a tática, de vazio a cheio em `regenMs` */
   regenDelayMs: 1000,
   regenMs: 4500,
   /** apertou correr parado (ou mirando): o pedido vale por este tempo, à espera do W */
@@ -50,6 +54,12 @@ export const MOVE = {
   bhopGain: 1.02,
   bhopLoss: 0.94,
 } as const;
+
+/**
+ * Velocidade mirando (vezes a de andar) por classe, como no CoD: submetralhadora e pistola andam mais mirando; a sniper,
+ * bem menos. O peso da arma (`GunSpec.move`) entra por cima.
+ */
+export const ADS_MOVE = { ar: 0.55, smg: 0.68, pistol: 0.75, sniper: 0.42, knife: 1 } as const;
 
 export interface MoveState {
   vx: number;
@@ -109,6 +119,17 @@ export interface MoveInput {
   gunK: number;
   /** atirando agora (corta a corrida) */
   firing: boolean;
+  /** mirando, a velocidade cai para isto (padrão `MOVE.adsK`; ver `ADS_MOVE`) */
+  adsK?: number;
+  /** quanto da direção é para a frente da câmera (−1 de costas a 1 para a frente; padrão 1) */
+  fwd?: number;
+}
+
+/** a velocidade de cima no chão, pelo estado (andar, correr, tática, agachado), a arma, a mira e andar de costas */
+function topSpeed(s: MoveState, inp: MoveInput): number {
+  const base = s.crouch ? MOVE.crouch : s.tactical ? MOVE.tactical : s.sprint ? MOVE.sprint : MOVE.walk;
+  const back = inp.fwd !== undefined && inp.fwd < 0 ? 1 + (MOVE.backK - 1) * Math.min(1, -inp.fwd) : 1;
+  return base * inp.gunK * (inp.ads ? (inp.adsK ?? MOVE.adsK) : 1) * back;
 }
 
 export const sliding = (s: MoveState, now: number) => now < s.slideUntil;
@@ -164,7 +185,7 @@ export function pressCrouch(s: MoveState, now: number): 'slide' | 'cancel' | 'cr
 export function cancelSlide(s: MoveState, now: number) {
   s.slideUntil = 0;
   s.crouch = false;
-  s.sprint = s.stamina > 0;
+  s.sprint = true;
   s.runOn = true;
   s.runArmAt = now;
 }
@@ -195,24 +216,19 @@ export function stepMove(s: MoveState, inp: MoveInput, dt: number, now: number) 
   const slide = sliding(s, now);
   const wl = Math.hypot(inp.wx, inp.wz);
   if (!slide) {
-    // correr só andando para a frente, sem mirar nem atirar; ligado pelo toque (ou segurando); cansado, só volta com
-    // um pouco de vigor
+    // correr só andando para a frente, sem mirar nem atirar; ligado pelo toque (ou segurando); começa só no chão
     const was = s.sprint;
-    const ok = (inp.runHeld || s.runOn) && inp.forward && !inp.ads && !inp.firing && !s.crouch && s.stamina > 0;
-    s.sprint = ok && (was || (s.grounded && s.stamina >= MOVE.runMin));
+    const ok = (inp.runHeld || s.runOn) && inp.forward && !inp.ads && !inp.firing && !s.crouch;
+    s.sprint = ok && (was || s.grounded);
     // parou de correr (soltou o W, mirou, atirou, agachou): o toque desliga; o pedido sem correr expira
     if (s.runOn && !s.sprint && (was || now - s.runArmAt > MOVE.runArmMs)) s.runOn = false;
   }
   if (!s.sprint || s.stamina <= MOVE.tacFloor) s.tactical = false;
-  if (s.sprint) {
-    s.stamina -= (dt * 1000) / (s.tactical ? MOVE.tacDrainMs : MOVE.sprintDrainMs);
+  if (s.tactical) {
+    // só a tática gasta: no fim do vigor, cai para a corrida normal (que segue sem cansar)
+    s.stamina = Math.max(0, s.stamina - (dt * 1000) / MOVE.tacDrainMs);
     s.tiredAt = now;
     if (s.stamina <= MOVE.tacFloor) s.tactical = false;
-    if (s.stamina <= 0) {
-      // sem vigor: volta a andar (e o toque precisa ser dado de novo)
-      s.stamina = 0;
-      stopRun(s);
-    }
   } else if (s.stamina < 1 && now - s.tiredAt > MOVE.regenDelayMs)
     s.stamina = Math.min(1, s.stamina + (dt * 1000) / MOVE.regenMs);
 
@@ -227,10 +243,7 @@ export function stepMove(s: MoveState, inp: MoveInput, dt: number, now: number) 
     s.vx *= k;
     s.vz *= k;
   } else if (s.grounded) {
-    const top =
-      (s.crouch ? MOVE.crouch : s.tactical ? MOVE.tactical : s.sprint ? MOVE.sprint : MOVE.walk) *
-      inp.gunK *
-      (inp.ads ? MOVE.adsK : 1);
+    const top = topSpeed(s, inp);
     const tx = wl > 0 ? (inp.wx / wl) * top * Math.min(1, wl) : 0;
     const tz = wl > 0 ? (inp.wz / wl) * top * Math.min(1, wl) : 0;
     // exponencial: o tempo até a velocidade de cima é o mesmo a 30 e a 240 qps
@@ -238,12 +251,13 @@ export function stepMove(s: MoveState, inp: MoveInput, dt: number, now: number) 
     s.vx += (tx - s.vx) * a;
     s.vz += (tz - s.vz) * a;
   } else if (wl > 0) {
-    // no ar: um pouco de controle, sem frear (e sem passar do teto, que acompanha o peso da arma)
+    // no ar: um pouco de controle para virar, sem frear e sem passar da velocidade que se teria no chão (pular parado
+    // e segurar o W não vira corrida; o embalo de antes, da corrida ou do deslize, fica)
     const before = Math.hypot(s.vx, s.vz);
     s.vx += (inp.wx / wl) * MOVE.airAccel * dt;
     s.vz += (inp.wz / wl) * MOVE.airAccel * dt;
     const sp = Math.hypot(s.vx, s.vz);
-    const cap = Math.max(before, MOVE.bhopMax * inp.gunK);
+    const cap = Math.max(before, topSpeed(s, inp) * Math.min(1, wl));
     if (sp > cap) {
       s.vx *= cap / sp;
       s.vz *= cap / sp;
@@ -267,6 +281,10 @@ export function stepMove(s: MoveState, inp: MoveInput, dt: number, now: number) 
         s.vz *= k;
         doJump(s);
         bhop = true;
+      } else {
+        // aterrissou de vez: um tranco de freio (a aceleração do chão devolve em ~0,3 s)
+        s.vx *= MOVE.landK;
+        s.vz *= MOVE.landK;
       }
     }
   }

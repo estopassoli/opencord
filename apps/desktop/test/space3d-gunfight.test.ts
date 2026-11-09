@@ -34,7 +34,8 @@ vi.mock('../src/features/space3d/gunfight/models', () => {
   };
 });
 
-const { GunGame, bodyYaw, gunSeed } = await import('../src/features/space3d/gunfight/game');
+const { GunGame, SPRINT_OUT_MS, TACTICAL_OUT_K, bodyYaw, gunSeed } =
+  await import('../src/features/space3d/gunfight/game');
 const { shoulderCam } = await import('../src/features/space3d/gunfight/camera');
 type GunHost = import('../src/features/space3d/gunfight/game').GunHost;
 type GunPlayer = import('../src/features/space3d/gunfight/game').GunPlayer;
@@ -363,69 +364,99 @@ describe('gunfight: movimento tático', () => {
     expect(s.sprint).toBe(false);
   });
 
-  it('outro toque correndo liga a tática; o vigor acaba a tática (~3,5 s) e depois a corrida (igual em qualquer fps)', () => {
+  it('outro toque correndo liga a tática; o vigor acaba a tática (~3,5 s) e a corrida normal segue (igual em qualquer fps)', () => {
     const run = (fps: number) => {
       const s = mv.newMove();
       const dt = 1 / fps;
       let t = 0;
       let tacEnd = 0;
-      let runEnd = 0;
       mv.pressRun(s, 0);
       for (let i = 0; i < fps * 20; i++) {
         t += dt * 1000;
         mv.stepMove(s, { wx: 0, wz: -1, runHeld: false, forward: true, ads: false, gunK: 1, firing: false }, dt, t);
         if (s.sprint && !s.tactical && !tacEnd && t > 100 && t < 200) expect(mv.pressRun(s, t)).toBe(true);
         if (!tacEnd && t > 300 && !s.tactical) tacEnd = t;
-        if (!runEnd && t > 300 && !s.sprint) runEnd = t;
       }
-      return { tacEnd, runEnd, s };
+      return { tacEnd, s };
     };
     const a = run(30);
     const b = run(240);
     expect(b.tacEnd).toBeGreaterThan(3200);
     expect(b.tacEnd).toBeLessThan(4000);
-    // a corrida segue com o que sobrou e então volta a andar (sem segurar, o toque desliga)
-    expect(b.runEnd).toBeGreaterThan(b.tacEnd + 2000);
-    expect(b.s.runOn).toBe(false);
     expect(Math.abs(a.tacEnd - b.tacEnd)).toBeLessThan(80);
-    expect(Math.abs(a.runEnd - b.runEnd)).toBeLessThan(80);
-    // só correndo normal (sem a tática): ~9 s
-    const s = mv.newMove();
-    mv.pressRun(s, 0);
-    let t = 0;
-    while (s.sprint || t < 100) t = step(s, {}, 16, t);
-    expect(t).toBeGreaterThan(8500);
-    expect(t).toBeLessThan(9600);
+    // como no CoD: a corrida normal não cansa (20 s depois, ainda correndo) e o vigor da tática volta correndo
+    expect(b.s.sprint).toBe(true);
+    expect(b.s.runOn).toBe(true);
+    expect(b.s.stamina).toBe(1);
   });
 
-  it('o vigor volta depois de um tempo sem correr; com pouco vigor a tática não liga', () => {
+  it('o vigor da tática volta depois de um tempo sem ela (também correndo); com pouco vigor a tática não liga', () => {
     const s = mv.newMove();
-    s.stamina = 0.3;
     mv.pressRun(s, 0);
-    let t = step(s, {}, 300);
+    let t = step(s, {}, 200);
+    expect(mv.pressRun(s, t)).toBe(true);
+    while (s.tactical) t = step(s, {}, 16, t);
+    // a tática acabou no piso: segue correndo normal, e a tática não liga de novo
     expect(s.sprint).toBe(true);
+    expect(s.stamina).toBeLessThanOrEqual(mv.MOVE.tacFloor + 1e-9);
     expect(mv.pressRun(s, t)).toBe(false);
-    expect(s.tactical).toBe(false);
-    t = step(s, { wz: 0, forward: false }, 100, t);
     const low = s.stamina;
     // antes da espera, não volta
-    t = step(s, { wz: 0, forward: false }, mv.MOVE.regenDelayMs - 200, t);
+    t = step(s, {}, mv.MOVE.regenDelayMs - 200, t);
     expect(s.stamina).toBeCloseTo(low, 5);
-    step(s, { wz: 0, forward: false }, mv.MOVE.regenMs + 400, t);
+    step(s, {}, mv.MOVE.regenMs + 400, t);
     expect(s.stamina).toBe(1);
+    expect(s.sprint).toBe(true);
   });
 
-  it('segurar o correr com o vigor zerado só volta a correr com um pouco de vigor', () => {
+  it('pular parado e segurar o W não vira corrida no ar; aterrissar freia um pouco; de costas é mais lento', () => {
     const s = mv.newMove();
-    s.stamina = 0.01;
-    s.sprint = true;
-    let t = step(s, { runHeld: true }, 200);
-    expect(s.stamina).toBe(0);
-    expect(s.sprint).toBe(false);
-    t = step(s, { runHeld: true }, mv.MOVE.regenDelayMs + 200, t);
-    expect(s.sprint).toBe(false);
-    step(s, { runHeld: true }, mv.MOVE.regenMs * mv.MOVE.runMin + 200, t);
-    expect(s.sprint).toBe(true);
+    mv.pressJump(s, 0);
+    let top = 0;
+    let t = 0;
+    while (!s.grounded || t < 50) {
+      t = step(s, {}, 16, t);
+      top = Math.max(top, Math.hypot(s.vx, s.vz));
+    }
+    expect(top).toBeLessThanOrEqual(mv.MOVE.walk + 1e-6);
+    // embalo da tática: o pulo leva junto, sem ganhar no ar
+    const r = mv.newMove();
+    mv.pressRun(r, 0);
+    let u = step(r, {}, 200);
+    mv.pressRun(r, u);
+    u = step(r, {}, 600, u);
+    const v0 = Math.hypot(r.vx, r.vz);
+    mv.pressJump(r, u);
+    let air = 0;
+    let landed = false;
+    while (!landed) {
+      u += 16;
+      const st = mv.stepMove(
+        r,
+        { wx: 0, wz: -1, runHeld: false, forward: true, ads: false, gunK: 1, firing: false },
+        0.016,
+        u,
+      );
+      if (!r.grounded) air = Math.max(air, Math.hypot(r.vx, r.vz));
+      landed = st.landed;
+    }
+    expect(air).toBeLessThanOrEqual(mv.MOVE.tactical + 1e-6);
+    expect(Math.hypot(r.vx, r.vz)).toBeLessThan(v0 * 0.95);
+    // de costas
+    const b = mv.newMove();
+    step(b, { wz: 1, forward: false, fwd: -1 }, 1500);
+    expect(Math.hypot(b.vx, b.vz)).toBeCloseTo(mv.MOVE.walk * mv.MOVE.backK, 2);
+  });
+
+  it('mirando, cada classe anda no seu ritmo (submetralhadora mais, sniper menos)', () => {
+    const speed = (cls: keyof typeof mv.ADS_MOVE) => {
+      const s = mv.newMove();
+      step(s, { wx: 1, wz: 0, forward: false, fwd: 0, ads: true, adsK: mv.ADS_MOVE[cls] }, 1500);
+      return Math.hypot(s.vx, s.vz);
+    };
+    expect(speed('smg')).toBeGreaterThan(speed('ar'));
+    expect(speed('ar')).toBeGreaterThan(speed('sniper'));
+    expect(speed('ar')).toBeCloseTo(mv.MOVE.walk * mv.ADS_MOVE.ar, 2);
   });
 
   it('bunny hop não passa do teto da arma', () => {
@@ -1569,25 +1600,116 @@ describe('gunfight: recuo (Téo, pegada/recoil r2)', () => {
     expect(w.shotIndex(w.burstNow(GUNS.deagle, b, 450))).toBeLessThanOrEqual(2);
   });
 
-  it('dispersão: o primeiro tiro só ajuda parado; pular, andar e deslizar nunca ficam perfeitos, nem com a luneta', () => {
+  it('dispersão: mirando, o tiro vai para o centro da mira (também no ar, andando e deslizando); do quadril, espalha', () => {
     const st = { ads: 1, moving: 0, crouch: false, grounded: true, sliding: false, scoped: true, n: 1 };
-    // parado e mirando: preciso
-    expect(w.shotSpread(GUNS.l115, st)).toBeLessThan(1e-6);
-    expect(w.shotSpread(GUNS.m4, st)).toBeLessThan(0.001);
-    // no ar com a luneta: pelo menos 0,05 rad
-    expect(w.shotSpread(GUNS.l115, { ...st, grounded: false })).toBeGreaterThanOrEqual(0.05);
-    // no ar mirando o fuzil: longe de perfeito
-    expect(w.shotSpread(GUNS.m4, { ...st, grounded: false, scoped: false })).toBeGreaterThan(0.02);
-    // andando e deslizando somam por cima do primeiro tiro
-    const still = w.shotSpread(GUNS.m4, { ...st, scoped: false });
-    expect(w.shotSpread(GUNS.m4, { ...st, scoped: false, moving: 1 })).toBeGreaterThan(still + 0.005);
-    expect(w.shotSpread(GUNS.m4, { ...st, scoped: false, sliding: true })).toBeGreaterThan(still + 0.019);
+    // parado e mirando: exato
+    expect(w.shotSpread(GUNS.l115, st)).toBe(0);
+    expect(w.shotSpread(GUNS.m4, { ...st, scoped: false })).toBe(0);
+    // como no CoD: no ar com a mira em cima (luneta ou mira do fuzil), andando ou deslizando, continua exato
+    const air = { ...st, grounded: false, moving: 1 };
+    expect(w.shotSpread(GUNS.l115, air)).toBe(0);
+    expect(w.shotSpread(GUNS.m4, { ...air, scoped: false })).toBe(0);
+    expect(w.shotSpread(GUNS.mp7, { ...air, scoped: false, sliding: true })).toBe(0);
+    // a rajada mirando abre o mesmo no chão e no ar (pular não piora)
+    const burst = { ...st, scoped: false, n: 6 };
+    expect(w.shotSpread(GUNS.m4, { ...burst, grounded: false })).toBeCloseTo(w.shotSpread(GUNS.m4, burst), 9);
+    // do quadril, no ar: longe de preciso (o pulo pesa)
+    const hip = { ...st, ads: 0, scoped: false };
+    expect(w.shotSpread(GUNS.m4, { ...hip, grounded: false })).toBeGreaterThan(w.shotSpread(GUNS.m4, hip) + 0.045);
+    // meio caminho da mira: metade do castigo do ar
+    const mid = { ...hip, ads: 0.5 };
+    expect(w.shotSpread(GUNS.m4, { ...mid, grounded: false }) - w.shotSpread(GUNS.m4, mid)).toBeCloseTo(
+      w.AIR_SPREAD.ar * 0.5,
+      9,
+    );
+    // andando e deslizando somam por cima do primeiro tiro do quadril
+    const still = w.shotSpread(GUNS.m4, hip);
+    expect(w.shotSpread(GUNS.m4, { ...hip, moving: 1 })).toBeGreaterThan(still + 0.005);
+    expect(w.shotSpread(GUNS.m4, { ...hip, sliding: true })).toBeGreaterThan(still + 0.019);
     // sniper sem a luneta (meio caminho da mira): a dispersão do quadril caindo com a mira, sem bônus de primeiro tiro
     const half = w.shotSpread(GUNS.l115, { ...st, ads: 0.5, scoped: false });
     expect(half).toBeCloseTo(GUNS.l115.spread.hip * 0.5, 4);
     // no quadril, o primeiro tiro do fuzil vai mais certo que o segundo
-    const hip = { ...st, ads: 0, scoped: false };
     expect(w.shotSpread(GUNS.m4, hip)).toBeLessThan(w.shotSpread(GUNS.m4, { ...hip, n: 2 }));
+  });
+
+  /** pula, espera subir e devolve o jogo no ar (mirando, se `ads`) */
+  const airborne = async (ads: boolean) => {
+    const f = await started();
+    const { g, held } = f;
+    let t = performance.now() + 1000;
+    for (let i = 0; i < 60; i++) g.step(0.016, (t += 16));
+    if (ads) held.add('ads');
+    // a mira sobe toda (o tempo de mira do M4 mais folga)
+    for (let i = 0; i < 30; i++) g.step(0.016, (t += 16));
+    g.press('jump', t);
+    for (let i = 0; i < 8; i++) g.step(0.016, (t += 16));
+    const move = Reflect.get(g, 'move') as ReturnType<typeof mv.newMove>;
+    expect(move.grounded).toBe(false);
+    expect(move.y).toBeGreaterThan(0.2);
+    return { ...f, t, move };
+  };
+
+  it('dá para atirar no meio do pulo (do quadril e mirando)', async () => {
+    for (const ads of [false, true]) {
+      const { g, sent, t, move } = await airborne(ads);
+      expect(g.adsFrac).toBe(ads ? 1 : 0);
+      const before = fires(sent);
+      g.press('fire', t);
+      g.step(0.016, t + 16);
+      g.release('fire');
+      expect(fires(sent)).toBe(before + 1);
+      expect(move.grounded).toBe(false);
+      g.dispose();
+    }
+  });
+
+  it('da corrida tática, o clique sai depois da arma descer (mais que da corrida normal), mesmo depois da janela do clique', async () => {
+    useGunHud.getState().set({ loadout: { primary: 'l115', secondary: 'm9', melee: 'karambit' } });
+    const { g, sent } = await started({ wish: () => ({ f: 1, r: 0 }) });
+    let t = performance.now() + 1000;
+    for (let i = 0; i < 60; i++) g.step(0.016, (t += 16));
+    g.press('run', t);
+    for (let i = 0; i < 20; i++) g.step(0.016, (t += 16));
+    g.press('run', t);
+    for (let i = 0; i < 20; i++) g.step(0.016, (t += 16));
+    const move = Reflect.get(g, 'move') as ReturnType<typeof mv.newMove>;
+    expect(move.tactical).toBe(true);
+    const click = t;
+    g.press('fire', t);
+    g.release('fire');
+    let firedAt = 0;
+    for (let i = 0; i < 60 && !firedAt; i++) {
+      g.step(0.016, (t += 16));
+      if (fires(sent)) firedAt = t;
+    }
+    expect(firedAt - click).toBeGreaterThanOrEqual(SPRINT_OUT_MS.sniper * TACTICAL_OUT_K);
+    expect(firedAt - click).toBeLessThan(SPRINT_OUT_MS.sniper * TACTICAL_OUT_K + 120);
+    g.dispose();
+  });
+
+  it('mirando no ar, o tiro vai exatamente para o centro da mira; do quadril no ar, espalha', async () => {
+    const shotDir = async (ads: boolean, u: number) => {
+      const { g, sent, t, view } = await airborne(ads);
+      Reflect.set(g, 'rand', () => u);
+      view.yaw = 0.3;
+      view.pitch = -0.05;
+      Reflect.set(g, 'aimMark', { yaw: view.yaw, pitch: view.pitch });
+      const eye = g.eye;
+      g.press('fire', t);
+      const shot = sent.filter((s) => s.kind === 'fire').at(-1)!;
+      const to: readonly number[] = shot.kind === 'fire' && shot.to ? shot.to : [0, 0, 0];
+      const [tx = 0, ty = 0, tz = 0] = to;
+      // a direção do olho até onde a bala parou contra a da mira (sem o tranco: é o primeiro tiro)
+      const d = { x: tx - eye.x, y: ty - eye.y, z: tz - eye.z };
+      const l = Math.hypot(d.x, d.y, d.z);
+      const want = aimDir(0.3, -0.05, 0, 0, 0);
+      g.dispose();
+      return Math.acos(Math.min(1, (d.x * want.x + d.y * want.y + d.z * want.z) / l));
+    };
+    // o fim do traço é arredondado no centímetro: a folga é a do arredondamento a dezenas de metros
+    expect(await shotDir(true, 0.9)).toBeLessThan(0.002);
+    expect(await shotDir(false, 0.9)).toBeGreaterThan(0.02);
   });
 
   it('o "S" da AK: vai para a esquerda, cruza o centro voltando e termina perto dele', () => {
