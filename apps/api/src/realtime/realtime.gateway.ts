@@ -19,6 +19,7 @@ import {
   type MusicControl,
   type PlayingGame,
   SpaceBall,
+  SpaceGun,
   SpaceLeave,
   SpacePool,
   SpaceMove,
@@ -162,6 +163,13 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       if (!balls.take()) return;
       const b = SpaceBall.safeParse(payload);
       if (b.success) void this.space.ball(socket.data.userId, b.data).catch(() => undefined);
+    });
+    // gunfight: tiros (até ~15/s numa arma automática), acertos e mortes
+    const guns = new Bucket(40, 40);
+    socket.on('space:gun', (payload: unknown) => {
+      if (!guns.take()) return;
+      const g = SpaceGun.safeParse(payload);
+      if (g.success) void this.space.gun(socket.data.userId, g.data).catch(() => undefined);
     });
     const pools = new Bucket(20, 20);
     socket.on('space:pool', (payload: unknown) => {

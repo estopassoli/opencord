@@ -223,6 +223,57 @@ export const SpaceSession = z.object({
 });
 export type SpaceSession = z.infer<typeof SpaceSession>;
 
+/** armas do gunfight (a ordem é o índice que vai na rede) */
+export const GUN_IDS = [
+  'm4',
+  'ak47',
+  'mp7',
+  'mp5',
+  'l115',
+  'm200',
+  'kar98k',
+  'm9',
+  'deagle',
+  'karambit',
+  'bayonet',
+] as const;
+export type GunId = (typeof GUN_IDS)[number];
+export const GunId = z.enum(GUN_IDS);
+
+export const SpaceGunPose = z.object({
+  w: GunId,
+  pitch: z.number().finite().min(-1.6).max(1.6),
+  crouch: z.boolean(),
+  ads: z.boolean(),
+  alive: z.boolean(),
+});
+export type SpaceGunPose = z.infer<typeof SpaceGunPose>;
+
+const Vec3 = z.tuple([
+  z.number().finite().min(-200).max(200),
+  z.number().finite().min(-50).max(50),
+  z.number().finite().min(-200).max(200),
+]);
+/**
+ * Gunfight (zona 8, todos contra todos): o que cada um avisa aos outros. Quem atira confere o acerto no próprio app e
+ * avisa quem levou (`hit`); quem levou desconta a vida e, se morreu, avisa todos (`die`). `fire` é só o efeito (tiro,
+ * traçante e som) e `spawn` é o renascer.
+ */
+export const SpaceGun = z.object({
+  channelId: Id,
+  kind: z.enum(['fire', 'hit', 'die', 'spawn']),
+  w: GunId,
+  /** fire: de onde e até onde foi o tiro (traçante) */
+  from: Vec3.optional(),
+  to: Vec3.optional(),
+  /** hit: em quem e quanto; die: quem matou */
+  target: Id.optional(),
+  dmg: z.number().finite().min(0).max(1000).optional(),
+  head: z.boolean().optional(),
+  by: Id.optional(),
+});
+export type SpaceGun = z.infer<typeof SpaceGun>;
+
 /**
  * Posição de um avatar (enviada ~10x/s enquanto anda, 1x/s parado).
  * `a`: 0 parado, 1 andando, 2 correndo, 3 pulando, 4 acenando, 5 sentado,
@@ -239,10 +290,12 @@ export const SpaceMove = z.object({
   ry: z.number().finite().min(-7).max(7),
   a: z.number().int().min(0).max(17),
   /** onde a pessoa está: 0 (ou ausente) a sala do servidor; 1 basquete, 2 futebol, 3 tênis, 4 vôlei, 5 ping pong,
-   * 6 sinuca, 7 corrida de moto */
-  zone: z.number().int().min(0).max(7).optional(),
+   * 6 sinuca, 7 corrida de moto, 8 gunfight (todos contra todos) */
+  zone: z.number().int().min(0).max(8).optional(),
   /** time nas arenas: a (azul, ataca +x) ou b (vermelho, ataca −x) */
   team: z.enum(['a', 'b']).optional(),
+  /** gunfight: a arma na mão, a inclinação da mira (rad), agachado, mirando e vivo (para o boneco dos outros) */
+  gun: SpaceGunPose.optional(),
 });
 export type SpaceMove = z.infer<typeof SpaceMove>;
 export const SpaceLeave = z.object({ channelId: Id });

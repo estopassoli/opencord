@@ -192,6 +192,27 @@ describe('Espaço 3D', () => {
     expect((await command(so, 'space:toggle', { channelId: voiceId, itemId: 'naoexiste', on: true })).ok).toBe(false);
   });
 
+  it('gunfight: tiro, acerto e morte repassados só na chamada, com quem mandou', async () => {
+    const { owner, alice, voiceId, so, sa, sb } = await setup();
+    for (const u of [owner, alice]) await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token });
+    const hit = { channelId: voiceId, kind: 'hit', w: 'm4', target: alice.id, dmg: 28, head: false };
+    const got = nextEvent<{ sender: string; dmg: number; target: string }>(
+      sa,
+      'space:gun',
+      (g) => g.sender === owner.id,
+    );
+    const notBob = noEvent(sb, 'space:gun', () => true, 1000);
+    so.emit('space:gun', hit);
+    const g = await got;
+    expect(g.dmg).toBe(28);
+    expect(g.target).toBe(alice.id);
+    await notBob;
+    // arma que não existe é descartada
+    const none = noEvent(sa, 'space:gun', () => true, 600);
+    so.emit('space:gun', { ...hit, w: 'bazuca' });
+    await none;
+  });
+
   it('esportes: bola repassada só na chamada; placar no servidor sem contar o mesmo lance duas vezes', async () => {
     const { owner, alice, voiceId, so, sa, sb } = await setup();
     for (const u of [owner, alice]) await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token });

@@ -41,6 +41,7 @@ import {
 import {
   type ServerSpace,
   type SpaceBall,
+  type SpaceGun,
   type SpaceDuel,
   SpaceItemId,
   type SpaceMove,
@@ -276,6 +277,7 @@ export interface ServerEvents {
   'space:pool': SpacePool & { by: string };
   /** bola de uma arena (só para quem está na chamada; sem garantia de entrega) */
   'space:ball': SpaceBall & { by: string };
+  'space:gun': SpaceGun & { sender: string };
   /** x1 no soco: convite, contagem, golpes e resultado (para quem vê o canal) */
   'space:duel': SpaceDuel;
   /** alguém tocou um efeito sonoro na chamada: quem está nela toca no próprio app */

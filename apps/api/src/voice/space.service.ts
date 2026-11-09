@@ -13,6 +13,7 @@ import {
   SPACE_TOGGLE_KINDS,
   type ServerSpace,
   type SpaceBall,
+  type SpaceGun,
   type SpaceMove,
   type SpacePool,
   RACE_COUNTDOWN_MS,
@@ -307,6 +308,13 @@ export class SpaceService implements OnModuleDestroy {
     const peers = await this.peers(userId, b.channelId);
     if (!peers?.length) return;
     this.realtime.emitVolatile(peers.map(rooms.user), 'space:ball', { ...b, by: userId });
+  }
+
+  /** gunfight: tiro, acerto, morte e renascer, repassados só para quem está na chamada */
+  async gun(userId: string, g: SpaceGun) {
+    const peers = await this.peers(userId, g.channelId);
+    if (!peers?.length) return;
+    this.realtime.emitVolatile(peers.map(rooms.user), 'space:gun', { ...g, sender: userId });
   }
 
   /** sinuca: bolas e vez, repassadas só para quem está na chamada */
