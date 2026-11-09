@@ -342,7 +342,7 @@ function TopScore() {
 
 /** trocou de arma: o que há em 1, 2 e 3 (a da mão em destaque), por um instante */
 function SlotList() {
-  const loadout = useGunHud((s) => s.loadout);
+  const loadout = useGunHud((s) => s.inHand ?? s.loadout);
   const slot = useGunHud((s) => s.slot);
   return (
     <div className="gf-slots" aria-hidden="true">

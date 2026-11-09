@@ -259,6 +259,8 @@ export class GunGame {
   private readonly specs = new Map<GunId, GunSpec>();
   /** o equipamento mudou no menu: vale ao nascer, ou na hora se ninguém de verdade está na arena */
   private loadoutDirty = false;
+  /** já avisou que o equipamento novo espera o renascer */
+  private waitNoted = false;
   private readonly unsubLoadout: () => void;
   private slot: GunSlot = 'primary';
   private ammo = new Map<GunId, Ammo>();
@@ -576,6 +578,8 @@ export class GunGame {
     this.builds = { ...st.builds };
     this.specs.clear();
     this.loadoutDirty = false;
+    this.waitNoted = false;
+    st.set({ inHand: null });
   }
 
   /**
@@ -584,7 +588,18 @@ export class GunGame {
    */
   private applyLoadoutNow(now: number) {
     if (!this.loadoutDirty || !this.alive || this.over) return;
-    if (this.host.players().length > 0 && !this.shielded) return;
+    if (this.host.players().length > 0 && !this.shielded) {
+      // a lista de armas mostra o que está na mão (não o do menu) e a pessoa fica sabendo quando o novo entra
+      if (!this.waitNoted) {
+        this.waitNoted = true;
+        useGunHud.getState().set({
+          inHand: { ...this.loadout },
+          slotsAt: Date.now(),
+          notice: 'Com gente na arena, o equipamento novo entra quando você renascer.',
+        });
+      }
+      return;
+    }
     const slot = this.slot;
     this.readLoadout();
     for (const id of Object.values(this.loadout) as GunId[])
