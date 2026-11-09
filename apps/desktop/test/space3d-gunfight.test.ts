@@ -8,6 +8,9 @@ import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameEvent } from '../src/features/space3d/events';
 
+// o encaixe das mãos é calculado no 1º uso de cada arma: no CI (2 núcleos, arquivos em paralelo) passa dos 5 s
+vi.setConfig({ testTimeout: 60000 });
+
 // os modelos .glb não carregam no teste: uma arma de mentira, com as mesmas peças que o jogo procura
 vi.mock('../src/features/space3d/gunfight/models', () => {
   const fake = (id: string) => ({
