@@ -127,7 +127,7 @@ const SUPPORT_AT: Partial<Record<GunId, number>> = {
   kar98k: 0.3,
   mp7: 0.7,
   mp5: 0.7,
-  m200: 0.3,
+  m200: 0.49,
   rs9: 0.3,
   sv98: 0.32,
   ballista: 0.3,

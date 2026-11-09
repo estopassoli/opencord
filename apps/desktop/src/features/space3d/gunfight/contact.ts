@@ -277,6 +277,8 @@ export interface FitOpts {
   skin?: number;
   /** obstáculos extras (esferas no espaço da arma) */
   extra?: readonly Sphere[];
+  /** acertos de partida (os dedos fora de `fingers` ficam neles; o sexto, o polegar aberto, vale para todos) */
+  base?: FingerOffsets;
 }
 
 export interface Fit {
@@ -310,9 +312,11 @@ export function fitHand(
   const skin = o.skin ?? 0.0008;
   const out = pos.clone();
   const [c, t, ix] = curl;
+  const start: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+  o.base?.forEach((v, i) => (start[i] = v ?? 0));
   if (o.palm) {
     // palma: a normal dela é o −y da mão; vem de fora (dorso, +y) para dentro, de milímetro em milímetro
-    const palm = handProbes(side, c, t, ix, undefined, 'palm');
+    const palm = handProbes(side, c, t, ix, start, 'palm');
     N.set(0, 1, 0).applyQuaternion(quat);
     const din = o.palmIn ?? 0.012;
     const dout = o.palmOut ?? 0.025;
@@ -330,13 +334,14 @@ export function fitHand(
     // nada encostou (ou já encostava bem por fora): fica onde a pegada pôs
     if (touched && Number.isFinite(best)) out.addScaledVector(N, best);
   }
-  const offsets: [number, number, number, number, number] = [0, 0, 0, 0, 0];
+  const offsets: [number, number, number, number, number, number] = [...start];
   const maxCurl = o.maxCurl ?? MAX_CURL;
   for (const f of o.fingers ?? []) {
     const fi = PART_INDEX[f];
     if (fi === undefined) continue;
     const base = fi === 0 ? ix : fi === 4 ? t : c;
-    const off: [number, number, number, number, number] = [0, 0, 0, 0, 0];
+    const off: [number, number, number, number, number, number] = [...start];
+    off[fi] = 0;
     let skipBase = false;
     const free = (k: number) => {
       off[fi] = k - base;

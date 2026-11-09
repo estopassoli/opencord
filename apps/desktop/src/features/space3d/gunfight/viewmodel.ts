@@ -217,8 +217,8 @@ const EJECT_MAX = 8;
 /** revólver: quando a vareta empurra os estojos para fora (fração da recarga, logo depois de o tambor abrir) */
 const CYL_DUMP_AT = 0.26;
 /** acertos dos dedos (misturados por quadro, sem alocar) */
-const OFF_R: [number, number, number, number, number] = [0, 0, 0, 0, 0];
-const OFF_L: [number, number, number, number, number] = [0, 0, 0, 0, 0];
+const OFF_R: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
 const NO_OFF: FingerOffsets = [0, 0, 0, 0, 0];
 const M1 = new THREE.Matrix4();
 const POUCH = new THREE.Vector3();
@@ -493,6 +493,10 @@ export class Viewmodel {
     if (this.holds) {
       this.rightAt.copy(this.holds.right.pos);
       this.leftAt.copy(this.holds.left.pos);
+      // o giro e os fechamentos medidos (o apoio escolhe o giro que encaixa melhor em cada guarda-mão)
+      this.leftQ.copy(this.holds.left.quat);
+      this.leftCurl = [...this.holds.left.curl];
+      this.rightCurl = [...this.holds.right.curl];
     }
     this.clearDebris();
     this.magHome.set(0, -0.06, 0.03);
@@ -1413,9 +1417,9 @@ export class Viewmodel {
   private rightOffsets(toLever: number, onTrigger: number, clip: number): FingerOffsets {
     const h = this.holds;
     if (!h) return this.knifeOff;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = h.right.off[i]! * (i === 0 ? onTrigger : 1);
+      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
@@ -1425,9 +1429,9 @@ export class Viewmodel {
   private leftOffsets(mag: number, gesture: number, palm: number, away: number): FingerOffsets {
     const h = this.holds;
     if (!h) return NO_OFF;
-    for (let i = 0; i < 5; i++) {
-      let o = lerp(h.left.off[i]!, h.mag?.off[i] ?? 0, mag);
-      o = lerp(o, this.egOff[i]!, gesture);
+    for (let i = 0; i < 6; i++) {
+      let o = lerp(h.left.off[i] ?? 0, h.mag?.off[i] ?? 0, mag);
+      o = lerp(o, this.egOff[i] ?? 0, gesture);
       OFF_L[i] = o * (1 - palm) * (1 - away);
     }
     return OFF_L;

@@ -13,8 +13,11 @@
 import * as THREE from 'three';
 import { ARM_RIG, type ArmBoneRest, type ArmSideRest } from './armsrig';
 
-/** acerto de cada dedo em cima do fechamento: indicador, médio, anelar, mindinho e polegar */
-export type FingerOffsets = readonly [number, number, number, number, number];
+/**
+ * acerto de cada dedo em cima do fechamento: indicador, médio, anelar, mindinho e polegar; o sexto (opcional) abre o
+ * polegar para o lado da palma (`HAND_POSE.thumbAbduct`, 0 a ~1): o polegar sobe pela lateral do guarda-mão no apoio
+ */
+export type FingerOffsets = readonly [number, number, number, number, number, number?];
 const NO_OFFSETS: FingerOffsets = [0, 0, 0, 0, 0];
 
 export type ProbePart = 'palm' | 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';
@@ -48,16 +51,22 @@ export interface HandPoseData {
   /** polegar aberto (`t` 0) e cruzando os dedos (`t` 1): giro XYZ de cada um dos 3 ossos */
   thumbOpen: readonly (readonly [number, number, number])[];
   thumbClosed: readonly (readonly [number, number, number])[];
+  /**
+   * o polegar aberto para o lado da palma (por unidade do sexto acerto), somado em cima do giro dele: com a mão por
+   * baixo do guarda-mão, ele sobe pela lateral esquerda (sem isso ele ficava deitado embaixo, entrando no guarda-mão)
+   */
+  thumbAbduct: readonly (readonly [number, number, number])[];
 }
 
 export const HAND_POSE: HandPoseData = {
   // `curl` 1 é a mão fechada em volta de um cabo de ~2,5 cm (punho de arma, cabo de faca), não o punho cerrado; o
-  // cerrado fica perto de 1,6 (o acerto medido pode passar de 1)
+  // cerrado fica perto de 1,6 (o acerto medido pode passar de 1). O anelar e o mindinho fecham mais na base e o
+  // metacarpo deles desce (a palma faz concha): no punho do fuzil eles ficavam abertos, só a ponta encostando
   bend: [
     [0, 0.94, 1.04, 0.65],
     [0, 0.98, 1.07, 0.68],
-    [0.05, 0.98, 1.07, 0.68],
-    [0.12, 0.98, 1.04, 0.65],
+    [0.15, 1.15, 1.0, 0.6],
+    [0.3, 1.2, 0.95, 0.55],
   ],
   lead: [0, 0, 0.03, 0.06],
   spread: [-0.06, 0, 0.05, 0.1],
@@ -72,6 +81,11 @@ export const HAND_POSE: HandPoseData = {
     [0.3, -1.22, -0.6],
     [0.6, -0.09, 0],
     [0.45, 0, 0],
+  ],
+  thumbAbduct: [
+    [0, 0, -1],
+    [0, 0, 0],
+    [0, 0, 0],
   ],
 };
 
@@ -126,15 +140,17 @@ export function poseFingers(
     setBone(target, f + '3', k * cf * lerp(b[3], pose.trigger[2], tr), 0, 0);
   });
   const tt = Math.max(0, Math.min(1.3, t + off[4]));
+  const ab = off[5] ?? 0;
   for (let j = 0; j < 3; j++) {
     const o = pose.thumbOpen[j]!;
     const cl = pose.thumbClosed[j]!;
+    const a = pose.thumbAbduct[j]!;
     setBone(
       target,
       'thumb' + (j + 1),
-      lerp(o[0], cl[0], tt) * k,
-      lerp(o[1], cl[1], tt) * sp,
-      lerp(o[2], cl[2], tt) * sp,
+      (lerp(o[0], cl[0], tt) + a[0] * ab) * k,
+      (lerp(o[1], cl[1], tt) + a[1] * ab) * sp,
+      (lerp(o[2], cl[2], tt) + a[2] * ab) * sp,
     );
   }
 }
@@ -273,9 +289,13 @@ export const ARM_HAND_FIT = {
   hole: FIST_HOLE,
   curl: FIST_CURL,
   grip: GRIP_HOLE,
-  clamp: 0.022,
+  clamp: 0.005,
   ring: { row: 0.022, back: 0.03 },
   vgripTilt: 0.5,
+  clampYaw: 0.45,
+  clampRoll: 0.15,
+  clampThumb: 0.3,
+  clampThumbUp: 0.9,
 };
 
 /** o descanso do osso da mão no espaço da mão (para pôr o osso de verdade onde a pegada põe a mão) */

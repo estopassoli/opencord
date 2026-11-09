@@ -27,6 +27,8 @@ export interface Grip {
   quat: THREE.Quaternion;
   /** dedos, polegar e indicador (0 aberto a 1 fechado) */
   curl: [number, number, number];
+  /** o polegar aberto para o lado da palma (o sexto acerto de `FingerOffsets`; só a mão dos braços usa) */
+  thumbUp?: number;
 }
 
 /**
@@ -47,6 +49,7 @@ function basis(x: THREE.Vector3Tuple, y: THREE.Vector3Tuple, z: THREE.Vector3Tup
 }
 const rotX = (a: number) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), a);
 const rotY = (a: number) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a);
+const rotZ = (a: number) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), a);
 
 // pegadas fixas (calculadas uma vez)
 /** mão direita de lado no punho: dorso para a direita, dedos para a frente dando a volta, indicador em cima */
@@ -97,6 +100,13 @@ export interface HandFit {
    * reta, o pulso dobrava em ângulo)
    */
   vgripTilt: number;
+  /** apoio em "C": quanto os dedos apontam para a frente (rad; 0 atravessando a arma) */
+  clampYaw: number;
+  /** apoio em "C": quanto a palma gira para a lateral esquerda do guarda-mão (rad; 0 de palma para cima) */
+  clampRoll: number;
+  /** apoio em "C": o fechamento do polegar e quanto ele abre para o lado da palma (sobe pela lateral esquerda) */
+  clampThumb: number;
+  clampThumbUp: number;
 }
 const CAPSULE_HAND: HandFit = {
   hole: FIST_HOLE,
@@ -105,6 +115,10 @@ const CAPSULE_HAND: HandFit = {
   clamp: 0,
   ring: { row: 0.027, back: 0.05 },
   vgripTilt: 0,
+  clampYaw: 0,
+  clampRoll: 0,
+  clampThumb: 0.8,
+  clampThumbUp: 0,
 };
 /** onde o vão da mão fechada fica em relação ao pulso num giro (espaço da arma) */
 const holeIn = (h: HandFit, q: THREE.Quaternion) => h.hole.clone().applyQuaternion(q);
@@ -191,9 +205,18 @@ export function leftGrip(
   // empunhadura angulada: a palma vai para trás até o lado do indicador encostar na rampa dela (no apoio de sempre,
   // a palma, larga ao longo do guarda-mão, ficava por dentro da rampa)
   const back = g.foregrip?.kind === 'angled' ? AGRIP_BACK : 0;
+  const q = rotY(hf.clampYaw).multiply(rotZ(-hf.clampRoll)).multiply(C_CLAMP);
+  // o centro da palma encostado no ponto de apoio (deslocado `clamp` para a esquerda), pelo lado da palma
+  const palmC = new THREE.Vector3(0, 0, -0.046).applyQuaternion(q);
+  const out = new THREE.Vector3(0, 1, 0).applyQuaternion(q).multiplyScalar(PALM_HALF + 0.002);
   return {
-    pos: g.support.clone().add(new THREE.Vector3(-0.046 - hf.clamp, -PALM_HALF - 0.002, back)),
-    quat: C_CLAMP.clone(),
-    curl: [c, 0.8, c],
+    pos: g.support
+      .clone()
+      .add(new THREE.Vector3(-hf.clamp, 0, back))
+      .add(out)
+      .sub(palmC),
+    quat: q,
+    curl: [c, hf.clampThumb, c],
+    thumbUp: hf.clampThumbUp,
   };
 }

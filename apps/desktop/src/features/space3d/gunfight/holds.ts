@@ -121,18 +121,155 @@ function measure(g: GunModel, cls: GunClass): Holds {
   const right = fitRight(g, rg.pos, rg.quat, qc(rg.curl));
   // a direita vira obstáculo para a esquerda (na pistola, os dedos da esquerda passam por cima dos dela)
   const rightBalls = balls(right, 1);
-  const lg = pistol ? pistolSupport(g) : leftGrip(g, cls, ARM_HAND_FIT);
+  const left = pistol
+    ? fitLeft(g, pistolSupport(g), true, rightBalls)
+    : g.foregrip?.kind === 'vertical'
+      ? vgripHold(g, cls)
+      : clampHold(g, cls);
+  return { right, left, mag: magHold(g, cls, rightBalls), pinch: pinchHold(g, rg.quat), trigOff: trigOff(g, right) };
+}
+
+type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
+
+/** a esquerda na pegada pedida: a palma encosta e cada dedo fecha até tocar */
+function fitLeft(g: GunModel, lg: LeftGrip, pistol = false, extra: Sphere[] = [], soup?: Soup): Hold {
   const lc = qc(lg.curl);
-  const ls = near(g, lg.pos);
-  const lf = fitHand(ls, -1, lg.pos, lg.quat, lc, {
+  const lf = fitHand(soup ?? near(g, lg.pos), -1, lg.pos, lg.quat, lc, {
     palm: true,
     palmIn: pistol ? 0 : 0.012,
     palmOut: pistol ? 0.04 : 0.025,
     fingers: ['index', 'middle', 'ring', 'pinky', 'thumb'],
-    extra: pistol ? rightBalls : [],
+    extra,
+    base: [0, 0, 0, 0, 0, lg.thumbUp ?? 0],
   });
-  const left: Hold = { pos: lf.pos, quat: lg.quat.clone(), curl: lc, off: lf.offsets };
-  return { right, left, mag: magHold(g, cls, rightBalls), pinch: pinchHold(g, rg.quat), trigOff: trigOff(g, right) };
+  return { pos: lf.pos, quat: lg.quat.clone(), curl: lc, off: lf.offsets };
+}
+
+const LEFT_PARTS = ['index', 'middle', 'ring', 'pinky', 'thumb', 'palm'] as const;
+/** a ponta de cada dedo (a última esfera) e a folga de cada parte até a arma (m; negativa = entrando) */
+function leftContact(soup: Soup, h: Hold) {
+  const pr = handProbes(-1, h.curl[0], h.curl[1], h.curl[2], h.off);
+  const tip: Partial<Record<(typeof LEFT_PARTS)[number], THREE.Vector3>> = {};
+  const gap: Record<string, number> = {};
+  for (const part of LEFT_PARTS) {
+    const mine = pr.filter((p) => p.part === part);
+    tip[part] = mine[mine.length - 1]!.at.clone().applyQuaternion(h.quat).add(h.pos);
+    gap[part] = clearance(soup, [], mine, h.pos, h.quat, 0.03);
+  }
+  return { tip, gap };
+}
+
+/**
+ * Apoio em "C" (ADR-0060, adendo): a palma por baixo do guarda-mão, os dedos dando a volta pela direita até perto da
+ * metade da altura (as três falanges dobradas, as pontas encostadas) e o polegar subindo pela esquerda. O jeito que a
+ * mão gira (o quanto os dedos apontam para a frente e a palma vira para a esquerda), o deslocamento e o polegar
+ * dependem da grossura e da altura do guarda-mão: tenta as variações de `CLAMP_TRY` e fica com a de menor custo —
+ * nada entrando na arma, as pontas dos dedos na lateral direita perto da metade da altura (nunca acima do topo, onde
+ * entram na mira) e o polegar na lateral esquerda, abaixo do topo.
+ */
+function clampHold(g: GunModel, cls: GunClass): Hold {
+  const first = leftGrip(g, cls, ARM_HAND_FIT);
+  const soup = near(g, first.pos);
+  const sec = section(soup, g.support);
+  let best: { cost: number; hold: Hold } | null = null;
+  for (const [clampYaw, clampRoll, clamp, clampThumbUp] of CLAMP_TRY) {
+    const lg = leftGrip(g, cls, { ...ARM_HAND_FIT, clampYaw, clampRoll, clamp, clampThumbUp });
+    const hold = fitLeft(g, lg, false, [], soup);
+    const cost = clampCost(soup, hold, sec);
+    if (!best || cost < best.cost) best = { cost, hold };
+  }
+  return best!.hold;
+}
+
+/** as variações do apoio em "C": [dedos para a frente (rad), palma para a esquerda (rad), deslocamento (m), polegar] */
+const CLAMP_TRY: readonly (readonly [number, number, number, number])[] = [
+  [ARM_HAND_FIT.clampYaw, ARM_HAND_FIT.clampRoll, ARM_HAND_FIT.clamp, ARM_HAND_FIT.clampThumbUp],
+  [0.6, 0.3, 0.015, 0.3],
+  [0.6, 0.15, 0.015, 0.6],
+  [0.3, 0.15, 0.015, 0.6],
+  [0.3, 0.3, 0.015, 0.9],
+  [0.45, 0.3, 0.015, 0.6],
+];
+
+/** a fatia do guarda-mão no apoio: as laterais e a altura (do fundo ao topo) */
+function section(soup: Soup, at: THREE.Vector3) {
+  let lo = Infinity;
+  let hi = -Infinity;
+  let left = 0;
+  let right = 0;
+  const T = soup.tris;
+  for (let i = 0; i < T.length; i += 3) {
+    const x = T[i]!;
+    const y = T[i + 1]!;
+    if (Math.abs(T[i + 2]! - at.z) > 0.015 || Math.abs(x) > 0.06 || y < at.y - 0.03 || y > at.y + 0.09) continue;
+    lo = Math.min(lo, y);
+    hi = Math.max(hi, y);
+    left = Math.min(left, x);
+    right = Math.max(right, x);
+  }
+  if (!Number.isFinite(lo)) return { lo: at.y, hi: at.y + 0.05, left: -0.025, right: 0.025 };
+  return { lo, hi, left: Math.min(left, -0.01), right: Math.max(right, 0.01) };
+}
+
+/** o custo de uma pegada de apoio (ver `clampHold`) */
+function clampCost(soup: Soup, h: Hold, s: ReturnType<typeof section>): number {
+  const { tip, gap } = leftContact(soup, h);
+  const ht = (v: THREE.Vector3) => (v.y - s.lo) / (s.hi - s.lo);
+  let cost = 0;
+  const worst = Math.min(...Object.values(gap));
+  if (worst < 0.0003) cost += 100 + 10000 * (0.0003 - worst);
+  for (const f of ['index', 'middle', 'ring'] as const) {
+    const t = tip[f]!;
+    cost += 4 * Math.abs(ht(t) - 0.5) + 20 * Math.max(0, ht(t) - 0.85) + 3 * Math.max(0, 0.85 - t.x / s.right);
+    cost += 500 * Math.max(0, gap[f]! - 0.0015);
+  }
+  cost += 2 * Math.max(0, ht(tip.pinky!) - 0.55) + 300 * Math.max(0, gap.pinky! - 0.003);
+  const curls = [h.curl[2] + h.off[0], h.curl[0] + h.off[1], h.curl[0] + h.off[2], h.curl[0] + h.off[3]];
+  for (const c of curls) cost += 2 * Math.max(0, 0.55 - c) + 2 * Math.max(0, c - 1.3);
+  cost += 500 * Math.max(0, gap.palm! - 0.002);
+  const th = tip.thumb!;
+  cost += 3 * Math.max(0, th.x / -s.left + 0.7) + 2 * Math.max(0, 0.3 - ht(th)) + 20 * Math.max(0, ht(th) - 0.9);
+  cost += 300 * Math.max(0, gap.thumb! - 0.003);
+  return cost;
+}
+
+/** o polegar na empunhadura vertical: [fechamento, aberto para o lado da palma] (dando a volta por trás dela, ou
+ * deitado na lateral esquerda quando por trás ele entra nela) */
+const VGRIP_THUMB: readonly (readonly [number, number])[] = [
+  [0.6, 0],
+  [0.3, 0.5],
+  [0.2, 0.9],
+  [0.5, -0.3],
+  [0.3, -0.6],
+  [0.8, -0.3],
+];
+
+/**
+ * Esquerda na empunhadura vertical: fecha em volta dela, logo abaixo do guarda-mão. Empunhadura curta (a da MSMC): o
+ * indicador não cabia entre o guarda-mão e a mão e ficava esticado (ou entrava no guarda-mão); a mão desce pela
+ * empunhadura (passos de 3 mm) até o indicador fechar em volta dela sem nada entrar.
+ */
+function vgripHold(g: GunModel, cls: GunClass): Hold {
+  const lg = leftGrip(g, cls, ARM_HAND_FIT);
+  const soup = near(g, lg.pos);
+  const down = new THREE.Vector3(-1, 0, 0).applyQuaternion(lg.quat);
+  let best: { cost: number; hold: Hold } | null = null;
+  for (const [t, up] of VGRIP_THUMB)
+    for (let d = 0; d <= 0.0301; d += 0.005) {
+      const at = lg.pos.clone().addScaledVector(down, d);
+      const hold = fitLeft(g, { ...lg, pos: at, curl: [lg.curl[0], t, lg.curl[2]], thumbUp: up }, false, [], soup);
+      // o fechamento do polegar volta para o da pegada (a primeira pessoa parte dele) e a diferença vai no acerto
+      const off: [number, number, number, number, number, number?] = [...hold.off];
+      off[4] = hold.off[4] + qc([0, t, 0])[1] - q(lg.curl[1]);
+      hold.off = off;
+      hold.curl = qc(lg.curl);
+      const { gap } = leftContact(soup, hold);
+      const worst = Math.min(...Object.values(gap));
+      const ix = hold.curl[2] + hold.off[0];
+      const cost = (worst < 0.0003 ? 100 + 10000 * (0.0003 - worst) : 0) + 4 * Math.max(0, 0.75 - ix) + 3 * d;
+      if (!best || cost < best.cost) best = { cost, hold };
+    }
+  return best!.hold;
 }
 
 /**
@@ -189,6 +326,7 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
   const whole = () => (all ??= soupOf(g.root, undefined, undefined, trig?.obj));
   // a mão anda pelo punho (para cima/baixo e para a frente/trás) até o indicador alcançar o gatilho com o médio
   // fechado em volta do punho (no guarda-mato baixo, o médio caía na barra de baixo dele e ficava esticado)
+  const thumbProbe = handProbes(1, rc[0], 0.5, rc[2], [0, 0, 0, 0, 0, 0.3], 'thumb');
   let best = { score: Infinity, pos: pos0.clone(), ix: rc[2] };
   const cands: { score: number; pos: THREE.Vector3; ix: number }[] = [];
   for (let dy = -0.03; dy <= 0.0181; dy += 0.003)
@@ -199,8 +337,13 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
       const ring = rc[0] + f.offsets[2];
       const [ix, tip] = index(f.pos);
       // o gatilho manda; o médio sem fechar e a mão longe da pegada pesam contra
+      // o polegar (no meio do caminho entre os jeitos de `RIGHT_THUMB`) não pode ficar enterrado na caixa da culatra
+      const thumb = clearance(soup, [], thumbProbe, f.pos, quat, 0.01);
       const score =
-        tip + 0.15 * (Math.max(0, MIDDLE_WRAP - mid) + Math.max(0, MIDDLE_WRAP - ring)) + 0.1 * Math.hypot(dy, dz);
+        tip +
+        0.15 * (Math.max(0, MIDDLE_WRAP - mid) + Math.max(0, MIDDLE_WRAP - ring)) +
+        0.1 * Math.hypot(dy, dz) +
+        1.5 * Math.max(0, -thumb);
       cands.push({ score, pos: f.pos, ix });
     }
   // a melhor que tenha o indicador fora da malha (conferido só nas primeiras, que é caro)
@@ -212,11 +355,43 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
       break;
     }
   }
-  const rf = fitHand(soup, 1, best.pos, quat, rc, { fingers: ['middle', 'ring', 'pinky', 'thumb'] });
-  const off: [number, number, number, number, number] = [...rf.offsets];
-  off[0] = best.ix - rc[2];
+  const rf = fitHand(soup, 1, best.pos, quat, rc, { fingers: ['middle', 'ring', 'pinky'] });
+  const off: [number, number, number, number, number, number] = [
+    best.ix - rc[2],
+    rf.offsets[1],
+    rf.offsets[2],
+    rf.offsets[3],
+    0,
+    0,
+  ];
+  // o polegar: fechado por cima do punho ele entrava ~7 mm na caixa da culatra; procura o fechamento e o quanto ele
+  // abre para o lado da palma em que encosta na lateral esquerda sem entrar
+  let bestT: { cost: number; t: number; up: number } | null = null;
+  for (const [t0, up] of RIGHT_THUMB) {
+    const f = fitHand(soup, 1, best.pos, quat, [rc[0], t0, rc[2]], {
+      fingers: ['thumb'],
+      base: [off[0], off[1], off[2], off[3], 0, up],
+    });
+    const t = t0 + f.offsets[4];
+    const o: [number, number, number, number, number, number] = [...off];
+    o[4] = t - rc[1];
+    o[5] = up;
+    const gap = clearance(soup, [], handProbes(1, rc[0], rc[1], rc[2], o, 'thumb'), best.pos, quat, 0.03);
+    const cost = (gap < 0.0003 ? 100 + 10000 * (0.0003 - gap) : 0) + 300 * Math.max(0, gap - 0.003) + Math.abs(t - 0.5);
+    if (!bestT || cost < bestT.cost) bestT = { cost, t, up };
+  }
+  off[4] = bestT!.t - rc[1];
+  off[5] = bestT!.up;
   return { pos: best.pos, quat: quat.clone(), curl: rc, off };
 }
+/** o polegar da direita no punho: [fechamento de partida, aberto para o lado da palma] */
+const RIGHT_THUMB: readonly (readonly [number, number])[] = [
+  [0.5, 0],
+  [0.5, 0.3],
+  [0.35, 0.6],
+  [0.7, 0.3],
+  [0.2, 0.9],
+];
 /**
  * gatilho das armas sem a peça separada: a frente da lâmina (os modelos do Sketchfab trazem a deles em `trigFace`;
  * aqui só o acerto de alguma que precise)
@@ -242,7 +417,12 @@ const MIDDLE_WRAP = 0.7;
  * volta no punho), os dedos descendo ~37° para a frente e fechando por cima dos da direita, o indicador logo abaixo
  * do guarda-mato e o polegar esticado para a frente, embaixo do ferrolho. A palma vem de fora (−x) até encostar.
  */
-function pistolSupport(g: GunModel): { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number] } {
+function pistolSupport(g: GunModel): {
+  pos: THREE.Vector3;
+  quat: THREE.Quaternion;
+  curl: [number, number, number];
+  thumbUp?: number;
+} {
   const mag = g.parts.mag ? partBox(g, g.parts.mag) : null;
   const zc = mag ? (mag.min.z + mag.max.z) / 2 : 0.03;
   // o centro da palma ao lado do punho, um pouco abaixo do guarda-mato
