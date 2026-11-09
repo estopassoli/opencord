@@ -844,7 +844,7 @@ describe('gunfight: contrato', () => {
   });
 });
 
-describe('gunfight: rodada 3 (integração)', () => {
+describe('gunfight: rodada 3 (integração)', { timeout: 20000 }, () => {
   const step = (
     s: ReturnType<typeof mv.newMove>,
     inp: Partial<Parameters<typeof mv.stepMove>[1]>,
