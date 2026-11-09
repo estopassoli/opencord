@@ -122,6 +122,12 @@ export interface Reticle {
  * Mão de apoio: que fração do caminho do punho até a boca (meio do guarda-mão). Fuzil no meio do guarda-mão; sniper
  * e Kar98k na ponta da coronha de madeira, por baixo; submetralhadora bem à frente.
  */
+/**
+ * Altura do apoio quando não é o fundo do guarda-mão (espaço da arma): na M200 a mão segura a barra de baixo do
+ * suporte do bipé (por cima dela, a palma entrava na barra; à frente dela, o braço esticava demais na inspeção)
+ */
+const SUPPORT_Y: Partial<Record<GunId, number>> = { m200: -0.021 };
+
 const SUPPORT_AT: Partial<Record<GunId, number>> = {
   m4: 0.48,
   ak47: 0.44,
@@ -129,7 +135,7 @@ const SUPPORT_AT: Partial<Record<GunId, number>> = {
   kar98k: 0.3,
   mp7: 0.7,
   mp5: 0.7,
-  m200: 0.49,
+  m200: 0.3,
   rs9: 0.3,
   sv98: 0.32,
   ballista: 0.3,
@@ -613,7 +619,7 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   // arma naquela fatia (a palma encosta nela), só se estiver perto do eixo do cano — senão logo abaixo do cano
   const sz = box.min.z * (SUPPORT_AT[id] ?? 0.6);
   const under0 = bottomUnder(holder, sz, axisY);
-  const support = new THREE.Vector3(0, under0 ?? axisY - 0.02, sz);
+  const support = new THREE.Vector3(0, SUPPORT_Y[id] ?? under0 ?? axisY - 0.02, sz);
   const supportW = halfWidthAt(holder, sz, support.y);
   if (PISTOLS.has(id)) {
     // pistola: as duas mãos no punho
