@@ -609,10 +609,18 @@ export class Viewmodel {
     const hip = kp ? kp.pos : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
     // mirando: a linha de mira passa pelo centro da tela, um pouco à frente do olho (na luneta, o olho na ocular)
     const eyeZ =
-      spec.cls === 'pistol' ? -0.34 : spec.scope ? -0.07 : (ADS_EYE[g.id] ?? (spec.cls === 'smg' ? -0.25 : -0.2));
-    AIM.set(-g.sight.x, -g.sight.y, eyeZ - g.sight.z);
+      spec.cls === 'pistol'
+        ? -0.34
+        : spec.scope
+          ? -0.07
+          : (g.adsEye ?? ADS_EYE[g.id] ?? (spec.cls === 'smg' ? -0.25 : -0.2));
+    // o ponto da linha de mira já inclinado (`sightPitch`): sem isso, a linha da alça à massa passava 1–3 px fora do centro
+    const sPitch = g.sightPitch ?? 0;
+    const pc = Math.cos(sPitch);
+    const ps = Math.sin(sPitch);
+    AIM.set(-g.sight.x, -(g.sight.y * pc - g.sight.z * ps), eyeZ - (g.sight.y * ps + g.sight.z * pc));
     const pos = POS.copy(hip).lerp(AIM, ads);
-    const rot = ROT.set((g.sightPitch ?? 0) * ads, 0, 0, 'YXZ');
+    const rot = ROT.set(sPitch * ads, 0, 0, 'YXZ');
     // no quadril, o cano aponta um pouco para o centro da tela; a faca fica no giro dela
     if (kp) {
       rot.x += kp.rot[0];

@@ -58,6 +58,12 @@ export interface GunModel {
   sight: THREE.Vector3;
   /** mira de ferro: quanto a arma inclina mirando para a massa ficar na linha do furo de trás (rad) */
   sightPitch?: number;
+  /**
+   * Mirando com uma mira de ponto montada (ponto vermelho, reflexa): o z da câmera onde fica o ponto `sight`, para o
+   * vidro ficar sempre à mesma distância do olho (sem isso a distância era a da mira de ferro de cada arma e a mira
+   * enchia a tela na MP7 e ficava pequena na M4)
+   */
+  adsEye?: number;
   support: THREE.Vector3;
   /** meia largura do guarda-mão no apoio (m): a mão de apoio fecha mais no fino */
   supportW?: number;
@@ -137,28 +143,35 @@ const SIGHT_AT: Partial<Record<GunId, number>> = {
   mp7: 0.45,
 };
 
+/** z do ponto da linha de mira (o viewmodel põe o olho a uma distância fixa dele) */
+const SIGHT_Z = -0.05;
+
 /**
- * Mira de ferro medida no modelo (raios ao longo do cano em x = 0): [altura, z] do centro da alça/furo de trás e da
- * ponta da massa. A linha passa pelos dois (a arma inclina o pouquinho que falta) e o furo de trás fica centrado na
- * tela com a massa dentro dele. Sem entrada aqui, vale a busca pela massa (`SIGHT_AT`).
+ * Mira de ferro medida no modelo (raios no modelo, em fatias de 0,1 mm): [altura, z] da referência de trás e da ponta da
+ * massa, e o x do meio delas quando a mira não fica no meio da arma (AKS-74U, Desert Eagle, Automag, BFR, Rhino). A
+ * referência de trás é o centro do furo nas alças de furo (M4, MP7, SCAR-L, MPX, PDW) e o topo da lâmina nas de entalhe
+ * (AK, MP5, Kar98k, AKS-74U, StG 44 e as pistolas): mirando, a ponta da massa fica rente ao topo do entalhe, com a massa
+ * inteira à vista dentro dele (no fundo do entalhe a lâmina de trás tapava a massa). A massa é a lâmina fina do meio,
+ * não as orelhas nem o capuz em volta dela (SCAR-L e StG 44 mediam o capuz e a massa sumia abaixo do centro). A linha
+ * passa pelos dois (a arma inclina o pouquinho que falta) e fica no centro da tela. Sem entrada aqui, vale a busca pela
+ * massa (`SIGHT_AT`).
  */
-const IRON: Partial<Record<GunId, { rear: [number, number]; front: [number, number] }>> = {
-  m4: { rear: [0.145, 0.02], front: [0.14, -0.42] },
-  ak47: { rear: [0.107, -0.2], front: [0.106, -0.54] },
-  mp7: { rear: [0.1255, 0.09], front: [0.1255, -0.14] },
-  mp5: { rear: [0.139, 0.04], front: [0.139, -0.31] },
-  kar98k: { rear: [0.102, -0.27], front: [0.102, -0.77] },
-  // armas do Sketchfab: o furo da alça (ou o fundo do entalhe) e a ponta da massa, medidos com raios no modelo e
-  // conferidos mirando no jogo
-  scarl: { rear: [0.1665, 0.049], front: [0.1744, -0.346] },
-  mpx: { rear: [0.158, 0.007], front: [0.1582, -0.299] },
-  pdw: { rear: [0.128, -0.007], front: [0.1281, -0.242] },
-  aks74u: { rear: [0.1067, -0.108], front: [0.1043, -0.342] },
-  stg44: { rear: [0.0963, -0.135], front: [0.1021, -0.566] },
-  deagle: { rear: [0.0766, 0.033], front: [0.0789, -0.183] },
-  automag3: { rear: [0.0657, 0.046], front: [0.0649, -0.165] },
-  bfr: { rear: [0.0969, -0.018], front: [0.093, -0.284] },
-  rhino: { rear: [0.0961, 0.01], front: [0.0957, -0.196] },
+const IRON: Partial<Record<GunId, { rear: [number, number]; front: [number, number]; x?: number }>> = {
+  m4: { rear: [0.1455, 0.02], front: [0.1402, -0.416] },
+  ak47: { rear: [0.1103, -0.196], front: [0.1064, -0.543] },
+  mp7: { rear: [0.1266, 0.091], front: [0.1265, -0.138] },
+  mp5: { rear: [0.1381, 0.04], front: [0.1383, -0.307] },
+  kar98k: { rear: [0.1039, -0.269], front: [0.1022, -0.764] },
+  m9: { rear: [0.0739, 0.033], front: [0.0739, -0.13] },
+  scarl: { rear: [0.1665, 0.049], front: [0.1649, -0.353], x: -0.0005 },
+  mpx: { rear: [0.1583, 0.009], front: [0.1582, -0.298] },
+  pdw: { rear: [0.1282, -0.005], front: [0.1281, -0.241] },
+  aks74u: { rear: [0.113, -0.108], front: [0.1084, -0.341], x: -0.0016 },
+  stg44: { rear: [0.0976, -0.135], front: [0.0957, -0.572] },
+  deagle: { rear: [0.0793, 0.033], front: [0.0788, -0.182], x: 0.002 },
+  automag3: { rear: [0.0679, 0.048], front: [0.0653, -0.173], x: 0.001 },
+  bfr: { rear: [0.0969, -0.015], front: [0.093, -0.282], x: -0.0047 },
+  rhino: { rear: [0.0978, 0.012], front: [0.0957, -0.183], x: 0.0004 },
 };
 
 /**
@@ -551,14 +564,18 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   const optic = OPTIC[id];
   const scoped = id === 'l115';
   const iron = IRON[id];
+  // na mira de ferro, o ponto da linha (de trás até a massa) em z = SIGHT_Z
+  const ironY = iron
+    ? iron.rear[0] + ((iron.front[0] - iron.rear[0]) * (SIGHT_Z - iron.rear[1])) / (iron.front[1] - iron.rear[1])
+    : null;
   const sight = new THREE.Vector3(
-    0,
+    iron?.x ?? 0,
     optic
       ? optic.y
       : scoped
         ? box.max.y - 0.025
-        : (iron?.rear[0] ?? frontTop(holder, box.min.z * (SIGHT_AT[id] ?? 0.6)) ?? box.max.y),
-    -0.05,
+        : (ironY ?? frontTop(holder, box.min.z * (SIGHT_AT[id] ?? 0.6)) ?? box.max.y),
+    SIGHT_Z,
   );
   // inclinação que põe a massa na linha do furo de trás (positiva: a boca sobe)
   const sightPitch = iron ? Math.atan2(iron.rear[0] - iron.front[0], iron.rear[1] - iron.front[1]) : 0;

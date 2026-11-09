@@ -380,7 +380,9 @@ function mountOptic(g: GunModel, m: Mount, id: OpticId) {
             ? pistolDot(t)
             : classicScope(t);
   const [y, z] = m.top;
-  o.group.position.set(0, y, z);
+  // no meio da mira de ferro (BFR, Desert Eagle, AKS-74U: a mira não fica no x = 0 do modelo)
+  const x = g.sight.x;
+  o.group.position.set(x, y, z);
   tag(o.group);
   g.root.add(o.group);
   const slide = m.slide ? g.parts.slide : undefined;
@@ -388,10 +390,15 @@ function mountOptic(g: GunModel, m: Mount, id: OpticId) {
   // a alça e a massa dobráveis deitam (somem): a alça alta da M4 ficava na frente do ponto
   if (g.irons) g.irons.visible = false;
   // a linha de mira passa a ser a da mira (paralela ao cano): mirando, o olho fica nela
-  g.sight.set(0, y + o.axis, g.sight.z);
+  g.sight.set(x, y + o.axis, g.sight.z);
   delete g.sightPitch;
+  // mira de ponto: o vidro a uma distância fixa do olho (o ponto e o aro do mesmo tamanho em toda arma)
+  if (id === 'reddot' || id === 'holo') g.adsEye = -DOT_EYE - z + g.sight.z;
   if (o.reticle) g.reticles = [...(g.reticles ?? []), o.reticle];
 }
+
+/** distância do olho até o meio da mira de ponto mirando (m) */
+const DOT_EYE = 0.22;
 
 /** prende um objeto já no lugar (espaço da arma) a uma peça que mexe, sem mudar onde ele está */
 function attachTo(g: GunModel, p: Part, o: THREE.Object3D) {
