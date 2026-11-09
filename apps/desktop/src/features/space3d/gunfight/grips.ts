@@ -76,12 +76,33 @@ const VGRIP = rotX(0.14).multiply(basis([0, 1, 0], [-1, 0, 0], [0, 0, 1]));
 const DELGADO = rotX(-0.7).multiply(PUNHO);
 /** o punho fechado encostado na guarda (o indicador logo atrás dela): só a ponta do cabo sobra, do lado do mindinho */
 const MARTELO_FWD = new THREE.Vector3(0, 0, -0.022);
-/** onde o vão da mão fechada fica em relação ao pulso, já no giro de martelo e no de punho (espaço da arma) */
-const MARTELO_HOLE = FIST_HOLE.clone().applyQuaternion(MARTELO);
-const PUNHO_HOLE = FIST_HOLE.clone().applyQuaternion(PUNHO);
-const PUNHO_INCL_HOLE = FIST_HOLE.clone().applyQuaternion(PUNHO_INCL);
-const DELGADO_HOLE = FIST_HOLE.clone().applyQuaternion(DELGADO);
-const VGRIP_HOLE = FIST_HOLE.clone().applyQuaternion(VGRIP);
+/**
+ * A mão que vai segurar: o vão da mão fechada (no espaço da mão) e o fechamento dele. O boneco usa a mão de cápsulas
+ * (`hand.ts`, o padrão); a primeira pessoa, a mão dos braços com esqueleto (`handrig.ts`).
+ */
+export interface HandFit {
+  hole: THREE.Vector3;
+  curl: number;
+  /** o centro do punho da arma (mais grosso que um cabo de faca): a palma na lateral, os nós dos dedos na frente dele */
+  grip: THREE.Vector3;
+  /** apoio em "C" no guarda-mão: quanto o pulso vai para a esquerda (dedos compridos passavam do topo) */
+  clamp: number;
+  /**
+   * karambit: a altura da fileira do indicador acima do pulso (no punho de lado ela fica no centro da argola) e quanto
+   * a mão vai para trás até o indicador passar na argola (a argola fica em cima do meio do cabo)
+   */
+  ring: { row: number; back: number };
+}
+const CAPSULE_HAND: HandFit = {
+  hole: FIST_HOLE,
+  curl: FIST_CURL,
+  grip: FIST_HOLE,
+  clamp: 0,
+  ring: { row: 0.027, back: 0.05 },
+};
+/** onde o vão da mão fechada fica em relação ao pulso num giro (espaço da arma) */
+const holeIn = (h: HandFit, q: THREE.Quaternion) => h.hole.clone().applyQuaternion(q);
+const gripIn = (h: HandFit, q: THREE.Quaternion) => h.grip.clone().applyQuaternion(q);
 /** a palma encosta pela esquerda da empunhadura (o vão da mão é mais largo que ela) */
 const VGRIP_SHIFT = new THREE.Vector3(-0.004, 0, 0);
 /** o punho tem ~2,6 cm de largura e o vão da mão é mais largo: a mão encosta pela direita */
@@ -91,15 +112,8 @@ const GRIP_AT = new THREE.Vector3(0, -0.024, 0.055);
 const PISTOL_GRIP_AT = new THREE.Vector3(0, -0.014, 0.05);
 /** o delgado da coronha da Kar98k, logo atrás do guarda-mato (mais para trás, o indicador não chegava ao gatilho) */
 const DELGADO_AT = new THREE.Vector3(0, 0.01, 0.05);
-/** karambit: o indicador (a fileira de cima da mão, +0,027 do pulso) passa no centro da argola */
+/** karambit: o centro da argola (o indicador passa nele) */
 const KARAMBIT_RING_Y = 0.056;
-/**
- * A argola fica em cima do meio do cabo, e o indicador cruza a argola ~4 cm atrás de onde os outros dedos cruzam a
- * frente do cabo: a mão vai para trás até o indicador passar no centro da argola (medido: a linha do indicador em
- * x = 0 a ~0,3 cm do centro dela), e o cabo fica no fundo do punho fechado.
- */
-const KARAMBIT_BACK = 0.05;
-const INDEX_ROW = 0.027;
 /** meia espessura da palma (hand.ts): a palma encosta na arma a essa distância do centro dela */
 const PALM_HALF = 0.017;
 
@@ -109,25 +123,25 @@ const PALM_HALF = 0.017;
  * centro do cabo (`handle`, medido no modelo) no vão dos dedos fechados. Kar98k: sem punho de pistola, a mão abraça o
  * delgado da coronha.
  */
-export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass): Grip {
+export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass, hf: HandFit = CAPSULE_HAND): Grip {
   const handle = g.handle ?? new THREE.Vector3();
   if (g.id === 'karambit') {
-    const pos = handle.clone().sub(PUNHO_HOLE);
-    pos.y = KARAMBIT_RING_Y - INDEX_ROW;
-    pos.z += KARAMBIT_BACK;
+    const pos = handle.clone().sub(holeIn(hf, PUNHO));
+    pos.y = KARAMBIT_RING_Y - hf.ring.row;
+    pos.z += hf.ring.back;
     return { pos, quat: PUNHO.clone(), curl: [1, 0.8, 1] };
   }
   if (cls === 'knife')
     return {
-      pos: handle.clone().add(MARTELO_FWD).sub(MARTELO_HOLE),
+      pos: handle.clone().add(MARTELO_FWD).sub(holeIn(hf, MARTELO)),
       quat: MARTELO.clone(),
-      curl: [FIST_CURL, 0.7, FIST_CURL],
+      curl: [hf.curl, 0.7, hf.curl],
     };
   // o vão da mão fechada no meio do punho (todo modelo tem o punho na origem), um pouco para a direita: a palma
   // encosta sem entrar
   if (g.id === 'kar98k')
     return {
-      pos: DELGADO_AT.clone().sub(DELGADO_HOLE).add(GRIP_SHIFT),
+      pos: DELGADO_AT.clone().sub(gripIn(hf, DELGADO)).add(GRIP_SHIFT),
       quat: DELGADO.clone(),
       curl: [1, 0.55, TRIGGER_CURL_KAR],
     };
@@ -135,7 +149,7 @@ export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass): Gr
   // do polegar da mão de apoio
   const pistol = cls === 'pistol';
   return {
-    pos: (pistol ? PISTOL_GRIP_AT : GRIP_AT).clone().sub(PUNHO_INCL_HOLE).add(GRIP_SHIFT),
+    pos: (pistol ? PISTOL_GRIP_AT : GRIP_AT).clone().sub(gripIn(hf, PUNHO_INCL)).add(GRIP_SHIFT),
     quat: PUNHO_INCL.clone(),
     curl: [0.9, pistol ? 0.25 : 0.5, pistol ? TRIGGER_CURL_PISTOL : TRIGGER_CURL],
   };
@@ -147,14 +161,18 @@ export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass): Gr
  * (fecham mais no guarda-mão fino, para não sobrar dedo acima dele) e polegar por cima. O centro da palma fica a
  * 0,046 do pulso nesse giro.
  */
-export function leftGrip(g: Pick<GunModel, 'support' | 'supportW' | 'foregrip'>, cls: GunClass): Grip {
+export function leftGrip(
+  g: Pick<GunModel, 'support' | 'supportW' | 'foregrip'>,
+  cls: GunClass,
+  hf: HandFit = CAPSULE_HAND,
+): Grip {
   if (cls === 'pistol')
     return { pos: new THREE.Vector3(-0.025, -0.04, 0.055), quat: APOIO_PISTOLA.clone(), curl: [0.78, 0.1, 0.78] };
   if (g.foregrip?.kind === 'vertical') {
     // empunhadura vertical: a esquerda fecha em volta dela como a direita no punho (o vão da mão no meio dela, a palma
     // pela esquerda, o indicador em cima, logo abaixo do guarda-mão)
     return {
-      pos: g.foregrip.at.clone().sub(VGRIP_HOLE).add(VGRIP_SHIFT),
+      pos: g.foregrip.at.clone().sub(gripIn(hf, VGRIP)).add(VGRIP_SHIFT),
       quat: VGRIP.clone(),
       curl: [0.92, 0.6, 0.92],
     };
@@ -162,7 +180,7 @@ export function leftGrip(g: Pick<GunModel, 'support' | 'supportW' | 'foregrip'>,
   const w = g.supportW ?? 0.03;
   const c = Math.max(0.8, Math.min(1, 0.9 + 5 * (0.03 - w)));
   return {
-    pos: g.support.clone().add(new THREE.Vector3(-0.046, -PALM_HALF - 0.002, 0)),
+    pos: g.support.clone().add(new THREE.Vector3(-0.046 - hf.clamp, -PALM_HALF - 0.002, 0)),
     quat: C_CLAMP.clone(),
     curl: [c, 0.8, c],
   };

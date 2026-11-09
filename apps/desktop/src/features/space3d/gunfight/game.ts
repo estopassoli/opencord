@@ -113,7 +113,6 @@ export interface GunHost {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   obstacles: Obstacles;
-  skin: number;
   /** "reduzir movimento" ligado: menos balanço e tranco */
   reducedMotion?: boolean;
   /** câmera da cena: para onde olho */
@@ -352,7 +351,7 @@ export class GunGame {
   private disposed = false;
 
   constructor(private readonly host: GunHost) {
-    this.vm = new Viewmodel(host.skin, !!host.reducedMotion);
+    this.vm = new Viewmodel(!!host.reducedMotion);
     this.fx = new GunFx(host.scene);
     this.casings = new Casings(host.scene);
     this.seed = gunSeed(host.selfId, Date.now());

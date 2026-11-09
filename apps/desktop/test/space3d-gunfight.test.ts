@@ -69,7 +69,6 @@ function fakeHost(over: Partial<GunHost> = {}) {
     scene: new THREE.Scene(),
     camera: new THREE.PerspectiveCamera(70, 1, 0.05, 200),
     obstacles: gunObstacles(),
-    skin: 0xffffff,
     yaw: () => view.yaw,
     pitch: () => view.pitch,
     turn: (dy, dp) => {

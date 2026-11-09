@@ -364,7 +364,6 @@ describe('armeiro: o jogo usa a arma montada', () => {
       scene: new THREE.Scene(),
       camera: new THREE.PerspectiveCamera(70, 1, 0.05, 200),
       obstacles: gunObstacles(),
-      skin: 0xffffff,
       yaw: () => 0,
       pitch: () => 0,
       turn: () => undefined,

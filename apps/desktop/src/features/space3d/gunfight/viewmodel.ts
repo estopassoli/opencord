@@ -5,16 +5,21 @@
  * coice do tiro com o ferrolho indo e voltando (o estojo sai pela janela), recarga (`reload.ts`: com bala, o pente velho
  * vai para o colete e a mão volta com um cheio; vazia, o velho cai e o novo encaixa; depois o gesto da arma),
  * ferrolho do sniper (a mão direita anda junto com a alavanca), golpes da faca (alternando os lados) e a inspeção. As
- * mãos seguram nas pegadas medidas na malha de cada arma (`holds.ts`: palma encostada, cada dedo fechado até tocar). Os braços vão do ombro (fixo na câmera) até o pulso, com o cotovelo resolvido entre os dois; com faca, o
+ * mãos seguram nas pegadas medidas na malha de cada arma (`holds.ts`: palma encostada, cada dedo fechado até tocar).
+ * Braços, mãos e dedos são o modelo com esqueleto de `arms.ts` (ADR-0060): a mão vai para a pegada, os dedos usam as
+ * poses de `handrig.ts` e o braço é resolvido do pulso até o ombro (fixo na câmera), pelo cotovelo pedido; com faca, o
  * antebraço segue a mão (o pulso fica quase reto em qualquer giro). As facas giram na mão em volta de um pivô (a
  * karambit na argola, pelo indicador; a baioneta no meio do cabo), nunca a lâmina sozinha.
  *
  * "Reduzir movimento": passo, balanço, inclinações e o giro do saque ficam em ~30%; a faca não gira na mão.
  */
 import * as THREE from 'three';
-import { makeHand, type FingerOffsets, type Hand } from '../hand';
+import { FpsArms, type ArmHand } from './arms';
+import { ARM_RIG } from './armsrig';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
+import { fitHand, soupOf } from './contact';
 import { flashTexture } from './fx';
+import { ARM_HAND_FIT, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
 import { aimReticles } from './attachmodels';
 import { disposeGun, movePart, partBox, partCenter, type GunModel, type Part } from './models';
@@ -72,8 +77,9 @@ const SHOULDER = { x: 0.2, y: -0.35, z: 0.1 };
  * o meio da tela.
  */
 const SHOULDER_L = { x: 0.26, y: -0.32, z: -0.08 };
-const UPPER = 0.34;
-const FORE = 0.28;
+/** braço e antebraço do modelo (`assets/arms.glb`) */
+const UPPER = ARM_RIG.upper;
+const FORE = ARM_RIG.fore;
 const ELBOW_MAX_Z = -0.08;
 /** puxando a alavanca por cima: o cotovelo esquerdo fica mais longe da câmera, baixo e para fora */
 const ELBOW_MAX_Z_OVER = -0.2;
@@ -128,7 +134,7 @@ const SIDE_Q = new THREE.Quaternion().setFromRotationMatrix(
 const PINCH: readonly [number, number, number] = PINCH_CURL;
 /** o coice nunca traz a arma para mais perto da câmera que isto (z no espaço da câmera do viewmodel) */
 const KICK_Z_MAX = -0.12;
-/** meia espessura da palma (hand.ts) */
+/** meia espessura da palma (palpite para os gestos da recarga; o encaixe medido corrige) */
 const PALM_HALF = 0.017;
 /**
  * Recarga vazia, por arma, sem o braço esquerdo passar por cima da arma (cobria 1/3 da tela): tapa no retém do
@@ -247,7 +253,12 @@ const GUARD_Q = (() => {
   const x = new THREE.Vector3().crossVectors(back, z);
   return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
 })();
-const GUARD_CURL = 0.9;
+/** a guarda relaxada: dedos meio dobrados (o mindinho mais), o indicador um pouco mais aberto e o polegar solto */
+const GUARD_CURL = 0.5;
+const GUARD_INDEX = 0.38;
+const GUARD_THUMB = 0.3;
+/** os dedos da mão da faca antes de fechar no cabo (o encaixe fecha cada um até encostar) */
+const KNIFE_OPEN: [number, number, number] = [0.3, 0.2, 0.3];
 /**
  * deslocamento da animação neste quadro: posição e giro do `holder`, giro extra no espaço da câmera (`ex`, `ey`, `ez`) e
  * em volta do antebraço (`pro`, pronação e supinação), giro da faca na mão (`spin` no eixo dela; `twist` no comprimento
@@ -311,10 +322,10 @@ export class Viewmodel {
   readonly camera = new THREE.PerspectiveCamera(55, 1, 0.01, 10);
   private readonly holder = new THREE.Group();
   private readonly sway = new THREE.Group();
-  private readonly armR: THREE.Group;
-  private readonly armL: THREE.Group;
-  private readonly handR: Hand;
-  private readonly handL: Hand;
+  /** braços com esqueleto (`arms.ts`): as mãos são âncoras no espaço da arma, o braço é resolvido até o ombro */
+  private readonly arms: FpsArms;
+  private readonly handR: ArmHand;
+  private readonly handL: ArmHand;
   /** onde ficam as mãos no espaço da arma quando seguram (a animação sai e volta para cá) */
   private readonly rightAt = new THREE.Vector3();
   private readonly leftAt = new THREE.Vector3();
@@ -337,6 +348,8 @@ export class Viewmodel {
   /** a mão direita em relação ao pente-lâmina, já com a palma encostada fora da caixa da culatra (Kar98k) */
   private readonly clipHand = CLIP_HAND.clone();
   private egOff: FingerOffsets = [0, 0, 0, 0, 0];
+  /** faca: o acerto de cada dedo medido no cabo (eles partem de `KNIFE_OPEN` e fecham até encostar) */
+  private knifeOff: FingerOffsets = [0, 0, 0, 0, 0];
   /** cópia do pente sem os cartuchos (o vazio que cai) e o pente-lâmina da Kar98k, com as balas */
   private magGhost: THREE.Object3D | null = null;
   private clip: { root: THREE.Group; rounds: THREE.Mesh[] } | null = null;
@@ -388,7 +401,7 @@ export class Viewmodel {
   /** 1 normal; ~0,3 com "reduzir movimento" */
   private readonly motion: number;
 
-  constructor(skin: THREE.ColorRepresentation, reducedMotion = false) {
+  constructor(reducedMotion = false) {
     this.motion = reducedMotion ? 0.3 : 1;
     this.scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x2a2622, 1.5));
     const key = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -396,11 +409,10 @@ export class Viewmodel {
     this.scene.add(key);
     this.scene.add(this.sway);
     this.sway.add(this.holder);
-    this.armR = arm();
-    this.armL = arm();
-    this.sway.add(this.armR, this.armL);
-    this.handR = makeHand(skin, 1);
-    this.handL = makeHand(skin, -1);
+    this.arms = new FpsArms();
+    this.sway.add(this.arms.root);
+    this.handR = this.arms.hand(1);
+    this.handL = this.arms.hand(-1);
     this.holder.add(this.handR.root, this.handL.root);
     this.flash = new THREE.Mesh(
       new THREE.PlaneGeometry(0.16, 0.16),
@@ -434,12 +446,11 @@ export class Viewmodel {
     });
     const knife = spec.cls === 'knife';
     // com faca, a esquerda fica de guarda (baixa, meio fechada), fora da arma
-    this.armL.visible = true;
-    this.handL.root.visible = true;
-    applyGrip(this.handR, rightGrip(g, spec.cls));
+    this.arms.build();
+    applyGrip(this.handR, rightGrip(g, spec.cls, ARM_HAND_FIT));
     this.rightAt.copy(this.handR.root.position);
     this.rightCurl = curlOf(this.handR);
-    applyGrip(this.handL, leftGrip(g, spec.cls));
+    applyGrip(this.handL, leftGrip(g, spec.cls, ARM_HAND_FIT));
     this.leftAt.copy(this.handL.root.position);
     this.leftQ.copy(this.handL.root.quaternion);
     this.leftCurl = curlOf(this.handL);
@@ -469,7 +480,17 @@ export class Viewmodel {
     const bz = box ? box.max.z : this.magHome.z;
     this.slapAt.set(-0.025 - PALM_HALF, top - 0.04, bz + 0.046 - 0.01);
     if (!knife) this.prepareGunParts(g, spec);
-    if (knife) knifeSpinFrame(g, this.spinPivot, this.spinAxis);
+    this.knifeOff = NO_OFF;
+    if (knife) {
+      knifeSpinFrame(g, this.spinPivot, this.spinAxis);
+      // os dedos partem abertos e fecham até encostar no cabo (e o indicador na argola da karambit), um por um
+      const f = fitHand(soupOf(g.root), 1, this.handR.root.position, this.handR.root.quaternion, KNIFE_OPEN, {
+        fingers: ['index', 'middle', 'ring', 'pinky', 'thumb'],
+        maxCurl: 1.6,
+      });
+      this.knifeOff = f.offsets;
+      this.rightCurl = [...KNIFE_OPEN];
+    }
     // trocou de arma: nada da anterior sobra
     this.last = zeroOffsets();
     this.carry = zeroOffsets();
@@ -1045,8 +1066,12 @@ export class Viewmodel {
       FORE_DIR.copy(kp.fore).applyQuaternion(HQ);
       this.foreAxis.copy(FORE_DIR);
     }
-    placeArm(this.armR, this.handR.root.getWorldPosition(W1), 1, 0, kp ? 1 : 0, FORE_DIR);
-    if (this.armL.visible) placeArm(this.armL, this.handL.root.getWorldPosition(W1), -1, shoulderOut);
+    if (this.arms.build()) {
+      elbowHint(this.handR.root.getWorldPosition(W1), 1, ELBOW, 0, kp ? 1 : 0, FORE_DIR);
+      this.arms.solve(1, shoulderAt(1, 0, SH), ELBOW);
+      elbowHint(this.handL.root.getWorldPosition(W1), -1, ELBOW, shoulderOut);
+      this.arms.solve(-1, shoulderAt(-1, shoulderOut, SH), ELBOW);
+    }
     // ferrolho aberto: o estojo sai (com a arma já no lugar deste quadro); peças soltas caindo
     if (this.ejectAfter) {
       this.ejectAfter = false;
@@ -1244,14 +1269,14 @@ export class Viewmodel {
     this.handL.root.position.copy(this.holder.worldToLocal(GL));
     this.holder.getWorldQuaternion(HQ);
     this.handL.root.quaternion.copy(HQ.invert().multiply(GUARD_Q));
-    // indicador junto com os outros (mais aberto que eles, ele vira dedo de gatilho)
-    this.handL.setCurl(GUARD_CURL, 0.7, GUARD_CURL);
+    // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador
+    this.handL.setCurl(GUARD_CURL, GUARD_THUMB, GUARD_INDEX);
   }
 
   /** os acertos dos dedos da direita: os da pegada, indo para os da alavanca; soltos no pente-lâmina */
   private rightOffsets(toLever: number, onTrigger: number, clip: number): FingerOffsets {
     const h = this.holds;
-    if (!h) return NO_OFF;
+    if (!h) return this.knifeOff;
     for (let i = 0; i < 5; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
       const grip = h.right.off[i]! * (i === 0 ? onTrigger : 1);
@@ -1453,19 +1478,11 @@ export class Viewmodel {
     r.autoClear = auto;
   }
 
-  /** libera tudo: a arma, as mãos, as mangas e o clarão */
+  /** libera tudo: a arma, os braços e o clarão */
   dispose() {
     if (this.gun) disposeGun(this.gun);
     this.gun = null;
-    this.handR.dispose();
-    this.handL.dispose();
-    for (const g of [this.armR, this.armL])
-      g.traverse((o) => {
-        if (o instanceof THREE.Mesh) {
-          o.geometry.dispose();
-          (o.material as THREE.Material).dispose();
-        }
-      });
+    this.arms.dispose();
     this.flash.geometry.dispose();
     this.flash.material.dispose();
     this.flashLight.dispose();
@@ -1542,39 +1559,16 @@ function partHome(p: Part, holder: THREE.Object3D, out: THREE.Vector3) {
   return partNow(p, holder, out);
 }
 
-function curlOf(h: Hand): [number, number, number] {
+function curlOf(h: ArmHand): [number, number, number] {
   return (h.root.userData.curl as [number, number, number] | undefined) ?? [0.8, 0.6, 0.8];
 }
-function setGrip(h: Hand, c: number, t: number, i: number) {
+function setGrip(h: ArmHand, c: number, t: number, i: number) {
   h.root.userData.curl = [c, t, i];
   h.setCurl(c, t, i);
 }
 
-/** manga do braço (do ombro ao cotovelo) e do antebraço (do cotovelo ao pulso); a mão é a `Hand`, presa à arma */
-function arm(): THREE.Group {
-  const g = new THREE.Group();
-  const cloth = new THREE.MeshStandardMaterial({ color: 0x3b4436, roughness: 0.9 });
-  // antebraço afinando do cotovelo (0,034) ao pulso (0,026), com o punho da manga na ponta (sem ponta redonda): mais
-  // grosso, o antebraço de apoio virava o maior objeto da tela no quadril
-  const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.034, FORE + 0.072, 12), cloth);
-  fore.name = 'fore';
-  const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, UPPER, 4, 10), cloth.clone());
-  upper.name = 'upper';
-  const cuff = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.029, 0.03, 0.045, 12),
-    new THREE.MeshStandardMaterial({ color: 0x2a3026, roughness: 0.9 }),
-  );
-  cuff.name = 'cuff';
-  // cotovelo redondo (a ponta do antebraço afinado é reta)
-  const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.036, 12, 8), cloth);
-  elbow.name = 'elbow';
-  g.add(fore, upper, cuff, elbow);
-  return g;
-}
-
 const ELBOW = new THREE.Vector3();
 const SH = new THREE.Vector3();
-const UP = new THREE.Vector3(0, 1, 0);
 const DIRV = new THREE.Vector3();
 const POLE = new THREE.Vector3();
 const W2 = new THREE.Vector3();
@@ -1608,14 +1602,19 @@ export function solveElbow(at: THREE.Vector3, side: number, out: THREE.Vector3, 
 }
 
 /**
- * `along` (faca): em vez da IK, o antebraço sai do pulso na direção `alongDir` (do cotovelo para o pulso, que segue a
- * mão): o pulso fica reto com a mão em qualquer giro (pegada, saque, inspeção) e o braço até o ombro estica junto.
+ * O cotovelo pedido para o braço (`arms.ts` resolve do pulso para ele): o da IK de dois ossos a partir do ombro e,
+ * com faca (`along`), o antebraço saindo do pulso na direção `alongDir` (do cotovelo para o pulso, que segue a mão):
+ * o pulso fica reto com a mão em qualquer giro (pegada, saque, inspeção).
  */
-function placeArm(g: THREE.Group, at: THREE.Vector3, side: number, over = 0, along = 0, alongDir?: THREE.Vector3) {
-  const fore = g.getObjectByName('fore')!;
-  const upper = g.getObjectByName('upper')!;
-  const cuff = g.getObjectByName('cuff')!;
-  solveElbow(at, side, ELBOW, over);
+function elbowHint(
+  at: THREE.Vector3,
+  side: number,
+  out: THREE.Vector3,
+  over = 0,
+  along = 0,
+  alongDir?: THREE.Vector3,
+): THREE.Vector3 {
+  solveElbow(at, side, out, over);
   if (along > 0 && alongDir) {
     W2.copy(at).addScaledVector(alongDir, -FORE);
     // num golpe a mão gira muito: o cotovelo nunca passa para o outro lado do pulso nem sobe acima dele (o braço
@@ -1624,34 +1623,13 @@ function placeArm(g: THREE.Group, at: THREE.Vector3, side: number, over = 0, alo
     W2.y = Math.min(W2.y, at.y - 0.03);
     W2.z = Math.min(W2.z, ELBOW_MAX_Z);
     // a mão apontando para longe da câmera: o antebraço viria reto para o rosto (a manga cobre a tela); aí vale a IK
-    ELBOW.lerp(W2, along * (1 - seg(-alongDir.z, 0.55, 0.8)));
+    out.lerp(W2, along * (1 - seg(-alongDir.z, 0.55, 0.8)));
   }
-  g.getObjectByName('elbow')!.position.copy(ELBOW);
-  // antebraço: do cotovelo ao pulso (estica a cápsula se o cotovelo foi empurrado)
-  DIRV.copy(at).sub(ELBOW);
-  const fl = DIRV.length();
-  DIRV.divideScalar(fl || 1);
-  // presa no pulso e indo até o cotovelo: com a mão longe (apoio no guarda-mão no quadril), o braço fica esticado e a
-  // manga estica junto — se parasse no tamanho, a ponta reta do antebraço aparecia no meio de baixo da tela, solta do
-  // cotovelo (fuzis no quadril). Teto de 2× para um pulso fora do lugar não virar um tubo atravessando a tela
-  const k = Math.min(2, fl / (FORE + 0.072));
-  fore.position.copy(at).addScaledVector(DIRV, (-(FORE + 0.072) * k) / 2);
-  fore.quaternion.setFromUnitVectors(UP, DIRV);
-  fore.scale.set(1, k, 1);
-  cuff.position.copy(at).addScaledVector(DIRV, -0.035);
-  cuff.quaternion.copy(fore.quaternion);
-  // braço: do ombro ao cotovelo
-  shoulderAt(side, over, SH);
-  DIRV.copy(ELBOW).sub(SH);
-  const ul = DIRV.length();
-  DIRV.divideScalar(ul || 1);
-  upper.position.copy(SH).lerp(ELBOW, 0.5);
-  upper.quaternion.setFromUnitVectors(UP, DIRV);
-  upper.scale.set(1, ul / (UPPER + 0.09), 1);
+  return out;
 }
 
 /** põe a mão na pegada (posição, giro e dedos) e guarda os dedos para a animação voltar a eles */
-function applyGrip(h: Hand, g: Grip) {
+function applyGrip(h: ArmHand, g: Grip) {
   h.root.position.copy(g.pos);
   h.root.quaternion.copy(g.quat);
   setGrip(h, g.curl[0], g.curl[1], g.curl[2]);

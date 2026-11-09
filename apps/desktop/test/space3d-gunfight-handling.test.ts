@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { handProbes } from '../src/features/space3d/hand';
+import { FIST_HOLE, handProbes } from '../src/features/space3d/gunfight/handrig';
 import {
   CASINGS,
   CASING_MS,
@@ -259,5 +259,34 @@ describe('encaixe da mão', () => {
       expect(gap).toBeGreaterThanOrEqual(0);
       expect(gap).toBeLessThan(0.003);
     });
+  });
+});
+
+describe('mão dos braços com esqueleto (ADR-0060)', () => {
+  it('as esferas seguem a pose: fechar leva as pontas para o lado da palma, sem mexer na palma', () => {
+    const tip = (c: number, f: 'index' | 'pinky') =>
+      handProbes(1, c, 0.5, c)
+        .filter((p) => p.part === f)
+        .at(-1)!.at;
+    expect(tip(0.9, 'index').y).toBeLessThan(tip(0, 'index').y - 0.02);
+    expect(tip(0.9, 'pinky').z).toBeGreaterThan(tip(0, 'pinky').z);
+    const palm = (c: number) => handProbes(1, c, 0, c, undefined, 'palm').filter((p) => p.seg < 40);
+    expect(palm(0.9).map((p) => p.at.toArray())).toEqual(palm(0).map((p) => p.at.toArray()));
+  });
+
+  it('a esquerda é o espelho da direita (no x do espaço da mão)', () => {
+    const r = handProbes(1, 0.6, 0.4, 0.5);
+    const l = handProbes(-1, 0.6, 0.4, 0.5);
+    const mid = (a: typeof r) => a.filter((p) => p.part === 'middle').at(-1)!.at;
+    expect(mid(l).x).toBeCloseTo(-mid(r).x, 2);
+    expect(mid(l).y).toBeCloseTo(mid(r).y, 2);
+    expect(mid(l).z).toBeCloseTo(mid(r).z, 2);
+  });
+
+  it('o vão do punho fechado fica embaixo da palma e cabe um cabo de ~2,5 cm', () => {
+    expect(FIST_HOLE.y).toBeLessThan(-0.02);
+    const pr = handProbes(1, 0.95, 0.8, 0.95).filter((p) => p.part === 'middle' || p.part === 'palm');
+    const free = Math.min(...pr.map((p) => p.at.distanceTo(FIST_HOLE) - p.r));
+    expect(free).toBeGreaterThan(0.011);
   });
 });

@@ -9,7 +9,7 @@
  */
 import type { GunId } from '@opencord/contracts';
 import * as THREE from 'three';
-import { FIST_HOLE, handProbes, type FingerOffsets } from '../hand';
+import { ARM_HAND_FIT, FIST_HOLE, handProbes, type FingerOffsets } from './handrig';
 import { clearance, fitHand, inside, soupOf, toSoup, type Soup, type Sphere } from './contact';
 import { TRIGGER_OFF, leftGrip, rightGrip } from './grips';
 import { disposeGun, makeGun, partBox, type GunModel, type Part } from './models';
@@ -115,11 +115,11 @@ const near = (g: GunModel, at: THREE.Vector3): Soup => soupOf(g.root, { at, r: 0
 function measure(g: GunModel, cls: GunClass): Holds {
   rest(g);
   const pistol = cls === 'pistol';
-  const rg = rightGrip(g, cls);
+  const rg = rightGrip(g, cls, ARM_HAND_FIT);
   const right = fitRight(g, rg.pos, rg.quat, qc(rg.curl));
   // a direita vira obstáculo para a esquerda (na pistola, os dedos da esquerda passam por cima dos dela)
   const rightBalls = balls(right, 1);
-  const lg = pistol ? pistolSupport(g) : leftGrip(g, cls);
+  const lg = pistol ? pistolSupport(g) : leftGrip(g, cls, ARM_HAND_FIT);
   const lc = qc(lg.curl);
   const ls = near(g, lg.pos);
   const lf = fitHand(ls, -1, lg.pos, lg.quat, lc, {
@@ -182,14 +182,16 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
   // fechado em volta do punho (no guarda-mato baixo, o médio caía na barra de baixo dele e ficava esticado)
   let best = { score: Infinity, pos: pos0.clone(), ix: rc[2] };
   const cands: { score: number; pos: THREE.Vector3; ix: number }[] = [];
-  for (let dy = -0.018; dy <= 0.0181; dy += 0.003)
-    for (let dz = -0.005; dz <= 0.0051; dz += 0.005) {
+  for (let dy = -0.03; dy <= 0.0181; dy += 0.003)
+    for (let dz = -0.01; dz <= 0.0101; dz += 0.005) {
       const p = pos0.clone().addScaledVector(down, dy).addScaledVector(fwd, dz);
-      const f = fitHand(soup, 1, p, quat, rc, { palm: true, fingers: ['middle'] });
+      const f = fitHand(soup, 1, p, quat, rc, { palm: true, fingers: ['middle', 'ring'] });
       const mid = rc[0] + f.offsets[1];
+      const ring = rc[0] + f.offsets[2];
       const [ix, tip] = index(f.pos);
       // o gatilho manda; o médio sem fechar e a mão longe da pegada pesam contra
-      const score = tip + 0.05 * Math.max(0, MIDDLE_WRAP - mid) + 0.1 * Math.hypot(dy, dz);
+      const score =
+        tip + 0.15 * (Math.max(0, MIDDLE_WRAP - mid) + Math.max(0, MIDDLE_WRAP - ring)) + 0.1 * Math.hypot(dy, dz);
       cands.push({ score, pos: f.pos, ix });
     }
   // a melhor que tenha o indicador fora da malha (conferido só nas primeiras, que é caro)
@@ -213,7 +215,7 @@ const TRIGGER_AT: Partial<Record<GunId, THREE.Vector3>> = {
 /** conferir se o indicador ficou dentro da malha (número de voltas): os modelos feitos em código têm furos (o
  * guarda-mato) que a soma dos ângulos não entende, e o teste dava "dentro" no vão do guarda-mato */
 const DEEP_CHECK = false;
-/** o médio tem que fechar pelo menos isto em volta do punho (senão a mão desce) */
+/** o médio e o anelar têm que fechar pelo menos isto em volta do punho (senão a mão desce) */
 const MIDDLE_WRAP = 0.7;
 
 /**

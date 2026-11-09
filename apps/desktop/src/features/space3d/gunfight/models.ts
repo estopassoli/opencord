@@ -10,6 +10,7 @@
 import type { GunId } from '@opencord/contracts';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { loadArms } from './arms';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import ak47Url from '../assets/guns/ak47.glb?url';
@@ -142,9 +143,15 @@ let loading: Promise<void> | null = null;
 export function loadGuns(): Promise<void> {
   loading ??= (async () => {
     const loader = new GLTFLoader();
-    const files = await Promise.all(
-      (Object.entries(FILE) as [GunId, string][]).map(async ([id, url]) => [id, await loader.loadAsync(url)] as const),
-    );
+    // os braços da primeira pessoa vêm junto (o viewmodel monta a malha quando a primeira arma aparece)
+    const [files] = await Promise.all([
+      Promise.all(
+        (Object.entries(FILE) as [GunId, string][]).map(
+          async ([id, url]) => [id, await loader.loadAsync(url)] as const,
+        ),
+      ),
+      loadArms(),
+    ]);
     const scenes = new Map(files.map(([id, g]) => [id, g.scene]));
     const kar = scenes.get('kar98k');
     if (kar) darkenWood(kar);

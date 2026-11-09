@@ -11,3 +11,11 @@ CheyTac M200 Intervention, Desert Eagle, karambit e baioneta M9 são modelados e
 vêm do pacote.
 
 A atribuição também aparece no app, no menu "Esta partida" do gunfight.
+
+## Braços da primeira pessoa
+
+`../arms.glb` (manga, luva sem dedos e mão com esqueleto de dedos) vem do **fps arms (rigged only)** de **para**
+(OpenGameArt, <https://opengameart.org/content/fps-arms-rigged-only>), licença
+[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) — sem atribuição obrigatória, registrada por cortesia.
+Modificações (`apps/desktop/scripts/arms-build.py`): esqueleto limpo, escala em metros, braço, antebraço e falanges
+esticados, manga e luva feitas a partir da malha, uma subdivisão.

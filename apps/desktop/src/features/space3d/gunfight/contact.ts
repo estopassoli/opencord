@@ -11,7 +11,7 @@
  * no fim). Como sempre parte de fora, não precisa saber o que é "dentro" da malha (os modelos são ocos).
  */
 import * as THREE from 'three';
-import { handProbes, type FingerOffsets, type ProbePart } from '../hand';
+import { handProbes, type FingerOffsets, type ProbePart } from './handrig';
 
 /** triângulos (9 números cada), o centro e o raio da esfera envolvente de cada um */
 export interface Soup {
@@ -286,6 +286,11 @@ export interface Fit {
   offsets: FingerOffsets;
 }
 
+/**
+ * Até onde um dedo pode fechar procurando a superfície: na mão dos braços (`handrig.ts`) o 1 é a mão em volta de um
+ * cabo de ~2,5 cm, e o punho cerrado fica perto de 1,6
+ */
+const MAX_CURL = 1.4;
 const PART_INDEX: Partial<Record<ProbePart, number>> = { index: 0, middle: 1, ring: 2, pinky: 3, thumb: 4 };
 const N = new THREE.Vector3();
 
@@ -326,7 +331,7 @@ export function fitHand(
     if (touched && Number.isFinite(best)) out.addScaledVector(N, best);
   }
   const offsets: [number, number, number, number, number] = [0, 0, 0, 0, 0];
-  const maxCurl = o.maxCurl ?? 1;
+  const maxCurl = o.maxCurl ?? MAX_CURL;
   for (const f of o.fingers ?? []) {
     const fi = PART_INDEX[f];
     if (fi === undefined) continue;
