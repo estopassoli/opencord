@@ -519,66 +519,70 @@ export function GunMatchPanel({
         <h3 id="gf-loadout">Equipamento</h3>
         <LoadoutCards onOpen={setView} others={others} />
       </section>
-      <section>
-        <h3>Mouse</h3>
-        <AimSettingsPanel />
-      </section>
-      <section>
-        <h3 id="gf-view">Visão</h3>
-        <div className="gf-options" role="group" aria-labelledby="gf-view">
-          <button type="button" className="gf-option" aria-pressed={fp} onClick={() => !fp && onView()}>
-            Primeira pessoa
-          </button>
-          <button type="button" className="gf-option" aria-pressed={!fp} onClick={() => fp && onView()}>
-            Terceira pessoa
-          </button>
-          <span className="gf-note">
-            <Binding action="view" /> troca a qualquer hora
-          </span>
-        </div>
-      </section>
-      <section>
-        <h3 id="gf-bots">Treino contra bots</h3>
-        {blocked && <p className="gf-note">Só com a arena vazia: os bots jogam só no seu app.</p>}
-        <div className="gf-options" role="group" aria-labelledby="gf-bots">
-          {!blocked &&
-            BOT_LEVELS.map((l) => (
-              <button
-                key={l}
-                type="button"
-                className="gf-option"
-                aria-pressed={bot === l}
-                // o nível que já está valendo não recomeça o treino (o número de bots muda pelos botões abaixo)
-                onClick={() => bot !== l && onBots(l, count)}
-              >
-                {BOT_LEVEL_LABEL[l]}
+      <div className="gf-settings">
+        <section aria-labelledby="gf-mouse">
+          <h3 id="gf-mouse">Mouse</h3>
+          <AimSettingsPanel />
+        </section>
+        <div className="gf-settings-col">
+          <section aria-labelledby="gf-view">
+            <h3 id="gf-view">Visão</h3>
+            <div className="gf-options" role="group" aria-labelledby="gf-view">
+              <button type="button" className="gf-option" aria-pressed={fp} onClick={() => !fp && onView()}>
+                Primeira pessoa
               </button>
-            ))}
-          {bot && (
-            <button type="button" className="gf-option" onClick={() => onBots(null, count)}>
-              Tirar os bots
-            </button>
-          )}
-        </div>
-        {!blocked && (
-          <div className="gf-options" role="group" aria-label="Quantos bots">
-            {[1, 3, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                className="gf-option"
-                aria-pressed={count === n}
-                onClick={() => (bot ? onBots(bot, n) : useGunHud.getState().set({ botCount: n }))}
-              >
-                {n} {n === 1 ? 'bot' : 'bots'}
+              <button type="button" className="gf-option" aria-pressed={!fp} onClick={() => fp && onView()}>
+                Terceira pessoa
               </button>
-            ))}
-          </div>
-        )}
-      </section>
+              <span className="gf-note">
+                <Binding action="view" /> troca a qualquer hora
+              </span>
+            </div>
+          </section>
+          <section>
+            <h3 id="gf-bots">Treino contra bots</h3>
+            {blocked && <p className="gf-note">Só com a arena vazia: os bots jogam só no seu app.</p>}
+            <div className="gf-options" role="group" aria-labelledby="gf-bots">
+              {!blocked &&
+                BOT_LEVELS.map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    className="gf-option"
+                    aria-pressed={bot === l}
+                    // o nível que já está valendo não recomeça o treino (o número de bots muda pelos botões abaixo)
+                    onClick={() => bot !== l && onBots(l, count)}
+                  >
+                    {BOT_LEVEL_LABEL[l]}
+                  </button>
+                ))}
+              {bot && (
+                <button type="button" className="gf-option" onClick={() => onBots(null, count)}>
+                  Tirar os bots
+                </button>
+              )}
+            </div>
+            {!blocked && (
+              <div className="gf-options" role="group" aria-label="Quantos bots">
+                {[1, 3, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className="gf-option"
+                    aria-pressed={count === n}
+                    onClick={() => (bot ? onBots(bot, n) : useGunHud.getState().set({ botCount: n }))}
+                  >
+                    {n} {n === 1 ? 'bot' : 'bots'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
       {/* com gente na arena, só quando o jogo deixa (no meio da partida com abates, zeraria o placar de todos) */}
       {canRestart && (
-        <Button icon="refresh" onClick={onRestart}>
+        <Button icon="refresh" className="gf-restart" onClick={onRestart}>
           {blocked ? 'Recomeçar a partida para todos' : 'Recomeçar a partida'}
         </Button>
       )}
