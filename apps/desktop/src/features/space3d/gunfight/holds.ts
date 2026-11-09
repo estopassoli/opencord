@@ -118,7 +118,7 @@ function measure(g: GunModel, cls: GunClass): Holds {
   rest(g);
   const pistol = cls === 'pistol';
   const rg = rightGrip(g, cls, ARM_HAND_FIT);
-  const right = fitRight(g, rg.pos, rg.quat, qc(rg.curl));
+  const right = fitRight(g, rg.pos, rg.quat, qc(rg.curl), pistol);
   // a direita vira obstáculo para a esquerda (na pistola, os dedos da esquerda passam por cima dos dela)
   const rightBalls = balls(right, 1);
   const left = pistol
@@ -239,9 +239,6 @@ const VGRIP_THUMB: readonly (readonly [number, number])[] = [
   [0.6, 0],
   [0.3, 0.5],
   [0.2, 0.9],
-  [0.5, -0.3],
-  [0.3, -0.6],
-  [0.8, -0.3],
 ];
 
 /**
@@ -279,7 +276,13 @@ function vgripHold(g: GunModel, cls: GunClass): Hold {
  * tocar, e o indicador procura o gatilho: o fechamento em que a ponta fica mais perto da frente da lâmina sem encostar
  * no guarda-mato nem na armação.
  */
-function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: [number, number, number]): Hold {
+function fitRight(
+  g: GunModel,
+  pos0: THREE.Vector3,
+  quat: THREE.Quaternion,
+  rc: [number, number, number],
+  pistol: boolean,
+): Hold {
   const trig = g.parts.trigger;
   const soup = soupOf(g.root, { at: pos0, r: 0.18 }, undefined, trig?.obj);
   const box = trig ? partBox(g, trig) : null;
@@ -367,7 +370,7 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
   // o polegar: fechado por cima do punho ele entrava ~7 mm na caixa da culatra; procura o fechamento e o quanto ele
   // abre para o lado da palma em que encosta na lateral esquerda sem entrar
   let bestT: { cost: number; t: number; up: number } | null = null;
-  for (const [t0, up] of RIGHT_THUMB) {
+  for (const [t0, up] of pistol ? RIGHT_THUMB.filter(([, u]) => u >= 0) : RIGHT_THUMB) {
     const f = fitHand(soup, 1, best.pos, quat, [rc[0], t0, rc[2]], {
       fingers: ['thumb'],
       base: [off[0], off[1], off[2], off[3], 0, up],
@@ -391,6 +394,12 @@ const RIGHT_THUMB: readonly (readonly [number, number])[] = [
   [0.35, 0.6],
   [0.7, 0.3],
   [0.2, 0.9],
+  // aberto para o lado do dorso: por cima do punho, sem entrar na caixa da culatra (AK, L115, MP7, MSMC...); na
+  // pistola, não (o polegar vai esticado para a frente, embaixo do da mão de apoio)
+  [0.5, -0.4],
+  [0.5, -0.7],
+  [0.3, -0.6],
+  [0.8, -0.4],
 ];
 /**
  * gatilho das armas sem a peça separada: a frente da lâmina (os modelos do Sketchfab trazem a deles em `trigFace`;
