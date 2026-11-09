@@ -33,7 +33,7 @@ const PLAYTHROUGH: Record<TutorialKey, TutorialInput[]> = {
     ev(1, { kind: 'score', side: 'a', points: 2, by: 'me', reason: 'cesta' }),
   ],
   '2': [
-    ev(2, { kind: 'kick', by: 'me', power: 0.3 }),
+    ev(2, { kind: 'control', by: 'me', power: 0.3 }),
     ev(2, { kind: 'kick', by: 'me', power: 1 }),
     ev(2, { kind: 'score', side: 'a', points: 1, by: 'me', reason: 'gol' }),
   ],
@@ -138,14 +138,13 @@ describe('Espaço 3D: tutorial de primeira vez (dados)', () => {
 describe('Espaço 3D: dicas do momento', () => {
   it('uma de cada vez, só depois de acontecer as vezes pedidas, e some quando a pessoa faz', () => {
     const tr = new HintTracker(TUTORIALS['2'].hints, () => ({}));
-    const weak = ev(2, { kind: 'kick', by: 'me', power: 0.2 });
-    expect(tr.feed(weak, ctx)).toBeNull();
-    expect(tr.feed(weak, ctx)).toBeNull();
-    const h = tr.feed(weak, ctx);
-    expect(h && h !== 'hide' ? h.id : null).toBe('fb-run');
+    const got = ev(2, { kind: 'control', by: 'me', power: 0.3 });
+    expect(tr.feed(got, ctx)).toBeNull();
+    const h = tr.feed(got, ctx);
+    expect(h && h !== 'hide' ? h.id : null).toBe('fb-pass');
     // com uma dica na tela, nenhuma outra entra
-    expect(tr.feed(weak, ctx)).toBeNull();
-    expect(tr.feed({ kind: 'press', action: 'run' }, ctx)).toBe('hide');
+    expect(tr.feed(got, ctx)).toBeNull();
+    expect(tr.feed({ kind: 'press', action: 'secondary' }, ctx)).toBe('hide');
     expect(tr.active).toBeNull();
   });
 

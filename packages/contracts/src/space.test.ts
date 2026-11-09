@@ -14,6 +14,7 @@ import {
   matchPhase,
   matchRuleLabel,
   matchWinner,
+  SpaceBall,
   SpaceMove,
   SpaceSession,
   spaceVoiceGain,
@@ -61,9 +62,18 @@ describe('Espaço 3D: validação', () => {
     const id = randomUUID();
     expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 1 }).success).toBe(true);
     expect(SpaceMove.safeParse({ channelId: id, x: 1e9, y: 0, z: 1, ry: 0, a: 1 }).success).toBe(false);
-    // golpes de esporte (10–13) valem; além disso, não
-    expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 13 }).success).toBe(true);
-    expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 14 }).success).toBe(false);
+    // golpes de esporte e lances do futebol (10–17) valem; além disso, não
+    expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 17 }).success).toBe(true);
+    expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 18 }).success).toBe(false);
+  });
+
+  it('bola do futebol leva o lance uma vez (desarme, falta, drible)', () => {
+    const base = { channelId: randomUUID(), zone: 2, x: 0, y: 0.2, z: 0, vx: 0, vy: 0, vz: 0, held: null, t: 3 };
+    const on = randomUUID();
+    expect(SpaceBall.safeParse({ ...base, ev: { kind: 'foul', on } }).success).toBe(true);
+    expect(SpaceBall.safeParse({ ...base, ev: { kind: 'bicicleta', on: null } }).success).toBe(true);
+    expect(SpaceBall.safeParse({ ...base, ev: { kind: 'gol', on: null } }).success).toBe(false);
+    expect(SpaceBall.safeParse(base).success).toBe(true);
   });
 });
 

@@ -47,7 +47,14 @@ export type GameEvent = Base &
     | { kind: 'ko'; who: string }
     | { kind: 'countdown'; n: number }
     | { kind: 'go' }
+    // futebol (2026-11-09): dominar a bola, dribles e desarmes
+    | { kind: 'control'; by: string }
+    | { kind: 'trick'; by: string; trick: Trick }
+    | { kind: 'tackle'; by: string; on: string | null; foul: boolean; slide: boolean }
   );
+
+/** dribles e lances de efeito do futebol */
+export type Trick = 'carretilha' | 'elastico' | 'bicicleta';
 
 export type GameEventKind = GameEvent['kind'];
 

@@ -24,7 +24,7 @@ import { buildRaceDecor, startGrid, stepBike, fireBoost, TRACK, type Bike } from
 import { attackHoop, clampToHalf, GOOD_BAND, netSideOf, type PoolSeat } from './rules';
 import { sfx } from './sfx';
 import { chargeStep } from './sfxmap';
-import { SportPlay, type RemoteBall } from './sportplay';
+import { SLIDE_MS, SportPlay, type FootMove, type RemoteBall } from './sportplay';
 import { ARENAS, GOAL_X, HOOP_X, RIM_Y, type BallState } from './sports';
 import type { TutorialTarget } from './tutorial';
 import * as THREE from 'three';
@@ -203,6 +203,10 @@ export class SpaceScene {
   private decor: THREE.Group | null = null;
   private lastCharge: number | null = null;
   private swingUntil = 0;
+  /** futebol: caído (levou falta), segurado (fez falta ou levou desarme) e o deslocamento do carrinho/elástico */
+  private fallUntil = 0;
+  private stunUntil = 0;
+  private dash: { until: number; x: number; z: number; speed: number; a: number } | null = null;
   pool: PoolPlay | null = null;
   private bike: Bike | null = null;
   private raceInfo: { localStart: number | null; laps: number } = { localStart: null, laps: 3 };
@@ -407,6 +411,7 @@ export class SpaceScene {
           teamOf: (id) => peers.get(id)?.team,
           poseOf: (id) => (id === this.selfId ? this.pose : (peers.get(id) ?? null)),
           contested: () => this.contested(),
+          onTackle: (e) => this.onTackle(e),
         },
         (id) => this.handOf(id),
         (side) => this.servePos(side),
@@ -557,6 +562,7 @@ export class SpaceScene {
     if (!p) return null;
     const fx = Math.sin(p.ry);
     const fz = Math.cos(p.ry);
+    if (this.zone === 2) return this.footOf(id, p);
     if (id === this.selfId && this.sport?.charging != null)
       return { x: p.x + fx * 0.14, y: p.y + 1.45, z: p.z + fz * 0.14 };
     if (p.a === 1 || p.a === 2) {
@@ -570,8 +576,67 @@ export class SpaceScene {
     return { x: p.x + fx * 0.3, y: p.y + 0.76, z: p.z + fz * 0.3 };
   }
 
+  /**
+   * Futebol: a bola dominada fica no chão à frente do pé; andando ela vai e volta (os toques), correndo vai mais à
+   * frente (o impulso da corrida). Dos outros, pela posição mostrada (suave), não pela que chegou da rede.
+   */
+  private footOf(id: string, p: Pose) {
+    const av = id === this.selfId ? null : this.others.get(id);
+    const x = av ? av.root.position.x : p.x;
+    const z = av ? av.root.position.z : p.z;
+    const ry = av ? av.root.rotation.y : p.ry;
+    const t = performance.now() / 1000;
+    const touch = p.a === 2 ? 0.95 + Math.sin(t * 9) * 0.22 : p.a === 1 ? 0.5 + Math.sin(t * 7) * 0.1 : 0.36;
+    return { x: x + Math.sin(ry) * touch, y: ARENAS[2].r, z: z + Math.cos(ry) * touch };
+  }
+
+  /** futebol: desarme ou falta (quem sofreu cai ou tropeça; quem fez falta fica parado um instante) */
+  private onTackle(e: { by: string; on: string; foul: boolean }) {
+    const now = performance.now();
+    if (e.on === this.selfId) {
+      if (e.foul) this.fallUntil = now + 1300;
+      else {
+        this.me.hitReact();
+        this.stunUntil = now + 450;
+      }
+      this.dash = null;
+    } else if (e.by === this.selfId && e.foul) this.stunUntil = Math.max(this.stunUntil, now + 900);
+    if (e.on !== this.selfId) this.others.get(e.on)?.hitReact();
+  }
+
+  /** futebol: caído, segurado ou no meio de um carrinho/elástico (sem andar nem novo lance) */
+  private footLocked(now: number) {
+    return now < this.fallUntil || now < this.stunUntil || (!!this.dash && now < this.dash.until);
+  }
+
+  /** a pose (e o deslocamento) do lance do futebol */
+  private footMove(m: FootMove | null, now: number) {
+    if (!m) return;
+    if (m === 'kick' || m === 'bike') {
+      this.swingA = m === 'bike' ? SWING_A.bike : SWING_A.kick;
+      this.swingUntil = now + SWING_MS[this.swingA];
+      this.me.strike();
+      if (m === 'bike' && this.pose.y <= 0.001) this.vy = JUMP_V * 0.85;
+    } else if (m === 'slide') {
+      const d = this.sport?.sliding ?? { x: Math.sin(this.pose.ry), z: Math.cos(this.pose.ry) };
+      this.dash = { until: now + SLIDE_MS, x: d.x, z: d.z, speed: 7.5, a: SWING_A.slide };
+      this.pose.ry = Math.atan2(d.x, d.z);
+      this.me.strike();
+    } else if (m === 'elastico') {
+      // para o lado da tecla segurada (direita sem nenhuma)
+      const side = this.held('left') ? -1 : 1;
+      const rx = -Math.cos(this.pose.ry) * side;
+      const rz = Math.sin(this.pose.ry) * side;
+      this.dash = { until: now + 300, x: rx, z: rz, speed: 5.5, a: SWING_A.elastico };
+      this.me.strike();
+    }
+    this.pose.a = this.dash?.a ?? this.swingA;
+    this.lastSend = 0;
+  }
+
   /** os braços de quem está com a bola vão até ela */
   private holdOf(id: string, av: Avatar) {
+    if (this.zone === 2) return av.setHold(null);
     const h = this.sport && this.sport.holder === id ? this.handOf(id) : null;
     if (!h) return av.setHold(null);
     const p = id === this.selfId ? this.pose : peers.get(id);
@@ -943,12 +1008,19 @@ export class SpaceScene {
       this.inputs.emit({ kind: 'press', action: a });
       if (a === 'jump') {
         if (this.sitting) this.standUp();
-        else if (this.pose.y <= 0.001 && !this.bike) this.vy = JUMP_V;
+        else if (this.pose.y <= 0.001 && !this.bike && this.sport?.zone === 2 && this.sport.footJump(now)) {
+          // com a bola no pé, pular é a carretilha (um pulinho, a bola passa por cima)
+          this.vy = JUMP_V * 0.55;
+          this.footMove('kick', now);
+        } else if (this.pose.y <= 0.001 && !this.bike) this.vy = JUMP_V;
+      } else if (a === 'secondary' && this.sport?.zone === 2 && !this.footLocked(now)) {
+        this.footMove(this.sport.footPress(now, false).move, now);
       } else if (a === 'wave') this.waveUntil = now + 2200;
       else if (a === 'interact') {
         // nas arenas, interagir só pega a bola (basquete); bater, tacar e turbo são a "ação"
         if (this.sport || this.pool || this.bike) {
           if (this.sport?.zone === 1 && !this.sport.holding) this.sport.press(now);
+          else if (this.sport?.zone === 2 && !this.footLocked(now)) this.footMove(this.sport.footInteract(now), now);
         } else this.interact();
       } else if (a === 'primary') this.primaryDown(now);
       else if (a === 'scoreboard') this.showScoreboard(true);
@@ -1071,11 +1143,14 @@ export class SpaceScene {
   private sportPress(now: number) {
     const sport = this.sport;
     if (!sport) return;
+    if (sport.zone === 2) {
+      if (!this.footLocked(now)) this.footMove(sport.footPress(now, true).move, now);
+      return;
+    }
     const r = sport.press(now);
     const z = sport.zone;
     if (z === 1) return;
-    if (z === 2) this.swingA = SWING_A.kick;
-    else if (z === 4) this.swingA = SWING_A.bump;
+    if (z === 4) this.swingA = SWING_A.bump;
     else {
       // bola à direita do boneco = direita (forehand); à esquerda = esquerda (backhand)
       const b = sport.mesh.position;
@@ -1373,9 +1448,26 @@ export class SpaceScene {
       this.maybeSend(now);
       return;
     }
+    // futebol: caído, segurado ou no meio do carrinho/elástico, as teclas não andam
+    if (this.footLocked(now)) {
+      fx = 0;
+      fz = 0;
+    }
     const moving = fx !== 0 || fz !== 0;
     // correr: segurar o botão direito (no x1 o direito é defender)
     const run = this.held('run') && !this.fight;
+    const dash = this.dash && now < this.dash.until ? this.dash : null;
+    if (!dash) this.dash = null;
+    if (dash) {
+      // carrinho perde velocidade até parar; o elástico é um passo rápido para o lado
+      const left = (dash.until - now) / (dash.a === SWING_A.slide ? SLIDE_MS : 300);
+      const sp = dash.speed * (dash.a === SWING_A.slide ? 0.35 + 0.65 * left : 1) * dt;
+      const p = this.obstacles
+        ? resolve(this.obstacles, this.pose.x + dash.x * sp, this.pose.z + dash.z * sp)
+        : { x: this.pose.x + dash.x * sp, z: this.pose.z + dash.z * sp };
+      this.pose.x = p.x;
+      this.pose.z = p.z;
+    }
     if (this.sitting) {
       if (!moving) {
         // sentado: fica no assento, virado para a frente da peça
@@ -1427,7 +1519,13 @@ export class SpaceScene {
     }
     if (this.sport || this.pool) {
       if (this.sport) {
-        this.sport.update(dt, now, { ...this.pose, moving, running: run });
+        this.sport.update(dt, now, {
+          ...this.pose,
+          moving: moving || !!dash,
+          running: run,
+          aim: Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)),
+          speed: dash ? dash.speed : moving ? (run ? RUN : WALK) : 0,
+        });
         const holding = this.sport.holding;
         if (holding && !this.wasHolding) this.inputs.emit({ kind: 'grab' });
         this.wasHolding = holding;
@@ -1443,6 +1541,8 @@ export class SpaceScene {
       }
     }
     if (this.fight) this.pose.a = now < this.punchUntil ? this.punchKind : this.blocking ? 8 : moving ? 1 : 0;
+    else if (now < this.fallUntil) this.pose.a = 17;
+    else if (dash) this.pose.a = dash.a;
     else if (now < this.swingUntil) this.pose.a = this.swingA;
     else this.pose.a = this.pose.y > 0.01 ? 3 : moving ? (run ? 2 : 1) : now < this.waveUntil ? 4 : 0;
     this.me.place(this.pose);

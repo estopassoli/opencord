@@ -155,6 +155,18 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
   ko: () => [{ name: 'ko', gain: 1 }],
   countdown: () => [{ name: 'count', gain: 0.7, info: true }],
   go: () => [{ name: 'go', gain: 0.85, info: true }],
+  // dominar: um toque leve no pé
+  control: () => [{ name: 'kick', gain: 0.3, pitch: 1.15 }],
+  // drible: o vento do corpo passando (a bicicleta ainda tem o chute forte, pelo evento do chute)
+  trick: (e) => [{ name: 'swing', gain: e.trick === 'bicicleta' ? 0.9 : 0.6, pitch: e.trick === 'elastico' ? 1.2 : 1 }],
+  // falta: apito; desarme limpo: o choque na bola
+  tackle: (e) =>
+    e.foul
+      ? [
+          { name: 'block', gain: 0.6 },
+          { name: 'whistle', gain: 0.8, info: true },
+        ]
+      : [{ name: 'kick', gain: 0.7, pitch: 0.9 }],
 };
 
 /** sons de um evento (vazio = sem som) */

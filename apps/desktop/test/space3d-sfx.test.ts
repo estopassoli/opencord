@@ -50,6 +50,9 @@ const SAMPLES: GameEvent[] = [
   { kind: 'ko', who: 'eu', power: 1, zone: 0, at },
   { kind: 'countdown', n: 3, power: 0.6, zone: 7, at },
   { kind: 'go', power: 1, zone: 7, at },
+  { kind: 'control', by: 'eu', power: 0.3, zone: 2, at },
+  { kind: 'trick', by: 'eu', trick: 'bicicleta', power: 1, zone: 2, at },
+  { kind: 'tackle', by: 'eu', on: 'ana', foul: true, slide: true, power: 1, zone: 2, at },
 ];
 
 /** motor com relógio na mão, sem áudio (só o log) */

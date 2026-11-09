@@ -7,7 +7,11 @@
  * - Basquete: interagir perto da bola pega (ou rouba: só de frente e depois de 1 s de posse, `rules.canSteal`);
  *   segurar a ação carrega o arremesso, soltar arremessa na cesta de ataque do time (`rules.attackHoop`), com a faixa
  *   verde de `rules.goodBand`.
- * - Futebol: encostar na bola chuta (correndo chuta mais forte); a ação perto dá um chute forte para onde você olha.
+ * - Futebol (2026-11-09): encostar na bola domina (ela anda colada no pé; correndo, vai um pouco mais à frente).
+ *   Com a bola: esquerdo chuta forte e direito chuta fraco (passe), para onde a câmera olha; pular faz a carretilha
+ *   (a bola passa por cima da cabeça) e interagir faz o elástico (sai para o lado, sem poder ser desarmado por um
+ *   instante). Sem a bola: interagir de frente desarma; direito dá o carrinho (pega a bola: desarme; pega a perna ou
+ *   chega por trás: falta, e a bola fica com quem sofreu); esquerdo com a bola alta e perto faz a bicicleta.
  * - Tênis, vôlei e ping pong: a ação com a bola perto rebate para o outro lado; com a bola parada no saque, saca.
  *   O lado é o do time (`rules.netSideOf`), não a posição; em jogo, se ninguém sacar em 8 s, o saque sai sozinho.
  * Com partida (`setPhase`): na contagem ninguém pega nem saca.
@@ -15,7 +19,7 @@
 import type { MatchPhase, SportZone } from '@opencord/contracts';
 import * as THREE from 'three';
 import { ballMesh, ballShadow, landingRing } from './arena3d';
-import { power01, type GameEvent, type ScoreReason } from './events';
+import { power01, type GameEvent, type ScoreReason, type Trick } from './events';
 import { nextAuthority } from './net/authority';
 import { attackHoop, AUTO_SERVE_MS, canSteal, goodBand, netSideOf, type Team } from './rules';
 import {
@@ -50,10 +54,25 @@ export interface RemoteBall extends BallState {
   held: string | null;
   t: number;
   by: string;
+  ev?: BallEv | undefined;
+}
+
+/** futebol: o lance que vai junto do estado (uma vez) */
+export interface BallEv {
+  kind: 'tackle' | 'foul' | Trick;
+  on: string | null;
+}
+
+/** futebol: a pose que a cena toca para o lance */
+export type FootMove = 'kick' | 'bike' | 'slide' | 'elastico' | 'carretilha';
+
+export interface FootResult {
+  result: 'hit' | 'whiff';
+  move: FootMove | null;
 }
 
 export interface SportHooks {
-  sendBall(b: BallState & { held: string | null; t: number }): void;
+  sendBall(b: BallState & { held: string | null; t: number; ev?: BallEv }): void;
   score(side: 'a' | 'b', points: number): void;
   /** efeitos (ADR-0056), em todos os clientes */
   emit?(e: GameEvent): void;
@@ -63,8 +82,10 @@ export interface SportHooks {
   team?(): Team;
   /** time de outra pessoa na zona (quem só observa decide quem rebateu por último) */
   teamOf?(id: string): Team | undefined;
-  /** posição e frente de alguém (roubo só de frente) */
-  poseOf?(id: string): { x: number; z: number; ry: number } | null;
+  /** posição, frente e estado (`a`) de alguém (roubo só de frente; no elástico ninguém desarma) */
+  poseOf?(id: string): { x: number; z: number; ry: number; a?: number } | null;
+  /** futebol: desarme ou falta (`by` desarmou `on`); a cena derruba quem sofreu e segura quem fez a falta */
+  onTackle?(e: { by: string; on: string; foul: boolean }): void;
   /** tem adversário colado em mim (a faixa verde encolhe) */
   contested?(): boolean;
 }
@@ -76,9 +97,35 @@ interface Me {
   ry: number;
   moving: boolean;
   running: boolean;
+  /** para onde a câmera olha (o chute vai para lá) */
+  aim?: number;
+  /** velocidade no chão (m/s) */
+  speed?: number;
 }
 
 const HAND_Y = 1.25;
+
+/** futebol: chute forte (esquerdo) e fraco/passe (direito), em m/s */
+export const FOOT_KICK = { strong: { v: 17, vy: 3.4 }, weak: { v: 8.5, vy: 0.5 } } as const;
+/** bola mais rápida que isto não é dominada: bate no pé e desvia */
+export const CONTROL_MAX_SPEED = 13;
+/** alcance do pé (do centro do boneco ao centro da bola, no chão) */
+const FOOT_REACH = 0.55;
+/** carrinho: quanto dura e em que alcance pega a bola ou a perna */
+export const SLIDE_MS = 650;
+const SLIDE_BALL = 0.75;
+const SLIDE_BODY = 0.7;
+/** estado `a` do elástico (ninguém desarma nele) */
+const A_ELASTICO = 14;
+
+/**
+ * Carrinho (ou bote) de `tackler` em quem está com a bola: limpo (pegou a bola antes) ou falta (pegou a perna, ou
+ * chegou por trás: a direção do lance é a mesma para onde a pessoa olha).
+ */
+export function tackleCall(dir: { x: number; z: number }, victimRy: number, wonBall: boolean): 'clean' | 'foul' {
+  const behind = dir.x * Math.sin(victimRy) + dir.z * Math.cos(victimRy) > 0.5;
+  return wonBall && !behind ? 'clean' : 'foul';
+}
 const WHIFF: PressResult = { result: 'whiff' };
 const HIT: PressResult = { result: 'hit' };
 
@@ -119,6 +166,15 @@ export class SportPlay {
   private phase: MatchPhase | null = null;
   private playingSince = 0;
   private me: Me = { x: 0, y: 0, z: 0, ry: 0, moving: false, running: false };
+  /** futebol: não domina de novo antes disto (logo depois de chutar, da carretilha) */
+  private regainAt = 0;
+  /** futebol: carrinho em andamento (direção e até quando) e se já decidiu o lance */
+  private slide: { dx: number; dz: number; until: number; done: boolean } | null = null;
+  /** futebol: lance a mandar no próximo estado */
+  private pendingEv: BallEv | null = null;
+  /** para a bola dominada girar no pé */
+  private lastHeldAt: { x: number; z: number } | null = null;
+  private spin = 0;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -198,7 +254,7 @@ export class SportPlay {
       }
       return null;
     }
-    if (this.zone === 2) return d < 1.6 ? { label: 'Chutar forte', action: 'primary' } : null;
+    if (this.zone === 2) return this.footPrompt(d);
     if (this.parked && this.phase === 'countdown') return null;
     if (d < (ARENAS[this.zone].reach ?? 2))
       return { label: this.parked ? 'Sacar' : this.zone === 4 ? 'Bater na bola' : 'Rebater', action: 'primary' };
@@ -261,19 +317,7 @@ export class SportPlay {
       }
       return WHIFF;
     }
-    if (this.zone === 2) {
-      if (d > 1.6) {
-        this.emit({ kind: 'whiff', by: this.selfId, power: 0.4, zone: this.zone, at: this.meAt() });
-        return WHIFF;
-      }
-      // chute forte para onde estou olhando
-      this.ball.vx = Math.sin(this.me.ry) * 15;
-      this.ball.vz = Math.cos(this.me.ry) * 15;
-      this.ball.vy = 3.2;
-      this.take(now);
-      this.emit({ kind: 'kick', by: this.selfId, power: 1, zone: this.zone, at: this.here() });
-      return HIT;
-    }
+    if (this.zone === 2) return this.footPress(now, true).result === 'hit' ? HIT : WHIFF;
     const a = ARENAS[this.zone];
     if (!a.net || !a.court) return WHIFF;
     if (d > (a.reach ?? 2)) {
@@ -286,6 +330,241 @@ export class SportPlay {
     const quality = this.parked ? undefined : hitQuality(contactDt(z, this.ball, this.me), PERFECT_WINDOW[z]);
     this.netHit(now, this.myTeam(), this.me.z + Math.cos(this.me.ry) * NET_TUNE[z].pull, quality);
     return quality ? { result: 'hit', quality } : HIT;
+  }
+
+  // ---------------------------------------------------------------- futebol
+
+  private flat(id: string | null) {
+    if (!id) return null;
+    return this.hooks.poseOf?.(id) ?? null;
+  }
+
+  private aimDir() {
+    const r = this.me.aim ?? this.me.ry;
+    return { x: Math.sin(r), z: Math.cos(r) };
+  }
+
+  /** um lance aconteceu agora: efeito aqui e vai junto do próximo estado para os outros */
+  private footEv(ev: BallEv, now: number) {
+    this.pendingEv = ev;
+    this.lastSend = 0;
+    this.send(now);
+  }
+
+  private footPrompt(d: number): { label: string; action: 'interact' | 'primary' } | null {
+    if (this.holding) return { label: 'Chutar (direito: passe)', action: 'primary' };
+    const flatD = Math.hypot(this.ball.x - this.me.x, this.ball.z - this.me.z);
+    if (!this.held && flatD < 1.5 && this.ball.y > 1 && this.ball.y < 2.6)
+      return { label: 'Bicicleta!', action: 'primary' };
+    if (this.held && this.held !== this.selfId && this.canTackle(1.4)) return { label: 'Desarmar', action: 'interact' };
+    if (!this.held && d < 1.6) return { label: 'Chutar', action: 'primary' };
+    return null;
+  }
+
+  /** quem está com a bola pode ser desarmado por mim agora (perto, de outro time, fora do elástico)? */
+  private canTackle(reach: number): boolean {
+    const id = this.held;
+    if (!id || id === this.selfId) return false;
+    const h = this.flat(id);
+    if (!h) return false;
+    if (h.a === A_ELASTICO) return false;
+    const mine = this.hooks.team?.();
+    const theirs = this.hooks.teamOf?.(id);
+    if (mine && theirs && mine === theirs) return false;
+    return Math.hypot(this.ball.x - this.me.x, this.ball.z - this.me.z) < reach;
+  }
+
+  /**
+   * Botão do chute: esquerdo (`strong`) chute forte, direito passe. Sem a bola: esquerdo perto da bola alta é a
+   * bicicleta, perto da bola no chão chuta de primeira; direito longe da bola é o carrinho.
+   */
+  footPress(now: number, strong: boolean): FootResult {
+    if (this.phase === 'countdown' && this.parked) return { result: 'whiff', move: strong ? 'kick' : null };
+    const k = strong ? FOOT_KICK.strong : FOOT_KICK.weak;
+    const dir = this.aimDir();
+    const flatD = Math.hypot(this.ball.x - this.me.x, this.ball.z - this.me.z);
+    if (this.holding) {
+      this.setHeld(null, now);
+      this.ball.vx = dir.x * k.v;
+      this.ball.vz = dir.z * k.v;
+      this.ball.vy = k.vy;
+      this.regainAt = now + 450;
+      this.take(now);
+      this.emit({ kind: 'kick', by: this.selfId, power: power01(k.v, FOOT_KICK.strong.v), zone: 2, at: this.here() });
+      return { result: 'hit', move: 'kick' };
+    }
+    if (!this.held && strong && flatD < 1.5 && this.ball.y > 1 && this.ball.y < 2.6) {
+      // bicicleta: de costas, a bola sai forte para onde a câmera olha, um pouco para baixo
+      this.ball.vx = dir.x * 19;
+      this.ball.vz = dir.z * 19;
+      this.ball.vy = 1.2;
+      this.regainAt = now + 600;
+      this.take(now);
+      this.emit({ kind: 'trick', by: this.selfId, trick: 'bicicleta', power: 1, zone: 2, at: this.meAt() });
+      this.emit({ kind: 'kick', by: this.selfId, power: 1, zone: 2, at: this.here() });
+      this.footEv({ kind: 'bicicleta', on: null }, now);
+      return { result: 'hit', move: 'bike' };
+    }
+    if (!this.held && flatD < 1.6 && this.ball.y < 1.2) {
+      // de primeira (bola solta no pé)
+      this.ball.vx = dir.x * k.v;
+      this.ball.vz = dir.z * k.v;
+      this.ball.vy = k.vy;
+      this.regainAt = now + 450;
+      this.take(now);
+      this.emit({ kind: 'kick', by: this.selfId, power: power01(k.v, FOOT_KICK.strong.v), zone: 2, at: this.here() });
+      return { result: 'hit', move: 'kick' };
+    }
+    if (strong) {
+      this.emit({ kind: 'whiff', by: this.selfId, power: 0.4, zone: 2, at: this.meAt() });
+      return { result: 'whiff', move: 'kick' };
+    }
+    // carrinho na direção em que o boneco corre (ou da câmera, parado)
+    const r = this.me.moving ? this.me.ry : (this.me.aim ?? this.me.ry);
+    this.slide = { dx: Math.sin(r), dz: Math.cos(r), until: now + SLIDE_MS, done: false };
+    return { result: 'whiff', move: 'slide' };
+  }
+
+  /** direção do carrinho em andamento (a cena empurra o boneco para lá), ou null */
+  get sliding(): { x: number; z: number } | null {
+    return this.slide && performance.now() < this.slide.until ? { x: this.slide.dx, z: this.slide.dz } : null;
+  }
+
+  /** interagir: com a bola, elástico; sem, o bote (desarme de frente) */
+  footInteract(now: number): FootMove | null {
+    if (this.holding) {
+      this.emit({ kind: 'trick', by: this.selfId, trick: 'elastico', power: 0.6, zone: 2, at: this.meAt() });
+      this.footEv({ kind: 'elastico', on: null }, now);
+      return 'elastico';
+    }
+    if (!this.canTackle(1.4)) return null;
+    const victim = this.held!;
+    const h = this.flat(victim)!;
+    const dx = h.x - this.me.x;
+    const dz = h.z - this.me.z;
+    const d = Math.hypot(dx, dz) || 1;
+    this.tackle(victim, { x: dx / d, z: dz / d }, h.ry, true, false, now);
+    return 'kick';
+  }
+
+  /** pular com a bola: carretilha (a bola sobe por trás e cai à frente, por cima de quem marca) */
+  footJump(now: number): boolean {
+    if (!this.holding) return false;
+    const f = { x: Math.sin(this.me.ry), z: Math.cos(this.me.ry) };
+    const vy = 6;
+    const flight = (2 * vy) / 9.8;
+    const ahead = 3 + (this.me.speed ?? 0) * flight;
+    this.setHeld(null, now);
+    Object.assign(this.ball, {
+      x: this.me.x - f.x * 0.15,
+      y: 0.35,
+      z: this.me.z - f.z * 0.15,
+      vx: (f.x * ahead) / flight,
+      vy,
+      vz: (f.z * ahead) / flight,
+    });
+    this.regainAt = now + flight * 1000 * 0.75;
+    this.take(now);
+    this.emit({ kind: 'trick', by: this.selfId, trick: 'carretilha', power: 0.7, zone: 2, at: this.meAt() });
+    this.footEv({ kind: 'carretilha', on: null }, now);
+    return true;
+  }
+
+  /** desarme limpo (a bola sai solta para a frente do lance) ou falta (a bola fica com quem sofreu) */
+  private tackle(
+    victim: string,
+    dir: { x: number; z: number },
+    victimRy: number,
+    wonBall: boolean,
+    slide: boolean,
+    now: number,
+  ) {
+    const call = tackleCall(dir, victimRy, wonBall);
+    const foul = call === 'foul';
+    const at = { x: this.ball.x, y: 0, z: this.ball.z };
+    if (foul) {
+      // falta: quem sofreu fica com a bola no pé
+      this.setHeld(victim, now);
+    } else {
+      this.setHeld(null, now);
+      this.ball.vx = dir.x * (slide ? 6 : 3);
+      this.ball.vz = dir.z * (slide ? 6 : 3);
+      this.ball.vy = slide ? 1.2 : 0.4;
+      // no bote, quem desarmou já fica com ela
+      if (!slide) this.setHeld(this.selfId, now);
+      this.regainAt = slide ? now + 250 : 0;
+    }
+    this.take(now);
+    this.emit({ kind: 'tackle', by: this.selfId, on: victim, foul, slide, power: foul ? 1 : 0.7, zone: 2, at });
+    this.hooks.onTackle?.({ by: this.selfId, on: victim, foul });
+    this.footEv({ kind: foul ? 'foul' : 'tackle', on: victim }, now);
+  }
+
+  /** a cada quadro: dominar a bola que chega ao pé e decidir o carrinho */
+  private footUpdate(now: number) {
+    const a = ARENAS[2];
+    const sl = this.slide;
+    if (sl && now >= sl.until) this.slide = null;
+    if (sl && now < sl.until && !sl.done) {
+      const foot = { x: this.me.x + sl.dx * 0.6, z: this.me.z + sl.dz * 0.6 };
+      const ballD = Math.hypot(this.ball.x - foot.x, this.ball.z - foot.z);
+      if (this.held && this.held !== this.selfId && this.canTackle(3)) {
+        const h = this.flat(this.held)!;
+        const bodyD = Math.hypot(h.x - foot.x, h.z - foot.z);
+        if (ballD < SLIDE_BALL || bodyD < SLIDE_BODY) {
+          sl.done = true;
+          this.tackle(this.held, { x: sl.dx, z: sl.dz }, h.ry, ballD < SLIDE_BALL && ballD <= bodyD, true, now);
+          return;
+        }
+      } else if (!this.held && ballD < SLIDE_BALL && this.ball.y < 0.6) {
+        // carrinho na bola solta: ela sai para a frente
+        sl.done = true;
+        this.ball.vx = sl.dx * 7;
+        this.ball.vz = sl.dz * 7;
+        this.ball.vy = 0.8;
+        this.regainAt = now + 300;
+        this.take(now);
+        this.emit({ kind: 'kick', by: this.selfId, power: 0.6, zone: 2, at: this.here() });
+        return;
+      }
+    }
+    if (this.held || now < this.regainAt || this.slide) return;
+    if (this.parked && this.phase === 'countdown') return;
+    const dx = this.ball.x - this.me.x;
+    const dz = this.ball.z - this.me.z;
+    const d = Math.hypot(dx, dz);
+    if (d > a.r + FOOT_REACH || this.ball.y > 0.7) return;
+    const speed = Math.hypot(this.ball.vx, this.ball.vz);
+    if (speed > CONTROL_MAX_SPEED) {
+      // forte demais para dominar: bate no pé e desvia
+      const k = Math.min(speed * 0.35, 4);
+      this.ball.vx = (dx / (d || 1)) * k;
+      this.ball.vz = (dz / (d || 1)) * k;
+      this.ball.vy = 0.6;
+      this.regainAt = now + 300;
+      this.take(now);
+      this.emit({ kind: 'kick', by: this.selfId, power: 0.4, zone: 2, at: this.here() });
+      return;
+    }
+    this.setHeld(this.selfId, now);
+    this.take(now);
+    this.emit({ kind: 'control', by: this.selfId, power: 0.3, zone: 2, at: this.here() });
+  }
+
+  /** quem só observa: o lance que veio junto do estado */
+  private remoteEv(by: string, ev: BallEv) {
+    if (ev.kind === 'tackle' || ev.kind === 'foul') {
+      if (!ev.on) return;
+      const v = this.flat(ev.on);
+      const at = v ? { x: v.x, y: 0, z: v.z } : this.here();
+      const foul = ev.kind === 'foul';
+      this.emit({ kind: 'tackle', by, on: ev.on, foul, slide: true, power: foul ? 1 : 0.7, zone: 2, at });
+      this.hooks.onTackle?.({ by, on: ev.on, foul });
+      return;
+    }
+    const p = this.flat(by);
+    const at = p ? { x: p.x, y: 1, z: p.z } : this.here();
+    this.emit({ kind: 'trick', by, trick: ev.kind, power: ev.kind === 'bicicleta' ? 1 : 0.6, zone: 2, at });
   }
 
   /** rebatida (ou saque) do time `team` para o outro lado, mirando `wantZ` (presa dentro da quadra) */
@@ -376,6 +655,7 @@ export class SportPlay {
     if (parked && !this.parked) this.parkedAt = now;
     this.parked = parked;
     if (touched) this.remoteTouch(b.by, wasHeld, speed);
+    if (b.ev && this.zone === 2) this.remoteEv(b.by, b.ev);
   }
 
   private isAlive(id: string) {
@@ -437,8 +717,18 @@ export class SportPlay {
 
     if (this.held) {
       const hand = this.handOf(this.held);
-      if (hand) Object.assign(this.ball, { x: hand.x, y: hand.y, z: hand.z, vx: 0, vy: 0, vz: 0 });
+      if (hand) {
+        // futebol: a bola no pé rola junto (a velocidade só serve para girar a bola; quem simula é o pé)
+        const last = this.lastHeldAt;
+        const vx = this.zone === 2 && last && dt > 0 ? (hand.x - last.x) / dt : 0;
+        const vz = this.zone === 2 && last && dt > 0 ? (hand.z - last.z) / dt : 0;
+        this.lastHeldAt = { x: hand.x, z: hand.z };
+        Object.assign(this.ball, { x: hand.x, y: hand.y, z: hand.z, vx: 0, vy: 0, vz: 0 });
+        this.spin = Math.hypot(vx, vz);
+      }
     } else if (!this.parked) {
+      this.lastHeldAt = null;
+      this.spin = 0;
       this.fx.length = 0;
       const events = stepBall(a, this.ball, dt, this.shotFrom, this.hooks.emit ? this.fx : undefined);
       for (const e of this.fx) this.emit(e);
@@ -446,22 +736,7 @@ export class SportPlay {
       for (const e of events) this.onEvent(e, now);
     }
 
-    // futebol: encostar chuta
-    this.kickCd -= dt;
-    if (this.zone === 2 && this.kickCd <= 0) {
-      const dx = this.ball.x - me.x;
-      const dz = this.ball.z - me.z;
-      const d = Math.hypot(dx, dz);
-      if (d < a.r + 0.45 && this.ball.y < 0.6) {
-        const sp = me.running ? 9 : me.moving ? 5.5 : 2.5;
-        this.ball.vx = (dx / (d || 1)) * sp;
-        this.ball.vz = (dz / (d || 1)) * sp;
-        this.ball.vy = me.running ? 1.2 : 0.4;
-        this.kickCd = 0.25;
-        this.take(now);
-        this.emit({ kind: 'kick', by: this.selfId, power: power01(sp, 15), zone: this.zone, at: this.here() });
-      }
-    }
+    if (this.zone === 2) this.footUpdate(now);
 
     // ponto marcado: a bola volta para a saída
     if (this.resetAt && now >= this.resetAt && this.mine) {
@@ -542,13 +817,15 @@ export class SportPlay {
       vz: r(this.ball.vz),
       held: this.held,
       t: this.touchT,
+      ...(this.pendingEv ? { ev: this.pendingEv } : {}),
     });
+    this.pendingEv = null;
   }
 
   private render() {
     const b = this.ball;
     this.mesh.position.set(b.x, b.y, b.z);
-    const sp = Math.hypot(b.vx, b.vz);
+    const sp = Math.max(Math.hypot(b.vx, b.vz), this.spin);
     this.mesh.rotation.x += sp * 0.02;
     // sombra: no tampo da mesa quando a bola está em cima dela, senão no chão; menor e mais clara quanto mais alto
     const a = ARENAS[this.zone];

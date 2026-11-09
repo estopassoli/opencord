@@ -227,8 +227,9 @@ export type SpaceSession = z.infer<typeof SpaceSession>;
  * Posição de um avatar (enviada ~10x/s enquanto anda, 1x/s parado).
  * `a`: 0 parado, 1 andando, 2 correndo, 3 pulando, 4 acenando, 5 sentado,
  * 6 soco rápido, 7 soco forte, 8 defendendo, 9 nocauteado (x1); golpes de esporte (plano 2026-11-09 P5):
- * 10 chute, 11 raquetada de direita (forehand), 12 raquetada de esquerda (backhand), 13 manchete.
- * App antigo que recebe 10–13 mostra o boneco parado.
+ * 10 chute, 11 raquetada de direita (forehand), 12 raquetada de esquerda (backhand), 13 manchete;
+ * futebol (2026-11-09): 14 elástico, 15 carrinho, 16 bicicleta, 17 caído (levou falta).
+ * App antigo que recebe 10–17 mostra o boneco parado.
  */
 export const SpaceMove = z.object({
   channelId: Id,
@@ -236,7 +237,7 @@ export const SpaceMove = z.object({
   y: z.number().finite().min(0).max(10),
   z: Coord,
   ry: z.number().finite().min(-7).max(7),
-  a: z.number().int().min(0).max(13),
+  a: z.number().int().min(0).max(17),
   /** onde a pessoa está: 0 (ou ausente) a sala do servidor; 1 basquete, 2 futebol, 3 tênis, 4 vôlei, 5 ping pong,
    * 6 sinuca, 7 corrida de moto */
   zone: z.number().int().min(0).max(7).optional(),
@@ -502,6 +503,10 @@ export const SPORT_LABELS: Record<SportZone, string> = {
   7: 'Corrida de moto',
 };
 
+export const SPACE_BALL_EVENTS = ['tackle', 'foul', 'carretilha', 'elastico', 'bicicleta'] as const;
+export const SpaceBallEvent = z.object({ kind: z.enum(SPACE_BALL_EVENTS), on: Id.nullable() });
+export type SpaceBallEvent = z.infer<typeof SpaceBallEvent>;
+
 /**
  * Bola de uma arena: quem tocou por último simula e manda (~10x/s); os outros seguem.
  * `held`: quem está com a bola na mão (basquete).
@@ -518,6 +523,11 @@ export const SpaceBall = z.object({
   held: Id.nullable(),
   /** quem mandou por último e quando (ms, relógio de quem mandou): desempata quem é a autoridade */
   t: z.number().finite(),
+  /**
+   * futebol: o lance que acabou de acontecer (vai uma vez, junto do estado): desarme ou falta em `on`, ou o drible de
+   * quem mandou. API antiga descarta.
+   */
+  ev: SpaceBallEvent.optional(),
 });
 export type SpaceBall = z.infer<typeof SpaceBall>;
 

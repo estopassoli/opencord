@@ -172,10 +172,10 @@ export const TUTORIALS: Record<TutorialKey, Tutorial> = {
     objective: 'Leve a bola até o gol do outro time.',
     steps: [
       {
-        text: 'Encoste na bola para conduzir',
+        text: 'Encoste na bola para dominar',
         action: 'forward',
         alvo: 'bola',
-        conclui: (e, c) => e.kind === 'kick' && mine(e, c),
+        conclui: (e, c) => e.kind === 'control' && mine(e, c),
       },
       {
         text: 'Chute forte para onde você olha',
@@ -187,13 +187,29 @@ export const TUTORIALS: Record<TutorialKey, Tutorial> = {
     ],
     hints: [
       {
+        id: 'fb-pass',
+        text: 'Botão direito com a bola: chute fraco (passe)',
+        action: 'secondary',
+        vezes: 2,
+        quando: (e, c) => e.kind === 'control' && mine(e, c),
+        feito: pressed('secondary'),
+      },
+      {
         id: 'fb-run',
-        text: 'Segure para correr: correndo, a bola vai mais longe',
+        text: 'Segure para correr: a bola vai um pouco mais à frente',
         action: 'run',
         hold: true,
-        vezes: 3,
-        quando: (e, c) => e.kind === 'kick' && mine(e, c) && e.power < 0.4,
+        vezes: 2,
+        quando: (e, c) => e.kind === 'control' && mine(e, c),
         feito: pressed('run'),
+      },
+      {
+        id: 'fb-tackle',
+        text: 'Sem a bola: botão direito dá o carrinho (por trás é falta)',
+        action: 'secondary',
+        vezes: 2,
+        quando: (e, c) => e.kind === 'control' && !mine(e, c),
+        feito: pressed('secondary'),
       },
     ],
   },

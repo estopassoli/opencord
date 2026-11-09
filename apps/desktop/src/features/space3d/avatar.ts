@@ -70,11 +70,21 @@ function label(text: string): THREE.Sprite {
  * Golpes de esporte (estado `a` 10–13 na rede, plano 2026-11-09 P5): pose procedural por cima da animação de base,
  * com antecipação (puxa para trás), impacto e recuo. Os outros jogadores veem o mesmo golpe pelo `a`.
  */
-export const SWING_A = { kick: 10, forehand: 11, backhand: 12, bump: 13 } as const;
+export const SWING_A = {
+  kick: 10,
+  forehand: 11,
+  backhand: 12,
+  bump: 13,
+  elastico: 14,
+  slide: 15,
+  bike: 16,
+} as const;
 export type SwingA = (typeof SWING_A)[keyof typeof SWING_A];
 /** duração de cada golpe (ms) */
-export const SWING_MS: Record<SwingA, number> = { 10: 340, 11: 380, 12: 380, 13: 360 };
-const isSwing = (a: number): a is SwingA => a >= 10 && a <= 13;
+export const SWING_MS: Record<SwingA, number> = { 10: 340, 11: 380, 12: 380, 13: 360, 14: 300, 15: 650, 16: 750 };
+const isSwing = (a: number): a is SwingA => a >= 10 && a <= 16;
+/** futebol: caído depois de levar falta */
+export const A_FALLEN = 17;
 
 type BoneName =
   | 'upperarm_l'
@@ -86,6 +96,9 @@ type BoneName =
   | 'thigh_r'
   | 'calf_r'
   | 'foot_r'
+  | 'thigh_l'
+  | 'calf_l'
+  | 'foot_l'
   | 'spine_02'
   | 'spine_03';
 const BONES: readonly BoneName[] = [
@@ -98,6 +111,9 @@ const BONES: readonly BoneName[] = [
   'thigh_r',
   'calf_r',
   'foot_r',
+  'thigh_l',
+  'calf_l',
+  'foot_l',
   'spine_02',
   'spine_03',
 ];
@@ -414,6 +430,10 @@ export class Avatar {
   /** qual animação para o estado: 0 parado, 1 andando, 2 correndo, 3 no ar, 4 acenando, 5 sentado/pilotando, 6–9 x1 */
   private clipFor(a: number): ClipName {
     if (this.hitT > 0 && a !== 9) return 'Hit_Chest';
+    // carrinho: deitado de lado com as pernas à frente (a base é a de sentado); bicicleta: no ar; falta: cai
+    if (a === SWING_A.slide) return 'Sitting_Idle_Loop';
+    if (a === SWING_A.bike) return 'Jump_Loop';
+    if (a === A_FALLEN) return 'Death01';
     // golpe de esporte: a base é andar ou parado (a pose do golpe vem por cima)
     if (isSwing(a)) a = this.speed > 0.4 ? 1 : 0;
     switch (a) {
@@ -494,8 +514,32 @@ export class Avatar {
       const p = this.bike ? tpl.drivePelvis : tpl.sitPelvis;
       this.model.position.set(0, (this.bike ? 0.1 : 0.21) - p.y * DOLL_SCALE, this.bike ? 0 : -p.z * DOLL_SCALE);
     } else this.model.position.set(0, 0, 0);
+    this.model.rotation.set(0, 0, 0);
     const swingU = isSwing(a) && this.swingT >= 0 ? this.swingT / (SWING_MS[a] / 1000) : -1;
     if (a === SWING_A.bump && swingU >= 0 && swingU < 1) this.model.position.y += bumpDip(swingU);
+    if (tpl && a === SWING_A.slide) {
+      // carrinho: o corpo deita para trás, quase no chão, com as pernas (da pose de sentado) à frente
+      const k = swingU < 0 ? 1 : swingU > 0.85 ? 1 - seg(swingU, 0.85, 1) : ease(Math.min(1, swingU * 5));
+      const th = -0.5 * k;
+      // gira em volta do quadril (que fica a ~20 cm do chão)
+      const py = tpl.sitPelvis.y * DOLL_SCALE;
+      const pz = tpl.sitPelvis.z * DOLL_SCALE;
+      const c = Math.cos(th);
+      const sn = Math.sin(th);
+      this.model.rotation.x = th;
+      this.model.position.set(0, 0.2 - py + (py - (py * c - pz * sn)), -pz + (pz - (py * sn + pz * c)));
+    }
+    if (a === SWING_A.bike && swingU >= 0 && swingU < 1) {
+      // bicicleta: o corpo gira para trás em volta do quadril até ficar de costas no ar, e volta
+      const th = -(swingU < 0.55 ? ease(seg(swingU, 0, 0.55)) : 1 - ease(seg(swingU, 0.55, 1))) * 2.3;
+      const h = 0.62;
+      this.model.rotation.x = th;
+      this.model.position.set(0, h - h * Math.cos(th), -h * Math.sin(th));
+    }
+    if (a === SWING_A.elastico && swingU >= 0 && swingU < 1) {
+      // elástico: o corpo pende para fora e volta (o pé leva a bola)
+      this.model.rotation.z = Math.sin(swingU * Math.PI) * 0.28;
+    }
 
     // velocidade no chão (suavizada)
     if (dt > 0) {
@@ -525,6 +569,35 @@ export class Avatar {
     if (!doll) return;
     doll.updateMatrixWorld(true);
     doll.getWorldQuaternion(DQ);
+    if (a === SWING_A.slide) {
+      // perna direita esticada à frente, rente ao chão (a esquerda dobrada embaixo); braços para trás apoiando
+      const w = 1;
+      if (B.thigh_r && B.calf_r) aimBlend(B.thigh_r, B.calf_r, dirIn(0, -0.2, 1), w);
+      if (B.calf_r && B.foot_r) aimBlend(B.calf_r, B.foot_r, dirIn(0, -0.15, 1), w);
+      if (B.thigh_l && B.calf_l) aimBlend(B.thigh_l, B.calf_l, dirIn(0.1, -0.35, 0.9), w);
+      if (B.calf_l && B.foot_l) aimBlend(B.calf_l, B.foot_l, dirIn(0.1, -0.6, -0.2), w);
+      if (B.upperarm_l && B.lowerarm_l) aimBlend(B.upperarm_l, B.lowerarm_l, dirIn(0.5, -0.6, -0.6), w);
+      if (B.upperarm_r && B.lowerarm_r) aimBlend(B.upperarm_r, B.lowerarm_r, dirIn(-0.5, -0.6, -0.6), w);
+      return;
+    }
+    if (a === SWING_A.bike) {
+      // bicicleta: a perna direita chuta para cima e por cima da cabeça no meio do giro
+      const w = u < 0.85 ? 1 : 1 - seg(u, 0.85, 1);
+      const th = u < 0.3 ? lerp(0, -0.4, seg(u, 0, 0.3)) : u < 0.55 ? lerp(-0.4, 2.3, ease(seg(u, 0.3, 0.55))) : 2.3;
+      if (B.thigh_r && B.calf_r) aimBlend(B.thigh_r, B.calf_r, dirIn(0, -Math.cos(th), Math.sin(th)), w);
+      if (B.calf_r && B.foot_r) aimBlend(B.calf_r, B.foot_r, dirIn(0, -Math.cos(th), Math.sin(th)), w);
+      if (B.upperarm_l && B.lowerarm_l) aimBlend(B.upperarm_l, B.lowerarm_l, dirIn(0.8, -0.2, -0.3), w);
+      if (B.upperarm_r && B.lowerarm_r) aimBlend(B.upperarm_r, B.lowerarm_r, dirIn(-0.8, -0.2, -0.3), w);
+      return;
+    }
+    if (a === SWING_A.elastico) {
+      // elástico: a perna direita abre para fora e volta para dentro levando a bola
+      const w = u < 0.85 ? 1 : 1 - seg(u, 0.85, 1);
+      const out = Math.sin(u * Math.PI);
+      if (B.thigh_r && B.calf_r) aimBlend(B.thigh_r, B.calf_r, dirIn(-0.6 * out, -0.9, 0.3), w);
+      if (B.calf_r && B.foot_r) aimBlend(B.calf_r, B.foot_r, dirIn(-0.7 * out, -0.85, 0.35), w);
+      return;
+    }
     if (a === SWING_A.kick) {
       // perna direita: puxa para trás dobrando o joelho, chuta para a frente esticada, volta
       const w = u < 0.8 ? 1 : 1 - seg(u, 0.8, 1);

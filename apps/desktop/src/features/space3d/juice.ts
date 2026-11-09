@@ -323,7 +323,18 @@ const FX = {
 
 // ---------- texto do resultado ----------
 
-export type JuiceLabel = 'perfect' | 'early' | 'late' | 'short' | 'long' | 'whiff';
+export type JuiceLabel =
+  | 'perfect'
+  | 'early'
+  | 'late'
+  | 'short'
+  | 'long'
+  | 'whiff'
+  | 'carretilha'
+  | 'elastico'
+  | 'bicicleta'
+  | 'falta'
+  | 'desarme';
 
 export const LABEL_TEXT: Record<JuiceLabel, string> = {
   perfect: 'Perfeito!',
@@ -332,6 +343,11 @@ export const LABEL_TEXT: Record<JuiceLabel, string> = {
   short: 'Curto',
   long: 'Longo',
   whiff: 'Longe',
+  carretilha: 'Carretilha!',
+  elastico: 'Elástico!',
+  bicicleta: 'Bicicleta!',
+  falta: 'Falta!',
+  desarme: 'Desarme!',
 };
 
 const LABEL_COLOR: Record<JuiceLabel, string> = {
@@ -341,6 +357,11 @@ const LABEL_COLOR: Record<JuiceLabel, string> = {
   short: '#f2c94c',
   long: '#f2c94c',
   whiff: '#c8ccd4',
+  carretilha: '#7fd8ff',
+  elastico: '#7fd8ff',
+  bicicleta: '#ffd34d',
+  falta: '#ff6b5e',
+  desarme: '#c8ccd4',
 };
 
 const LABEL_MS = 750;
@@ -584,6 +605,23 @@ export class Juice {
         this.hitstop.trigger(now, 1, this.motion);
         this.shake.kick(0.1, this.motion);
         if (this.motion > 0) this.hitstop.slow(now + HITSTOP.max, 400, 0.35);
+        break;
+      case 'trick': {
+        // drible: o nome do lance sobe da cabeça; a bicicleta ainda freia o tempo e treme a câmera
+        const head = { x: at.x, y: at.y + 0.9, z: at.z };
+        this.label(e.trick, head, now);
+        p.burst(floorAt(at), FX.dust, k * (e.trick === 'bicicleta' ? 1.4 : 0.7));
+        if (e.trick === 'bicicleta') {
+          p.burst(head, { ...FX.spark, count: 18, color: 0xffd34d }, k);
+          this.shake.kick(0.05, this.motion);
+          if (this.motion > 0) this.hitstop.slow(now, 550, 0.35);
+        }
+        break;
+      }
+      case 'tackle':
+        p.burst(floorAt(at), FX.dust, k * (e.slide ? 1.5 : 0.8));
+        this.label(e.foul ? 'falta' : 'desarme', { x: at.x, y: at.y + 1.6, z: at.z }, now);
+        if (e.foul) this.shake.kick(0.04, this.motion);
         break;
       default:
         break;

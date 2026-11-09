@@ -92,9 +92,13 @@ const SPORT: Record<SportZone, Row[]> = {
     { input: { acts: ['run'], hold: true }, label: 'Correr' },
   ],
   2: [
-    { input: { text: 'Encostar' }, label: 'Chutar (correndo chuta mais forte)' },
-    { input: { acts: ['primary'] }, label: 'Chute forte para onde olha' },
-    { input: { acts: ['run'], hold: true }, label: 'Correr' },
+    { input: { text: 'Encostar' }, label: 'Dominar a bola' },
+    { input: { acts: ['primary'] }, label: 'Chute forte (para onde olha)' },
+    { input: { acts: ['secondary'] }, label: 'Chute fraco · sem a bola: carrinho' },
+    { input: { acts: ['run'], hold: true }, label: 'Correr com a bola' },
+    { input: { acts: ['jump'] }, label: 'Com a bola: carretilha' },
+    { input: { acts: ['interact'] }, label: 'Com a bola: elástico · sem: desarmar' },
+    { input: { text: 'Bola alta' }, label: 'Botão esquerdo: bicicleta' },
   ],
   3: [
     { input: { acts: ['primary'] }, label: 'Rebater ou sacar' },
