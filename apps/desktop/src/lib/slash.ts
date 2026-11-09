@@ -122,7 +122,12 @@ const TYPE_LABEL: Record<BotCommandOption['type'], string> = {
   mentionable: '@pessoa|@cargo',
 };
 
-const CHANNEL_KIND_LABEL: Record<ChannelKind, string> = { text: 'texto', voice: 'voz', board: 'quadro', forum: 'fórum' };
+const CHANNEL_KIND_LABEL: Record<ChannelKind, string> = {
+  text: 'texto',
+  voice: 'voz',
+  board: 'quadro',
+  forum: 'fórum',
+};
 
 /** limites de uma opção em forma curta: `1–7`, `≥ 1`, `≤ 200` (vazio sem limites) */
 export function limitHint(o: BotCommandOption): string {

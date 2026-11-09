@@ -15,67 +15,67 @@ export function NotificationsTab({ settings }: { settings: UserSettings }) {
     updateSettings((s) => ({ ...s, notifications: { ...s.notifications, ...patch } }));
   return (
     <>
-    <Section title="Notificações">
-      <Switch label="Notificações na área de trabalho" checked={n.desktop} onChange={(v) => set({ desktop: v })} />
-      <Switch
-        label="Efeitos sonoros"
-        description="Entrar e sair da voz, gente entrando e saindo, mutar, transmissão, conexão e mensagens."
-        checked={n.sounds}
-        onChange={(v) => set({ sounds: v })}
-      />
-      {n.sounds && (
-        <>
-          <Select<SoundPack>
-            label="Conjunto de sons"
-            value={(SOUND_PACKS as readonly string[]).includes(n.soundPack) ? (n.soundPack as SoundPack) : 'padrao'}
-            onChange={(v) => {
-              set({ soundPack: v });
-              playSound('join', { force: true, pack: v });
-            }}
-            options={SOUND_PACKS.map((p) => ({ value: p, label: SOUND_PACK_LABEL[p] }))}
-          />
-          <div className="sound-volume">
-            <Slider
-              label="Volume dos efeitos"
-              min={0}
-              max={1}
-              step={0.05}
-              value={n.soundVolume}
-              format={(v) => `${Math.round(v * 100)}%`}
-              onChange={(v) => set({ soundVolume: v })}
+      <Section title="Notificações">
+        <Switch label="Notificações na área de trabalho" checked={n.desktop} onChange={(v) => set({ desktop: v })} />
+        <Switch
+          label="Efeitos sonoros"
+          description="Entrar e sair da voz, gente entrando e saindo, mutar, transmissão, conexão e mensagens."
+          checked={n.sounds}
+          onChange={(v) => set({ sounds: v })}
+        />
+        {n.sounds && (
+          <>
+            <Select<SoundPack>
+              label="Conjunto de sons"
+              value={(SOUND_PACKS as readonly string[]).includes(n.soundPack) ? (n.soundPack as SoundPack) : 'padrao'}
+              onChange={(v) => {
+                set({ soundPack: v });
+                playSound('join', { force: true, pack: v });
+              }}
+              options={SOUND_PACKS.map((p) => ({ value: p, label: SOUND_PACK_LABEL[p] }))}
             />
-          </div>
-          <div className="sound-previews" role="group" aria-label="Ouvir cada som">
-            {(
-              [
-                ['join', 'Entrar'],
-                ['leave', 'Sair'],
-                ['peerJoin', 'Alguém entrou'],
-                ['mute', 'Mutar'],
-                ['message', 'Mensagem'],
-                ['streamStart', 'Live'],
-              ] as const
-            ).map(([name, label]) => (
-              <Button
-                key={name}
-                variant="secondary"
-                size="sm"
-                icon="play"
-                onClick={() => playSound(name, { force: true })}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-        </>
-      )}
-      <Switch
-        label="Não perturbe"
-        description="Silencia notificações e sons."
-        checked={n.dnd}
-        onChange={(v) => set({ dnd: v })}
-      />
-    </Section>
+            <div className="sound-volume">
+              <Slider
+                label="Volume dos efeitos"
+                min={0}
+                max={1}
+                step={0.05}
+                value={n.soundVolume}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) => set({ soundVolume: v })}
+              />
+            </div>
+            <div className="sound-previews" role="group" aria-label="Ouvir cada som">
+              {(
+                [
+                  ['join', 'Entrar'],
+                  ['leave', 'Sair'],
+                  ['peerJoin', 'Alguém entrou'],
+                  ['mute', 'Mutar'],
+                  ['message', 'Mensagem'],
+                  ['streamStart', 'Live'],
+                ] as const
+              ).map(([name, label]) => (
+                <Button
+                  key={name}
+                  variant="secondary"
+                  size="sm"
+                  icon="play"
+                  onClick={() => playSound(name, { force: true })}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </>
+        )}
+        <Switch
+          label="Não perturbe"
+          description="Silencia notificações e sons."
+          checked={n.dnd}
+          onChange={(v) => set({ dnd: v })}
+        />
+      </Section>
       <KeywordsSection keywords={n.keywords} onChange={(keywords) => set({ keywords })} />
       <MutedSection settings={settings} />
       <RemindersSection settings={settings} />
@@ -193,7 +193,13 @@ function MutedSection({ settings }: { settings: UserSettings }) {
 function RemindersSection({ settings }: { settings: UserSettings }) {
   const list = settings.reminders;
   const fmt = (at: number) =>
-    new Date(at).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    new Date(at).toLocaleString('pt-BR', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   return (
     <Section
       title="Lembretes"

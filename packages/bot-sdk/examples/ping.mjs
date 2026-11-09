@@ -117,16 +117,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.reply({
       ephemeral: true,
       embeds: [
-        new EmbedBuilder()
-          .setTitle(interaction.targetUser.displayName)
-          .addFields(
-            { name: 'Usuário', value: interaction.targetUser.username, inline: true },
-            {
-              name: 'Cargos',
-              value: m ? [...m.roles.cache.values()].map((r) => r.name).join(', ') || 'nenhum' : '?',
-              inline: true,
-            },
-          ),
+        new EmbedBuilder().setTitle(interaction.targetUser.displayName).addFields(
+          { name: 'Usuário', value: interaction.targetUser.username, inline: true },
+          {
+            name: 'Cargos',
+            value: m ? [...m.roles.cache.values()].map((r) => r.name).join(', ') || 'nenhum' : '?',
+            inline: true,
+          },
+        ),
       ],
     });
   }

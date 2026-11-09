@@ -101,8 +101,7 @@ p {
   background:
     radial-gradient(38% 42% at 18% 22%, rgb(139 92 246 / 0.34), transparent 70%),
     radial-gradient(30% 36% at 82% 12%, rgb(180 77 255 / 0.22), transparent 70%),
-    radial-gradient(42% 40% at 70% 85%, rgb(77 86 253 / 0.18), transparent 70%),
-    var(--bg);
+    radial-gradient(42% 40% at 70% 85%, rgb(77 86 253 / 0.18), transparent 70%), var(--bg);
   animation: aurora 26s ease-in-out infinite alternate;
 }
 @keyframes aurora {

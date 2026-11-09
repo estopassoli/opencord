@@ -85,11 +85,7 @@ export const MUTE_DURATIONS: { label: string; ms: number | null }[] = [
 // ---------- palavras-chave ----------
 
 /** sem acento e minúsculo (a busca não liga para "Raid" × "raid" nem "reunião" × "reuniao") */
-export const fold = (t: string) =>
-  t
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase();
+export const fold = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

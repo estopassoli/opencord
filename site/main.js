@@ -91,7 +91,10 @@ if (demo) {
   const tabs = [...demo.querySelectorAll('[role="tab"]')];
   const panels = [...demo.querySelectorAll('.theme-img')];
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let current = Math.max(0, tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true'));
+  let current = Math.max(
+    0,
+    tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true'),
+  );
   let timer = 0;
   let manual = false;
 
@@ -124,7 +127,8 @@ if (demo) {
       show(i);
     });
     t.addEventListener('keydown', (e) => {
-      const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+      const d =
+        e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
       if (!d) return;
       e.preventDefault();
       manual = true;

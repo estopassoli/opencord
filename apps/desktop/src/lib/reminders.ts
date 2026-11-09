@@ -34,8 +34,7 @@ export function addReminder(list: readonly MessageReminder[], r: MessageReminder
 
 export function remindMe(m: Message, at: number, authorName: string) {
   const serverId = m.channelId
-    ? (Object.values(useData.getState().details).find((d) => d.channels.some((c) => c.id === m.channelId))?.id ??
-      null)
+    ? (Object.values(useData.getState().details).find((d) => d.channels.some((c) => c.id === m.channelId))?.id ?? null)
     : null;
   const r: MessageReminder = {
     id: `${m.id}:${at}`,

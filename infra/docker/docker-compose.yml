@@ -87,7 +87,6 @@ services:
       PUBLIC_API_URL: ${PUBLIC_API_URL:?defina PUBLIC_API_URL}
     ports: ['127.0.0.1:8080:80']
 
-
   # Bots públicos oficiais (ADR-0037): entram em qualquer servidor pelo diretório "Adicionar bot".
   bots:
     build: { context: ../.., dockerfile: infra/docker/bots.Dockerfile }
