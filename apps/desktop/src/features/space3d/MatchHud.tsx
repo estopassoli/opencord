@@ -3,6 +3,7 @@
  * ponto com o motivo (evento `score` do ADR-0056), tela de fim com Revanche, aba "Esta partida" do menu e uma região
  * `aria-live` única que só anuncia eventos (ponto, fim, largada) — nunca o cronômetro.
  * Quem manda no placar e na fase é o servidor (`session.scores` / `session.matches`); o evento local só anima.
+ * Contra o bot (treino, `bots/store.ts`) o placar, a fase, a corrida e o x1 são os locais, nos mesmos componentes.
  */
 import {
   isMatchPoint,
@@ -21,6 +22,9 @@ import { Tooltip } from '../../components/Tooltip';
 import { useData } from '../../store/data';
 import { useSpace } from '../../store/space';
 import { useVoice } from '../../store/voice';
+import { BOT_LEVEL_LABEL, BOT_LEVELS, type BotLevel } from './bots/level';
+import { botMatchPhase, botRuleLabel } from './bots/match';
+import { botNameOf, forfeitDuel, useBotPlay } from './bots/store';
 import type { GameBus, GameEvent, ScoreReason } from './events';
 import { Binding } from './GameHud';
 import { countdownSounds, sfx } from './sfx';
@@ -87,9 +91,9 @@ const NET_ZONES = new Set([3, 4, 5]);
 export function PointBanner({ bus, zone }: { bus: GameBus | null; zone: number }) {
   const participants = useVoice((v) => v.participants);
   const nameRef = useRef((id: string | null) =>
-    id ? (participants.find((p) => p.identity === id)?.name ?? null) : null,
+    id ? (participants.find((p) => p.identity === id)?.name ?? botNameOf(id)) : null,
   );
-  nameRef.current = (id) => (id ? (participants.find((p) => p.identity === id)?.name ?? null) : null);
+  nameRef.current = (id) => (id ? (participants.find((p) => p.identity === id)?.name ?? botNameOf(id)) : null);
   const [shown, setShown] = useState<{ title: string; detail: string; side: Side; serve?: boolean } | null>(null);
   useEffect(() => {
     if (!bus) return;
@@ -175,8 +179,25 @@ export function BigCountdown({ goAt, sound }: { goAt: number | null; sound?: boo
 export function useMatchState(zone: number) {
   const match = useSpace((s) => s.session?.matches?.[String(zone)]);
   const goAt = useSpace((s) => s.matchLocalStart[String(zone)] ?? null);
-  const counting = match?.phase === 'countdown' && goAt !== null && Date.now() < goAt;
+  const bot = useBotPlay((s) => (s.match?.zone === zone ? s.match : null));
+  const counting =
+    (match?.phase === 'countdown' && goAt !== null && Date.now() < goAt) ||
+    (bot?.phase === 'countdown' && Date.now() < bot.goAt);
   useTick(counting, 250);
+  if (bot) {
+    // contra o bot: a partida local (o fim vem com o vencedor, como a do servidor)
+    const phase = botMatchPhase(bot, Date.now());
+    return {
+      match: {
+        phase: bot.phase,
+        startAt: bot.goAt,
+        winner: bot.winner ?? undefined,
+        endedAt: bot.endedAt ?? undefined,
+      },
+      phase,
+      goAt: bot.phase === 'countdown' ? bot.goAt : null,
+    };
+  }
   let phase: MatchPhase | null = isMatchZone(zone) && match ? matchPhase(match, Date.now()) : null;
   if (phase === 'playing' && match?.phase === 'countdown' && goAt !== null && Date.now() < goAt) phase = 'countdown';
   return { match, phase, goAt: match?.phase === 'countdown' ? goAt : null };
@@ -198,12 +219,23 @@ function ScoreNum({ value }: { value: number }) {
   );
 }
 
+/** placar da zona: o da partida contra o bot, se houver; senão o do servidor */
+function useZoneScore(zone: number): { a: number; b: number } {
+  const server = useSpace((s) => s.session?.scores?.[String(zone)]);
+  const bot = useBotPlay((s) => (s.match?.zone === zone ? s.match.score : null));
+  return bot ?? server ?? ZERO;
+}
+const ZERO = { a: 0, b: 0 };
+
 export function MatchScore({ zone }: { zone: SportZone }) {
-  const score = useSpace((s) => s.session?.scores?.[String(zone)]) ?? { a: 0, b: 0 };
+  const score = useZoneScore(zone);
   const { phase, goAt } = useMatchState(zone);
   const mz = isMatchZone(zone) ? zone : null;
   const rule = mz ? MATCH_RULES[mz] : null;
-  const goLocal = useSpace((s) => s.matchLocalStart[String(zone)] ?? null);
+  const botGo = useBotPlay((s) => (s.match?.zone === zone ? s.match.goAt : null));
+  const serverGo = useSpace((s) => s.matchLocalStart[String(zone)] ?? null);
+  const goLocal = botGo ?? serverGo;
+  const botRule = botGo !== null ? botRuleLabel(zone) : null;
   const timed = phase === 'playing' && rule?.timeMs != null && goLocal !== null;
   useTick(timed, 1000);
   const elapsed = goLocal !== null ? Math.max(0, Date.now() - goLocal) : 0;
@@ -223,6 +255,7 @@ export function MatchScore({ zone }: { zone: SportZone }) {
         Vermelho
       </span>
       {mz && <span className="space3d-target">· {matchRuleLabel(mz)}</span>}
+      {botRule && <span className="space3d-target">· {botRule}</span>}
       {timed && rule?.timeMs != null && (
         <span className="space3d-clock" aria-hidden="true">
           {elapsed >= rule.timeMs ? 'Gol de ouro' : fmtClock(rule.timeMs - elapsed)}
@@ -244,10 +277,12 @@ const END_SOUND_MS = 15_000;
 
 function useNames() {
   const participants = useVoice((v) => v.participants);
+  const bot = useBotPlay((s) => s.bot);
   return useMemo(() => {
     const m = new Map(participants.map((p) => [p.identity, p.name]));
+    if (bot) m.set(bot.id, bot.name);
     return (id: string) => m.get(id) ?? 'alguém';
-  }, [participants]);
+  }, [participants, bot]);
 }
 
 /** Tela de fim: vencedor na cor do time, destaque da arena e Revanche (tecla) / Voltar à sala. */
@@ -261,8 +296,10 @@ export function MatchEnd({
   onLeave: () => void;
 }) {
   const { match, phase } = useMatchState(zone);
-  const score = useSpace((s) => s.session?.scores?.[String(zone)]) ?? { a: 0, b: 0 };
-  const board = useSpace((s) => s.session?.board?.[String(zone)]);
+  const score = useZoneScore(zone);
+  const vsBot = useBotPlay((s) => s.match?.zone === zone);
+  const server = useSpace((s) => s.session?.board?.[String(zone)]);
+  const board = vsBot ? undefined : server;
   const team = useSpace((s) => s.team);
   const nameOf = useNames();
   const winner = phase === 'ended' ? (match?.winner ?? null) : null;
@@ -285,7 +322,9 @@ export function MatchEnd({
   if (!winner) return null;
   return (
     <section className="space3d-end" data-team={winner} aria-label="Fim de partida">
-      <span className="space3d-end-kicker">{SPORT_LABELS[zone]} · fim de partida</span>
+      <span className="space3d-end-kicker">
+        {SPORT_LABELS[zone]} · {vsBot ? 'treino contra o bot' : 'fim de partida'}
+      </span>
       <strong className="space3d-end-title">{TEAM_NAME[winner]} venceu!</strong>
       <span className="space3d-end-score">
         Azul {score.a} × {score.b} Vermelho
@@ -316,9 +355,16 @@ const fmtRace = (ms: number) => {
   return `${m}:${s}`;
 };
 
+/** a corrida que vale para mim: a contra o bot (local) ou a do servidor */
+export function useRace() {
+  const server = useSpace((s) => s.session?.race ?? null);
+  const bot = useBotPlay((s) => s.race);
+  return bot ?? server;
+}
+
 /** Fim da corrida (para mim ou para todos): pódio dos 3 primeiros, quem não terminou (DNF) e Correr de novo. */
 export function RaceEnd({ onAgain }: { onAgain: () => void }) {
-  const race = useSpace((s) => s.session?.race ?? null);
+  const race = useRace();
   const meId = useData((s) => s.me?.id);
   const nameOf = useNames();
   const mine = race?.results.findIndex((r) => r.userId === meId) ?? -1;
@@ -391,16 +437,24 @@ export function MatchPanel({
   zone,
   onPlay,
   fight,
+  others = 0,
+  onBot,
 }: {
   zone: number;
   onPlay: () => void;
   /** x1 em andamento comigo (na sala) */
   fight?: { duelId: string } | null;
+  /** quantas outras pessoas estão nesta zona agora (com gente, não dá para chamar o bot) */
+  others?: number;
+  /** chama o bot no nível (null = tira o bot) */
+  onBot?: (level: BotLevel | null) => void;
 }) {
   const team = useSpace((s) => s.team);
   const { phase } = useMatchState(zone);
-  const race = useSpace((s) => s.session?.race ?? null);
-  const board = useSpace((s) => s.session?.board?.[String(zone)]);
+  const race = useRace();
+  const bot = useBotPlay((s) => (s.bot?.zone === zone ? s.bot : null));
+  const server = useSpace((s) => s.session?.board?.[String(zone)]);
+  const board = bot ? undefined : server;
   const meId = useData((s) => s.me?.id);
   const nameOf = useNames();
   const [showBoard, setShowBoard] = useState(false);
@@ -414,10 +468,18 @@ export function MatchPanel({
         </header>
         {fight && (
           <div className="gm-actions">
-            <button className="gm-btn gm-btn-danger" onClick={() => void useSpace.getState().forfeit(fight.duelId)}>
+            <button className="gm-btn gm-btn-danger" onClick={() => forfeitDuel(fight.duelId)}>
               <Icon name="close" size={16} /> Desistir do x1
             </button>
           </div>
+        )}
+        {onBot && (
+          <BotPicker
+            title="x1 contra bot"
+            bot={bot}
+            blocked={fight && !bot ? 'Termine o x1 de agora primeiro.' : null}
+            onBot={onBot}
+          />
         )}
       </>
     );
@@ -453,7 +515,7 @@ export function MatchPanel({
             </span>
           </button>
         )}
-        {zone !== 7 && (
+        {zone !== 7 && !bot && (
           <button
             className="gm-btn"
             data-team={team === 'a' ? 'b' : 'a'}
@@ -463,7 +525,7 @@ export function MatchPanel({
             <span className="muted small">(você está no {TEAM_NAME[team]})</span>
           </button>
         )}
-        {zone !== 7 && (
+        {zone !== 7 && !bot && (
           <button className="gm-btn" aria-expanded={showBoard} onClick={() => setShowBoard((v) => !v)}>
             <Icon name="trophy" size={16} active={showBoard} /> Classificação
           </button>
@@ -476,11 +538,22 @@ export function MatchPanel({
               </button>
             </Tooltip>
           ) : (
-            <button className="gm-btn" onClick={() => void useSpace.getState().resetScore(zone)}>
+            <button
+              className="gm-btn"
+              onClick={() => (bot ? useBotPlay.getState().resetScore() : void useSpace.getState().resetScore(zone))}
+            >
               <Icon name="refresh" size={16} /> Zerar placar
             </button>
           ))}
       </div>
+      {onBot && (
+        <BotPicker
+          title="Jogar contra bot"
+          bot={bot}
+          blocked={others > 0 && !bot ? 'Só com a arena vazia: o bot joga só no seu app.' : null}
+          onBot={onBot}
+        />
+      )}
       {showBoard && zone !== 7 && <BoardList rows={rows} meId={meId} />}
       {zone === 7 && race && race.results.length > 0 && (
         <ol className="space3d-board gm-board" aria-label="Chegada">
@@ -494,6 +567,55 @@ export function MatchPanel({
         </ol>
       )}
     </>
+  );
+}
+
+/**
+ * Jogar contra bot: Fácil / Médio / Difícil e Tirar o bot. Treino só no meu app (não conta na classificação); com
+ * outras pessoas na arena fica desabilitado com o motivo.
+ */
+function BotPicker({
+  title,
+  bot,
+  blocked,
+  onBot,
+}: {
+  title: string;
+  bot: { level: BotLevel } | null;
+  /** por que não dá agora (null = dá) */
+  blocked: string | null;
+  onBot: (level: BotLevel | null) => void;
+}) {
+  return (
+    <section className="gm-bot" aria-label={title}>
+      <h3>{title}</h3>
+      <p className="muted small">Treino só no seu app: ninguém mais vê o bot e não conta na classificação.</p>
+      <div className="gm-actions" role="group" aria-label="Nível do bot">
+        {BOT_LEVELS.map((l) =>
+          blocked ? (
+            <Tooltip key={l} label={blocked}>
+              <button className="gm-btn" aria-disabled="true" onClick={(e) => e.preventDefault()}>
+                <Icon name="gamepad" size={16} /> {BOT_LEVEL_LABEL[l]}
+              </button>
+            </Tooltip>
+          ) : (
+            <button
+              key={l}
+              className={bot?.level === l ? 'gm-btn gm-btn-play' : 'gm-btn'}
+              aria-pressed={bot?.level === l}
+              onClick={() => onBot(l)}
+            >
+              <Icon name="gamepad" size={16} active={bot?.level === l} /> {BOT_LEVEL_LABEL[l]}
+            </button>
+          ),
+        )}
+        {bot && (
+          <button className="gm-btn gm-btn-danger" onClick={() => onBot(null)}>
+            <Icon name="close" size={16} /> Tirar o bot
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -514,8 +636,10 @@ function BoardList({ rows, meId }: { rows: { id: string; pts: number; name: stri
 
 /** Placar segurando Tab (convenção de jogo online): placar, regra e classificação, sem soltar o mouse. */
 export function HeldScoreboard({ zone }: { zone: number }) {
-  const board = useSpace((s) => s.session?.board?.[String(zone)]);
-  const race = useSpace((s) => s.session?.race ?? null);
+  const vsBot = useBotPlay((s) => s.bot?.zone === zone);
+  const server = useSpace((s) => s.session?.board?.[String(zone)]);
+  const board = vsBot ? undefined : server;
+  const race = useRace();
   const meId = useData((s) => s.me?.id);
   const nameOf = useNames();
   let body: ReactNode;

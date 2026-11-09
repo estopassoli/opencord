@@ -43,6 +43,10 @@ vi.mock('../src/features/space3d/scene', async () => {
       }
       setRace() {}
       setMatch() {}
+      setBot() {}
+      botRingSpot() {
+        return { x: 0, z: 0 };
+      }
       rerack() {}
       remotePool() {}
       interact() {}

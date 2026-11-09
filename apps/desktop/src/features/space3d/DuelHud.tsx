@@ -11,6 +11,8 @@ import { useData } from '../../store/data';
 import { useSpace } from '../../store/space';
 import { useVoice } from '../../store/voice';
 import { normalizeCode, useBindings } from './bindings';
+import { isBotDuel } from './bots/match';
+import { forfeitDuel, useAllDuels, useBotPlay } from './bots/store';
 import { Binding } from './GameHud';
 import { useAnnounce } from './MatchHud';
 import type { SpaceScene } from './scene';
@@ -37,7 +39,7 @@ function useNow(on: boolean) {
 
 /** Leva o estado das lutas para a cena: ringues, meu modo luta, golpes que acertaram e nocaute. */
 export function useDuelScene(scene: SpaceScene | null) {
-  const duels = useSpace((s) => s.duels);
+  const duels = useAllDuels();
   const meId = useData((s) => s.me?.id);
   const seenHits = useRef(new Set<string>());
   const seenEnd = useRef(new Set<string>());
@@ -92,8 +94,14 @@ export function typingIn(t: EventTarget | null): boolean {
   return t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
 }
 
-/** Revanche: desafia de novo quem lutou comigo */
+/** Revanche: desafia de novo quem lutou comigo (contra o bot, outro x1 com ele) */
 export function rematchDuel(meId: string | undefined): boolean {
+  const b = useBotPlay.getState();
+  if (b.bot?.zone === 0 && b.duel) {
+    if (b.duel.status !== 'ended') return false;
+    b.rematch();
+    return true;
+  }
   const d = lastDuelOf(useSpace.getState().duels, meId);
   if (!d || !meId) return false;
   void useSpace.getState().challenge(d.a === meId ? d.b : d.a);
@@ -101,17 +109,23 @@ export function rematchDuel(meId: string | undefined): boolean {
 }
 
 export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
-  const duels = useSpace((s) => s.duels);
+  const duels = useAllDuels();
   const offset = useSpace((s) => s.duelOffset);
   const meId = useData((s) => s.me?.id);
   const participants = useVoice((v) => v.participants);
+  const bot = useBotPlay((s) => s.bot);
   const nameOf = useMemo(() => {
     const m = new Map(participants.map((p) => [p.identity, p.name]));
+    if (bot) m.set(bot.id, bot.name);
     return (id: string) => m.get(id) ?? 'alguém';
-  }, [participants]);
+  }, [participants, bot]);
   const list = Object.values(duels);
   const live = list.find((d) => d.status === 'countdown' || d.status === 'fighting');
-  const ended = list.filter((d) => d.status === 'ended' && d.reason !== 'declined' && d.reason !== 'expired').at(-1);
+  // a luta contra o bot que acabou só aparece enquanto o bot está aqui
+  const ended = list
+    .filter((d) => d.status === 'ended' && d.reason !== 'declined' && d.reason !== 'expired')
+    .filter((d) => !isBotDuel(d.id) || bot?.zone === 0)
+    .at(-1);
   const invite = list.find((d) => d.status === 'pending' && d.b === meId);
   const waiting = list.find((d) => d.status === 'pending' && d.a === meId);
   const shown = live ?? ended;
@@ -198,7 +212,7 @@ export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
             <Binding action="primary" /> soco · <Binding action="primary" hold /> e solte: soco forte ·{' '}
             <Binding action="secondary" hold /> defender
           </span>
-          <Button size="sm" variant="ghost" onClick={() => void useSpace.getState().forfeit(live.id)}>
+          <Button size="sm" variant="ghost" onClick={() => forfeitDuel(live.id)}>
             Desistir
           </Button>
         </div>

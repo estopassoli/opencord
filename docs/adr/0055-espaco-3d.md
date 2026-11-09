@@ -145,3 +145,21 @@ chamada sem abrir o espaço fala em volume normal.
   Nenhum som é tocado em teste.
 - **Limitação.** A audição real (timbre, volume relativo à voz, cansaço) **ainda não foi validada**. Ela fica com o
   mantenedor, em fone e caixa, no Electron. Pulo, aterrissar, sentar e passos continuam sem som.
+
+## Adendo 2026-11-09: treino contra bot (Fácil, Médio, Difícil)
+- **Decisão.** Em cada minigame (basquete, futebol, tênis, vôlei, ping pong, sinuca, corrida e x1 na sala) dá para
+  jogar contra um bot em três níveis (`bots/level.ts`: reação, erro, escolha da jogada e velocidade). O bot é um
+  boneco a mais ("Bot · Fácil") **simulado só no app de quem o chamou**: nada vai para a rede (`space:ball`,
+  `space:pool`, `space:score`, corrida e x1 ficam de fora) e ninguém mais o vê.
+- **Só com a arena vazia.** Com outra pessoa na arena, a opção fica desabilitada com o motivo; se alguém entra no
+  meio, o bot sai e um aviso explica. Assim a simulação local nunca se mistura com a da rede (autoridade, ADR-0056).
+  No x1 da sala a luta é toda local (ringue na frente de quem chamou); quem está em volta só vê a pessoa socando.
+- **Treino.** A partida contra o bot tem placar local (`bots/store.ts`), sem servidor e sem classificação, mas com a
+  experiência completa: contagem 3-2-1, o alvo de `MATCH_RULES` (sinuca: até 8 bolas), faixa de ponto, tela de fim e
+  Revanche. O HUD é o mesmo (`MatchHud`, `DuelHud`, `RaceHud`), lendo o placar local quando há bot.
+- **Como o bot joga.** Cérebros puros e testáveis em `bots/` (`sportbot`, `poolbot`, `racebot`, `duelbot`, com
+  sorteio por semente em `rng.ts`) devolvem os mesmos comandos de uma pessoa. Os jogos mudaram pouco:
+  `SportPlay.asBot` roda as ações como um segundo jogador local (posição, time, carga e carrinho dele) e
+  `PoolPlay.botShot` taca na vez do bot. `bots/runner.ts` liga o boneco, o corpo e os cérebros na cena.
+- **Limitação.** Equilíbrio medido só em simulação (testes com semente fixa); a sensação de jogar contra cada nível
+  ainda precisa de teste manual.

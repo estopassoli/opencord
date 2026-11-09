@@ -4,6 +4,8 @@
  * com a branca na caçapa) a vez passa. Sozinho na mesa, todas as tacadas são suas (treino). Sem a lista de quem está
  * na mesa (`PoolHooks.players`), vale a vez por time, como antes. Cada bola colorida encaçapada vale 1 ponto para o
  * time de quem tacou. Quem tacou simula e transmite; os outros seguem.
+ * Treino contra bot: o bot entra na mesa pela lista (`players`) e taca com `botShot` na vez dele; quem simula a mesa
+ * continua sendo eu.
  */
 import * as THREE from 'three';
 import { power01, type GameEvent } from './events';
@@ -16,7 +18,8 @@ export const POOL_Y = 0.8;
 export const POOL_R = 0.028;
 const POCKET_R = 0.065;
 /** desaceleração ao rolar (m/s²) */
-const FRICTION = 0.42;
+export const POOL_FRICTION = 0.42;
+const FRICTION = POOL_FRICTION;
 const CUSHION = 0.78;
 export const MAX_SHOT = 4.2;
 
@@ -211,12 +214,15 @@ export class PoolPlay {
   private readonly cue: THREE.Mesh;
   private readonly aimLine: THREE.Line;
   private aim = 0;
+  /** quem deu a última tacada (eu ou o bot), para o efeito do ponto */
+  private shooter: string;
 
   constructor(
     private readonly scene: THREE.Scene,
     private readonly selfId: string,
     private readonly hooks: PoolHooks,
   ) {
+    this.shooter = selfId;
     for (const c of COLORS) {
       const m = new THREE.Mesh(new THREE.IcosahedronGeometry(POOL_R, 1), new THREE.MeshLambertMaterial({ color: c }));
       this.meshes.push(m);
@@ -310,8 +316,20 @@ export class PoolPlay {
       this.charge = null;
       return;
     }
-    const v = 0.3 + this.charge * (MAX_SHOT - 0.3);
+    this.shoot(this.selfId, angle, this.charge, now);
+  }
+
+  /** treino contra bot: a tacada do bot (só na vez dele, com a mesa parada); devolve se tacou */
+  botShot(id: string, angle: number, charge: number, now: number): boolean {
+    if (this.turnId !== id || this.moving || this.shooting) return false;
+    this.shoot(id, angle, Math.max(0, Math.min(1, charge)), now);
+    return true;
+  }
+
+  private shoot(by: string, angle: number, charge: number, now: number) {
+    const v = 0.3 + charge * (MAX_SHOT - 0.3);
     const cue = this.balls[0]!;
+    this.shooter = by;
     cue.vx = Math.sin(angle) * v;
     cue.vz = Math.cos(angle) * v;
     this.charge = null;
@@ -324,7 +342,7 @@ export class PoolPlay {
     this.lastSend = 0;
     this.hooks.emit?.({
       kind: 'cue',
-      by: this.selfId,
+      by,
       power: power01(v, MAX_SHOT),
       zone: 6,
       at: { x: cue.x, y: POOL_Y + POOL_R, z: cue.z },
@@ -434,7 +452,7 @@ export class PoolPlay {
         kind: 'score',
         side: this.turn,
         points,
-        by: this.selfId,
+        by: this.shooter,
         reason: 'caçapa',
         power: points / 3,
         zone: 6,
