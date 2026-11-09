@@ -730,6 +730,33 @@ export function magMesh(g: GunModel): THREE.Object3D | null {
 }
 
 /** pente-lâmina da Kar98k (feito aqui): a lâmina de aço de pé e as cinco balas para a frente, uma em cima da outra */
+/**
+ * Carregador rápido do revólver: um disco escuro com o botão atrás e `n` cartuchos em volta, as pontas para a frente
+ * (−z), no raio `ring` dos furos do tambor. A origem fica na face de trás dos cartuchos, no eixo.
+ */
+export function speedLoader(n: number, ring: number): { root: THREE.Group } {
+  const root = new THREE.Group();
+  const body = new THREE.MeshStandardMaterial({ color: 0x26282c, metalness: 0.4, roughness: 0.6 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xc9a043, metalness: 0.85, roughness: 0.32 });
+  const disk = new THREE.Mesh(
+    new THREE.CylinderGeometry(ring + 0.007, ring + 0.007, 0.011, 16).rotateX(Math.PI / 2),
+    body,
+  );
+  disk.position.z = 0.0055;
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.006, 0.014, 10).rotateX(Math.PI / 2), body);
+  knob.position.z = 0.018;
+  root.add(disk, knob);
+  const caseGeo = new THREE.CylinderGeometry(0.0046, 0.0048, 0.03, 8).rotateX(Math.PI / 2);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const r = new THREE.Mesh(caseGeo, brass);
+    r.position.set(Math.cos(a) * ring, Math.sin(a) * ring, -0.015);
+    root.add(r);
+  }
+  root.visible = false;
+  return { root };
+}
+
 export function stripperClip(): { root: THREE.Group; rounds: THREE.Mesh[] } {
   const root = new THREE.Group();
   const steel = new THREE.MeshStandardMaterial({ color: 0x3a3c40, metalness: 0.7, roughness: 0.45 });

@@ -23,7 +23,7 @@ import { ARM_HAND_FIT, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
 import { aimReticles } from './attachmodels';
 import { disposeGun, movePart, partBox, partCenter, setBalisong, type GunModel, type Part } from './models';
-import { PINCH_CURL, fitAt, gunHolds, magMesh, stripperClip, warmHolds, type Holds } from './holds';
+import { PINCH_CURL, fitAt, gunHolds, magMesh, speedLoader, stripperClip, warmHolds, type Holds } from './holds';
 import {
   CLIP_ROUNDS,
   CYL_CLOSE_AT,
@@ -216,6 +216,11 @@ const DEBRIS_MAX = 4;
 const EJECT_MAX = 8;
 /** revólver: quando a vareta empurra os estojos para fora (fração da recarga, logo depois de o tambor abrir) */
 const CYL_DUMP_AT = 0.26;
+/** o carregador rápido: aparece na mão quando ela volta do cinto (`cylinderPose.pouch` no pico) e some com ela */
+const LOADER_SHOW = 0.44;
+const LOADER_GONE = 0.64;
+/** onde a mão segura o carregador rápido (espaço da mão: à frente da palma, nos dedos) */
+const LOADER_IN_HAND = new THREE.Vector3(0, -0.03, -0.085);
 /** acertos dos dedos (misturados por quadro, sem alocar) */
 const OFF_R: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
 const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
@@ -383,6 +388,9 @@ export class Viewmodel {
   /** cópia do pente sem os cartuchos (o vazio que cai) e o pente-lâmina da Kar98k, com as balas */
   private magGhost: THREE.Object3D | null = null;
   private clip: { root: THREE.Group; rounds: THREE.Mesh[] } | null = null;
+  /** o carregador rápido do revólver e o centro da face de trás do tambor fechado (espaço da arma) */
+  private loader: THREE.Group | null = null;
+  private readonly loaderSeat = new THREE.Vector3();
   private readonly debris: Debris[] = [];
   /** estojos que saíram neste quadro (o `game.ts` leva para o mundo e esvazia) */
   readonly ejects: VmEject[] = [];
@@ -730,6 +738,8 @@ export class Viewmodel {
     let shoulderOut = 0;
     /** a mão esquerda solta a arma e desce para fora da tela (0–1): corrida tática e inspeção da pistola */
     let leftAway = ease(this.leftOffK);
+    /** revólver: a fração da recarga (para o carregador rápido e os cartuchos do tambor); −1 fora dela */
+    let cylU = -1;
 
     // o deslocamento desta ação é medido em volta do switch (para o `carry` de uma ação cortada)
     const p0x = pos.x;
@@ -806,6 +816,7 @@ export class Viewmodel {
               this.joltDone.add('dump');
               this.dumpAfter = true;
             }
+            cylU = u;
             magPull = CYL_OUT;
             MAG.copy(CYL_OUT).multiplyScalar(cp.out);
             cylSpin = cp.spin;
@@ -1042,7 +1053,8 @@ export class Viewmodel {
     movePart(g.parts.mag, MAG, cylSpin);
     // os cartuchos só aparecem com o pente fora do lugar (o modelo é oco: no lugar, eles vazavam pela culatra); o pente
     // que sai e o novo estão com bala (o vazio que cai é uma cópia sem eles)
-    if (g.rounds) g.rounds.visible = MAG.lengthSq() > 1e-6;
+    // revólver: depois que os estojos vazios caem, o tambor fica vazio até o carregador rápido empurrar os cartuchos
+    if (g.rounds) g.rounds.visible = MAG.lengthSq() > 1e-6 && !(cylU >= CYL_DUMP_AT && cylU < MAG_SEAT_AT);
     movePart(g.parts.bolt, V.set(0, 0, boltBack), 0);
     movePart(g.parts.slide, V.set(0, 0, boltBack));
     movePart(g.parts.charge, V.set(0, 0, chargeBack));
@@ -1133,6 +1145,7 @@ export class Viewmodel {
       this.holder.worldToLocal(LEFT);
     }
     this.handL.root.position.copy(LEFT);
+    this.placeLoader(cylU);
     this.handL.root.quaternion.copy(LEFT_Q.copy(this.leftQ).slerp(altQ, leftAlt));
     if (mh && magHold > 0) this.handL.root.quaternion.slerp(mh.quat, magHold);
     this.handL.setCurl(leftCurl, leftThumb, leftCurl, this.leftOffsets(magHold, leftAlt, magPalm, leftAway));
@@ -1451,6 +1464,15 @@ export class Viewmodel {
       this.handleRestInv.copy(holderSpace(handle.obj, this.holder, M1)).invert();
     }
     this.magGhost = magMesh(g);
+    const cyl = spec.revolver && g.parts.mag ? partBox(g, g.parts.mag) : null;
+    if (cyl) {
+      // os furos ficam a ~30% do diâmetro do tambor a partir do eixo
+      const size = cyl.getSize(V);
+      const ring = 0.3 * Math.min(size.x, size.y);
+      this.loader = speedLoader(spec.mag, ring).root;
+      this.holder.add(this.loader);
+      this.loaderSeat.set((cyl.min.x + cyl.max.x) / 2, (cyl.min.y + cyl.max.y) / 2, cyl.max.z);
+    }
     if (g.id === 'kar98k') {
       this.clip = stripperClip();
       this.holder.add(this.clip.root);
@@ -1479,6 +1501,28 @@ export class Viewmodel {
     }
   }
 
+  /**
+   * O carregador rápido: aparece na mão quando ela volta do cinto, os cartuchos na frente dos dedos; encosta atrás do
+   * tambor aberto, alinhado com os furos, e empurra os cartuchos para dentro (no som deles); depois sai junto com a mão
+   * (some — os cartuchos ficam no tambor).
+   */
+  private placeLoader(u: number) {
+    const ld = this.loader;
+    if (!ld) return;
+    ld.visible = u >= LOADER_SHOW && u < LOADER_GONE;
+    if (!ld.visible) return;
+    const seat = ease(seg(u, LOADER_SHOW + 0.06, LOADER_SHOW + 0.14));
+    const push = ease(seg(u, LOADER_SHOW + 0.14, MAG_SEAT_AT));
+    // na mão: à frente da palma, onde os dedos fecham nele
+    W1.copy(LOADER_IN_HAND).applyQuaternion(this.handL.root.quaternion).add(this.handL.root.position);
+    // no tambor (que está fora, deslocado por `MAG`): os cartuchos ainda atrás dos furos, depois dentro
+    V.copy(this.loaderSeat)
+      .add(MAG)
+      .add(W2.set(0, 0, 0.03 * (1 - push)));
+    ld.position.copy(W1).lerp(V, seat);
+    ld.quaternion.identity();
+  }
+
   /** solta o que a arma anterior deixou (pente que caía, pente-lâmina) */
   private disposeExtras() {
     this.clearDebris();
@@ -1489,6 +1533,11 @@ export class Viewmodel {
       disposeTree(this.clip.root);
     }
     this.clip = null;
+    if (this.loader) {
+      this.loader.removeFromParent();
+      disposeTree(this.loader);
+    }
+    this.loader = null;
   }
 
   /** as peças soltas são cópias (geometria do pente vazio e do pente-lâmina, liberadas com eles) */
