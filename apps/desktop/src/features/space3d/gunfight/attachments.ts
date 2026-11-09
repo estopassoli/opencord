@@ -89,8 +89,8 @@ export const ATTACHMENTS: Record<AttId, Attachment> = {
   holo: A({
     id: 'holo',
     slot: 'optic',
-    name: 'Holográfica',
-    desc: 'Janela larga com um anel e um ponto: enxerga mais em volta do alvo.',
+    name: 'Reflexa mini',
+    desc: 'Mira aberta e baixa, só um aro fino em volta do vidro: quase nada tampa a visão em volta do ponto.',
     mods: { zoom: 1.45, ads: 1.03, adsSpread: 0.9 },
   }),
   scope3: A({

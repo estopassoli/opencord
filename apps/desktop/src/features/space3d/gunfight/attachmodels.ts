@@ -1,6 +1,6 @@
 /**
  * Os acessórios do armeiro em 3D, feitos em código no estilo das armas (poucos polígonos, peças juntadas por material
- * com o `Kit`): miras no trilho de cima (ponto vermelho, holográfica, luneta 3x, ponto de pistola no ferrolho, luneta
+ * com o `Kit`): miras no trilho de cima (ponto vermelho, reflexa pequena, luneta 3x, ponto de pistola no ferrolho, luneta
  * clássica da Kar98k e a alavanca da luneta variável), peças da boca rosqueadas no fim do cano (supressor,
  * compensador, quebra-chamas), empunhaduras sob o guarda-mão (vertical e angulada) e o carregador estendido preso ao
  * pente (desce e volta com ele na recarga).
@@ -118,7 +118,7 @@ void main() {
 }`;
 
 /**
- * Retículo aceso no vidro: o ponto (e o anel da holográfica) é desenhado pelo ângulo até o ponto em que a linha do
+ * Retículo aceso no vidro: o ponto (e o anel, no tipo 1) é desenhado pelo ângulo até o ponto em que a linha do
  * olho cruza o vidro (`uDot`, na mesma unidade do vidro; `uDist` = a distância do olho até ele): tamanho fixo na tela,
  * de qualquer distância. Vidro levemente azulado, mais forte na borda.
  */
@@ -198,32 +198,52 @@ function redDot(t: Mats): Optic {
 }
 
 /**
- * holográfica: base longa com a caixa da eletrônica atrás, e a janela retangular à frente dela num capuz de quatro
- * colunas finas (vazado dos lados: de perfil se vê através), com a ponte de cima; vidro grande com o retículo
+ * mira reflexa pequena e aberta: um degrau de montagem com a trava do lado, a base baixa com a eletrônica inclinada
+ * atrás e, na frente, só o aro fino da janela (cantos de cima bem chanfrados), inclinado para trás; o resto da vista
+ * fica livre, sem tubo nem capuz
  */
-function holo(t: Mats): Optic {
+function miniReflex(t: Mats): Optic {
   const group = new THREE.Group();
-  const A = 0.033;
-  const W = 0.038;
-  const Z0 = 0.008;
-  const Z1 = -0.036;
-  const k = new Kit()
-    .box(t.body, 0.03, 0.011, 0.084, 0, 0.0055, -0.006)
-    .box(t.dark, 0.032, 0.004, 0.016, 0, 0.004, 0.022)
-    // a caixa da eletrônica atrás da janela, com os botões e a marca acesa
-    .front(t.body, chamfered(0.03, 0.011, 0.019, 0.004, 0), 0.034, Z0)
-    .box(t.dark, 0.008, 0.003, 0.008, -0.008, 0.02, 0.024)
-    .box(t.dark, 0.008, 0.003, 0.008, 0.002, 0.02, 0.024)
-    .box(t.accent, 0.004, 0.0025, 0.004, 0.011, 0.0195, 0.024)
-    // fundo da janela e as quatro colunas do capuz
-    .box(t.dark, W, 0.003, Z0 - Z1, 0, 0.0125, (Z0 + Z1) / 2);
-  for (const sx of [1, -1])
-    for (const z of [Z0 - 0.003, Z1 + 0.003]) k.box(t.body, 0.004, 0.042, 0.006, sx * (W / 2 + 0.002), 0.032, z);
-  k.front(t.body, chamfered(W + 0.008, 0.053, 0.058, 0.0025, 0), Z0, Z1)
-    .box(t.body, 0.004, 0.003, Z0 - Z1, W / 2 + 0.002, 0.0125, (Z0 + Z1) / 2)
-    .box(t.body, 0.004, 0.003, Z0 - Z1, -W / 2 - 0.002, 0.0125, (Z0 + Z1) / 2)
+  const A = 0.037;
+  const W = 0.027;
+  const RIM = 0.0026;
+  const ZW = -0.016;
+  // o aro da janela de frente: contorno chanfrado com o furo do mesmo jeito, puxado 4 mm e deitado ~10° para trás
+  const y0 = 0.02;
+  const y1 = 0.055;
+  const outer = chamfered(W + RIM * 2, y0, y1, 0.009, 0);
+  const hole = chamfered(W, y0 + 0.002, y1 - RIM, 0.0075, 0);
+  outer.holes.push(new THREE.Path(hole.getPoints()));
+  const rimGeo = new THREE.ExtrudeGeometry(outer, { depth: 0.004, bevelEnabled: false, curveSegments: 2 })
+    .translate(0, -y0, -0.002)
+    .rotateX(0.17)
+    .translate(0, y0, ZW);
+  new Kit()
+    // degrau de montagem no trilho e a trava (botão redondo do lado direito)
+    .box(t.dark, 0.022, 0.009, 0.034, 0, 0.0045, 0.002)
+    .box(t.metal, 0.026, 0.003, 0.02, 0, 0.0015, 0.002)
+    .add(new THREE.CylinderGeometry(0.005, 0.005, 0.005, 10).rotateZ(Math.PI / 2).translate(0.0145, 0.0045, 0.002), t.body)
+    // a base da mira: chapa baixa e a caixa da eletrônica atrás, descendo em rampa para a janela
+    .front(t.body, chamfered(W + RIM * 2, 0.009, 0.019, 0.0025, 0.001), 0.022, ZW - 0.004)
+    .side(
+      t.body,
+      [
+        [0.022, 0.019],
+        [0.022, 0.0235],
+        [0.014, 0.0255],
+        [0.004, 0.0225],
+        [-0.004, 0.019],
+      ],
+      W,
+    )
+    .box(t.dark, 0.012, 0.002, 0.008, 0, 0.0245, 0.016)
+    .box(t.accent, 0.0035, 0.0025, 0.0035, (W + RIM * 2) / 2, 0.014, 0.012)
+    .add(rimGeo, t.body)
     .bake(group);
-  const r = reticle(new THREE.PlaneGeometry(W - 0.002, 0.039), 1, 0.021, A, Z1 + 0.012);
+  // o vidro no formato da janela (cantos chanfrados), centrado na linha de mira
+  const glass = new THREE.ShapeGeometry(chamfered(W + 0.0006, y0 + 0.002, y1 - RIM + 0.0003, 0.0075, 0), 2).translate(0, -A, 0);
+  const r = reticle(glass, 0, 0.016, A, ZW + (A - y0) * Math.sin(0.17));
+  r.mesh.rotation.x = 0.17;
   group.add(r.mesh);
   return { group, axis: A, reticle: r };
 }
@@ -316,7 +336,7 @@ function mountOptic(g: GunModel, m: Mount, id: OpticId) {
     id === 'reddot'
       ? redDot(t)
       : id === 'holo'
-        ? holo(t)
+        ? miniReflex(t)
         : id === 'scope3'
           ? prism(t)
           : id === 'pdot'
@@ -459,36 +479,48 @@ function mountUnder(g: GunModel, m: Mount, id: 'vgrip' | 'agrip') {
 /** quanto o carregador estendido desce (m) */
 const MAG_EXT: Record<GunClass, number> = { ar: 0.05, smg: 0.045, sniper: 0.032, pistol: 0.024, knife: 0 };
 
-/** os pontos do pente parado no espaço da arma (osso: os presos a ele; peça feita em código: a malha) */
-function partPoints(g: GunModel, p: Part): THREE.Vector3[] {
+/** os triângulos do pente parado no espaço da arma (osso: os com os três vértices presos a ele) */
+function partTris(g: GunModel, p: Part): THREE.Triangle[] {
   g.root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(g.root.matrixWorld).invert();
-  const out: THREE.Vector3[] = [];
+  const out: THREE.Triangle[] = [];
   const v = new THREE.Vector3();
+  const take = (o: THREE.Mesh, keep: (i: number) => boolean) => {
+    const geo = o.geometry;
+    const pos = geo.getAttribute('position');
+    if (!pos) return;
+    const idx = geo.index;
+    const n = idx ? idx.count : pos.count;
+    const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+    for (let t = 0; t + 2 < n; t += 3) {
+      const ids = [0, 1, 2].map((k) => (idx ? idx.getX(t + k) : t + k));
+      if (!ids.every(keep)) continue;
+      const [a, b, c] = ids.map((i) => {
+        o.getVertexPosition(i, v);
+        return v.clone().applyMatrix4(m);
+      });
+      out.push(new THREE.Triangle(a, b, c));
+    }
+  };
   if (p.obj instanceof THREE.Bone) {
+    const bone = p.obj;
     g.root.traverse((o) => {
       if (!(o instanceof THREE.SkinnedMesh)) return;
-      const bi = o.skeleton.bones.indexOf(p.obj as THREE.Bone);
-      const idx = o.geometry.getAttribute('skinIndex');
-      const wt = o.geometry.getAttribute('skinWeight');
-      if (bi < 0 || !idx || !wt) return;
-      for (let i = 0; i < idx.count; i++) {
+      const bi = o.skeleton.bones.indexOf(bone);
+      const si = o.geometry.getAttribute('skinIndex');
+      const sw = o.geometry.getAttribute('skinWeight');
+      if (bi < 0 || !si || !sw) return;
+      take(o, (i) => {
         let w = 0;
-        for (let k = 0; k < 4; k++) if (idx.getComponent(i, k) === bi) w += wt.getComponent(i, k);
-        if (w < 0.5) continue;
-        o.getVertexPosition(i, v);
-        out.push(v.clone().applyMatrix4(o.matrixWorld).applyMatrix4(inv));
-      }
+        for (let k = 0; k < 4; k++) if (si.getComponent(i, k) === bi) w += sw.getComponent(i, k);
+        return w >= 0.5;
+      });
     });
-    return out;
+  } else {
+    p.obj.traverse((o) => {
+      if (o instanceof THREE.Mesh && o.visible && !o.userData.att) take(o, () => true);
+    });
   }
-  p.obj.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || !o.visible) return;
-    const pos = o.geometry.getAttribute('position');
-    if (!pos) return;
-    for (let i = 0; i < pos.count; i++)
-      out.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).applyMatrix4(inv).clone());
-  });
   return out;
 }
 
@@ -499,23 +531,54 @@ function partPoints(g: GunModel, p: Part): THREE.Vector3[] {
 function mountMag(g: GunModel, cls: GunClass) {
   const mag = g.parts.mag;
   if (!mag) return;
-  const pts = partPoints(g, mag);
-  if (pts.length < 4) return;
-  const minY = Math.min(...pts.map((p) => p.y));
-  const bottom = pts.filter((p) => p.y < minY + 0.012);
-  const band = pts.filter((p) => p.y > minY + 0.025 && p.y < minY + 0.055);
-  const c = (list: THREE.Vector3[]) => list.reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(list.length);
-  const x0 = Math.min(...bottom.map((p) => p.x));
-  const x1 = Math.max(...bottom.map((p) => p.x));
-  const z0 = Math.min(...bottom.map((p) => p.z));
-  const z1 = Math.max(...bottom.map((p) => p.z));
-  const foot = new THREE.Vector3((x0 + x1) / 2, minY, (z0 + z1) / 2);
-  const axis = band.length ? foot.clone().sub(c(band)).normalize() : new THREE.Vector3(0, -1, 0);
-  // um pente reto pode dar um eixo torto por pontos de um lado só: no máximo ~35° da vertical
-  if (axis.y > -0.8) axis.set(axis.x * 0.3, -1, axis.z * 0.6).normalize();
+  // a face de baixo do pente (no curvo da AK ela é inclinada): os triângulos virados para baixo mais baixos; a normal
+  // média dá o eixo em que a peça desce e os cantos dela a largura e a profundidade
+  const tris = partTris(g, mag);
+  const N = new THREE.Vector3();
+  const C = new THREE.Vector3();
+  const down = tris
+    .map((t) => ({ t, n: t.getNormal(new THREE.Vector3()), c: t.getMidpoint(new THREE.Vector3()), a: t.getArea() }))
+    .filter((x) => x.a > 1e-8 && x.n.y < -0.35);
+  if (!down.length) return;
+  const lowest = Math.min(...down.map((x) => x.c.y));
+  const face = down.filter((x) => x.c.y < lowest + 0.02);
+  const axis = new THREE.Vector3();
+  for (const x of face) axis.addScaledVector(x.n, x.a);
+  axis.normalize();
+  // a face pega também chanfros e degraus: fica só o que está de frente para a média
+  const flat = face.filter((x) => x.n.dot(axis) > 0.9);
+  const use = flat.length ? flat : face;
+  axis.set(0, 0, 0);
+  let area = 0;
+  for (const x of use) {
+    axis.addScaledVector(N.copy(x.n), x.a);
+    C.addScaledVector(x.c, x.a);
+    area += x.a;
+  }
+  axis.normalize();
+  C.divideScalar(area);
+  // a face de baixo do curvo da AK desce bem para a frente (~55°); só um eixo deitado demais é erro do modelo
+  if (axis.y > -0.45) axis.set(0, -1, 0);
+  // a base no plano perpendicular ao eixo: lado (x da arma) e frente, medidos nos cantos da face
+  const side = new THREE.Vector3(1, 0, 0).addScaledVector(axis, -axis.x).normalize();
+  const fwd = new THREE.Vector3().crossVectors(side, axis.clone().negate());
+  // o corte do pente nos últimos 1,5 cm ao longo do eixo (a face de baixo pode ser só um friso, como na AK)
+  const all = tris.flatMap((t) => [t.a, t.b, t.c]);
+  const maxP = Math.max(...all.map((p) => p.dot(axis)));
+  const corners = all.filter((p) => p.dot(axis) > maxP - 0.015);
+  const span = (dir: THREE.Vector3) => {
+    const v = corners.map((p) => p.dot(dir));
+    return [Math.min(...v), Math.max(...v)] as const;
+  };
+  const [s0, s1] = span(side);
+  const [f0, f1] = span(fwd);
+  const foot = new THREE.Vector3()
+    .addScaledVector(side, (s0 + s1) / 2)
+    .addScaledVector(fwd, (f0 + f1) / 2)
+    .addScaledVector(axis, maxP);
   const L = MAG_EXT[cls];
-  const w = Math.max(0.014, x1 - x0);
-  const d = Math.max(0.02, z1 - z0);
+  const w = Math.max(0.014, s1 - s0);
+  const d = Math.max(0.02, f1 - f0);
   const t = mats();
   const group = new THREE.Group();
   new Kit()
@@ -524,7 +587,8 @@ function mountMag(g: GunModel, cls: GunClass) {
     .box(t.metal, w * 0.5, 0.003, d * 0.4, 0, -L * 0.45, d * 0.49)
     .bake(group);
   group.position.copy(foot);
-  group.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), axis);
+  // x da peça no lado, y contra o eixo (sobe para o pente), z na frente do corte
+  group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, axis.clone().negate(), fwd));
   g.root.add(tag(group));
   attachTo(g, mag, group);
   g.magExt = L;

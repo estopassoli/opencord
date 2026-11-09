@@ -7,7 +7,7 @@ e a possibilidade de personalizar a arma: mira, peças da boca e outros acessór
 jogo de verdade, aparecer no modelo (primeira e terceira pessoa) e ser vistos e ouvidos pelos outros.
 
 ## Decisão
-- **Catálogo puro** (`gunfight/attachments.ts`): quatro encaixes — mira (ponto vermelho, holográfica, luneta 3x; ponto
+- **Catálogo puro** (`gunfight/attachments.ts`): quatro encaixes — mira (ponto vermelho, reflexa mini (era a holográfica), luneta 3x; ponto
   de pistola; luneta variável nas snipers; luneta clássica na Kar98k), boca (supressor, compensador, quebra-chamas),
   sob o cano (empunhadura vertical e angulada) e carregador (estendido). O que cabe em cada arma é uma tabela; faca
   não tem encaixes. `applyAttachments(spec, build)` devolve a arma montada: recuo (padrão, tranco da vista, coice),

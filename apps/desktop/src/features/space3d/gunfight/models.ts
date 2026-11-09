@@ -67,7 +67,7 @@ export interface GunModel {
   magExt?: number;
 }
 
-/** o vidro de uma mira com retículo aceso (ponto vermelho, holográfica, ponto de pistola) */
+/** o vidro de uma mira com retículo aceso (ponto vermelho, reflexa mini, ponto de pistola) */
 export interface Reticle {
   mesh: THREE.Mesh;
   uniforms: { uDot: { value: THREE.Vector2 }; uDist: { value: number } };

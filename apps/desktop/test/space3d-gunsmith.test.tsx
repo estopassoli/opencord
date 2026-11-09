@@ -441,7 +441,7 @@ describe('armeiro: o menu', () => {
     fireEvent.click(getByRole('button', { name: /^AK-47/ }));
     expect(useGunHud.getState().loadout.primary).toBe('ak47');
     expect(container.querySelector('h2')?.textContent).toBe('AK-47');
-    fireEvent.click(getByRole('button', { name: /^Holográfica/ }));
+    fireEvent.click(getByRole('button', { name: /^Reflexa mini/ }));
     expect(useGunHud.getState().builds.ak47).toEqual({ optic: 'holo' });
     fireEvent.click(getByRole('button', { name: /De fábrica/ }));
     expect(useGunHud.getState().builds.ak47).toBeUndefined();
