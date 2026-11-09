@@ -652,6 +652,8 @@ export class Avatar {
     if (this.hold && a !== 5 && a < 6) this.reach(this.hold, this.holdBoth);
     // morto (ou caído): a arma some junto, não fica flutuando no lugar
     if (this.gun) this.gun.root.visible = this.gunPose.alive && a !== 9;
+    // a mão com dedos só aparece segurando arma (gunfight); nos outros jogos o braço termina arredondado
+    if (this.hands) this.hands.r.root.visible = this.hands.l.root.visible = !!this.gun;
     if (this.gun && a !== 9) {
       if (this.gunPose.crouch && a !== 15) {
         this.model.position.y -= 0.26;
@@ -663,11 +665,6 @@ export class Avatar {
       // o tronco (levar tiro, coice) antes das mãos: a arma vai junto com o ombro e as mãos não soltam dela
       this.leanPose();
       this.holdGun(a === SWING_A.slide, realDt, a === 2);
-    } else if (this.hands) {
-      // sem nada na mão: dedos relaxados (no soco do x1, fechados)
-      const fist = a >= 6 && a <= 8;
-      this.hands.r.setCurl(fist ? 1 : 0.18, fist ? 0.9 : 0.15);
-      this.hands.l.setCurl(fist ? 1 : 0.18, fist ? 0.9 : 0.15);
     }
     this.faceUpdate(dt, t);
   }
