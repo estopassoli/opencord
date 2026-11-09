@@ -214,6 +214,8 @@ const DEBRIS_G = 9.8;
 const DEBRIS_MAX = 4;
 /** quantos estojos esperando o `game.ts` levar para o mundo, no máximo */
 const EJECT_MAX = 8;
+/** revólver: quando a vareta empurra os estojos para fora (fração da recarga, logo depois de o tambor abrir) */
+const CYL_DUMP_AT = 0.26;
 /** acertos dos dedos (misturados por quadro, sem alocar) */
 const OFF_R: [number, number, number, number, number] = [0, 0, 0, 0, 0];
 const OFF_L: [number, number, number, number, number] = [0, 0, 0, 0, 0];
@@ -386,6 +388,8 @@ export class Viewmodel {
   readonly ejects: VmEject[] = [];
   /** o ferrolho chegou para trás neste quadro: o estojo sai depois de as peças irem para o lugar */
   private ejectAfter = false;
+  /** revólver: o tambor abriu e a vareta foi empurrada neste quadro (os estojos caem depois das peças no lugar) */
+  private dumpAfter = false;
   private gun: GunModel | null = null;
   private spec: GunSpec | null = null;
   private action: { kind: VmAction; t: number; ms: number; side: number } | null = null;
@@ -785,13 +789,19 @@ export class Viewmodel {
             // revólver (`cylinderPose`): a arma deita para a direita e mostra o tambor aberto; a esquerda segura por
             // baixo dele, busca o carregador rápido no cinto, empurra os cartuchos e o tambor fecha
             const cp = cylinderPose(u, CY);
-            rot.z -= cp.tilt * 0.75 * mo;
+            // deitada o bastante para o tambor aberto aparecer (mais que isso, a arma rolava demais)
+            rot.z -= cp.tilt * 0.5 * mo;
             rot.x += cp.tilt * 0.4;
             pos.y += cp.tilt * 0.09;
             pos.x -= cp.tilt * 0.03;
             joltAt('out', MAG_OUT_AT + 0.02, -1.2);
             joltAt('seat', MAG_SEAT_AT, 1.6);
             joltAt('close', CYL_CLOSE_AT, 2.4);
+            // com o tambor aberto, o polegar empurra a vareta: os estojos vazios caem de uma vez
+            if (u >= CYL_DUMP_AT && !this.joltDone.has('dump')) {
+              this.joltDone.add('dump');
+              this.dumpAfter = true;
+            }
             magPull = CYL_OUT;
             MAG.copy(CYL_OUT).multiplyScalar(cp.out);
             cylSpin = cp.spin;
@@ -1145,6 +1155,10 @@ export class Viewmodel {
     if (this.ejectAfter) {
       this.ejectAfter = false;
       this.eject(true);
+    }
+    if (this.dumpAfter) {
+      this.dumpAfter = false;
+      this.dumpCylinder();
     }
     this.stepDebris(dt);
     // clarão da boca
@@ -1525,6 +1539,28 @@ export class Viewmodel {
     );
     const axis = new THREE.Vector3(0, 0, -1).applyQuaternion(Q1);
     this.ejects.push({ at, vel, axis, kind });
+  }
+
+  /**
+   * Revólver: os estojos vazios saem do tambor aberto (espaço da câmera) e caem para baixo, quase juntos, um pouco
+   * espalhados (até o limite de peças soltas por quadro).
+   */
+  private dumpCylinder() {
+    const g = this.gun;
+    const cyl = g?.parts.mag?.obj;
+    if (!g || !cyl || !this.spec) return;
+    this.holder.updateMatrixWorld(true);
+    const c = cyl.getWorldPosition(new THREE.Vector3());
+    this.holder.getWorldQuaternion(Q1);
+    const axis = new THREE.Vector3(0, 0, -1).applyQuaternion(Q1);
+    const kind: EjectKind = g.id === 'bfr' ? 'rifle' : 'pistol';
+    const n = Math.min(this.spec.mag, EJECT_MAX - this.ejects.length);
+    for (let i = 0; i < n; i++) {
+      const a = (i / Math.max(1, n)) * Math.PI * 2;
+      const at = new THREE.Vector3(Math.cos(a) * 0.012, Math.sin(a) * 0.012, 0).applyQuaternion(Q1).add(c);
+      const vel = new THREE.Vector3((Math.random() - 0.5) * 0.3, -0.6 - Math.random() * 0.5, 0.1 + Math.random() * 0.2);
+      this.ejects.push({ at, vel, axis: axis.clone(), kind });
+    }
   }
 
   /** o gesto da recarga vazia no momento `u` (0–1): preenche `EG` (ver `EMPTY_GESTURE`) */
