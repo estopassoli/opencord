@@ -335,14 +335,18 @@ let ctx: AudioContext | null = null;
 let sink: string | null = null;
 const last = new Map<SoundName, number>();
 
-function context(): AudioContext | null {
+/**
+ * O AudioContext único do app (notificações e efeitos do Espaço 3D, `features/space3d/sfx.ts`); null sem Web Audio
+ * (jsdom nos testes).
+ */
+export function context(): AudioContext | null {
   if (typeof AudioContext === 'undefined') return null;
   ctx ??= new AudioContext();
   return ctx;
 }
 
 /** Toca no dispositivo de saída escolhido (quando o navegador permite trocar). */
-async function applySink(c: AudioContext) {
+export async function applySink(c: AudioContext) {
   const want = useData.getState().settings?.audio.outputDeviceId ?? '';
   const ac = c as AudioContext & { setSinkId?: (id: string) => Promise<void> };
   if (sink === want || !ac.setSinkId) return;

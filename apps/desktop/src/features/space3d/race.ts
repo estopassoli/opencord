@@ -1,9 +1,10 @@
 /**
  * Corrida de moto do Espaço 3D (ADR-0055): pista fechada com curvas, motos arcade (acelera, freia, vira), turbo no chão
- * e caixas de item (turbo para usar com F), 3 voltas com pontos de controle (não dá para cortar caminho).
+ * e caixas de item (turbo para usar com a Ação), 3 voltas com pontos de controle (não dá para cortar caminho).
  * Cada um simula a própria moto; a posição vai pela rede como a dos avatares. Largada e chegadas ficam no servidor.
  */
 import * as THREE from 'three';
+import { power01, type GameEvent } from './events';
 
 /** pontos de controle da pista (sentido da corrida) */
 const CONTROL = [
@@ -111,9 +112,13 @@ export interface RaceInput {
 
 export type RaceEvent = { kind: 'lap'; lap: number } | { kind: 'boost' } | { kind: 'item' };
 
-/** Um passo da moto. `go` = a largada já foi dada. */
-export function stepBike(b: Bike, inp: RaceInput, dt: number, now: number, go: boolean): RaceEvent[] {
+/**
+ * Um passo da moto. `go` = a largada já foi dada. Se `fx` vier, acrescenta nela os efeitos (ADR-0056): turbo do chão,
+ * caixa de item e volta.
+ */
+export function stepBike(b: Bike, inp: RaceInput, dt: number, now: number, go: boolean, fx?: GameEvent[]): RaceEvent[] {
   const ev: RaceEvent[] = [];
+  const at = () => ({ x: b.x, y: 0.5, z: b.z });
   const boosting = now < b.boostUntil;
   const n = nearest(TRACK, b.x, b.z, b.idx);
   const offroad = n.d > TRACK_W / 2 + 0.5;
@@ -147,6 +152,7 @@ export function stepBike(b: Bike, inp: RaceInput, dt: number, now: number, go: b
     b.lap++;
     b.checks = 0;
     ev.push({ kind: 'lap', lap: b.lap });
+    fx?.push({ kind: 'lap', lap: b.lap, power: 1, zone: 7, at: at() });
   }
   // turbo no chão e caixa de item
   if (!offroad) {
@@ -154,17 +160,19 @@ export function stepBike(b: Bike, inp: RaceInput, dt: number, now: number, go: b
       if (Math.abs(b.idx - pad) <= 1 && n.d < TRACK_W / 2 && now > b.boostUntil - 1000) {
         b.boostUntil = now + 1200;
         ev.push({ kind: 'boost' });
+        fx?.push({ kind: 'boost', source: 'pad', power: power01(b.v, BOOST_V), zone: 7, at: at() });
       }
     for (const box of TRACK.boxes)
       if (Math.abs(b.idx - box) <= 1 && !b.item) {
         b.item = true;
         ev.push({ kind: 'item' });
+        fx?.push({ kind: 'item', power: 0.6, zone: 7, at: at() });
       }
   }
   return ev;
 }
 
-/** F: usa o turbo guardado */
+/** Ação: usa o turbo guardado */
 export function fireBoost(b: Bike, now: number): boolean {
   if (!b.item) return false;
   b.item = false;

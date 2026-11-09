@@ -118,6 +118,8 @@ export const useSession = create<SessionState>()((set, get) => {
     rt.onState = (s) => useUi.getState().setConnection(s);
     rt.onReady = (reconnect) => {
       if (reconnect) void resync();
+      // Espaço 3D aberto: placar, partidas, corrida e x1 podem ter mudado enquanto a conexão caiu
+      if (reconnect) void import('./space').then(({ useSpace }) => useSpace.getState().refresh());
       void import('./games').then(({ publishGame }) => publishGame(true));
     };
     rt.connect();

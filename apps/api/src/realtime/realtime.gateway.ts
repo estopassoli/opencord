@@ -342,8 +342,19 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         return (await this.duels.get(userId, d.channelId)) as R;
       }
       case 'space:score': {
-        const d = p as { channelId: string; zone: number; side: 'a' | 'b'; points: number; by?: string };
-        return (await this.space.score(userId, d.channelId, d.zone, d.side, d.points, d.by)) as R;
+        const d = p as {
+          channelId: string;
+          zone: number;
+          side: 'a' | 'b';
+          points: number;
+          by?: string;
+          teams?: { a: number; b: number };
+        };
+        return (await this.space.score(userId, d.channelId, d.zone, d.side, d.points, d.by, d.teams)) as R;
+      }
+      case 'space:match:start': {
+        const d = p as { channelId: string; zone: number };
+        return (await this.space.matchStart(userId, d.channelId, d.zone)) as R;
       }
       case 'space:score:reset': {
         const d = p as { channelId: string; zone: number };

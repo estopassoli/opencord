@@ -1,9 +1,14 @@
 /**
  * Sinuca do Espaço 3D (ADR-0055): física das 16 bolas (atrito, choque elástico, tabelas, caçapas) e a partida.
- * Vez por time: quem encaçapa joga de novo; sem encaçapar (ou com a branca na caçapa) a vez passa. Cada bola colorida
- * encaçapada vale 1 ponto para o time de quem tacou. Quem tacou simula e transmite; os outros seguem.
+ * Vez por pessoa, em rodízio que alterna os times (`rules.poolTurn`): quem encaçapa joga de novo; sem encaçapar (ou
+ * com a branca na caçapa) a vez passa. Sozinho na mesa, todas as tacadas são suas (treino). Sem a lista de quem está
+ * na mesa (`PoolHooks.players`), vale a vez por time, como antes. Cada bola colorida encaçapada vale 1 ponto para o
+ * time de quem tacou. Quem tacou simula e transmite; os outros seguem.
  */
 import * as THREE from 'three';
+import { power01, type GameEvent } from './events';
+import { nextAuthority } from './net/authority';
+import { poolTurn, type PoolRota, type PoolSeat } from './rules';
 
 export const POOL_HX = 1.27;
 export const POOL_HZ = 0.635;
@@ -49,9 +54,16 @@ export function moving(balls: PoolBall[]): boolean {
   return balls.some((b) => !b.in && Math.hypot(b.vx, b.vz) > 0.003);
 }
 
-/** Um passo da física; devolve os índices das bolas que caíram na caçapa agora. */
-export function stepPool(balls: PoolBall[], dt: number): number[] {
+/** abaixo disso (m/s) o contato não vira evento (bolas encostadas) */
+const QUIET_V = 0.02;
+
+/**
+ * Um passo da física; devolve os índices das bolas que caíram na caçapa agora. Se `fx` vier, acrescenta nela os
+ * contatos (ADR-0056): `ballHit` (com a velocidade relativa), `cushion` (tabela) e `pocket`.
+ */
+export function stepPool(balls: PoolBall[], dt: number, fx?: GameEvent[]): number[] {
   const fell: number[] = [];
+  const at = (b: PoolBall) => ({ x: b.x, y: POOL_Y + POOL_R, z: b.z });
   const sub = 6;
   const h = dt / sub;
   for (let s = 0; s < sub; s++) {
@@ -86,6 +98,16 @@ export function stepPool(balls: PoolBall[], dt: number): number[] {
         b.z += (nz * overlap) / 2;
         const rel = (a.vx - b.vx) * nx + (a.vz - b.vz) * nz;
         if (rel <= 0) continue;
+        if (fx && rel > QUIET_V)
+          fx.push({
+            kind: 'ballHit',
+            a: i,
+            b: j,
+            v: rel,
+            power: power01(rel, MAX_SHOT),
+            zone: 6,
+            at: { x: (a.x + b.x) / 2, y: POOL_Y + POOL_R, z: (a.z + b.z) / 2 },
+          });
         a.vx -= rel * nx;
         a.vz -= rel * nz;
         b.vx += rel * nx;
@@ -96,6 +118,7 @@ export function stepPool(balls: PoolBall[], dt: number): number[] {
       if (b.in) continue;
       // caçapas
       if (POCKETS.some(([px, pz]) => Math.hypot(b.x - px, b.z - pz) < POCKET_R)) {
+        fx?.push({ kind: 'pocket', ball: i, power: power01(Math.hypot(b.vx, b.vz), MAX_SHOT), zone: 6, at: at(b) });
         b.in = true;
         b.vx = b.vz = 0;
         fell.push(i);
@@ -106,10 +129,14 @@ export function stepPool(balls: PoolBall[], dt: number): number[] {
       const lz = POOL_HZ - POOL_R;
       if (b.x > lx || b.x < -lx) {
         b.x = Math.max(-lx, Math.min(lx, b.x));
+        if (fx && Math.abs(b.vx) > QUIET_V)
+          fx.push({ kind: 'cushion', ball: i, v: Math.abs(b.vx), power: power01(b.vx, MAX_SHOT), zone: 6, at: at(b) });
         b.vx = -b.vx * CUSHION;
       }
       if (b.z > lz || b.z < -lz) {
         b.z = Math.max(-lz, Math.min(lz, b.z));
+        if (fx && Math.abs(b.vz) > QUIET_V)
+          fx.push({ kind: 'cushion', ball: i, v: Math.abs(b.vz), power: power01(b.vz, MAX_SHOT), zone: 6, at: at(b) });
         b.vz = -b.vz * CUSHION;
       }
     }
@@ -137,6 +164,8 @@ export function respotCue(balls: PoolBall[]) {
 export interface PoolMsg {
   balls: [number, number, number][];
   turn: 'a' | 'b';
+  /** de quem é a vez (pessoa); sem isto, vale o time */
+  turnId?: string;
   moving: boolean;
   t: number;
 }
@@ -144,6 +173,14 @@ export interface PoolMsg {
 export interface PoolHooks {
   send(m: PoolMsg): void;
   score(side: 'a' | 'b', points: number): void;
+  /** efeitos (ADR-0056): tacada, choques, tabela, caçapa, ponto */
+  emit?(e: GameEvent): void;
+  /** ids vivos na sinuca (incluindo eu), para trocar a autoridade se o dono sumir */
+  alive?(): string[];
+  /** quem está na mesa e o time de cada um (incluindo eu): vez por pessoa */
+  players?(): PoolSeat[];
+  /** nome de alguém ("Vez de Ana") */
+  nameOf?(id: string): string;
 }
 
 const COLORS = [
@@ -155,6 +192,8 @@ const COLORS = [
 export class PoolPlay {
   balls = rack();
   turn: 'a' | 'b' = 'a';
+  /** vez por pessoa (com `PoolHooks.players`) */
+  private rota: PoolRota = { turn: null, last: {} };
   private t = 0;
   private authority: string | null = null;
   private shooting = false;
@@ -162,6 +201,11 @@ export class PoolPlay {
   private cueFell = false;
   private lastSend = 0;
   private charge: number | null = null;
+  /** quem só observa: a mesa de quem simula ainda está rolando (o observador não simula, então não sabe sozinho) */
+  private remoteMoving = false;
+  /** quando chegou o último estado da autoridade (relógio local) */
+  private lastHeard = 0;
+  private readonly fx: GameEvent[] = [];
   readonly group = new THREE.Group();
   private readonly meshes: THREE.Mesh[] = [];
   private readonly cue: THREE.Mesh;
@@ -196,15 +240,37 @@ export class PoolPlay {
   }
 
   get moving() {
-    return moving(this.balls);
+    return moving(this.balls) || (this.remoteMoving && this.authority !== this.selfId);
   }
 
   get charging() {
     return this.charge;
   }
 
+  /** de quem é a vez (pessoa), quando a mesa sabe quem está nela */
+  get turnId(): string | null {
+    return this.hooks.players ? this.rota.turn : null;
+  }
+
+  /** é a minha vez? (por pessoa; sem a lista da mesa, pelo time) */
+  private myTurn(team: 'a' | 'b') {
+    const id = this.turnId;
+    return id !== null ? id === this.selfId : team === this.turn;
+  }
+
   canShoot(team: 'a' | 'b') {
-    return team === this.turn && !this.moving && !this.shooting;
+    return this.myTurn(team) && !this.moving && !this.shooting;
+  }
+
+  /** confere a vez com quem está na mesa agora (quem saiu perde a vez; a primeira vez vai para o azul) */
+  private checkTurn() {
+    const seats = this.hooks.players?.();
+    if (!seats) return;
+    const next = poolTurn(seats, this.rota, 'check');
+    if (next.turn === this.rota.turn) return;
+    this.rota = next;
+    const seat = seats.find((p) => p.id === next.turn);
+    if (seat) this.turn = seat.team;
   }
 
   /** onde a câmera mira quando é a minha vez (a branca) */
@@ -215,12 +281,27 @@ export class PoolPlay {
 
   prompt(team: 'a' | 'b'): string {
     if (this.moving || this.shooting) return 'Bolas rolando…';
-    if (team !== this.turn) return `Vez do time ${this.turn === 'a' ? 'Azul' : 'Vermelho'}`;
+    const id = this.turnId;
+    if (id !== null && id !== this.selfId) return `Vez de ${this.hooks.nameOf?.(id) ?? 'outra pessoa'}`;
+    if (id === null && team !== this.turn) return `Vez do time ${this.turn === 'a' ? 'Azul' : 'Vermelho'}`;
     return this.charge === null ? 'Mire e segure para tacar' : 'Solte para tacar';
+  }
+
+  /** selo fixo do HUD: de quem é a vez ou se as bolas ainda rolam (não é ação, não leva tecla) */
+  status(team: 'a' | 'b'): string {
+    if (this.moving || this.shooting) return 'Bolas rolando…';
+    const id = this.turnId;
+    if (id !== null) return id === this.selfId ? 'Sua vez' : `Vez de ${this.hooks.nameOf?.(id) ?? 'outra pessoa'}`;
+    return team === this.turn ? 'Sua vez' : `Vez do time ${this.turn === 'a' ? 'Azul' : 'Vermelho'}`;
   }
 
   press(team: 'a' | 'b') {
     if (this.canShoot(team)) this.charge = 0;
+  }
+
+  /** soltou o mouse ou saiu da janela: esquece a força sem tacar */
+  cancel() {
+    this.charge = null;
   }
 
   /** solta o taco na direção `angle` (radianos, como o ry do avatar) */
@@ -238,8 +319,16 @@ export class PoolPlay {
     this.pocketed = 0;
     this.cueFell = false;
     this.authority = this.selfId;
+    this.remoteMoving = false;
     this.t += 1;
     this.lastSend = 0;
+    this.hooks.emit?.({
+      kind: 'cue',
+      by: this.selfId,
+      power: power01(v, MAX_SHOT),
+      zone: 6,
+      at: { x: cue.x, y: POOL_Y + POOL_R, z: cue.z },
+    });
     this.send(now);
   }
 
@@ -247,25 +336,46 @@ export class PoolPlay {
   rerack(now: number) {
     this.balls = rack();
     this.turn = 'a';
+    this.rota = { turn: null, last: {} };
+    this.checkTurn();
     this.shooting = false;
+    this.remoteMoving = false;
     this.authority = this.selfId;
     this.t += 1;
     this.lastSend = 0;
     this.send(now, true);
   }
 
-  remote(m: PoolMsg & { by: string }) {
+  remote(m: PoolMsg & { by: string }, now = performance.now()) {
     if (m.by === this.selfId) return;
     if (m.t < this.t || (m.t === this.t && this.authority && m.by !== this.authority && m.by < this.authority)) return;
+    // tacada nova de outra pessoa (a mesa estava parada e começou a rolar)
+    if (m.moving && !this.remoteMoving && m.t > this.t) {
+      const c = m.balls[0];
+      if (c)
+        this.hooks.emit?.({ kind: 'cue', by: m.by, power: 0.6, zone: 6, at: { x: c[0], y: POOL_Y + POOL_R, z: c[1] } });
+    }
     this.authority = m.by;
     this.t = m.t;
+    this.lastHeard = now;
+    this.remoteMoving = m.moving;
     // a mesa parada manda o estado de tempos em tempos: isso não pode zerar a força de quem está mirando
-    if (m.turn !== this.turn || m.moving) this.charge = null;
+    if (m.turn !== this.turn || (m.turnId ?? null) !== this.rota.turn || m.moving) this.charge = null;
     this.turn = m.turn;
+    if (m.turnId) {
+      // quem jogou por último no time dele (para o rodízio continuar igual se eu assumir a mesa)
+      const prev = this.rota.turn;
+      const seat = prev ? this.hooks.players?.().find((p) => p.id === prev) : undefined;
+      const last = seat && prev !== m.turnId ? { ...this.rota.last, [seat.team]: prev } : this.rota.last;
+      this.rota = { turn: m.turnId, last };
+    }
     this.shooting = false;
     m.balls.forEach(([x, z, inn], i) => {
       const b = this.balls[i];
       if (!b) return;
+      // quem só observa não simula: a caçapa aparece quando a bola passa de "na mesa" para "caiu"
+      if (inn === 1 && !b.in)
+        this.hooks.emit?.({ kind: 'pocket', ball: i, power: 0.5, zone: 6, at: { x, y: POOL_Y, z } });
       b.in = inn === 1;
       // segue a posição de quem simula (suave se perto, direto se longe)
       const far = Math.hypot(x - b.x, z - b.z) > 0.15;
@@ -278,9 +388,14 @@ export class PoolPlay {
   update(dt: number, now: number, aim: number) {
     this.aim = aim;
     if (this.charge !== null) this.charge = Math.min(1, this.charge + dt / 1.2);
+    this.checkAuthority(now);
     const mine = this.authority === this.selfId;
+    // a vez é conferida por quem manda na mesa (ou por todos, antes da primeira tacada)
+    if ((mine || !this.authority) && !this.shooting && !this.moving) this.checkTurn();
     if (mine || !this.authority) {
-      const fell = stepPool(this.balls, dt);
+      this.fx.length = 0;
+      const fell = stepPool(this.balls, dt, this.hooks.emit ? this.fx : undefined);
+      for (const e of this.fx) this.hooks.emit?.(e);
       for (const i of fell) {
         if (i === 0) this.cueFell = true;
         else this.pocketed++;
@@ -291,11 +406,53 @@ export class PoolPlay {
     this.render();
   }
 
+  /** o dono da mesa sumiu ou ficou calado: o menor id vivo assume e termina a tacada a partir do último estado */
+  private checkAuthority(now: number) {
+    const a = this.authority;
+    if (!a || a === this.selfId || !this.hooks.alive) return;
+    const next = nextAuthority(this.hooks.alive(), a, this.lastHeard, now);
+    if (next === a) return;
+    this.authority = next;
+    this.lastHeard = now;
+    if (next !== this.selfId) return;
+    // eu assumo: se a mesa ainda rolava, a tacada termina comigo (a vez passa se nada caiu daqui para a frente)
+    this.shooting = this.shooting || this.remoteMoving;
+    this.remoteMoving = false;
+    this.pocketed = 0;
+    this.cueFell = false;
+    this.t += 1;
+    this.lastSend = 0;
+  }
+
   private endShot(now: number) {
     this.shooting = false;
-    if (this.pocketed > 0) this.hooks.score(this.turn, Math.min(3, this.pocketed));
+    if (this.pocketed > 0) {
+      const points = Math.min(3, this.pocketed);
+      this.hooks.score(this.turn, points);
+      const c = this.balls[0]!;
+      this.hooks.emit?.({
+        kind: 'score',
+        side: this.turn,
+        points,
+        by: this.selfId,
+        reason: 'caçapa',
+        power: points / 3,
+        zone: 6,
+        at: { x: c.x, y: POOL_Y + POOL_R, z: c.z },
+      });
+    }
     if (this.cueFell) respotCue(this.balls);
-    if (this.cueFell || this.pocketed === 0) this.turn = this.turn === 'a' ? 'b' : 'a';
+    const pass = this.cueFell || this.pocketed === 0;
+    const seats = this.hooks.players?.();
+    if (seats) {
+      this.rota = poolTurn(
+        seats,
+        this.rota.turn ? this.rota : poolTurn(seats, this.rota, 'check'),
+        pass ? 'pass' : 'keep',
+      );
+      const seat = seats.find((p) => p.id === this.rota.turn);
+      if (seat) this.turn = seat.team;
+    } else if (pass) this.turn = this.turn === 'a' ? 'b' : 'a';
     // mesa limpa: arruma de novo
     if (this.balls.slice(1).every((b) => b.in)) this.balls = rack();
     this.lastSend = 0;
@@ -304,12 +461,14 @@ export class PoolPlay {
 
   private send(now: number, force = false) {
     const mv = this.shooting || this.moving;
-    if (!force && now - this.lastSend < (mv ? 100 : 2000)) return;
+    // parada, a mesa ainda manda 1x/s: é o sinal de vida da autoridade (AUTHORITY_SILENCE_MS)
+    if (!force && now - this.lastSend < (mv ? 100 : 1000)) return;
     this.lastSend = now;
     const r = (n: number) => Math.round(n * 10000) / 10000;
     this.hooks.send({
       balls: this.balls.map((b) => [r(b.x), r(b.z), b.in ? 1 : 0]),
       turn: this.turn,
+      ...(this.turnId ? { turnId: this.turnId } : {}),
       moving: mv,
       t: this.t,
     });

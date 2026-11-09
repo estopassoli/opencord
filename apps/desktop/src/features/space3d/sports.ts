@@ -4,6 +4,8 @@
  * fica no servidor. Lado A (azul) ataca +x; lado B (vermelho) ataca −x.
  */
 import type { SpaceLayout, SportZone } from '@opencord/contracts';
+import { power01, type GameEvent, type Surface } from './events';
+import { goodBand } from './rules';
 
 export interface Vec {
   x: number;
@@ -201,11 +203,40 @@ export type BallEvent =
   | { kind: 'net' };
 
 const G = 9.8;
+/** velocidade de um choque "forte" (power 1) */
+const HARD_V = 15;
+const HARD_V_PP = 8;
+/** abaixo disso o choque não vira evento (bola rolando encostada) */
+const QUIET_V = 0.3;
 
-/** Um passo da física. Devolve eventos (ponto, quique, rede) para quem está simulando. */
-export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | null): BallEvent[] {
+/**
+ * Um passo da física. Devolve eventos de regra (ponto, quique, rede) para quem está simulando e, se `fx` vier,
+ * acrescenta nela os eventos de efeito (ADR-0056): quique, muro, tabela, aro, trave e rede, com a velocidade normal.
+ */
+export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | null, fx?: GameEvent[]): BallEvent[] {
   const ev: BallEvent[] = [];
   const prev = { x: b.x, y: b.y, z: b.z };
+  const hard = a.zone === 5 ? HARD_V_PP : HARD_V;
+  const surf = (surface: Surface, v: number) => {
+    if (fx && Math.abs(v) > QUIET_V)
+      fx.push({
+        kind: 'surface',
+        surface,
+        v: Math.abs(v),
+        power: power01(v, hard),
+        zone: a.zone,
+        at: { x: b.x, y: b.y, z: b.z },
+      });
+  };
+  const bounce = (surface: 'floor' | 'table', v: number) =>
+    fx?.push({
+      kind: 'bounce',
+      surface,
+      v: Math.abs(v),
+      power: power01(v, hard),
+      zone: a.zone,
+      at: { x: b.x, y: b.y, z: b.z },
+    });
   b.vy -= G * dt;
   b.x += b.vx * dt;
   b.y += b.vy * dt;
@@ -216,6 +247,7 @@ export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | nu
   const tb = a.table;
   if (tb && Math.abs(b.x) < tb.hx && Math.abs(b.z) < tb.hz && prev.y >= tb.y + r && b.y < tb.y + r && b.vy < 0) {
     b.y = tb.y + r;
+    bounce('table', b.vy);
     b.vy = -b.vy * a.bounce;
     ev.push({ kind: 'bounce', x: b.x, z: b.z, surface: 'table' });
   }
@@ -223,6 +255,7 @@ export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | nu
   if (b.y < r) {
     b.y = r;
     if (b.vy < -1) {
+      bounce('floor', b.vy);
       b.vy = -b.vy * a.bounce;
       ev.push({ kind: 'bounce', x: b.x, z: b.z, surface: 'floor' });
     } else b.vy = 0;
@@ -239,10 +272,12 @@ export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | nu
   if (b.y < a.wallH) {
     if (b.x > hx || b.x < -hx) {
       b.x = Math.max(-hx, Math.min(hx, b.x));
+      surf('wall', b.vx);
       b.vx = -b.vx * 0.6;
     }
     if (b.z > hz || b.z < -hz) {
       b.z = Math.max(-hz, Math.min(hz, b.z));
+      surf('wall', b.vz);
       b.vz = -b.vz * 0.6;
     }
   }
@@ -258,10 +293,12 @@ export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | nu
         Math.sign(b.x - bx) !== Math.sign(prev.x - bx)
       ) {
         b.x = bx - side * r;
+        surf('board', b.vx);
         b.vx = -b.vx * 0.6;
       }
-      // aro: anel de pontos
+      // aro: anel de pontos (um evento por passo, com o choque mais forte)
       const hxr = side * HOOP_X;
+      let rimV = 0;
       for (let i = 0; i < 12; i++) {
         const ang = (i / 12) * Math.PI * 2;
         const px = hxr + Math.cos(ang) * RIM_R;
@@ -276,6 +313,7 @@ export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | nu
           const nz = dz / d;
           const vn = b.vx * nx + b.vy * ny + b.vz * nz;
           if (vn < 0) {
+            rimV = Math.max(rimV, -vn);
             b.vx -= 1.6 * vn * nx;
             b.vy -= 1.6 * vn * ny;
             b.vz -= 1.6 * vn * nz;
@@ -285,6 +323,7 @@ export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | nu
           b.z = pz + nz * (r + 0.02);
         }
       }
+      if (rimV) surf('rim', rimV);
       // cesta: passou de cima para baixo pelo aro
       if (prev.y >= RIM_Y && b.y < RIM_Y && b.vy < 0 && Math.hypot(b.x - hxr, b.z) < RIM_R - r * 0.3) {
         const from = shotFrom ?? prev;
@@ -303,14 +342,16 @@ export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | nu
         if (b.y < GOAL_H && d < r + 0.06 && d > 1e-6) {
           const vn = (b.vx * dx + b.vz * dz) / d;
           if (vn < 0) {
+            surf('post', vn);
             b.vx -= 1.7 * vn * (dx / d);
             b.vz -= 1.7 * vn * (dz / d);
           }
         }
       }
-      // gol: cruzou a linha entre as traves, abaixo do travessão
+      // gol: saiu de dentro do campo para dentro do gol, entre as traves e abaixo do travessão (vindo de trás não vale)
       if (
-        Math.sign(prev.x - gx) !== Math.sign(b.x - gx) &&
+        Math.abs(prev.x) < GOAL_X &&
+        Math.abs(b.x) >= GOAL_X &&
         Math.sign(b.x) === side &&
         Math.abs(b.z) < GOAL_HALF_W - r &&
         b.y < GOAL_H - r
@@ -322,6 +363,7 @@ export function stepBall(a: Arena, b: BallState, dt: number, shotFrom?: Vec | nu
     const n = a.net;
     if (Math.sign(prev.x) !== Math.sign(b.x) && b.y < n.y0 + n.h + r && b.y > n.y0 - r && Math.abs(b.z) < n.hz) {
       b.x = Math.sign(prev.x) * (r + 0.01);
+      surf('net', b.vx);
       b.vx = -b.vx * 0.15;
       b.vz *= 0.3;
       ev.push({ kind: 'net' });
@@ -340,17 +382,106 @@ export function lob(from: Vec, to: Vec, apex: number): { vx: number; vy: number;
 }
 
 /**
- * Arremesso de basquete: mira a cesta mais perto; a força (0–1) acerta em cheio na faixa boa (0,55–0,8) e erra para
- * curto ou longo fora dela.
+ * Arremesso de basquete na cesta de ataque do time (`hoopSide`: +1 = +x, azul; −1 = −x, vermelho; ver
+ * `rules.attackHoop`). A força (0–1) acerta em cheio dentro da faixa verde (`rules.goodBand`, que encolhe com a
+ * distância e com marcador perto) e erra para curto ou longo fora dela.
  */
-export function basketShot(from: Vec, charge: number, facing: number): { vx: number; vy: number; vz: number } {
-  const side = Math.sin(facing) >= 0 ? 1 : -1;
-  const hoop = { x: side * HOOP_X, y: RIM_Y + 0.05, z: 0 };
-  const sweet = charge >= 0.55 && charge <= 0.8;
-  const err = sweet ? 0 : charge < 0.55 ? (charge - 0.55) * 2.2 : (charge - 0.8) * 2.4;
+export function basketShot(
+  from: Vec,
+  charge: number,
+  hoopSide: 1 | -1,
+  contested = false,
+): { vx: number; vy: number; vz: number } {
+  const hoop = { x: hoopSide * HOOP_X, y: RIM_Y + 0.05, z: 0 };
   const dx = hoop.x - from.x;
   const dz = hoop.z - from.z;
   const d = Math.hypot(dx, dz) || 1;
+  const band = goodBand(d, contested);
+  const err = charge < band.lo ? (charge - band.lo) * 2.2 : charge > band.hi ? (charge - band.hi) * 2.4 : 0;
   const target = { x: hoop.x + (dx / d) * err, y: hoop.y, z: hoop.z + (dz / d) * err };
   return lob(from, target, 1.2 + d * 0.06);
+}
+
+/** distância (m, no chão) de um ponto até a cesta do lado `hoopSide` */
+export function hoopDist(p: { x: number; z: number }, hoopSide: 1 | -1): number {
+  return Math.hypot(hoopSide * HOOP_X - p.x, p.z);
+}
+
+// ---------- tempo da rebatida (plano 2026-11-09, P5) ----------
+
+/** a rebatida saiu cedo (a bola ainda vinha), na hora certa ou tarde (a bola já tinha passado) */
+export type HitQuality = 'early' | 'perfect' | 'late';
+
+/** meia janela da rebatida perfeita (s) em cada jogo de rede */
+export const PERFECT_WINDOW: Record<3 | 4 | 5, number> = { 3: 0.11, 4: 0.16, 5: 0.12 };
+
+/**
+ * Qualidade da rebatida pelo erro de tempo `dt` (s): positivo = a bola ainda ia chegar no ponto ideal (cedo),
+ * negativo = já tinha passado (tarde). Dentro da janela (±`window`) é perfeita.
+ */
+export function hitQuality(dt: number, window = 0.12): HitQuality {
+  if (dt > window) return 'early';
+  if (dt < -window) return 'late';
+  return 'perfect';
+}
+
+/**
+ * Quanto falta (s) para a bola chegar ao ponto ideal de batida de quem está em `me` (positivo = ainda vem, negativo =
+ * já passou). Tênis e ping pong: o ponto mais perto no chão (a bola vem de lado). Vôlei: a bola desce até a altura do
+ * peito (a bola vem de cima). Bola quase parada = na hora.
+ */
+export function contactDt(zone: number, b: BallState, me: { x: number; y: number; z: number }): number {
+  if (zone === 4) {
+    const yc = me.y + 1;
+    const h = b.y - yc;
+    if (h <= 0) return b.vy > 0 ? 0 : -Math.min(1, -h / Math.max(1, -b.vy));
+    // tempo até descer de b.y até yc (com a velocidade atual e a gravidade)
+    const disc = b.vy * b.vy + 2 * G * h;
+    return (b.vy + Math.sqrt(disc)) / G;
+  }
+  const rx = b.x - me.x;
+  const rz = b.z - me.z;
+  const v2 = b.vx * b.vx + b.vz * b.vz;
+  if (v2 < 0.25) return 0;
+  return -(rx * b.vx + rz * b.vz) / v2;
+}
+
+/**
+ * Onde a bola vai quicar (anel de queda): voo livre até a mesa (ping pong, se cair em cima dela) ou o chão.
+ * Não conta rede nem muro. Null quando a bola já está no chão/mesa ou subindo devagar demais para valer a pena.
+ */
+export function landingPoint(
+  a: Arena,
+  b: BallState,
+  out: { x: number; y: number; z: number; t: number } = { x: 0, y: 0, z: 0, t: 0 },
+): { x: number; y: number; z: number; t: number } | null {
+  const fall = (y0: number): number | null => {
+    const h = b.y - y0;
+    if (h < 0) return null;
+    const disc = b.vy * b.vy + 2 * G * h;
+    const t = (b.vy + Math.sqrt(disc)) / G;
+    return t > 0 ? t : null;
+  };
+  const tb = a.table;
+  if (tb) {
+    const t = fall(tb.y + a.r);
+    if (t !== null) {
+      const x = b.x + b.vx * t;
+      const z = b.z + b.vz * t;
+      if (Math.abs(x) < tb.hx && Math.abs(z) < tb.hz) {
+        out.x = x;
+        out.y = tb.y;
+        out.z = z;
+        out.t = t;
+        return out;
+      }
+    }
+  }
+  const t = fall(a.r);
+  if (t === null) return null;
+  out.x = b.x + b.vx * t;
+  out.y = 0;
+  out.z = b.z + b.vz * t;
+  out.t = t;
+  return out;
 }

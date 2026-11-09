@@ -117,3 +117,31 @@ chamada sem abrir o espaço fala em volume normal.
   (golpe de espada usado como raquetada); aceno feito por cima da animação. Boca: `Participant.audioLevel` do LiveKit
   (só leitura no cliente). Alternativas recusadas: personagens prontos de outros packs (não eram o estilo pedido),
   gerar o corpo no app a cada abertura (segundos de CPU por pessoa).
+
+## Adendo 2026-11-09: som do jogo e panorâmica leve só para efeitos (plano 2026-11-09, P6)
+- **Decisão.** Os minigames ganham efeitos sonoros próprios (`features/space3d/sfx.ts` e `sfxmap.ts`), todos
+  sintetizados no cliente com Web Audio (osciladores, ruído filtrado e envelopes). Não há arquivo de áudio nem som de
+  terceiros. O motor usa o **mesmo AudioContext e o mesmo dispositivo de saída** das notificações
+  (`lib/sounds.ts`: `context()` e `applySink()` passaram a ser exportados). Cada `GameEvent` (ADR-0056) tem um som
+  ou fica marcado como "sem som" no mapa, e o tipo obriga a cobrir todos.
+- **Panorâmica leve só para efeitos.** Esta é a mudança em relação à alternativa descartada acima. Efeitos curtos
+  passam por um `StereoPannerNode` limitado a **±0,5**, pelo ângulo em relação à câmera. Não usamos HRTF. A **voz
+  continua sem panorâmica**: só o ganho pela distância, como antes. O motivo do descarte (cansaço em conversa longa)
+  não vale para estalos de menos de 2 s, e saber de que lado veio a bola ajuda a jogar.
+- **Mixagem.**
+  - **Distância:** usa a mesma curva da voz (`spaceVoiceGain`), reescalada para um piso de 0,15.
+  - **Outra zona:** efeito de outra zona não toca.
+  - **Ducking:** quando alguém fala a menos de `SPACE_VOICE_FAR` (ou eu falo), os efeitos caem para 0,4. Placar,
+    apito e contagem caem só para 0,7, porque são informação.
+  - **Mestre:** fica em **0,25·vol²**, sendo `vol` o volume das notificações vezes o volume próprio "Efeitos do jogo".
+  - **Compressor:** um compressor leve no fim segura os picos.
+  - **Limites:** no máximo 12 vozes (sai a mais baixa); o mesmo som repete no máximo a cada 40 ms; um som mais forte
+    corta o mais fraco que saiu junto (exemplo: a última volta corta a volta).
+  - **Motor da moto:** uma voz contínua por piloto, no máximo 6, com o tom pela velocidade.
+- **Silêncio total** com Sons desligados, Não perturbe, ensurdecido ou a chave "Efeitos do jogo" desligada. A chave e
+  o volume ficam no menu do Esc, em Comandos → Som, salvos neste computador (`localStorage` com try/catch).
+- **Autoplay e testes.** O contexto só recebe `resume()` depois de um gesto (clique ou tecla na cena, clique no menu).
+  Sem AudioContext (jsdom), o motor só escreve no `sfx.log`. Os testes conferem pelo log e por um AudioContext falso.
+  Nenhum som é tocado em teste.
+- **Limitação.** A audição real (timbre, volume relativo à voz, cansaço) **ainda não foi validada**. Ela fica com o
+  mantenedor, em fone e caixa, no Electron. Pulo, aterrissar, sentar e passos continuam sem som.

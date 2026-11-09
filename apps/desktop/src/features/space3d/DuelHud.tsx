@@ -1,6 +1,8 @@
 /**
  * x1 no soco (ADR-0055): barras de vida, contagem, cronômetro e resultado (todos da chamada veem); convite para mim
- * com Aceitar/Recusar; para quem luta, os controles. A cena recebe o estado da luta por `useDuelScene`.
+ * com Aceitar/Recusar (acima do menu e respondido pelas teclas Interagir/Recusar); para quem luta, os controles e a
+ * Revanche. Cronômetro fora da região viva: o resultado vai para o anúncio único (MatchHud). A cena recebe o estado da
+ * luta por `useDuelScene`.
  */
 import { DUEL_HP, type SpaceDuel } from '@opencord/contracts';
 import { Button } from '@opencord/ui';
@@ -8,7 +10,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useData } from '../../store/data';
 import { useSpace } from '../../store/space';
 import { useVoice } from '../../store/voice';
+import { normalizeCode, useBindings } from './bindings';
+import { Binding } from './GameHud';
+import { useAnnounce } from './MatchHud';
 import type { SpaceScene } from './scene';
+import { countdownSounds, sfx } from './sfx';
 
 const REASON: Record<NonNullable<SpaceDuel['reason']>, string> = {
   ko: 'por nocaute',
@@ -59,14 +65,39 @@ export function useDuelScene(scene: SpaceScene | null) {
       const key = h ? `${d.id}:${h.at}` : '';
       if (h && !seenHits.current.has(key)) {
         seenHits.current.add(key);
-        scene.hit(h.on);
+        scene.hit(h.on, h.blocked);
       }
       if (d.status === 'ended' && !seenEnd.current.has(d.id)) {
         seenEnd.current.add(d.id);
         if (d.reason === 'ko' && meId && (d.a === meId || d.b === meId) && d.winner !== meId) scene.knockout();
+        // gongo no ringue (quem assiste ouve pela distância); quem lutou ouve vitória ou derrota
+        sfx.play('bell', { zone: 0, at: d.ring, gain: 0.8, info: true });
+        if (meId && (d.a === meId || d.b === meId) && d.winner) sfx.ui(d.winner === meId ? 'win' : 'lose');
       }
     }
   }, [scene, duels, meId]);
+}
+
+/** última luta que terminou comigo dentro (para a Revanche) */
+export function lastDuelOf(duels: Record<string, SpaceDuel>, meId: string | undefined): SpaceDuel | undefined {
+  return Object.values(duels)
+    .filter((d) => d.status === 'ended' && d.reason !== 'declined' && d.reason !== 'expired')
+    .filter((d) => d.a === meId || d.b === meId)
+    .at(-1);
+}
+
+/** a tecla está indo para um campo de texto (chat, busca): não é resposta ao convite */
+export function typingIn(t: EventTarget | null): boolean {
+  if (!(t instanceof HTMLElement)) return false;
+  return t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
+}
+
+/** Revanche: desafia de novo quem lutou comigo */
+export function rematchDuel(meId: string | undefined): boolean {
+  const d = lastDuelOf(useSpace.getState().duels, meId);
+  if (!d || !meId) return false;
+  void useSpace.getState().challenge(d.a === meId ? d.b : d.a);
+  return true;
 }
 
 export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
@@ -86,10 +117,52 @@ export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
   const shown = live ?? ended;
   const now = useNow(Boolean(live || invite || waiting)) + offset;
 
+  // contagem do x1 para quem luta: bipe a cada segundo e o "JÁ" mais agudo (relógio do servidor → local)
+  const countdownOf = live?.status === 'countdown' && (live.a === meId || live.b === meId) ? live : null;
+  const countId = countdownOf?.id ?? null;
+  const goAt = countdownOf ? countdownOf.until - offset : null;
+  useEffect(() => {
+    if (!countId || goAt === null) return;
+    return countdownSounds(goAt);
+  }, [countId, goAt]);
+
+  // convite e espera respondidos por tecla, mesmo com o menu aberto (o foco pode estar no menu): Interagir aceita,
+  // Recusar recusa ou cancela. Na captura, antes da cena, para a mesma tecla não fazer outra coisa.
+  const pendingId = invite?.id ?? waiting?.id ?? null;
+  const isInvite = Boolean(invite);
+  useEffect(() => {
+    if (!pendingId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || document.querySelector('.space3d-capture') || typingIn(e.target)) return;
+      const code = normalizeCode(e.code);
+      const map = useBindings.getState().map;
+      const accept = isInvite && code === map.interact;
+      const decline = code === map.decline;
+      if (!accept && !decline) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (isInvite) void useSpace.getState().answerDuel(pendingId, accept);
+      else void useSpace.getState().forfeit(pendingId);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [pendingId, isInvite]);
+
+  // resultado no anúncio único (uma vez por luta)
+  const said = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ended || said.current === ended.id || live) return;
+    said.current = ended.id;
+    useAnnounce
+      .getState()
+      .say(ended.winner ? `${nameOf(ended.winner)} venceu o x1 ${REASON[ended.reason ?? 'ko']}` : 'x1 empatado');
+  }, [ended, live, nameOf]);
+  const mineEnded = !live && ended && (ended.a === meId || ended.b === meId) ? ended : null;
+
   return (
     <>
       {shown && (
-        <div className="space3d-duel" role="status" aria-live="polite">
+        <div className="space3d-duel" role="group" aria-label="x1 no soco">
           <Fighter name={nameOf(shown.a)} hp={shown.hp[shown.a] ?? 0} me={shown.a === meId} />
           <div className="space3d-duel-mid">
             {shown.status === 'countdown' ? (
@@ -102,6 +175,11 @@ export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
               </strong>
             )}
             <span className="small">x1 no soco</span>
+            {mineEnded && (
+              <button className="space3d-gbtn space3d-gbtn-sm" onClick={() => rematchDuel(meId)}>
+                <Binding action="rematch" /> Revanche
+              </button>
+            )}
           </div>
           <Fighter name={nameOf(shown.b)} hp={shown.hp[shown.b] ?? 0} me={shown.b === meId} right />
         </div>
@@ -112,12 +190,14 @@ export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
           <div className="space3d-crosshair" aria-hidden="true" data-locked={aimLocked ? 'true' : undefined}>
             <span />
           </div>
-          {!aimLocked && <div className="space3d-aim-hint">Clique na tela para travar a mira</div>}
         </>
       )}
       {live && (live.a === meId || live.b === meId) && (
         <div className="space3d-duel-help">
-          <span>Clique: soco · segure e solte: soco forte · segure o botão direito: defender</span>
+          <span className="space3d-duel-keys">
+            <Binding action="primary" /> soco · <Binding action="primary" hold /> e solte: soco forte ·{' '}
+            <Binding action="secondary" hold /> defender
+          </span>
           <Button size="sm" variant="ghost" onClick={() => void useSpace.getState().forfeit(live.id)}>
             Desistir
           </Button>
@@ -129,12 +209,15 @@ export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
             <strong>{nameOf(invite.a)}</strong> te desafiou para um x1 no soco
             <span className="muted small"> · {Math.max(0, Math.ceil((invite.until - now) / 1000))} s</span>
           </span>
-          <Button size="sm" onClick={() => void useSpace.getState().answerDuel(invite.id, true)}>
-            Aceitar (F)
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => void useSpace.getState().answerDuel(invite.id, false)}>
-            Recusar
-          </Button>
+          <button
+            className="space3d-gbtn space3d-gbtn-play"
+            onClick={() => void useSpace.getState().answerDuel(invite.id, true)}
+          >
+            <Binding action="interact" /> Aceitar
+          </button>
+          <button className="space3d-gbtn" onClick={() => void useSpace.getState().answerDuel(invite.id, false)}>
+            <Binding action="decline" /> Recusar
+          </button>
         </div>
       )}
       {waiting && !invite && (
@@ -142,9 +225,9 @@ export function DuelHud({ aimLocked = false }: { aimLocked?: boolean }) {
           <span>
             Esperando <strong>{nameOf(waiting.b)}</strong> aceitar o x1…
           </span>
-          <Button size="sm" variant="ghost" onClick={() => void useSpace.getState().forfeit(waiting.id)}>
-            Cancelar
-          </Button>
+          <button className="space3d-gbtn" onClick={() => void useSpace.getState().forfeit(waiting.id)}>
+            <Binding action="decline" /> Cancelar
+          </button>
         </div>
       )}
     </>

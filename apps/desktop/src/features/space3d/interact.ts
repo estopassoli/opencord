@@ -1,5 +1,5 @@
 /**
- * Interação com as peças do Espaço 3D (ADR-0055): chegar perto e apertar F (ou clicar no aviso).
+ * Interação com as peças do Espaço 3D (ADR-0055): chegar perto e apertar Interagir (ou clicar no aviso).
  * - assentos (sofá, poltrona, cadeira, banqueta, puff, cama): senta no lugar livre mais perto;
  * - luminária, lareira e fliperama: liga/desliga para todos da chamada;
  * - telão e televisão: escolher o que passa; caixa de som: abrir a música.

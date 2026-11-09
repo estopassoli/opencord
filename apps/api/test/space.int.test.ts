@@ -258,4 +258,117 @@ describe('Espaço 3D', () => {
     const again = await command<SpaceSession>(sa, 'space:race:finish', { channelId: voiceId, ms: 70_000 });
     expect(again.data?.race?.results).toHaveLength(2);
   });
+
+  it('partida com alvo: ponto só em jogo, o ponto final encerra com o vencedor e zerar no meio não muda nada', async () => {
+    const { owner, alice, voiceId, so, sa } = await setup();
+    for (const u of [owner, alice]) await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token });
+    const { SpaceService } = await import('../src/voice/space.service.js');
+    const svc = app.get(SpaceService);
+    const raw = async () => JSON.parse((await svc['redis'].client.get(`space:${voiceId}`)) as string) as SpaceSession;
+    const put = (s: SpaceSession) => svc['redis'].client.set(`space:${voiceId}`, JSON.stringify(s));
+    const pt = (side: 'a' | 'b') =>
+      command<SpaceSession>(so, 'space:score', { channelId: voiceId, zone: 5, side, points: 1, by: owner.id });
+
+    // esperando o Jogar (idle): ponto recusado
+    const idle = await command<SpaceSession>(sa, 'space:score:reset', { channelId: voiceId, zone: 5 });
+    expect(idle.data?.matches?.['5']?.phase).toBe('idle');
+    expect((await pt('a')).data?.scores?.['5']).toEqual({ a: 0, b: 0 });
+
+    // Jogar: contagem de 3 s para todos; na contagem o ponto também não vale
+    const started = await command<SpaceSession>(sa, 'space:match:start', { channelId: voiceId, zone: 5 });
+    const m = started.data?.matches?.['5'];
+    expect(m?.phase).toBe('countdown');
+    expect(m!.startAt - Date.now()).toBeGreaterThan(2000);
+    expect((await pt('a')).data?.scores?.['5']).toEqual({ a: 0, b: 0 });
+    // Jogar de novo no meio não reinicia
+    const again = await command<SpaceSession>(so, 'space:match:start', { channelId: voiceId, zone: 5 });
+    expect(again.data?.matches?.['5']?.startAt).toBe(m!.startAt);
+
+    // passou o VAI e o placar está 10 × 8: o ponto que fecha a partida põe a fase em ended com o vencedor
+    const s = await raw();
+    s.matches!['5'] = { phase: 'countdown', startAt: Date.now() - 1000 };
+    s.scores = { ...s.scores, '5': { a: 10, b: 8 } };
+    await put(s);
+    const ended = nextEvent<SpaceSession>(sa, 'space:state', (x) => x.matches?.['5']?.phase === 'ended');
+    const fin = await pt('a');
+    expect(fin.data?.scores?.['5']).toEqual({ a: 11, b: 8 });
+    expect(fin.data?.matches?.['5']).toMatchObject({ phase: 'ended', winner: 'a' });
+    expect((await ended).matches?.['5']?.winner).toBe('a');
+    // depois do fim, ponto não conta
+    await new Promise((r) => setTimeout(r, 1600));
+    expect((await pt('b')).data?.scores?.['5']).toEqual({ a: 11, b: 8 });
+
+    // zerar em jogo não muda nada; encerrado, zera
+    const s2 = await raw();
+    s2.matches!['3'] = { phase: 'playing', startAt: Date.now() - 5000 };
+    s2.scores = { ...s2.scores, '3': { a: 4, b: 2 } };
+    await put(s2);
+    const r1 = await command<SpaceSession>(sa, 'space:score:reset', { channelId: voiceId, zone: 3 });
+    expect(r1.data?.scores?.['3']).toEqual({ a: 4, b: 2 });
+    expect(r1.data?.matches?.['3']?.phase).toBe('playing');
+    const r2 = await command<SpaceSession>(sa, 'space:score:reset', { channelId: voiceId, zone: 5 });
+    expect(r2.data?.scores?.['5']).toEqual({ a: 0, b: 0 });
+    expect(r2.data?.matches?.['5']?.phase).toBe('idle');
+    // arena sem partida (sinuca) não aceita o Jogar de partida
+    expect((await command(sa, 'space:match:start', { channelId: voiceId, zone: 6 })).ok).toBe(false);
+  });
+
+  it('partida com tempo: esgotado com placar diferente, encerra; treino (um lado vazio) não soma na classificação', async () => {
+    const { owner, alice, voiceId, so, sa } = await setup();
+    for (const u of [owner, alice]) await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token });
+    const { SpaceService } = await import('../src/voice/space.service.js');
+    const svc = app.get(SpaceService);
+    // os dois no futebol, no mesmo time: treino
+    for (const sock of [so, sa])
+      sock.emit('space:move', { channelId: voiceId, x: 0, y: 0, z: 0, ry: 0, a: 0, zone: 2, team: 'a' });
+    await new Promise((r) => setTimeout(r, 300));
+    await command(sa, 'space:match:start', { channelId: voiceId, zone: 2 });
+    const s = JSON.parse((await svc['redis'].client.get(`space:${voiceId}`)) as string) as SpaceSession;
+    s.matches!['2'] = { phase: 'playing', startAt: Date.now() - 60_000 };
+    await svc['redis'].client.set(`space:${voiceId}`, JSON.stringify(s));
+    const g = await command<SpaceSession>(so, 'space:score', {
+      channelId: voiceId,
+      zone: 2,
+      side: 'a',
+      points: 1,
+      by: owner.id,
+    });
+    expect(g.data?.scores?.['2']).toEqual({ a: 1, b: 0 });
+    expect(g.data?.board?.['2']).toEqual({});
+    expect(g.data?.matches?.['2']?.phase).toBe('playing');
+    // o tempo acabou com 1 × 0: a próxima leitura já vem encerrada
+    const s2 = JSON.parse((await svc['redis'].client.get(`space:${voiceId}`)) as string) as SpaceSession;
+    s2.matches!['2'] = { phase: 'playing', startAt: Date.now() - 181_000 };
+    await svc['redis'].client.set(`space:${voiceId}`, JSON.stringify(s2));
+    const got = await command<SpaceSession>(sa, 'space:get', { channelId: voiceId });
+    expect(got.data?.matches?.['2']).toMatchObject({ phase: 'ended', winner: 'a' });
+  });
+
+  it('corrida fecha 30 s depois da chegada do 1º; quem não chegou fica como DNF', async () => {
+    const { owner, alice, voiceId, so, sa } = await setup();
+    for (const u of [owner, alice]) await http.req('POST', `/voice/channels/${voiceId}/join`, { token: u.token });
+    const { SpaceService } = await import('../src/voice/space.service.js');
+    const svc = app.get(SpaceService);
+    for (const sock of [so, sa])
+      sock.emit('space:move', { channelId: voiceId, x: 0, y: 0, z: 0, ry: 0, a: 0, zone: 7 });
+    await new Promise((r) => setTimeout(r, 300));
+    const started = await command<SpaceSession>(so, 'space:race:start', { channelId: voiceId });
+    expect([...(started.data?.race?.racers ?? [])].sort()).toEqual([owner.id, alice.id].sort());
+    const raw = JSON.parse((await svc['redis'].client.get(`space:${voiceId}`)) as string) as SpaceSession;
+    raw.race!.startAt = Date.now() - 120_000;
+    await svc['redis'].client.set(`space:${voiceId}`, JSON.stringify(raw));
+    const f1 = await command<SpaceSession>(sa, 'space:race:finish', { channelId: voiceId, ms: 90_000 });
+    const endsAt = f1.data?.race?.endsAt ?? 0;
+    expect(endsAt - Date.now()).toBeGreaterThan(25_000);
+    expect(f1.data?.race?.closed).toBeFalsy();
+    // passaram os 30 s
+    const r2 = JSON.parse((await svc['redis'].client.get(`space:${voiceId}`)) as string) as SpaceSession;
+    r2.race!.endsAt = Date.now() - 1;
+    await svc['redis'].client.set(`space:${voiceId}`, JSON.stringify(r2));
+    const closed = await command<SpaceSession>(so, 'space:get', { channelId: voiceId });
+    expect(closed.data?.race).toMatchObject({ closed: true, dnf: [owner.id] });
+    // chegou depois do fechamento: não entra na chegada
+    const late = await command<SpaceSession>(so, 'space:race:finish', { channelId: voiceId, ms: 100_000 });
+    expect(late.data?.race?.results.map((r) => r.userId)).toEqual([alice.id]);
+  });
 });

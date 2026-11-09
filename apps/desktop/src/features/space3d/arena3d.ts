@@ -104,6 +104,8 @@ function hoop(g: THREE.Group, side: 1 | -1) {
     new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.8 }),
   );
   net.position.set(side * HOOP_X, RIM_Y - 0.21, 0);
+  // a comemoração (juice.ts) balança a rede da cesta em que a bola entrou
+  net.name = `net:${side}`;
   g.add(net);
 }
 
@@ -118,6 +120,7 @@ function goal(g: THREE.Group, side: 1 | -1) {
     new THREE.MeshBasicMaterial({ color: c, wireframe: true, transparent: true, opacity: 0.6 }),
   );
   net.position.set(gx + side * 0.7, GOAL_H / 2, 0);
+  net.name = `net:${side}`;
   g.add(net);
 }
 
@@ -167,6 +170,7 @@ export function buildArenaDecor(zone: SportZone): THREE.Group {
     );
     net.rotation.y = Math.PI / 2;
     net.position.set(0, VB_NET - 0.5, 0);
+    net.name = 'net:0';
     g.add(net);
     const band = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, VB_HZ * 2 + 1), white);
     band.position.set(0, VB_NET, 0);
@@ -204,6 +208,7 @@ export function buildArenaDecor(zone: SportZone): THREE.Group {
     );
     net.rotation.y = Math.PI / 2;
     net.position.set(0, PP_Y + PP_NET / 2, 0);
+    net.name = 'net:0';
     g.add(net);
     const band = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.015, PP_HZ * 2 + 0.3), white);
     band.position.set(0, PP_Y + PP_NET, 0);
@@ -227,6 +232,7 @@ export function buildArenaDecor(zone: SportZone): THREE.Group {
     );
     net.rotation.y = Math.PI / 2;
     net.position.set(0, NET_H / 2, 0);
+    net.name = 'net:0';
     g.add(net);
     const band = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.06, COURT_HZ * 2 + 1), white);
     band.position.set(0, NET_H, 0);
@@ -245,6 +251,36 @@ export function ballMesh(zone: SportZone): THREE.Mesh {
     new THREE.IcosahedronGeometry(zone === 3 ? 0.09 : zone === 5 ? 0.035 : a.r, 1),
     new THREE.MeshLambertMaterial({ color, flatShading: true }),
   );
+  m.raycast = () => undefined;
+  return m;
+}
+
+/**
+ * Sombra redonda da bola (o mundo não tem sombras em tempo real): fica no chão ou na mesa embaixo da bola e encolhe e
+ * clareia com a altura — é o que deixa ler a profundidade. Raio pela bola.
+ */
+export function ballShadow(zone: SportZone): THREE.Mesh {
+  const r = ARENAS[zone].r;
+  const m = new THREE.Mesh(
+    new THREE.CircleGeometry(Math.max(0.05, r * 1.6), 20),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }),
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.renderOrder = 1;
+  m.raycast = () => undefined;
+  return m;
+}
+
+/** Anel de queda (tênis, vôlei e ping pong): onde a bola vai quicar. Branco, para não confundir com o do tutorial. */
+export function landingRing(zone: SportZone): THREE.Mesh {
+  const big = zone === 5 ? 0.09 : 0.42;
+  const m = new THREE.Mesh(
+    new THREE.RingGeometry(big * 0.72, big, 28),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }),
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.renderOrder = 1;
+  m.visible = false;
   m.raycast = () => undefined;
   return m;
 }

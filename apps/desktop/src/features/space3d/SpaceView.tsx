@@ -4,6 +4,8 @@
  */
 import {
   generateSpace,
+  isMatchZone,
+  matchPhase,
   SPACE_ITEM_KINDS,
   SPACE_ITEM_LABELS,
   SPACE_THEME_LABELS,
@@ -24,9 +26,22 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { SpaceEditor } from './editor';
 import { SpaceScene, type ScreenSource } from './scene';
-import { DuelHud, useDuelScene } from './DuelHud';
-import { Binding, ControlsPanel, GameMenu, LockHint } from './GameHud';
+import { setSfxDeafened } from './sfx';
+import { DuelHud, rematchDuel, useDuelScene } from './DuelHud';
+import { Binding, ControlsPanel, GameMenu, LockHint, LockStrip, type MenuTab } from './GameHud';
+import {
+  BigCountdown,
+  HeldScoreboard,
+  LiveRegion,
+  MatchEnd,
+  MatchPanel,
+  MatchScore,
+  PointBanner,
+  RaceEnd,
+} from './MatchHud';
 import { TelaoSource, useTelaoPlayer } from './Telao';
+import { TutorialHud, useTutorial } from './TutorialHud';
+import { tutorialKey } from './tutorial';
 import './space3d.css';
 
 const SWATCHES = [
@@ -44,6 +59,54 @@ const SWATCHES = [
   '#3b2f2a',
 ];
 
+/**
+ * Jogar / Revanche / Nova corrida da zona (menu, tela de fim e o atalho de revanche). Arenas com partida: o servidor
+ * abre a contagem e, no meio de uma partida, nada muda. Sinuca: zera e arruma a mesa. Corrida: nova largada.
+ */
+function playZone(zone: number, scene: SpaceScene | null) {
+  const st = useSpace.getState();
+  if (zone === 7) {
+    void st.startRace();
+    return;
+  }
+  if (isMatchZone(zone)) {
+    const ph = matchPhase(st.session?.matches?.[String(zone)], Date.now());
+    if (ph === 'countdown' || ph === 'playing') return;
+    void st.startMatch(zone);
+  } else if (zone === 6) void st.resetScore(zone);
+  else return;
+  scene?.newMatch();
+}
+
+/** estou correndo agora (largada no meu relógio, sem ter chegado e com a prova aberta)? */
+function racingNow(meId: string | undefined): boolean {
+  const st = useSpace.getState();
+  const race = st.session?.race;
+  if (st.zone !== 7 || st.raceLocalStart === null || !race || race.closed) return false;
+  return !race.results.some((r) => r.userId === meId) && !(race.dnf ?? []).includes(meId ?? '');
+}
+
+/** corrida que nunca fechou (ninguém chegou): depois disso o atalho pode largar outra */
+const RACE_STALE_MS = 5 * 60_000;
+
+/** atalho de revanche (R): só quando não há partida valendo (antes de começar ou depois do fim) */
+function rematchKey(meId: string | undefined, scene: SpaceScene | null) {
+  const st = useSpace.getState();
+  const zone = st.zone;
+  if (zone === 0) {
+    rematchDuel(meId);
+    return;
+  }
+  if (zone === 7) {
+    // uma tecla não pode largar de novo por cima de quem ainda está correndo (o menu continua podendo)
+    const race = st.session?.race;
+    const stale = race ? Date.now() - race.startAt > RACE_STALE_MS : true;
+    if (!racingNow(meId) && (!race || race.closed || stale)) playZone(7, scene);
+    return;
+  }
+  if (isMatchZone(zone)) playZone(zone, scene);
+}
+
 export function SpaceView({ channelId, serverId }: { channelId: string; serverId: string }) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SpaceScene | null>(null);
@@ -54,6 +117,9 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   // a lista da voz é estável entre mudanças; derivar aqui (um seletor que cria objetos novos a cada leitura
   // faz o React re-renderizar sem parar — erro #185)
   const voiceParticipants = useVoice((s) => s.participants);
+  // ensurdecido: o som do jogo cala junto
+  const deafened = useVoice((s) => s.selfDeaf);
+  useEffect(() => setSfxDeafened(deafened), [deafened]);
   const participants = useMemo(
     () =>
       voiceParticipants.map((p) => ({ identity: p.identity, name: p.name, speaking: p.speaking, isLocal: p.isLocal })),
@@ -61,13 +127,23 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   );
   const [slow, setSlow] = useState(false);
   const [prompt, setPrompt] = useState<{ label: string; action: 'interact' | 'primary' } | null>(null);
+  /** estado do jogo que não é ação (sinuca: de quem é a vez) */
+  const [status, setStatus] = useState<string | null>(null);
+  /** placar segurado (Tab) */
+  const [tabBoard, setTabBoard] = useState(false);
   const [charge, setCharge] = useState<number | null>(null);
+  /** faixa verde do arremesso (rules.goodBand: encolhe com a distância e com marcador perto) */
+  const [band, setBand] = useState<{ lo: number; hi: number } | null>(null);
   const [aimLocked, setAimLocked] = useState(false);
   /** o sistema não deixou prender o mouse: joga arrastando; a pausa abre pelo botão */
   const [noLock, setNoLock] = useState(false);
   const [paused, setPaused] = useState(false);
-  /** aba aberta no menu do jogo (o botão Jogos da barra abre direto nos jogos) */
-  const [menuTab, setMenuTab] = useState<'games' | 'keys'>('games');
+  /** aba pedida para o menu (o botão Jogos da barra abre direto nos jogos); null = a da zona */
+  const [menuTab, setMenuTab] = useState<MenuTab | null>(null);
+  /** Esc fechou o menu com o mouse solto: fica só a faixa "voltar ao jogo" até um clique prender o mouse */
+  const [dismissed, setDismissed] = useState(false);
+  /** o menu foi pedido de propósito (Esc com o mouse solto, botão Jogos): abre mesmo no x1 e na corrida */
+  const [forced, setForced] = useState(false);
   /** o mouse foi solto para usar um menu do jogo (telão, música): não é pausa */
   const menuFree = useRef(false);
   const screenMenu = useSpace((s) => s.screenMenu);
@@ -87,8 +163,53 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   );
   const [race, setRace] = useState<{ lap: number; item: boolean; boost: boolean; speed: number } | null>(null);
   const zone = useSpace((s) => s.zone);
-  // menu do jogo: aparece com o mouse solto (Esc) ou, sem trava, pela Pausa — nunca no editor nem nos menus do telão
-  const menuOpen = !editing && ((!noLock && !aimLocked && !menuFree.current && !screenMenu) || (noLock && paused));
+  const racing = useSpace((s) => s.zone === 7 && s.raceLocalStart !== null && racingNow(me?.id));
+  // menu do jogo: aparece com o mouse solto (Esc) ou, sem trava, pela Pausa — nunca no editor nem nos menus do telão.
+  // No x1 e na corrida o mouse solto não abre o menu (cobriria a luta): só a faixa; Esc de novo abre.
+  const loose = !editing && !noLock && !aimLocked && !menuFree.current && !screenMenu;
+  const menuOpen = !editing && (noLock ? paused : loose && (forced || (!dismissed && !fighting && !racing)));
+  const strip = loose && !menuOpen;
+  useEffect(() => {
+    if (!aimLocked) return;
+    setDismissed(false);
+    setForced(false);
+    setMenuTab(null);
+  }, [aimLocked]);
+  const myFight = useSpace((s) =>
+    Object.values(s.duels).find(
+      (d) => (d.status === 'countdown' || d.status === 'fighting') && (d.a === me?.id || d.b === me?.id),
+    ),
+  );
+  const hasMatch = zone !== 0 || Boolean(myFight);
+  const closeMenu = () => {
+    // Esc não conta como gesto: o navegador não deixa prender o mouse agora; a faixa pede o clique
+    if (noLock) setPaused(false);
+    else {
+      setDismissed(true);
+      setForced(false);
+    }
+    setMenuTab(null);
+    host.current?.focus({ preventScroll: true });
+  };
+  // Esc com o menu fechado e o mouse solto (faixa na tela): abre o menu
+  const escState = useRef({ menuOpen, loose, noLock });
+  escState.current = { menuOpen, loose, noLock };
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.target !== el) return;
+      const st = escState.current;
+      if (st.menuOpen) return;
+      if (st.noLock) setPaused(true);
+      else if (st.loose) {
+        setForced(true);
+        setDismissed(false);
+      }
+    };
+    el.addEventListener('keydown', onKey);
+    return () => el.removeEventListener('keydown', onKey);
+  }, []);
   const [counts, setCounts] = useState<Record<number, number>>({});
   useEffect(() => {
     if (!menuOpen) return;
@@ -99,7 +220,8 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   }, [menuOpen]);
   const resume = () => {
     setPaused(false);
-    setMenuTab('games');
+    setMenuTab(null);
+    setForced(false);
     if (noLock) {
       // sem trava até agora: Continuar tenta prender o mouse de novo
       setNoLock(false);
@@ -119,7 +241,14 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       setGain: (id, g) => useVoice.getState().engine()?.setSpatialGain(id, g),
       onFps: (fps) => setSlow(fps < 24),
       onPrompt: (p) => setPrompt(p),
-      onCharge: setCharge,
+      onStatus: (t) => setStatus(t),
+      onScoreboard: (held) => setTabBoard(held),
+      onRematch: () => rematchKey(me.id, sceneRef.current),
+      onHelp: () => useTutorial.getState().togglePanel(),
+      onCharge: (c, b) => {
+        setCharge(c);
+        setBand(b ?? null);
+      },
       onAimLock: (locked) => {
         setAimLocked(locked);
         // voltou a prender o mouse (clicou na cena): o menu do telão fecha
@@ -139,7 +268,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       onRace: setRace,
       onRaceFinish: (ms) => void useSpace.getState().finishRace(ms),
       sendBall: (z, b) => useSession.getState().realtime?.sendVolatile('space:ball', { channelId, zone: z, ...b }),
-      onScore: (z, side, points, by) => useSpace.getState().score(z, side, points, by),
+      onScore: (z, side, points, by, teams) => useSpace.getState().score(z, side, points, by, teams),
       onPunch: (strong) => {
         const d = Object.values(useSpace.getState().duels).find(
           (x) => x.status === 'fighting' && (x.a === me.id || x.b === me.id),
@@ -212,7 +341,31 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
 
   useDuelScene(scene);
 
+  // partida da arena (P2): a cena sabe a fase para travar o saque na contagem e sacar sozinho em jogo
+  const match = useSpace((s) => s.session?.matches?.[String(zone)]);
+  const matchGo = useSpace((s) => s.matchLocalStart[String(zone)]);
+  useEffect(() => {
+    if (!scene) return;
+    if (!isMatchZone(zone) || !match) return scene.setMatch(null);
+    const phase = matchPhase(match, Date.now());
+    if (match.phase !== 'countdown') return scene.setMatch(phase);
+    // contagem: vira "em jogo" no VAI (no meu relógio, como a largada da corrida)
+    const left = (matchGo ?? Date.now()) - Date.now();
+    if (left <= 0) return scene.setMatch('playing');
+    scene.setMatch('countdown');
+    const t = setTimeout(() => scene.setMatch('playing'), left);
+    return () => clearTimeout(t);
+  }, [scene, zone, match, matchGo]);
+
+  const matchCountdownAt = match?.phase === 'countdown' ? (matchGo ?? null) : null;
+
   const onSource = useCallback((src: ScreenSource) => sceneRef.current?.setScreen(src), []);
+  // muda quando a cena nasce: o alvo do tutorial chega nela mesmo se o passo começou antes
+  const onTarget = useCallback(
+    (t: Parameters<SpaceScene['setTutorialTarget']>[0]) => scene?.setTutorialTarget(t),
+    [scene],
+  );
+  const controlsOpen = useTutorial((t) => t.learned.panel);
 
   return (
     <div className="space3d">
@@ -224,14 +377,30 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
         onGames={() => {
           setMenuTab('games');
           if (noLock) setPaused(true);
-          else if (document.pointerLockElement) document.exitPointerLock();
+          else {
+            setForced(true);
+            setDismissed(false);
+            if (document.pointerLockElement) document.exitPointerLock();
+          }
         }}
       />
+      <LiveRegion />
       {!editing && zone === 0 && <DuelHud aimLocked={aimLocked} />}
       {!editing && zone !== 0 && zone !== 7 && (
-        <SportHud zone={zone as SportZone} charge={charge} onNewMatch={() => sceneRef.current?.newMatch()} />
+        <SportHud zone={zone as SportZone} charge={charge} band={band} status={status} />
       )}
+      {!editing && zone !== 0 && zone !== 7 && !menuOpen && (
+        <MatchEnd
+          zone={zone as SportZone}
+          onRematch={() => playZone(zone, sceneRef.current)}
+          onLeave={() => useSpace.getState().setZone(0)}
+        />
+      )}
+      {!editing && zone !== 0 && <PointBanner bus={scene?.events ?? null} zone={zone} />}
+      {!editing && zone !== 0 && zone !== 7 && <BigCountdown goAt={matchCountdownAt} sound />}
       {!editing && zone === 7 && <RaceHud hud={race} />}
+      {!editing && zone === 7 && !menuOpen && <RaceEnd onAgain={() => playZone(7, sceneRef.current)} />}
+      {!editing && tabBoard && zone !== 0 && !menuOpen && <HeldScoreboard zone={zone} />}
       {!editing && !menuOpen && prompt && (
         <button
           className="space3d-prompt"
@@ -243,15 +412,51 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
           <Binding action={prompt.action} /> {prompt.label}
         </button>
       )}
-      {!editing && !menuOpen && <ControlsPanel zone={zone} fighting={fighting} />}
-      {!editing && aimLocked && <LockHint locked fighting={fighting} />}
+      {!editing && me && (
+        <TutorialHud
+          game={tutorialKey(zone, fighting)}
+          events={scene?.events ?? null}
+          inputs={scene?.inputs ?? null}
+          me={me.id}
+          team={team}
+          hidden={menuOpen}
+          onTarget={onTarget}
+        />
+      )}
+      {!editing && !menuOpen && (
+        <ControlsPanel
+          zone={zone}
+          fighting={fighting}
+          open={controlsOpen}
+          onToggle={() => useTutorial.getState().togglePanel()}
+        />
+      )}
+      {!editing && aimLocked && <LockHint fighting={fighting} />}
+      {strip && <LockStrip />}
       {menuOpen && (
         <GameMenu
-          tab={menuTab}
+          tab={menuTab ?? (hasMatch ? 'match' : 'games')}
           zone={zone}
           counts={counts}
           place={space ? SPACE_THEME_LABELS[space.layout.theme] : ''}
+          match={
+            hasMatch ? (
+              <MatchPanel
+                zone={zone}
+                fight={myFight ? { duelId: myFight.id } : null}
+                onPlay={() => {
+                  playZone(zone, sceneRef.current);
+                  resume();
+                }}
+              />
+            ) : null
+          }
           onResume={resume}
+          onHowTo={() => {
+            useTutorial.getState().restart(tutorialKey(zone, fighting));
+            resume();
+          }}
+          onClose={closeMenu}
           onPick={(z) => {
             if (z !== zone) useSpace.getState().setZone(z);
             resume();
@@ -408,7 +613,7 @@ function EditorPanel({ scene, serverId }: { scene: SpaceScene; serverId: string 
       <header>
         <strong>Editar espaço</strong>
         <span className="muted small">
-          Clique para selecionar, arraste para mover. R gira, Delete apaga, Ctrl+Z desfaz. Botão direito ou WASD movem a
+          Um clique seleciona e arrastar move. R gira, Delete apaga, Ctrl+Z desfaz. Botão direito ou WASD movem a
           câmera.
         </span>
       </header>
@@ -739,77 +944,44 @@ const TARGET: Record<SportZone, [string, string]> = {
   7: ['', ''],
 };
 
-function SportHud({ zone, charge, onNewMatch }: { zone: SportZone; charge: number | null; onNewMatch: () => void }) {
-  const score = useSpace((s) => s.session?.scores?.[String(zone)]) ?? { a: 0, b: 0 };
-  const board = useSpace((s) => s.session?.board?.[String(zone)]);
+function SportHud({
+  zone,
+  charge,
+  band,
+  status,
+}: {
+  zone: SportZone;
+  charge: number | null;
+  band: { lo: number; hi: number } | null;
+  /** selo fixo de estado (sinuca: de quem é a vez) */
+  status: string | null;
+}) {
   const team = useSpace((s) => s.team);
-  const participants = useVoice((v) => v.participants);
-  const meId = useData((s) => s.me?.id);
-  const [showBoard, setShowBoard] = useState(false);
-  const sweet = charge !== null && charge >= 0.55 && charge <= 0.8;
-  const rows = Object.entries(board ?? {})
-    .sort((a, b) => b[1] - a[1])
-    .map(([id, pts]) => ({ id, pts, name: participants.find((p) => p.identity === id)?.name ?? 'alguém' }));
+  const sweet = charge !== null && !!band && charge >= band.lo && charge <= band.hi;
   return (
     <>
       <div className="space3d-game" role="region" aria-label={SPORT_LABELS[zone]}>
         <div className="space3d-game-title">{SPORT_LABELS[zone]}</div>
-        <div
-          className="space3d-game-score"
-          aria-live="polite"
-          aria-label={`Placar: azul ${score.a}, vermelho ${score.b}`}
-        >
-          <span className="space3d-team" data-team="a">
-            Azul
+        <MatchScore zone={zone} />
+        {zone === 6 && status && (
+          <span className="space3d-status" data-mine={status === 'Sua vez' ? 'true' : undefined}>
+            {status}
           </span>
-          <strong>{score.a}</strong>
-          <span className="space3d-game-x">×</span>
-          <strong>{score.b}</strong>
-          <span className="space3d-team" data-team="b">
-            Vermelho
-          </span>
-        </div>
-        <div className="space3d-game-actions">
-          <button
-            className="space3d-gbtn space3d-gbtn-play"
-            onClick={() => {
-              void useSpace.getState().resetScore(zone);
-              onNewMatch();
-            }}
-          >
-            <Icon name="play" size={16} /> Jogar
-          </button>
-          <button className="space3d-gbtn" onClick={() => void useSpace.getState().resetScore(zone)}>
-            <Icon name="refresh" size={16} /> Zerar
-          </button>
-          <button className="space3d-gbtn" aria-expanded={showBoard} onClick={() => setShowBoard((v) => !v)}>
-            <Icon name="trophy" size={16} active={showBoard} /> Classificação
-          </button>
-        </div>
+        )}
         <div className="space3d-myteam-line" data-team={team}>
           <span>
             Você: <strong>{team === 'a' ? 'Azul' : 'Vermelho'}</strong>
             {zone === 6 ? ' · encaçapou, joga de novo' : ` · ataque ${TARGET[zone][team === 'a' ? 0 : 1]}`}
           </span>
-          <button
-            className="space3d-gbtn space3d-gbtn-sm"
-            onClick={() => useSpace.getState().setTeam(team === 'a' ? 'b' : 'a')}
-          >
-            Trocar de time
-          </button>
         </div>
-        {showBoard && (
-          <ol className="space3d-board" aria-label="Classificação">
-            {rows.length === 0 && <li className="space3d-board-empty">Ninguém marcou ainda</li>}
-            {rows.map((r, i) => (
-              <li key={r.id} data-me={r.id === meId ? 'true' : undefined}>
-                <span className="space3d-board-pos">{i + 1}º</span>
-                <span className="truncate">{r.name}</span>
-                <strong>{r.pts}</strong>
-              </li>
-            ))}
-          </ol>
-        )}
+        <div className="space3d-game-hint">
+          <span>
+            <kbd>Esc</kbd> partida e times
+          </span>
+          <span>
+            <Binding action="scoreboard" hold /> placar
+          </span>
+        </div>
       </div>
       {charge !== null && (
         <div
@@ -820,7 +992,12 @@ function SportHud({ zone, charge, onNewMatch }: { zone: SportZone; charge: numbe
           aria-valuemax={100}
           aria-valuenow={Math.round(charge * 100)}
         >
-          {zone === 1 && <span className="space3d-charge-sweet" />}
+          {zone === 1 && band && (
+            <span
+              className="space3d-charge-sweet"
+              style={{ left: `${band.lo * 100}%`, width: `${(band.hi - band.lo) * 100}%` }}
+            />
+          )}
           <span
             className="space3d-charge-fill"
             data-sweet={zone === 1 && sweet ? 'true' : undefined}
@@ -832,7 +1009,6 @@ function SportHud({ zone, charge, onNewMatch }: { zone: SportZone; charge: numbe
   );
 }
 
-/** esportes que já aparecem no menu Jogos */
 const fmtRace = (ms: number) => {
   const t = Math.max(0, ms);
   const m = Math.floor(t / 60000);
@@ -840,11 +1016,13 @@ const fmtRace = (ms: number) => {
   return `${m}:${s}`;
 };
 
-/** Corrida: largar, contagem, volta, velocidade, turbo guardado e o resultado (todos na pista veem). */
+/**
+ * Corrida: contagem grande, volta, tempo, velocidade e turbo guardado (com a tecla da Ação). O cronômetro fica fora
+ * da região viva; o fim (pódio e DNF) é o RaceEnd. Jogar / Nova corrida ficam no menu (Esta partida) e no atalho.
+ */
 function RaceHud({ hud }: { hud: { lap: number; item: boolean; boost: boolean; speed: number } | null }) {
   const race = useSpace((s) => s.session?.race ?? null);
   const localStart = useSpace((s) => s.raceLocalStart);
-  const participants = useVoice((v) => v.participants);
   const meId = useData((s) => s.me?.id);
   const [, tick] = useState(0);
   useEffect(() => {
@@ -852,16 +1030,14 @@ function RaceHud({ hud }: { hud: { lap: number; item: boolean; boost: boolean; s
     return () => clearInterval(t);
   }, []);
   const now = Date.now();
-  const nameOf = (id: string) => participants.find((p) => p.identity === id)?.name ?? 'alguém';
-  const counting = localStart !== null && now < localStart;
   const running = localStart !== null && now >= localStart;
   const mine = race?.results.find((r) => r.userId === meId);
+  const out = Boolean(race?.closed) || (race?.dnf ?? []).includes(meId ?? '');
   return (
     <>
-      <div className="space3d-score" role="status" aria-live="polite">
-        {counting ? (
-          <strong className="space3d-duel-count">{Math.ceil((localStart - now) / 1000)}</strong>
-        ) : running && !mine ? (
+      <BigCountdown goAt={localStart} />
+      <div className="space3d-score">
+        {running && !mine && !out ? (
           <>
             <span>
               Volta <strong>{hud?.lap ?? 1}</strong>/{race?.laps ?? 3}
@@ -869,24 +1045,28 @@ function RaceHud({ hud }: { hud: { lap: number; item: boolean; boost: boolean; s
             <span className="space3d-ptime">{fmtRace(now - localStart)}</span>
             <span className="space3d-ptime">{hud?.speed ?? 0} km/h</span>
             {hud?.boost && <strong className="space3d-boost">TURBO</strong>}
-            {hud?.item && !hud.boost && <span className="space3d-item">Turbo guardado (F)</span>}
+            {hud?.item && !hud.boost && (
+              <span className="space3d-item">
+                <Binding action="primary" /> turbo guardado
+              </span>
+            )}
           </>
+        ) : localStart !== null && now < localStart ? (
+          <span>Prepare-se: acelere no VAI</span>
         ) : (
-          <span>{race ? 'Corrida encerrada para você' : 'Ninguém correndo ainda'}</span>
+          <span className="space3d-game-hint">
+            {race ? 'Corrida encerrada para você' : 'Ninguém correndo ainda'}
+            {(!race || race.closed) && (
+              <>
+                {' · '}
+                <span>
+                  <Binding action="rematch" /> {race ? 'nova corrida' : 'jogar'}
+                </span>
+              </>
+            )}
+          </span>
         )}
-        <button className="space3d-gbtn space3d-gbtn-play" onClick={() => void useSpace.getState().startRace()}>
-          <Icon name="play" size={16} /> {race ? 'Nova corrida' : 'Jogar'}
-        </button>
       </div>
-      {race && race.results.length > 0 && (
-        <ol className="space3d-results" aria-label="Chegada">
-          {race.results.map((r, i) => (
-            <li key={r.userId} data-me={r.userId === meId ? 'true' : undefined}>
-              <span>{i + 1}º</span> {nameOf(r.userId)} <span className="space3d-ptime">{fmtRace(r.ms)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
     </>
   );
 }

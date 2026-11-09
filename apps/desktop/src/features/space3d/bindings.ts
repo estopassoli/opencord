@@ -1,7 +1,9 @@
 /**
  * Atalhos do Espaço 3D (ADR-0055), personalizáveis no menu de pausa e guardados neste computador.
  * Cada ação tem um "código": tecla (`KeyW`, `Space`, `Shift`…) ou botão do mouse (`Mouse0` esquerdo, `Mouse1` meio,
- * `Mouse2` direito). As setas sempre andam também. Esc é do navegador (solta o mouse e abre a pausa): não dá para usar.
+ * `Mouse2` direito). As setas sempre andam também. Esc é do navegador (solta o mouse e abre o menu): não dá para usar.
+ * Convenção de PC: W A S D andar, Q/E girar a câmera, Tab segurado mostra o placar, R revanche, F interagir,
+ * H mostra os comandos.
  */
 import { create } from 'zustand';
 
@@ -16,6 +18,12 @@ export const ACTIONS = [
   'interact',
   'primary',
   'secondary',
+  'turnLeft',
+  'turnRight',
+  'scoreboard',
+  'rematch',
+  'decline',
+  'help',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -30,6 +38,12 @@ export const ACTION_LABELS: Record<Action, string> = {
   interact: 'Interagir · pegar a bola · desafiar',
   primary: 'Ação: bater, chutar, tacar, socar, turbo',
   secondary: 'Defender no x1 (segurar)',
+  turnLeft: 'Girar a câmera para a esquerda',
+  turnRight: 'Girar a câmera para a direita',
+  scoreboard: 'Ver o placar (segurar)',
+  rematch: 'Começar partida · revanche',
+  decline: 'Recusar um convite de x1',
+  help: 'Mostrar ou esconder os comandos',
 };
 
 export const DEFAULT_BINDINGS: Record<Action, string> = {
@@ -39,11 +53,26 @@ export const DEFAULT_BINDINGS: Record<Action, string> = {
   right: 'KeyD',
   run: 'Shift',
   jump: 'Space',
-  wave: 'KeyE',
+  wave: 'KeyG',
   interact: 'KeyF',
   primary: 'Mouse0',
   secondary: 'Mouse2',
+  turnLeft: 'KeyQ',
+  turnRight: 'KeyE',
+  scoreboard: 'Tab',
+  rematch: 'KeyR',
+  decline: 'KeyX',
+  help: 'KeyH',
 };
+
+/**
+ * Padrões antigos que mudaram (2026-11-09: E passou a girar a câmera, acenar foi para G). Um mapa salvo antes disso
+ * guarda o padrão antigo sem a pessoa ter escolhido: ele volta ao padrão novo.
+ */
+const LEGACY_DEFAULTS: Partial<Record<Action, string>> = { wave: 'KeyE' };
+
+/** teclas livres para uma ação nova quando o padrão dela já foi escolhido pela pessoa para outra coisa */
+const SPARE_CODES = ['KeyZ', 'KeyC', 'KeyV', 'KeyB', 'KeyJ', 'KeyK', 'KeyL', 'KeyN', 'KeyM', 'KeyT', 'KeyY'];
 
 const KEY = 'opencord.space3d.bindings';
 
@@ -91,16 +120,37 @@ function load(): Record<Action, string> {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...DEFAULT_BINDINGS };
-    const v = JSON.parse(raw) as Partial<Record<Action, unknown>>;
-    const out = { ...DEFAULT_BINDINGS };
-    for (const a of ACTIONS) {
-      const c = v[a];
-      if (typeof c === 'string' && c.length > 0 && c.length < 32 && c !== 'Escape') out[a] = c;
-    }
-    return out;
+    return fromSaved(JSON.parse(raw) as Partial<Record<Action, unknown>>);
   } catch {
     return { ...DEFAULT_BINDINGS };
   }
+}
+
+/**
+ * Mapa salvo → mapa completo. Valor estragado volta ao padrão. Ação nova (que o mapa salvo não conhece) nunca rouba a
+ * tecla que a pessoa escolheu: se o padrão dela estiver ocupado, ela fica com uma tecla livre.
+ */
+export function fromSaved(v: Partial<Record<Action, unknown>>): Record<Action, string> {
+  const out = { ...DEFAULT_BINDINGS };
+  const chosen = new Set<Action>();
+  const old = ACTIONS.some((a) => !(a in v));
+  for (const a of ACTIONS) {
+    const c = v[a];
+    if (typeof c !== 'string' || c.length === 0 || c.length >= 32 || c === 'Escape') continue;
+    if (old && LEGACY_DEFAULTS[a] === c) continue;
+    out[a] = c;
+    chosen.add(a);
+  }
+  for (const a of ACTIONS) {
+    if (chosen.has(a)) continue;
+    const clash = ACTIONS.some(
+      (b) => b !== a && out[b] === out[a] && (chosen.has(b) || ACTIONS.indexOf(b) < ACTIONS.indexOf(a)),
+    );
+    if (!clash) continue;
+    const used = new Set(ACTIONS.map((b) => out[b]));
+    out[a] = SPARE_CODES.find((k) => !used.has(k)) ?? out[a];
+  }
+  return out;
 }
 
 interface BindingsStore {

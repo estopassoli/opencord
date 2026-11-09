@@ -60,7 +60,7 @@ describe('Espaço 3D: corrida de moto', () => {
     expect(drive(b, 30, true).laps).toEqual([]);
   });
 
-  it('item guardado vira turbo com F', () => {
+  it('item guardado vira turbo com a Ação', () => {
     const b = startGrid(0);
     expect(fireBoost(b, 0)).toBe(false);
     b.item = true;

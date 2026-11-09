@@ -1,11 +1,19 @@
 /**
  * Interface de jogo do Espaço 3D (ADR-0055): comandos do contexto atual com teclas e mouse desenhados, aviso para
- * prender o mouse na visão e a mira no centro. Teclado só tem W A S D, E e F; o resto é no mouse.
+ * prender o mouse na visão e a mira no centro. Todo texto de tecla sai de `<Binding action>` (o atalho escolhido).
  */
 import type { SportZone } from '@opencord/contracts';
-import { Icon, type IconName } from '@opencord/ui';
-import { useEffect, useState } from 'react';
+import { Icon, Slider, Switch, type IconName } from '@opencord/ui';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ACTION_LABELS, ACTIONS, codeLabel, isMouse, normalizeCode, useBindings, type Action } from './bindings';
+import { sfx, useSfxPrefs } from './sfx';
+import type { SfxName } from './sfxmap';
+
+/** som do menu (bem baixo); o clique já é o gesto que libera o áudio */
+function uiSound(name: Extract<SfxName, 'uiMove' | 'uiOk' | 'uiBack'>) {
+  sfx.unlock();
+  sfx.ui(name, { gain: name === 'uiMove' ? 0.4 : 0.55 });
+}
 
 type Btn = 'left' | 'right' | 'middle' | 'move';
 
@@ -63,6 +71,7 @@ const ROOM: Row[] = [
   { input: { mouse: 'move' }, label: 'Olhar em volta' },
   { input: { acts: ['run'], hold: true }, label: 'Correr' },
   { input: { acts: ['jump'] }, label: 'Pular' },
+  { input: { acts: ['turnLeft', 'turnRight'] }, label: 'Girar a câmera' },
   { input: { acts: ['wave'] }, label: 'Acenar' },
   { input: { acts: ['interact'] }, label: 'Interagir · desafiar para um x1' },
 ];
@@ -129,16 +138,34 @@ export function Binding({ action, hold }: { action: Action; hold?: boolean }) {
   );
 }
 
-/** Painel de comandos do contexto (sala, x1 ou esporte), recolhível. */
-export function ControlsPanel({ zone, fighting }: { zone: number; fighting: boolean }) {
-  const [open, setOpen] = useState(true);
+/**
+ * Painel de comandos do contexto (sala, x1 ou esporte). Começa recolhido (o tutorial ensina o essencial) e lembra o
+ * último estado; o botão e o atalho "Mostrar os comandos" abrem e fecham.
+ */
+export function ControlsPanel({
+  zone,
+  fighting,
+  open,
+  onToggle,
+}: {
+  zone: number;
+  fighting: boolean;
+  open: boolean;
+  onToggle: () => void;
+}) {
   const rows = fighting ? FIGHT : zone ? SPORT[zone as SportZone] : ROOM;
-  const extra: Row[] = zone ? [{ input: { acts: MOVE }, label: 'Andar' }] : [];
+  const extra: Row[] = zone
+    ? [
+        { input: { acts: MOVE }, label: 'Andar' },
+        { input: { acts: ['scoreboard'], hold: true }, label: 'Ver o placar' },
+      ]
+    : [];
   const all = zone === 7 || fighting ? rows : [...rows, ...extra];
   return (
     <div className="space3d-controls" data-open={open ? 'true' : undefined}>
-      <button className="space3d-controls-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        Comandos
+      <button className="space3d-controls-toggle" aria-expanded={open} onClick={onToggle}>
+        <span>Comandos</span>
+        <Binding action="help" />
       </button>
       {open && (
         <ul>
@@ -167,7 +194,7 @@ export function ControlsPanel({ zone, fighting }: { zone: number; fighting: bool
             <span className="space3d-input">
               <Keys keys={['Esc']} />
             </span>
-            <span>Pausar · mudar os atalhos</span>
+            <span>Menu · partida · atalhos</span>
           </li>
         </ul>
       )}
@@ -175,16 +202,24 @@ export function ControlsPanel({ zone, fighting }: { zone: number; fighting: bool
   );
 }
 
-/** Mouse solto: aviso para clicar e voltar a controlar a visão. Preso: a mira no centro. */
-export function LockHint({ locked, fighting }: { locked: boolean; fighting: boolean }) {
-  if (locked) return fighting ? null : <div className="space3d-dot" aria-hidden="true" />;
-  if (fighting) return null;
+/** Mouse preso: a mira no centro (no x1 a mira é do DuelHud). */
+export function LockHint({ fighting }: { fighting: boolean }) {
+  return fighting ? null : <div className="space3d-dot" aria-hidden="true" />;
+}
+
+/**
+ * Mouse solto com o menu fechado (Esc fechou, ou no x1 e na corrida, onde o menu não abre sozinho): uma faixa leve
+ * que não cobre o jogo. O clique na cena prende o mouse de novo; Esc abre o menu.
+ */
+export function LockStrip() {
   return (
-    <div className="space3d-lock" role="status">
+    <div className="space3d-lockstrip" role="status">
       <MouseIcon btn="left" />
       <span>
-        <strong>Clique para jogar</strong>
-        <span className="small">o mouse controla a visão · Esc solta</span>
+        <strong>Voltar ao jogo:</strong> clique na tela
+      </span>
+      <span className="space3d-lockstrip-esc">
+        <Keys keys={['Esc']} /> menu
       </span>
     </div>
   );
@@ -214,7 +249,7 @@ const GAMES: { zone: number; icon: IconName; title: string; text: string; hue: s
   { zone: 7, icon: 'motorbike', title: 'Corrida de moto', text: 'Três voltas na pista, com turbo.', hue: '#3f8fe0' },
 ];
 
-type MenuTab = 'games' | 'keys';
+export type MenuTab = 'games' | 'keys' | 'match';
 
 /**
  * Menu do jogo (Esc solta o mouse e abre): à esquerda Continuar, Jogos, Comandos e Sair; à direita os jogos em
@@ -226,10 +261,19 @@ export function GameMenu({
   counts,
   place,
   onResume,
+  onClose,
   onPick,
   onLeave,
+  onHowTo,
+  match,
 }: {
   tab?: MenuTab;
+  /** Como jogar: refaz o tutorial do jogo atual e volta ao jogo */
+  onHowTo?: () => void;
+  /** aba "Esta partida" (ações da partida da arena ou do x1); null = sem partida aqui */
+  match?: ReactNode;
+  /** Esc: fecha o menu sem prender o mouse (o navegador não deixa prender sem um clique) */
+  onClose: () => void;
   zone: number;
   /** pessoas em cada jogo agora (zona → quantidade, contando comigo) */
   counts: Record<number, number>;
@@ -242,12 +286,42 @@ export function GameMenu({
   const [tab, setTab] = useState<MenuTab>(initialTab);
   useEffect(() => setTab(initialTab), [initialTab]);
   const here = GAMES.find((g) => g.zone === zone) ?? GAMES[0]!;
-  const nav = [
+  const nav: { id: 'resume' | MenuTab | 'leave' | 'howto'; icon: IconName; label: string }[] = [
     { id: 'resume', icon: 'play', label: 'Continuar' },
+    ...(match ? [{ id: 'match' as const, icon: 'trophy' as const, label: 'Esta partida' }] : []),
+    ...(onHowTo ? [{ id: 'howto' as const, icon: 'refresh' as const, label: 'Como jogar' }] : []),
     { id: 'games', icon: 'gamepad', label: 'Jogos' },
     { id: 'keys', icon: 'keyboard', label: 'Comandos' },
     { id: 'leave', icon: 'logout', label: 'Sair do espaço' },
-  ] as const;
+  ];
+  const shown: MenuTab = tab === 'match' && !match ? 'games' : tab;
+
+  // Esc fecha; Tab fica preso dentro do menu (é um diálogo modal)
+  const onKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      uiSound('uiBack');
+      onClose();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const items = [
+      ...e.currentTarget.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])'),
+    ].filter((el) => !el.hasAttribute('disabled'));
+    if (!items.length) return;
+    const first = items[0]!;
+    const last = items[items.length - 1]!;
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || !e.currentTarget.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (active === last || !e.currentTarget.contains(active))) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   // setas para cima/baixo andam pelo menu da esquerda
   const onNavKey = (e: React.KeyboardEvent<HTMLElement>) => {
@@ -256,15 +330,16 @@ export function GameMenu({
     const i = items.indexOf(document.activeElement as HTMLButtonElement);
     const next = items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length];
     next?.focus();
+    uiSound('uiMove');
     e.preventDefault();
   };
 
   return (
-    <div className="gm" role="dialog" aria-modal="true" aria-label="Menu do jogo">
+    <div className="gm" role="dialog" aria-modal="true" aria-label="Menu do jogo" onKeyDown={onKey}>
       <aside className="gm-side">
         <div className="gm-brand">
           <span className="gm-paused">
-            <Icon name="pause" size={14} /> Pausado
+            <Icon name="pause" size={14} /> Menu — a partida continua
           </span>
           <strong>Espaço 3D</strong>
           <span className="gm-where">
@@ -278,11 +353,13 @@ export function GameMenu({
               key={n.id}
               className="gm-navbtn"
               data-kind={n.id}
-              aria-current={tab === n.id ? 'page' : undefined}
+              aria-current={shown === n.id ? 'page' : undefined}
               autoFocus={n.id === 'resume'}
               onClick={() => {
+                uiSound(n.id === 'leave' ? 'uiBack' : 'uiOk');
                 if (n.id === 'resume') onResume();
                 else if (n.id === 'leave') onLeave();
+                else if (n.id === 'howto') onHowTo?.();
                 else setTab(n.id);
               }}
             >
@@ -292,15 +369,20 @@ export function GameMenu({
           ))}
         </nav>
         <p className="gm-foot">
-          <Keys keys={['↑', '↓']} /> navegar · <Keys keys={['Enter']} /> escolher
+          <Keys keys={['↑', '↓']} /> navegar · <Keys keys={['Enter']} /> escolher · <Keys keys={['Esc']} /> fechar
         </p>
       </aside>
       <section className="gm-main">
-        {tab === 'games' ? (
+        {shown === 'match' ? (
+          match
+        ) : shown === 'games' ? (
           <>
             <header className="gm-head">
               <h2>Jogos</h2>
-              <p>Escolha um jogo para ir até ele. Para um x1 no soco, chegue perto de alguém na sala e aperte F.</p>
+              <p>
+                Escolha um jogo para ir até ele. Para um x1 no soco, chegue perto de alguém na sala e aperte{' '}
+                <Binding action="interact" />.
+              </p>
             </header>
             <ul className="gm-grid">
               {GAMES.map((g) => {
@@ -312,7 +394,11 @@ export function GameMenu({
                       className="gm-card"
                       style={{ '--hue': g.hue } as React.CSSProperties}
                       aria-current={cur ? 'true' : undefined}
-                      onClick={() => (cur ? onResume() : onPick(g.zone))}
+                      onClick={() => {
+                        uiSound('uiOk');
+                        if (cur) onResume();
+                        else onPick(g.zone);
+                      }}
                     >
                       <span className="gm-art" aria-hidden="true">
                         <Icon name={g.icon} size={40} />
@@ -398,7 +484,10 @@ function KeysPanel() {
             <button
               className="gm-btn"
               aria-label={`Alterar: ${ACTION_LABELS[a]} (agora ${codeLabel(map[a])})`}
-              onClick={() => setListening(listening === a ? null : a)}
+              onClick={() => {
+                uiSound(listening === a ? 'uiBack' : 'uiOk');
+                setListening(listening === a ? null : a);
+              }}
             >
               {listening === a ? 'Cancelar' : 'Alterar'}
             </button>
@@ -410,6 +499,37 @@ function KeysPanel() {
           Restaurar padrão
         </button>
       </div>
+      <SoundPanel />
     </>
+  );
+}
+
+/** "Efeitos do jogo": liga/desliga e volume próprio (salvos neste computador) */
+function SoundPanel() {
+  const on = useSfxPrefs((p) => p.on);
+  const vol = useSfxPrefs((p) => p.vol);
+  return (
+    <section className="gm-sound" aria-label="Som do jogo">
+      <h3>Som</h3>
+      <Switch
+        checked={on}
+        onChange={(v) => {
+          useSfxPrefs.getState().setOn(v);
+          if (v) uiSound('uiOk');
+        }}
+        label="Efeitos do jogo"
+        description="Bola, apito, motor e menu. Abaixam quando alguém fala. Seguem os Sons das notificações."
+      />
+      <Slider
+        label="Volume dos efeitos"
+        value={Math.round(vol * 100)}
+        min={0}
+        max={100}
+        step={5}
+        format={(v) => `${v}%`}
+        disabled={!on}
+        onChange={(v) => useSfxPrefs.getState().setVol(v / 100)}
+      />
+    </section>
   );
 }

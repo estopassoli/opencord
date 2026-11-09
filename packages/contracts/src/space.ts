@@ -175,6 +175,21 @@ export type SpaceScreen = z.infer<typeof SpaceScreen>;
 export const SPACE_TOGGLE_KINDS = ['lamp', 'fireplace', 'arcade'] as const satisfies readonly SpaceItemKind[];
 export const SpaceItemId = z.string().regex(/^[a-z0-9]{1,12}$/);
 
+export const MATCH_PHASES = ['idle', 'countdown', 'playing', 'ended'] as const;
+export type MatchPhase = (typeof MATCH_PHASES)[number];
+
+/**
+ * Partida de uma arena: `idle` (esperando o Jogar), `countdown` (3-2-1 até `startAt`), `playing` e `ended` (com o
+ * vencedor). `startAt` e `endedAt` no relógio do servidor. `practice`: um lado vazio (treino, fora da classificação).
+ */
+export const SpaceMatch = z.object({
+  phase: z.enum(MATCH_PHASES),
+  startAt: z.number(),
+  winner: z.enum(['a', 'b']).optional(),
+  endedAt: z.number().optional(),
+});
+export type SpaceMatch = z.infer<typeof SpaceMatch>;
+
 export const SpaceSession = z.object({
   channelId: Id,
   serverId: Id,
@@ -191,9 +206,18 @@ export const SpaceSession = z.object({
       startAt: z.number(),
       laps: z.number().int(),
       results: z.array(z.object({ userId: Id, ms: z.number().int() })),
+      /** quem estava na pista na largada (para o DNF) */
+      racers: z.array(Id).optional(),
+      /** a corrida fecha neste instante (relógio do servidor): 30 s depois da chegada do 1º */
+      endsAt: z.number().optional(),
+      /** fechada: quem não chegou até `endsAt` não termina (DNF) */
+      closed: z.boolean().optional(),
+      dnf: z.array(Id).optional(),
     })
     .nullable()
     .optional(),
+  /** partida de cada arena com regra de vitória ("1" basquete … "5" ping pong); ver MATCH_RULES */
+  matches: z.record(z.string(), SpaceMatch).optional(),
   updatedBy: Id.nullable(),
   revision: z.number().int(),
 });
@@ -202,7 +226,9 @@ export type SpaceSession = z.infer<typeof SpaceSession>;
 /**
  * Posição de um avatar (enviada ~10x/s enquanto anda, 1x/s parado).
  * `a`: 0 parado, 1 andando, 2 correndo, 3 pulando, 4 acenando, 5 sentado,
- * 6 soco rápido, 7 soco forte, 8 defendendo, 9 nocauteado (x1).
+ * 6 soco rápido, 7 soco forte, 8 defendendo, 9 nocauteado (x1); golpes de esporte (plano 2026-11-09 P5):
+ * 10 chute, 11 raquetada de direita (forehand), 12 raquetada de esquerda (backhand), 13 manchete.
+ * App antigo que recebe 10–13 mostra o boneco parado.
  */
 export const SpaceMove = z.object({
   channelId: Id,
@@ -210,7 +236,7 @@ export const SpaceMove = z.object({
   y: z.number().finite().min(0).max(10),
   z: Coord,
   ry: z.number().finite().min(-7).max(7),
-  a: z.number().int().min(0).max(9),
+  a: z.number().int().min(0).max(13),
   /** onde a pessoa está: 0 (ou ausente) a sala do servidor; 1 basquete, 2 futebol, 3 tênis, 4 vôlei, 5 ping pong,
    * 6 sinuca, 7 corrida de moto */
   zone: z.number().int().min(0).max(7).optional(),
@@ -502,6 +528,8 @@ export const SpaceScore = z.object({
   points: z.number().int().min(1).max(3),
   /** quem marcou (para a classificação); precisa estar na chamada */
   by: Id.optional(),
+  /** quantos de cada time o app vê na arena (o servidor confere com as posições; um lado vazio = treino) */
+  teams: z.object({ a: z.number().int().min(0).max(99), b: z.number().int().min(0).max(99) }).optional(),
 });
 
 /** Sinuca: as 16 bolas (0 = branca) [x, z, encaçapada 0/1], de quem é a vez e se ainda estão rolando. */
@@ -513,6 +541,8 @@ export const SpacePool = z.object({
     )
     .max(16),
   turn: z.enum(['a', 'b']),
+  /** de quem é a vez (pessoa, em rodízio entre os times); sem isto, vale o time (`turn`) */
+  turnId: z.string().min(1).max(64).optional(),
   moving: z.boolean(),
   /** contador de tacadas: a mais nova manda (como a posse da bola) */
   t: z.number().int().min(0),
@@ -523,3 +553,79 @@ export const RACE_LAPS = 3;
 /** prova mínima plausível (anti-trapaça grosseira): uma volta não sai em menos de 8 s (a pista tem ~355 m) */
 export const RACE_MIN_LAP_MS = 8_000;
 export const RACE_COUNTDOWN_MS = 4000;
+
+/** a corrida fecha este tempo depois da chegada do 1º; quem não chegou fica como DNF */
+export const RACE_CLOSE_MS = 30_000;
+
+// ---------- partidas: alvo, fim e vencedor ----------
+/** arenas com partida (alvo e vencedor); sinuca e corrida têm a própria regra */
+export type MatchZone = 1 | 2 | 3 | 4 | 5;
+export const MATCH_COUNTDOWN_MS = 3000;
+
+export interface MatchRule {
+  /** pontos para vencer */
+  target: number;
+  /** diferença mínima para vencer (2 = "vence por 2") */
+  winBy: number;
+  /** tempo de jogo (ms); acabou com placar diferente, vence quem está na frente; empatado, o próximo ponto vence */
+  timeMs: number | null;
+  /** o menor ponto de um lance (basquete: cesta de 2), para o match point */
+  step: number;
+  /** empate no fim do tempo: gol de ouro (o próximo ponto vence) */
+  golden?: boolean;
+}
+
+export const MATCH_RULES: Record<MatchZone, MatchRule> = {
+  1: { target: 21, winBy: 1, timeMs: 180_000, step: 2, golden: true },
+  2: { target: 5, winBy: 1, timeMs: 180_000, step: 1, golden: true },
+  3: { target: 7, winBy: 2, timeMs: null, step: 1 },
+  4: { target: 15, winBy: 2, timeMs: null, step: 1 },
+  5: { target: 11, winBy: 2, timeMs: null, step: 1 },
+};
+
+export function isMatchZone(zone: number): zone is MatchZone {
+  return zone === 1 || zone === 2 || zone === 3 || zone === 4 || zone === 5;
+}
+
+/** Texto curto da regra ("até 11, vence por 2", "21 pontos ou 3 min"). */
+export function matchRuleLabel(zone: MatchZone): string {
+  const r = MATCH_RULES[zone];
+  const unit = zone === 2 ? 'gols' : 'pontos';
+  if (r.timeMs) return `${r.target} ${unit} ou ${Math.round(r.timeMs / 60000)} min`;
+  return r.winBy > 1 ? `até ${r.target}, vence por ${r.winBy}` : `até ${r.target}`;
+}
+
+/**
+ * Quem venceu (ou null, se a partida continua). `elapsedMs` = tempo de jogo desde o VAI.
+ * Alvo: chegou ao alvo com a diferença mínima. Tempo: esgotado com placar diferente vence quem está na frente; empatado,
+ * segue até o próximo ponto (gol de ouro).
+ */
+export function matchWinner(zone: MatchZone, score: { a: number; b: number }, elapsedMs = 0): 'a' | 'b' | null {
+  const r = MATCH_RULES[zone];
+  const lead: 'a' | 'b' | null = score.a > score.b ? 'a' : score.b > score.a ? 'b' : null;
+  if (!lead) return null;
+  const top = Math.max(score.a, score.b);
+  if (top >= r.target && Math.abs(score.a - score.b) >= r.winBy) return lead;
+  if (r.timeMs !== null && elapsedMs >= r.timeMs) return lead;
+  return null;
+}
+
+/** `side` vence com o próximo ponto? (o selo MATCH POINT) */
+export function isMatchPoint(
+  zone: MatchZone,
+  score: { a: number; b: number },
+  side: 'a' | 'b',
+  elapsedMs = 0,
+): boolean {
+  if (matchWinner(zone, score, elapsedMs)) return false;
+  const step = MATCH_RULES[zone].step;
+  const next = { ...score, [side]: score[side] + step };
+  return matchWinner(zone, next, elapsedMs) === side;
+}
+
+/** Fase de agora: a contagem vira `playing` sozinha quando passa do `startAt` (relógio do servidor). */
+export function matchPhase(m: SpaceMatch | undefined, now: number): MatchPhase {
+  if (!m) return 'idle';
+  if (m.phase === 'countdown' && now >= m.startAt) return 'playing';
+  return m.phase;
+}

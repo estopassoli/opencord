@@ -1,6 +1,12 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, type OnModuleDestroy } from '@nestjs/common';
 import {
   generateSpace,
+  isMatchZone,
+  MATCH_COUNTDOWN_MS,
+  MATCH_RULES,
+  matchPhase,
+  matchWinner,
+  RACE_CLOSE_MS,
   Permission,
   rooms,
   SpaceLayout,
@@ -28,6 +34,8 @@ const TTL_S = 6 * 60 * 60;
 const key = (channelId: string) => `space:${channelId}`;
 /** quem está na chamada muda pouco: a lista para repassar posições é relida no máximo a cada 2 s */
 const CALL_CACHE_MS = 2000;
+/** posição mais velha que isto não conta para "quem está na arena" (treino e largada) */
+const POSE_FRESH_MS = 6000;
 
 /**
  * Espaço 3D da chamada (ADR-0055).
@@ -36,7 +44,9 @@ const CALL_CACHE_MS = 2000;
  * - Posições: só repassadas a quem está na mesma chamada, sem guardar nada (presença efêmera, sem garantia de entrega).
  */
 @Injectable()
-export class SpaceService {
+export class SpaceService implements OnModuleDestroy {
+  /** viradas de tempo (fim do tempo da partida, fechamento da corrida) por chamada */
+  private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly calls = new Map<string, { channelId: string; peers: string[]; at: number }>();
 
   constructor(
@@ -124,7 +134,82 @@ export class SpaceService {
 
   async session(userId: string, channelId: string): Promise<SpaceSession | null> {
     await this.requireInCall(userId, channelId);
-    return this.loadSession(channelId);
+    const s = await this.loadSession(channelId);
+    if (!s) return null;
+    const settled = this.settle(s, Date.now());
+    return settled === s ? s : this.publishSession(settled);
+  }
+
+  onModuleDestroy() {
+    for (const t of this.timers.values()) clearTimeout(t);
+    this.timers.clear();
+  }
+
+  /**
+   * Viradas que dependem só do relógio: contagem → em jogo, tempo esgotado → fim (se houver vencedor) e a corrida que
+   * fecha 30 s depois do 1º (quem não chegou = DNF). Devolve a mesma sessão quando nada mudou.
+   */
+  private settle(s: SpaceSession, now: number): SpaceSession {
+    let out = s;
+    if (s.matches) {
+      let matches: NonNullable<SpaceSession['matches']> | null = null;
+      for (const [k, m] of Object.entries(s.matches)) {
+        const zone = Number(k);
+        if (!isMatchZone(zone)) continue;
+        const phase = matchPhase(m, now);
+        let next = m;
+        if (phase === 'playing') {
+          const w = matchWinner(zone, s.scores?.[k] ?? { a: 0, b: 0 }, now - m.startAt);
+          next = w ? { phase: 'ended', startAt: m.startAt, winner: w, endedAt: now } : { ...m, phase: 'playing' };
+        }
+        if (next.phase !== m.phase) (matches ??= { ...s.matches })[k] = next;
+      }
+      if (matches) out = { ...out, matches };
+    }
+    const race = s.race;
+    if (race && !race.closed && race.endsAt !== undefined && now >= race.endsAt) {
+      const done = new Set(race.results.map((r) => r.userId));
+      out = { ...out, race: { ...race, closed: true, dnf: (race.racers ?? []).filter((u) => !done.has(u)) } };
+    }
+    if (out !== s) out = { ...out, revision: s.revision + 1 };
+    return out;
+  }
+
+  /** acorda em `at` (relógio do servidor) para virar o que depende do tempo e avisar todos da chamada */
+  private wakeAt(channelId: string, what: string, at: number) {
+    const k = `${channelId}:${what}`;
+    const old = this.timers.get(k);
+    if (old) clearTimeout(old);
+    const t = setTimeout(
+      () => {
+        this.timers.delete(k);
+        void this.tick(channelId).catch(() => undefined);
+      },
+      Math.max(0, at - Date.now()) + 50,
+    );
+    t.unref?.();
+    this.timers.set(k, t);
+  }
+
+  private async tick(channelId: string) {
+    const s = await this.loadSession(channelId);
+    if (!s) return;
+    const settled = this.settle(s, Date.now());
+    if (settled !== s) await this.publishSession(settled);
+  }
+
+  /** quantos de cada time estão numa arena agora, pelas posições recentes de quem está na chamada */
+  private async teamsIn(channelId: string, zone: number): Promise<{ a: number; b: number; known: boolean }> {
+    const members = await this.r.smembers(`voice:channel:${channelId}`);
+    const out = { a: 0, b: 0, known: false };
+    for (const u of members) {
+      const p = this.poseOf(u, POSE_FRESH_MS);
+      if (!p || p.channelId !== channelId || (p.zone ?? 0) !== zone) continue;
+      out.known = true;
+      if (p.team === 'b') out.b++;
+      else out.a++;
+    }
+    return out;
   }
 
   private async loadSession(channelId: string): Promise<SpaceSession | null> {
@@ -155,6 +240,7 @@ export class SpaceService {
       ...(prev?.scores ? { scores: prev.scores } : {}),
       ...(prev?.board ? { board: prev.board } : {}),
       ...(prev?.race ? { race: prev.race } : {}),
+      ...(prev?.matches ? { matches: prev.matches } : {}),
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
     });
@@ -175,6 +261,7 @@ export class SpaceService {
       ...(prev?.scores ? { scores: prev.scores } : {}),
       ...(prev?.board ? { board: prev.board } : {}),
       ...(prev?.race ? { race: prev.race } : {}),
+      ...(prev?.matches ? { matches: prev.matches } : {}),
       updatedBy: userId,
       revision: (prev?.revision ?? 0) + 1,
     });
@@ -234,24 +321,45 @@ export class SpaceService {
     const serverId = await this.requireInCall(userId, channelId);
     const prev = await this.loadSession(channelId);
     const base: SpaceSession = prev ?? { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
-    const race = { startAt: Date.now() + RACE_COUNTDOWN_MS, laps: RACE_LAPS, results: [] };
+    // quem está na pista agora (e quem largou) corre; quem não chegar até o fechamento fica como DNF
+    const racers = new Set([userId]);
+    for (const u of await this.r.smembers(`voice:channel:${channelId}`)) {
+      const p = this.poseOf(u, POSE_FRESH_MS);
+      if (p?.channelId === channelId && p.zone === 7) racers.add(u);
+    }
+    const race = { startAt: Date.now() + RACE_COUNTDOWN_MS, laps: RACE_LAPS, results: [], racers: [...racers] };
+    const pending = this.timers.get(`${channelId}:race`);
+    if (pending) clearTimeout(pending);
+    this.timers.delete(`${channelId}:race`);
     return this.publishSession({ ...base, race, updatedBy: userId, revision: base.revision + 1 });
   }
 
   /** chegada: uma por pessoa; o tempo precisa caber no relógio do servidor e ser plausível */
   async raceFinish(userId: string, channelId: string, ms: number): Promise<SpaceSession> {
     const serverId = await this.requireInCall(userId, channelId);
-    const prev = await this.loadSession(channelId);
-    const race = prev?.race;
-    if (!prev || !race) throw new BadRequestException('nenhuma corrida em andamento');
-    const elapsed = Date.now() - race.startAt;
+    const loaded = await this.loadSession(channelId);
+    if (!loaded?.race) throw new BadRequestException('nenhuma corrida em andamento');
+    const now = Date.now();
+    const prev = this.settle(loaded, now);
+    const race = prev.race!;
+    // fechada: quem chega depois fica como DNF (a sessão volta como está)
+    if (race.closed) return prev === loaded ? prev : this.publishSession(prev);
+    const elapsed = now - race.startAt;
     if (ms < race.laps * RACE_MIN_LAP_MS || ms > elapsed + 3000) throw new BadRequestException('tempo inválido');
     if (race.results.some((r) => r.userId === userId)) return prev;
     const results = [...race.results, { userId, ms }].sort((a, b) => a.ms - b.ms);
+    const racers = [...new Set([...(race.racers ?? []), userId])];
+    // o 1º chegou: a corrida fecha daqui a 30 s; todos chegaram: fecha já
+    const endsAt = race.endsAt ?? now + RACE_CLOSE_MS;
+    const all = racers.every((u) => results.some((r) => r.userId === u));
+    const next = all
+      ? { ...race, results, racers, endsAt, closed: true, dnf: [] }
+      : { ...race, results, racers, endsAt };
+    if (!all) this.wakeAt(channelId, 'race', endsAt);
     return this.publishSession({
       ...prev,
       serverId,
-      race: { ...race, results },
+      race: next,
       updatedBy: userId,
       revision: prev.revision + 1,
     });
@@ -267,37 +375,109 @@ export class SpaceService {
     side: 'a' | 'b',
     points: number,
     by?: string,
+    teams?: { a: number; b: number },
   ): Promise<SpaceSession> {
     const serverId = await this.requireInCall(userId, channelId);
-    const prev = await this.loadSession(channelId);
+    const loaded = await this.loadSession(channelId);
     const k = `${channelId}:${zone}`;
-    const base: SpaceSession = prev ?? { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
-    if (Date.now() - (this.lastScore.get(k) ?? 0) < 1500) return base;
-    this.lastScore.set(k, Date.now());
+    const now = Date.now();
+    const base: SpaceSession = loaded
+      ? this.settle(loaded, now)
+      : { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
+    const key = String(zone);
+    const match = isMatchZone(zone) ? base.matches?.[key] : undefined;
+    // partida com alvo: ponto só vale em jogo (antes do VAI, esperando o Jogar ou depois do fim, não conta)
+    if (match && matchPhase(match, now) !== 'playing') return base === loaded ? base : this.publishSession(base);
+    if (now - (this.lastScore.get(k) ?? 0) < 1500) return base;
+    this.lastScore.set(k, now);
     if (this.lastScore.size > 2000) this.lastScore.clear();
     const scores = { ...(base.scores ?? {}) };
-    const cur = scores[String(zone)] ?? { a: 0, b: 0 };
-    scores[String(zone)] = { ...cur, [side]: Math.min(999, cur[side] + points) };
-    // classificação: só conta para quem está na mesma chamada
+    const cur = scores[key] ?? { a: 0, b: 0 };
+    const score = { ...cur, [side]: Math.min(999, cur[side] + points) };
+    scores[key] = score;
+    // classificação: só conta para quem está na mesma chamada, e não no treino (um lado vazio)
     const board = { ...(base.board ?? {}) };
-    if (by) {
+    const seen = await this.teamsIn(channelId, zone);
+    const count = seen.known ? seen : teams;
+    const practice = !!count && (count.a === 0 || count.b === 0);
+    if (by && !practice) {
       const st = await this.voice.stateOf(by);
       if (st?.channelId === channelId) {
-        const z = { ...(board[String(zone)] ?? {}) };
+        const z = { ...(board[key] ?? {}) };
         z[by] = Math.min(9999, (z[by] ?? 0) + points);
-        board[String(zone)] = z;
+        board[key] = z;
       }
     }
-    return this.publishSession({ ...base, scores, board, updatedBy: userId, revision: base.revision + 1 });
+    let matches = base.matches;
+    if (match && isMatchZone(zone)) {
+      const w = matchWinner(zone, score, now - match.startAt);
+      matches = {
+        ...matches,
+        [key]: w ? { phase: 'ended', startAt: match.startAt, winner: w, endedAt: now } : { ...match, phase: 'playing' },
+      };
+    }
+    return this.publishSession({
+      ...base,
+      scores,
+      board,
+      ...(matches ? { matches } : {}),
+      updatedBy: userId,
+      revision: base.revision + 1,
+    });
   }
 
+  /** Jogar/Revanche: zera e abre a contagem de 3 s para todos; no meio de uma partida não faz nada */
+  async matchStart(userId: string, channelId: string, zone: number): Promise<SpaceSession> {
+    const serverId = await this.requireInCall(userId, channelId);
+    if (!isMatchZone(zone)) throw new BadRequestException('essa arena não tem partida');
+    const loaded = await this.loadSession(channelId);
+    const now = Date.now();
+    const base: SpaceSession = loaded
+      ? this.settle(loaded, now)
+      : { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
+    const key = String(zone);
+    const phase = matchPhase(base.matches?.[key], now);
+    if (phase === 'countdown' || phase === 'playing') return base === loaded ? base : this.publishSession(base);
+    const startAt = now + MATCH_COUNTDOWN_MS;
+    this.lastScore.delete(`${channelId}:${zone}`);
+    const time = MATCH_RULES[zone].timeMs;
+    if (time !== null) this.wakeAt(channelId, `match:${zone}`, startAt + time);
+    return this.publishSession({
+      ...base,
+      scores: { ...(base.scores ?? {}), [key]: { a: 0, b: 0 } },
+      board: { ...(base.board ?? {}), [key]: {} },
+      matches: { ...(base.matches ?? {}), [key]: { phase: 'countdown', startAt } },
+      updatedBy: userId,
+      revision: base.revision + 1,
+    });
+  }
+
+  /** Zerar: só com a partida parada (esperando ou encerrada); no meio da partida devolve a sessão sem mudar nada */
   async resetScore(userId: string, channelId: string, zone: number): Promise<SpaceSession> {
     const serverId = await this.requireInCall(userId, channelId);
-    const prev = await this.loadSession(channelId);
-    const base: SpaceSession = prev ?? { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
-    const scores = { ...(base.scores ?? {}), [String(zone)]: { a: 0, b: 0 } };
-    const board = { ...(base.board ?? {}), [String(zone)]: {} };
-    return this.publishSession({ ...base, scores, board, updatedBy: userId, revision: base.revision + 1 });
+    const loaded = await this.loadSession(channelId);
+    const now = Date.now();
+    const base: SpaceSession = loaded
+      ? this.settle(loaded, now)
+      : { channelId, serverId, screen: null, updatedBy: null, revision: 0 };
+    const key = String(zone);
+    const match = isMatchZone(zone) ? base.matches?.[key] : undefined;
+    const phase = matchPhase(match, now);
+    if (match && (phase === 'countdown' || phase === 'playing'))
+      return base === loaded ? base : this.publishSession(base);
+    const scores = { ...(base.scores ?? {}), [key]: { a: 0, b: 0 } };
+    const board = { ...(base.board ?? {}), [key]: {} };
+    const matches = isMatchZone(zone)
+      ? { ...(base.matches ?? {}), [key]: { phase: 'idle' as const, startAt: now } }
+      : base.matches;
+    return this.publishSession({
+      ...base,
+      scores,
+      board,
+      ...(matches ? { matches } : {}),
+      updatedBy: userId,
+      revision: base.revision + 1,
+    });
   }
 
   async leave(userId: string, channelId: string) {

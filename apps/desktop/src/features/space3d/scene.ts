@@ -8,20 +8,29 @@ import {
   DUEL_RING_R,
   DUEL_STRONG_COOLDOWN_MS,
   SPACE_TOGGLE_KINDS,
+  SPACE_VOICE_FAR,
   spaceVoiceGain,
+  type MatchPhase,
   type SpaceLayout,
   type SportZone,
 } from '@opencord/contracts';
 import { buildArenaDecor } from './arena3d';
+import { GameBus, type GameEvent } from './events';
+import { cancelHeld, InputBus } from './input';
+import { Juice, type JuiceLabel } from './juice';
 import { PoolPlay, type PoolMsg } from './pool';
 import { buildPoolDecor } from './pooldecor';
-import { buildRaceDecor, startGrid, stepBike, fireBoost, type Bike } from './race';
+import { buildRaceDecor, startGrid, stepBike, fireBoost, TRACK, type Bike } from './race';
+import { attackHoop, clampToHalf, GOOD_BAND, netSideOf, type PoolSeat } from './rules';
+import { sfx } from './sfx';
+import { chargeStep } from './sfxmap';
 import { SportPlay, type RemoteBall } from './sportplay';
-import { ARENAS, type BallState } from './sports';
+import { ARENAS, GOAL_X, HOOP_X, RIM_Y, type BallState } from './sports';
+import type { TutorialTarget } from './tutorial';
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 import { peers, PEER_TIMEOUT_MS } from '../../store/space';
-import { Avatar, type Pose } from './avatar';
+import { Avatar, SWING_A, SWING_MS, type Pose, type SwingA } from './avatar';
 import { loadDoll } from './doll';
 import { actionsOf, normalizeCode, useBindings, type Action } from './bindings';
 import { findInteraction, standUpSpot, type Interaction } from './interact';
@@ -45,20 +54,26 @@ export interface SceneHooks {
   setGain(identity: string, g: number | null): void;
   /** quadros por segundo atuais (para a dica de desempenho) */
   onFps?(fps: number): void;
-  /** o que dá para fazer agora com F (null = nada ao alcance) */
+  /** o que dá para fazer agora, com a tecla da ação (null = nada ao alcance); só aparece quando dá para fazer */
   onPrompt?(p: { label: string; action: 'interact' | 'primary' } | null): void;
+  /** estado do jogo que não é ação (sinuca: "Sua vez", "Vez de Ana", "Bolas rolando…"); null = nada */
+  onStatus?(text: string | null): void;
+  /** atalho do placar segurado (true) ou solto (false) */
+  onScoreboard?(held: boolean): void;
+  /** atalho de começar partida / revanche */
+  onRematch?(): void;
   /** interações que não são da cena: ligar/desligar (para todos), telão, música, desafiar */
   onAction?(i: Exclude<Interaction, { kind: 'sit' }>): void;
   /** x1: soco (o servidor decide se acertou) */
   onPunch?(strong: boolean): void;
-  /** F quando há um convite de x1 para mim: aceitar */
+  /** Interagir quando há um convite de x1 para mim: aceitar */
   onAcceptKey?(): boolean;
   /** esportes: estado da bola para a rede e ponto marcado */
   sendBall?(zone: SportZone, b: BallState & { held: string | null; t: number }): void;
-  /** ponto marcado; `by` = quem marcou (eu, quando o ponto é do meu time) */
-  onScore?(zone: SportZone, side: 'a' | 'b', points: number, by?: string): void;
-  /** carga do arremesso de basquete (0–1; null = sem carregar) */
-  onCharge?(c: number | null): void;
+  /** ponto marcado; `by` = quem marcou (eu, quando o ponto é do meu time); `teams` = quantos de cada time na arena */
+  onScore?(zone: SportZone, side: 'a' | 'b', points: number, by?: string, teams?: { a: number; b: number }): void;
+  /** carga do arremesso ou da tacada (0–1; null = sem carregar) e a faixa verde do basquete (null = sem faixa) */
+  onCharge?(c: number | null, band?: { lo: number; hi: number } | null): void;
   /** x1: mira travada (cursor preso no centro) ou não */
   onAimLock?(locked: boolean): void;
   /** o sistema não deixou prender o mouse (o jogo segue com arrastar para olhar) */
@@ -68,6 +83,8 @@ export interface SceneHooks {
   /** corrida: volta, item e turbo (para o painel) e a chegada (tempo de prova) */
   onRace?(s: { lap: number; item: boolean; boost: boolean; speed: number }): void;
   onRaceFinish?(ms: number): void;
+  /** atalho "Mostrar os comandos" */
+  onHelp?(): void;
 }
 
 export interface FightState {
@@ -82,6 +99,8 @@ export type ScreenSource = { kind: 'video'; el: HTMLVideoElement } | { kind: 'ht
 const WALK = 3.2;
 const RUN = 6.2;
 const JUMP_V = 5.2;
+/** giro da câmera pelo teclado (rad/s) */
+const TURN_SPEED = 2.4;
 const GRAVITY = 15;
 const YT_PX_W = 1280;
 const YT_PX_H = 720;
@@ -133,6 +152,8 @@ export class SpaceScene {
   private toggles: Record<string, boolean> = {};
   private current: Interaction | null = null;
   private promptLabel: string | null = null;
+  private statusLabel: string | null = null;
+  private scoreboardHeld = false;
   private lastPrompt = 0;
   private fight: FightState | null = null;
   private rings = new Map<string, THREE.Group>();
@@ -145,6 +166,35 @@ export class SpaceScene {
   zone: 0 | SportZone = 0;
   private mainLayout: SpaceLayout | null = null;
   private sport: SportPlay | null = null;
+  /** efeitos do jogo (ADR-0056): som, partículas, faixa de ponto e tutorial se penduram aqui */
+  readonly events = new GameBus();
+  /** o que a pessoa fez com os controles (tutorial e dicas, plano 2026-11-09 P4) */
+  readonly inputs = new InputBus();
+  /** marcador do tutorial no mundo (anel no chão e seta por cima do alvo) */
+  private marker: THREE.Group | null = null;
+  private markerTarget: TutorialTarget | null = null;
+  private wasHolding = false;
+  private lookYaw = 0;
+  private lookAcc = 0;
+  /** "reduzir movimento" do sistema (lido de novo quando muda): sem tremor, sem balanço, efeitos pela metade */
+  private readonly motionQuery =
+    typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  private reducedMotion = !!this.motionQuery?.matches;
+  /** sensação de impacto (plano 2026-11-09, P5): pausa, partículas, brilho, tremor, comemoração e o texto do golpe */
+  readonly juice: Juice;
+  private readonly shakeOff = new THREE.Vector3();
+  /** golpe de esporte que estou fazendo (estado `a` 10–13) */
+  private swingA: SwingA = SWING_A.kick;
+  private readonly raceFx: GameEvent[] = [];
+  /** desliga o som dos eventos (sfx.ts) */
+  private readonly sfxOff: () => void;
+  /** passo da carga já tocado (0–10) e se já entrou na faixa verde */
+  private chargeTick = -1;
+  private inBand = false;
+  /** corrida: posição anterior de cada piloto (velocidade do motor) e a pose anterior dos outros (soco) */
+  private readonly riderPrev = new Map<string, { x: number; z: number; v: number }>();
+  private readonly lastA = new Map<string, number>();
+  private raceCount: number | null = null;
   private decor: THREE.Group | null = null;
   private lastCharge: number | null = null;
   private swingUntil = 0;
@@ -155,6 +205,8 @@ export class SpaceScene {
   private lastRaceHud = '';
   /** meu time nas arenas */
   team: 'a' | 'b' = 'a';
+  /** fase da partida da arena atual (null = jogo livre) */
+  private matchPhase: MatchPhase | null = null;
   private readonly ro: ResizeObserver;
   /** editor: recebe os eventos do canvas quando mode === 'edit' */
   editorInput: {
@@ -180,6 +232,10 @@ export class SpaceScene {
     this.me = new Avatar(selfId, selfName);
     this.me.hideName();
     this.scene.add(this.me.root);
+    this.juice = new Juice(this.scene, { motion: this.reducedMotion ? 0 : 1 });
+    this.juice.attach(this.events);
+    this.sfxOff = sfx.attach(this.events, () => ({ me: this.selfId, team: this.team }));
+    this.motionQuery?.addEventListener?.('change', this.onMotionChange);
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -195,6 +251,11 @@ export class SpaceScene {
     this.raf = requestAnimationFrame(this.frame);
   }
 
+  private onMotionChange = () => {
+    this.reducedMotion = !!this.motionQuery?.matches;
+    this.juice.motion = this.reducedMotion ? 0 : 1;
+  };
+
   // ---------- ambiente ----------
   /** ambiente do servidor (a sala); nas arenas fica guardado para a volta */
   setLayout(l: SpaceLayout, keepPosition: boolean) {
@@ -203,9 +264,76 @@ export class SpaceScene {
   }
 
   setTeam(t: 'a' | 'b') {
+    const changed = t !== this.team;
     this.team = t;
     this.me.setTeam(this.zone && this.zone !== 7 ? t : null);
     this.lastSend = 0;
+    // trocou de time numa quadra: vai para a metade do time novo (nos jogos de rede a rede é parede)
+    if (changed && this.zone >= 1 && this.zone <= 5) {
+      this.sport?.drop(performance.now());
+      this.placeOnHalf(this.zone as SportZone, t);
+    }
+  }
+
+  /** fase da partida da arena atual (do servidor); null = jogo livre */
+  setMatch(phase: MatchPhase | null) {
+    this.matchPhase = phase;
+    this.sport?.setPhase(phase);
+  }
+
+  /** começa na própria metade, virado para o ataque (azul defende o lado −x) */
+  private placeOnHalf(z: SportZone, team: 'a' | 'b') {
+    const side = team === 'a' ? -1 : 1;
+    const a = ARENAS[z];
+    this.pose = {
+      x: side * Math.min(6, a.layout.width / 4),
+      y: 0,
+      z: 0,
+      ry: side > 0 ? -Math.PI / 2 : Math.PI / 2,
+      a: 0,
+    };
+    this.yaw = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+    this.me.place(this.pose);
+  }
+
+  /** quantos de cada time estão na minha arena agora (eu incluído): um lado vazio é treino */
+  private teamsHere(): { a: number; b: number } {
+    const out = { a: 0, b: 0 };
+    out[this.team]++;
+    const now = performance.now();
+    for (const [id, p] of peers)
+      if (id !== this.selfId && p.zone === this.zone && now - p.at < PEER_TIMEOUT_MS) out[p.team === 'b' ? 'b' : 'a']++;
+    return out;
+  }
+
+  /** quem está na sinuca e o time de cada um (eu incluído) */
+  private seatsHere(): PoolSeat[] {
+    const now = performance.now();
+    const seats: PoolSeat[] = [{ id: this.selfId, team: this.team }];
+    for (const [id, p] of peers)
+      if (id !== this.selfId && p.zone === 6 && now - p.at < PEER_TIMEOUT_MS)
+        seats.push({ id, team: p.team === 'b' ? 'b' : 'a' });
+    return seats;
+  }
+
+  /** tem adversário a menos de GOOD_BAND.contestR de mim */
+  private contested(): boolean {
+    const now = performance.now();
+    for (const [id, p] of peers)
+      if (
+        id !== this.selfId &&
+        p.zone === this.zone &&
+        now - p.at < PEER_TIMEOUT_MS &&
+        p.team !== undefined &&
+        p.team !== this.team &&
+        Math.hypot(p.x - this.pose.x, p.z - this.pose.z) < GOOD_BAND.contestR
+      )
+        return true;
+    return false;
+  }
+
+  private nameOf(id: string): string {
+    return this.participants.find((p) => p.identity === id)?.name ?? 'alguém';
   }
 
   /** vai para uma arena de esporte (1–3) ou volta para a sala (0) */
@@ -226,6 +354,7 @@ export class SpaceScene {
     this.zone = z;
     this.fight = null;
     this.sitting = null;
+    this.wasHolding = false;
     this.lastCharge = null;
     this.hooks.onCharge?.(null);
     const l = z ? ARENAS[z].layout : this.mainLayout;
@@ -242,26 +371,21 @@ export class SpaceScene {
       if (z === 6)
         this.pool = new PoolPlay(this.scene, this.selfId, {
           send: (m) => this.hooks.sendPool?.(m),
-          score: (side, points) => this.hooks.onScore?.(6, side, points, side === this.team ? this.selfId : undefined),
+          score: (side, points) =>
+            this.hooks.onScore?.(6, side, points, side === this.team ? this.selfId : undefined, this.teamsHere()),
+          emit: (e) => this.events.emit(e),
+          alive: () => this.aliveHere(),
+          players: () => this.seatsHere(),
+          nameOf: (id) => this.nameOf(id),
         });
       else {
         this.bike = startGrid(this.gridSlot());
         this.me.setBike(true);
         this.raceFinished = false;
+        this.raceCount = null;
       }
     } else if (z) {
-      // começa na própria metade (azul defende o lado −x)
-      const side = team === 'a' ? -1 : 1;
-      const a = ARENAS[z];
-      this.pose = {
-        x: side * Math.min(6, a.layout.width / 4),
-        y: 0,
-        z: 0,
-        ry: side > 0 ? -Math.PI / 2 : Math.PI / 2,
-        a: 0,
-      };
-      this.yaw = side > 0 ? Math.PI / 2 : -Math.PI / 2;
-      this.me.place(this.pose);
+      this.placeOnHalf(z, team);
       this.decor = buildArenaDecor(z);
       this.scene.add(this.decor);
       this.sport = new SportPlay(
@@ -270,14 +394,34 @@ export class SpaceScene {
         this.selfId,
         {
           sendBall: (b) => this.hooks.sendBall?.(z, b),
-          score: (side, points) => this.hooks.onScore?.(z, side, points, side === this.team ? this.selfId : undefined),
+          score: (side, points) =>
+            this.hooks.onScore?.(z, side, points, side === this.team ? this.selfId : undefined, this.teamsHere()),
+          emit: (e) => this.events.emit(e),
+          alive: () => this.aliveHere(),
+          team: () => this.team,
+          teamOf: (id) => peers.get(id)?.team,
+          poseOf: (id) => (id === this.selfId ? this.pose : (peers.get(id) ?? null)),
+          contested: () => this.contested(),
         },
         (id) => this.handOf(id),
         (side) => this.servePos(side),
       );
+      this.sport.setPhase(this.matchPhase);
     }
+    this.juice.setZone(z);
+    this.juice.setDecor(this.decor);
+    this.juice.setBall(this.sport?.mesh ?? null);
     this.lastSend = 0;
     this.lastPrompt = 0;
+  }
+
+  /** quem está vivo na minha zona agora (eu e quem mandou posição há pouco), para a troca de autoridade */
+  private aliveHere(): string[] {
+    const now = performance.now();
+    const ids = [this.selfId];
+    for (const [id, p] of peers)
+      if (id !== this.selfId && p.zone === this.zone && now - p.at < PEER_TIMEOUT_MS) ids.push(id);
+    return ids;
   }
 
   /** sinuca: bolas que chegaram pela rede */
@@ -304,6 +448,7 @@ export class SpaceScene {
     if (changed && this.zone === 7 && localStart !== null) {
       this.bike = startGrid(this.gridSlot());
       this.raceFinished = false;
+      this.raceCount = null;
     }
   }
 
@@ -317,6 +462,18 @@ export class SpaceScene {
     const b = this.bike!;
     const start = this.raceInfo.localStart;
     const go = start !== null && Date.now() >= start && !this.raceFinished;
+    // contagem 3-2-1 e "vai" (efeito)
+    if (start !== null && !this.raceFinished) {
+      const left = start - Date.now();
+      const n = left > 0 ? Math.ceil(left / 1000) : 0;
+      if (n !== this.raceCount && n <= 3) {
+        const at = { x: b.x, y: 1, z: b.z };
+        if (n > 0) this.events.emit({ kind: 'countdown', n, power: 0.6, zone: 7, at });
+        else if (this.raceCount !== null) this.events.emit({ kind: 'go', power: 1, zone: 7, at });
+        this.raceCount = n;
+      }
+    }
+    this.raceFx.length = 0;
     const events = stepBike(
       b,
       {
@@ -328,15 +485,24 @@ export class SpaceScene {
       dt,
       Date.now(),
       go,
+      this.raceFx,
     );
+    for (const e of this.raceFx) {
+      this.events.emit(e);
+      if (e.kind === 'lap' && e.lap === this.raceInfo.laps - 1)
+        this.events.emit({ kind: 'finalLap', power: 1, zone: 7, at: e.at });
+    }
     for (const e of events)
       if (e.kind === 'lap' && start !== null && e.lap >= this.raceInfo.laps && !this.raceFinished) {
         this.raceFinished = true;
-        this.hooks.onRaceFinish?.(Date.now() - start);
+        const ms = Date.now() - start;
+        this.events.emit({ kind: 'finish', ms, power: 1, zone: 7, at: { x: b.x, y: 0.5, z: b.z } });
+        this.hooks.onRaceFinish?.(ms);
       }
     this.pose = { x: b.x, y: 0.45, z: b.z, ry: b.h, a: 5 };
     this.me.place(this.pose);
     this.me.spinWheels(b.v, dt);
+    sfx.engine(this.selfId, b.v, undefined, Date.now() < b.boostUntil);
     // câmera de perseguição: atrás da moto, acompanhando a direção
     const want = b.h + Math.PI;
     let d = want - this.yaw;
@@ -481,11 +647,8 @@ export class SpaceScene {
 
   private onLockChange = () => {
     if (this.aimLocked) this.lockFails = 0;
-    if (!this.aimLocked) {
-      // soltou (Esc): nada fica "segurado"
-      this.leftHeld = false;
-      this.keys.clear();
-    }
+    // soltou (Esc): nada fica "segurado", nem a carga do arremesso ou da tacada
+    if (!this.aimLocked) this.cancelHeld();
     this.hooks.onAimLock?.(this.aimLocked);
   };
 
@@ -515,15 +678,31 @@ export class SpaceScene {
     }
   }
 
-  /** alguém levou um golpe (efeito) */
-  hit(userId: string) {
-    if (userId === this.selfId) this.me.hitReact();
-    else this.others.get(userId)?.hitReact();
+  /** alguém levou um golpe (efeito); `blocked` = defendeu */
+  hit(userId: string, blocked = false) {
+    const av = userId === this.selfId ? this.me : this.others.get(userId);
+    av?.hitReact();
+    // o corpo de quem levou acende por um instante
+    this.juice.flash(av?.material, 110, performance.now());
+    const p = userId === this.selfId ? this.pose : peers.get(userId);
+    if (p)
+      this.events.emit({
+        kind: 'punch',
+        by: null,
+        strong: false,
+        landed: true,
+        blocked,
+        power: blocked ? 0.4 : 0.7,
+        zone: this.zone,
+        at: { x: p.x, y: p.y + 1.3, z: p.z },
+      });
   }
 
   /** perdi por nocaute: fico no chão um pouco */
   knockout(ms = 3500) {
     this.koUntil = performance.now() + ms;
+    const p = this.pose;
+    this.events.emit({ kind: 'ko', who: this.selfId, power: 1, zone: this.zone, at: { x: p.x, y: p.y + 1, z: p.z } });
   }
 
   private punch(strong: boolean) {
@@ -540,9 +719,19 @@ export class SpaceScene {
     this.lastSend = 0;
     this.maybeSend(now);
     this.hooks.onPunch?.(strong);
+    const p = this.pose;
+    this.events.emit({
+      kind: 'punch',
+      by: this.selfId,
+      strong,
+      landed: false,
+      power: strong ? 1 : 0.5,
+      zone: this.zone,
+      at: { x: p.x + Math.sin(p.ry) * 0.5, y: p.y + 1.3, z: p.z + Math.cos(p.ry) * 0.5 },
+    });
   }
 
-  // ---------- interação (F) ----------
+  // ---------- interação (atalho Interagir) ----------
   /** executa o que o aviso mostra: sentar/levantar aqui; o resto vai para o app */
   interact() {
     if (this.mode !== 'play') return;
@@ -579,6 +768,7 @@ export class SpaceScene {
     const l = this.layout;
     let label: string | null = null;
     let action: 'interact' | 'primary' = 'interact';
+    let status: string | null = null;
     if (this.mode !== 'play' || !l) this.current = null;
     else if (this.sport) {
       this.current = null;
@@ -586,8 +776,10 @@ export class SpaceScene {
       label = sp?.label ?? null;
       if (sp) action = sp.action;
     } else if (this.pool) {
+      // estado (de quem é a vez, bolas rolando) vai para o selo; o aviso só aparece quando dá para tacar
       this.current = null;
-      label = this.pool.prompt(this.team);
+      label = this.pool.canShoot(this.team) ? this.pool.prompt(this.team) : null;
+      status = this.pool.status(this.team);
       action = 'primary';
     } else if (this.bike) {
       this.current = null;
@@ -618,6 +810,11 @@ export class SpaceScene {
     if (key !== this.promptLabel) {
       this.promptLabel = key;
       this.hooks.onPrompt?.(label ? { label, action } : null);
+      if (label) this.inputs.emit({ kind: 'ready', action });
+    }
+    if (status !== this.statusLabel) {
+      this.statusLabel = status;
+      this.hooks.onStatus?.(status);
     }
   }
 
@@ -731,7 +928,10 @@ export class SpaceScene {
     this.keys.add(code);
     if (this.mode !== 'play' || repeat) return;
     const now = performance.now();
+    const arrow = ARROW_ACTION[code];
+    if (arrow) this.inputs.emit({ kind: 'press', action: arrow });
     for (const a of actionsOf(code)) {
+      this.inputs.emit({ kind: 'press', action: a });
       if (a === 'jump') {
         if (this.sitting) this.standUp();
         else if (this.pose.y <= 0.001 && !this.bike) this.vy = JUMP_V;
@@ -742,12 +942,31 @@ export class SpaceScene {
           if (this.sport?.zone === 1 && !this.sport.holding) this.sport.press(now);
         } else this.interact();
       } else if (a === 'primary') this.primaryDown(now);
+      else if (a === 'scoreboard') this.showScoreboard(true);
+      else if (a === 'rematch') this.hooks.onRematch?.();
+      else if (a === 'help') this.hooks.onHelp?.();
     }
   }
 
   private release(code: string) {
     this.keys.delete(code);
-    if (actionsOf(code).includes('primary')) this.primaryUp(performance.now());
+    const acts = actionsOf(code);
+    if (acts.includes('primary')) this.primaryUp(performance.now());
+    if (acts.includes('scoreboard')) this.showScoreboard(false);
+  }
+
+  /** placar segurado (Tab por padrão): aparece enquanto segura */
+  private showScoreboard(on: boolean) {
+    if (on === this.scoreboardHeld) return;
+    this.scoreboardHeld = on;
+    this.hooks.onScoreboard?.(on);
+  }
+
+  /** Q/E (configuráveis) giram a câmera pelo teclado, como em todo jogo em 3ª pessoa; na moto a câmera segue a pista */
+  private turnCamera(dt: number) {
+    if (this.mode !== 'play' || this.bike) return;
+    const t = (this.held('turnLeft') ? 1 : 0) - (this.held('turnRight') ? 1 : 0);
+    if (t) this.yaw += t * TURN_SPEED * dt;
   }
 
   /** botões do mouse segurados (com o mouse preso na visão) */
@@ -815,9 +1034,52 @@ export class SpaceScene {
   private primaryDown(now: number) {
     this.leftHeld = true;
     this.leftAt = now;
-    if (this.bike) fireBoost(this.bike, Date.now());
-    else if (this.pool) this.pool.press(this.team);
-    else if (this.sport && this.sport.press(now)) this.swingUntil = now + 260;
+    if (this.bike) {
+      if (fireBoost(this.bike, Date.now()))
+        this.events.emit({
+          kind: 'boost',
+          source: 'item',
+          power: 1,
+          zone: 7,
+          at: { x: this.bike.x, y: 0.5, z: this.bike.z },
+        });
+    } else if (this.pool) this.pool.press(this.team);
+    else if (this.sport) this.sportPress(now);
+  }
+
+  /**
+   * A ação nos esportes: o golpe sai sempre na hora (chute, raquetada de direita/esquerda pelo lado da bola, manchete),
+   * acertando ou não; nos jogos de rede, o resultado ("Perfeito!", "Cedo", "Tarde", "Longe") aparece junto do boneco.
+   */
+  private sportPress(now: number) {
+    const sport = this.sport;
+    if (!sport) return;
+    const r = sport.press(now);
+    const z = sport.zone;
+    if (z === 1) return;
+    if (z === 2) this.swingA = SWING_A.kick;
+    else if (z === 4) this.swingA = SWING_A.bump;
+    else {
+      // bola à direita do boneco = direita (forehand); à esquerda = esquerda (backhand)
+      const b = sport.mesh.position;
+      const right = (b.x - this.pose.x) * -Math.cos(this.pose.ry) + (b.z - this.pose.z) * Math.sin(this.pose.ry);
+      this.swingA = right >= 0 ? SWING_A.forehand : SWING_A.backhand;
+    }
+    this.swingUntil = now + SWING_MS[this.swingA];
+    this.me.strike();
+    // a pose do golpe sai na hora para os outros também
+    this.pose.a = this.swingA;
+    this.lastSend = 0;
+    if (z >= 3 && this.matchPhase !== 'countdown') {
+      const label: JuiceLabel | null = r.result === 'whiff' ? 'whiff' : (r.quality ?? null);
+      if (label) this.showResult(label);
+    }
+  }
+
+  /** texto do resultado acima da cabeça do meu boneco */
+  private showResult(label: JuiceLabel) {
+    const p = this.pose;
+    this.juice.label(label, { x: p.x, y: p.y + 1.75, z: p.z }, performance.now());
   }
 
   private primaryUp(now: number) {
@@ -826,7 +1088,13 @@ export class SpaceScene {
     // x1: clique rápido = soco rápido; segurar e soltar = soco forte
     if (this.fight) this.punch(now - this.leftAt >= 350);
     else if (this.pool) this.pool.release(now, this.team, Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)));
-    else if (this.sport) this.sport.release(now);
+    else if (this.sport) {
+      const c = this.sport.charging;
+      const band = this.sport.band();
+      if (c !== null && band) this.inputs.emit({ kind: 'shot', good: c >= band.lo && c <= band.hi });
+      const q = this.sport.release(now);
+      if (q) this.showResult(q);
+    }
   }
 
   private onMouseDownDoc = (e: MouseEvent) => {
@@ -842,6 +1110,8 @@ export class SpaceScene {
 
   private onPointerDown = (e: PointerEvent) => {
     this.host.focus({ preventScroll: true });
+    // gesto: o som do jogo pode começar (o navegador não deixa antes)
+    sfx.unlock();
     if (this.mode === 'play') {
       // jogando, o mouse fica preso na visão: o clique solto (sem trava) só prende de novo; com a trava, os botões
       // chegam por mousedown/mouseup no documento (onMouseDownDoc). Sem preventDefault aqui: cancelar o pointerdown
@@ -908,6 +1178,7 @@ export class SpaceScene {
   private onContextMenu = (e: Event) => e.preventDefault();
 
   private onKeyDown = (e: KeyboardEvent) => {
+    sfx.unlock();
     if (e.target !== this.host) return;
     if (this.mode === 'edit' && this.editorInput?.key(e)) {
       e.preventDefault();
@@ -926,10 +1197,27 @@ export class SpaceScene {
     this.release(normalizeCode(e.code));
   };
 
-  private onBlur = () => this.keys.clear();
+  private onBlur = () => this.cancelHeld();
+
+  /** nada fica segurado (Esc, outra janela, aba escondida): teclas, botão e a carga do jogo (ADR-0056) */
+  private cancelHeld() {
+    this.leftHeld = false;
+    this.showScoreboard(false);
+    cancelHeld(this.keys, [this.sport, this.pool]);
+    if (this.lastCharge !== null) {
+      this.lastCharge = null;
+      this.hooks.onCharge?.(null);
+    }
+  }
 
   private onVisibility = () => {
     if (document.hidden) {
+      // o laço para com a aba escondida: solto a bola da mão (senão ela congela para os outros) e, calado, a
+      // autoridade passa para quem ficou (net/authority.ts)
+      this.cancelHeld();
+      this.sport?.drop(performance.now());
+      // sem quadros, o motor da moto não teria quem o desligasse
+      sfx.stopEngines();
       cancelAnimationFrame(this.raf);
       this.raf = 0;
     } else if (!this.raf && !this.disposed) {
@@ -994,13 +1282,19 @@ export class SpaceScene {
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     const t = now / 1000;
-    if (this.mode === 'play') this.stepPlayer(dt, now);
+    // pausa de impacto: o jogo (bola, bonecos, andar) para por alguns ms; câmera, efeitos e golpes continuam
+    const gdt = this.mode === 'play' ? dt * this.juice.timeScale(now) : dt;
+    if (this.mode === 'play') this.stepPlayer(gdt, now);
     else this.stepEditorCamera(dt);
     this.me.setVoiceLevel(this.hooks.audioLevel?.(this.selfId) ?? 0);
     this.holdOf(this.selfId, this.me);
-    this.me.update(dt, t);
-    this.stepOthers(dt, t, now);
+    this.me.update(gdt, t, dt);
+    this.stepOthers(gdt, t, now, dt);
+    this.juice.update(dt, now);
+    this.trackLook();
+    this.placeMarker(t);
     this.placeCamera();
+    sfx.listen({ x: this.pose.x, z: this.pose.z, yaw: this.yaw, zone: this.zone });
     if (now - this.lastGain > 200) {
       this.lastGain = now;
       this.updateGains();
@@ -1016,6 +1310,7 @@ export class SpaceScene {
   };
 
   private stepPlayer(dt: number, now: number) {
+    this.turnCamera(dt);
     let fx = 0;
     let fz = 0;
     if (this.held('forward')) fz += 1;
@@ -1064,6 +1359,8 @@ export class SpaceScene {
       const nx = this.pose.x + dx * sp;
       const nz = this.pose.z + dz * sp;
       let p = this.obstacles ? resolve(this.obstacles, nx, nz) : { x: nx, z: nz };
+      // jogos de rede: a rede é parede, cada time fica na sua metade
+      if (this.zone >= 3 && this.zone <= 5) p = { x: clampToHalf(p.x, this.team, PLAYER_R + 0.05), z: p.z };
       if (this.fight) {
         // ninguém sai do ringue durante o x1
         const r = this.fight.ring;
@@ -1085,20 +1382,45 @@ export class SpaceScene {
       if (this.pose.y === 0) this.vy = 0;
     }
     if (this.sport || this.pool) {
-      if (this.sport) this.sport.update(dt, now, { ...this.pose, moving, running: run });
+      if (this.sport) {
+        this.sport.update(dt, now, { ...this.pose, moving, running: run });
+        const holding = this.sport.holding;
+        if (holding && !this.wasHolding) this.inputs.emit({ kind: 'grab' });
+        this.wasHolding = holding;
+      }
       if (this.pool) this.pool.update(dt, now, Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)));
       const c = this.sport ? this.sport.charging : (this.pool?.charging ?? null);
       if ((c === null) !== (this.lastCharge === null) || (c !== null && Math.abs(c - (this.lastCharge ?? 0)) > 0.02)) {
+        if (c !== null && c >= 0.3 && (this.lastCharge ?? 0) < 0.3) this.inputs.emit({ kind: 'charge', c });
         this.lastCharge = c;
-        this.hooks.onCharge?.(c);
+        const band = c === null ? null : (this.sport?.band() ?? null);
+        this.chargeSound(c, band);
+        this.hooks.onCharge?.(c, band);
       }
     }
     if (this.fight) this.pose.a = now < this.punchUntil ? this.punchKind : this.blocking ? 8 : moving ? 1 : 0;
-    else if (now < this.swingUntil) this.pose.a = 6;
+    else if (now < this.swingUntil) this.pose.a = this.swingA;
     else this.pose.a = this.pose.y > 0.01 ? 3 : moving ? (run ? 2 : 1) : now < this.waveUntil ? 4 : 0;
     this.me.place(this.pose);
     this.updatePrompt(now);
     this.maybeSend(now);
+  }
+
+  /** carga: um tique que sobe de tom a cada 10% e um "ding" ao entrar na faixa verde (ensina sem texto) */
+  private chargeSound(c: number | null, band: { lo: number; hi: number } | null) {
+    if (c === null) {
+      this.chargeTick = -1;
+      this.inBand = false;
+      return;
+    }
+    const step = chargeStep(c);
+    if (step > this.chargeTick) {
+      this.chargeTick = step;
+      if (step > 0) sfx.play('chargeTick', { zone: this.zone, gain: 0.5, pitch: 1 + step * 0.08 });
+    }
+    const inside = !!band && c >= band.lo && c <= band.hi;
+    if (inside && !this.inBand) sfx.play('sweetSpot', { zone: this.zone, gain: 0.8 });
+    this.inBand = inside;
   }
 
   private stepEditorCamera(dt: number) {
@@ -1144,7 +1466,7 @@ export class SpaceScene {
     }
   }
 
-  private stepOthers(dt: number, t: number, now: number) {
+  private stepOthers(dt: number, t: number, now: number, realDt = dt) {
     const names = new Map(this.participants.map((p) => [p.identity, p]));
     for (const [id, pose] of peers) {
       const info = names.get(id);
@@ -1172,14 +1494,56 @@ export class SpaceScene {
         this.scene.remove(av.root);
         av.dispose();
         this.others.delete(id);
+        this.riderPrev.delete(id);
+        this.lastA.delete(id);
+        sfx.engine(id, null);
         continue;
       }
       this.holdOf(id, av);
-      av.update(dt, t);
+      av.update(dt, t, realDt);
+      this.othersSound(id, p, av, realDt);
     }
   }
 
+  /** som do que os outros fazem: motor da moto de cada piloto e o vento do soco no x1 */
+  private othersSound(id: string, p: Pose & { zone: number }, av: Avatar, dt: number) {
+    if (this.zone === 7) {
+      const at = { x: av.root.position.x, z: av.root.position.z };
+      const prev = this.riderPrev.get(id);
+      // velocidade pela posição mostrada (suavizada: as poses chegam ~10x/s)
+      const raw = prev && dt > 0 ? Math.hypot(at.x - prev.x, at.z - prev.z) / dt : 0;
+      const v = prev ? prev.v + (Math.min(40, raw) - prev.v) * Math.min(1, dt * 4) : 0;
+      this.riderPrev.set(id, { ...at, v });
+      sfx.engine(id, v, at);
+    } else this.riderPrev.delete(id);
+    const was = this.lastA.get(id);
+    this.lastA.set(id, p.a);
+    if ((p.a === 6 || p.a === 7) && was !== undefined && was !== p.a)
+      this.events.emit({
+        kind: 'punch',
+        by: id,
+        strong: p.a === 7,
+        landed: false,
+        power: p.a === 7 ? 1 : 0.5,
+        zone: this.zone,
+        at: { x: p.x, y: p.y + 1.3, z: p.z },
+      });
+  }
+
   private updateGains() {
+    // alguém falando perto (ou eu): os efeitos do jogo abaixam
+    let near = false;
+    for (const p of this.participants) {
+      if (!p.speaking) continue;
+      if (p.isLocal) near = true;
+      else {
+        const pose = peers.get(p.identity);
+        if (pose && pose.zone === this.zone && Math.hypot(pose.x - this.pose.x, pose.z - this.pose.z) < SPACE_VOICE_FAR)
+          near = true;
+      }
+      if (near) break;
+    }
+    sfx.duck(near);
     for (const p of this.participants) {
       if (p.isLocal) continue;
       const pose = peers.get(p.identity);
@@ -1191,6 +1555,97 @@ export class SpaceScene {
       const d = pose.zone !== this.zone ? Infinity : Math.hypot(pose.x - this.pose.x, pose.z - this.pose.z);
       this.hooks.setGain(p.identity, spaceVoiceGain(d));
     }
+  }
+
+  // ---------- tutorial (plano 2026-11-09, P4) ----------
+  /** girar a câmera um bom pedaço (mouse ou Q/E) avisa o tutorial: na sinuca é mirar */
+  private trackLook() {
+    if (this.mode !== 'play') {
+      this.lookYaw = this.yaw;
+      return;
+    }
+    this.lookAcc += Math.abs(this.yaw - this.lookYaw);
+    this.lookYaw = this.yaw;
+    if (this.lookAcc < 0.6) return;
+    this.lookAcc = 0;
+    this.inputs.emit({ kind: 'look' });
+  }
+
+  /** o que o marcador do tutorial aponta no mundo (null = nada) */
+  setTutorialTarget(t: TutorialTarget | null) {
+    if (t === this.markerTarget) return;
+    this.markerTarget = t;
+    if (!t) {
+      if (this.marker) {
+        this.scene.remove(this.marker);
+        this.marker.traverse((o) => {
+          if (o instanceof THREE.Mesh) {
+            o.geometry.dispose();
+            (o.material as THREE.Material).dispose();
+          }
+        });
+        this.marker = null;
+      }
+      return;
+    }
+    if (!this.marker) {
+      this.marker = markerMesh();
+      this.scene.add(this.marker);
+    }
+  }
+
+  /** onde o alvo do tutorial está agora (null = não há o que marcar) */
+  private targetPos(t: TutorialTarget): { x: number; y: number; z: number; floor: number } | null {
+    const atk = attackHoop(this.team);
+    switch (t) {
+      case 'bola': {
+        if (!this.sport || this.sport.holding) return null;
+        const b = this.sport.mesh.position;
+        return { x: b.x, y: b.y + 0.5, z: b.z, floor: 0.02 };
+      }
+      case 'cesta':
+        return this.zone === 1 ? { x: atk * HOOP_X, y: RIM_Y + 0.6, z: 0, floor: 0.02 } : null;
+      case 'gol':
+        return this.zone === 2 ? { x: atk * GOAL_X, y: 2.8, z: 0, floor: 0.02 } : null;
+      case 'rede': {
+        const z = this.zone;
+        const net = z ? ARENAS[z].net : undefined;
+        if (!z || !net) return null;
+        // o lado de lá, no meio da quadra: onde a bola tem que cair
+        const x = -netSideOf(this.team) * Math.min(4, (ARENAS[z].court?.hx ?? 4) / 2);
+        return { x, y: net.y0 + net.h + 0.6, z: 0, floor: net.y0 + 0.02 };
+      }
+      case 'branca': {
+        if (!this.pool) return null;
+        const c = this.pool.cueBall();
+        return { x: c.x, y: c.y + 0.25, z: c.z, floor: c.y - 0.02 };
+      }
+      case 'checkpoint': {
+        const b = this.bike;
+        if (!b || b.item) return null;
+        const n = TRACK.pts.length;
+        const next = TRACK.boxes.map((i) => ({ i, ahead: (i - b.idx + n) % n })).sort((p, q) => p.ahead - q.ahead)[0];
+        const p = next ? TRACK.pts[next.i] : undefined;
+        return p ? { x: p.x, y: 2.4, z: p.z, floor: 0.03 } : null;
+      }
+    }
+  }
+
+  private placeMarker(t: number) {
+    const m = this.marker;
+    if (!m) return;
+    const pos = this.markerTarget && this.mode === 'play' ? this.targetPos(this.markerTarget) : null;
+    m.visible = pos !== null;
+    if (!pos) return;
+    // na mesa de sinuca o marcador é pequeno (a branca tem 5 cm)
+    const k = this.markerTarget === 'branca' ? 0.22 : 1;
+    const bob = this.reducedMotion ? 0 : Math.sin(t * 4) * 0.12 * k;
+    const [ring, arrow] = m.children;
+    ring?.scale.setScalar(k);
+    arrow?.scale.setScalar(k);
+    ring?.position.set(pos.x, pos.floor, pos.z);
+    arrow?.position.set(pos.x, pos.y + 0.35 * k + bob, pos.z);
+    if (arrow && !this.reducedMotion) arrow.rotation.y = t * 1.5;
   }
 
   private placeCamera() {
@@ -1226,6 +1681,9 @@ export class SpaceScene {
     this.camera.position.copy(target).addScaledVector(dir, d);
     if (this.camera.position.y < 0.3) this.camera.position.y = 0.3;
     this.camera.lookAt(target);
+    // tremor do impacto (só golpe forte e ponto; zero com "reduzir movimento")
+    if (this.mode === 'play' && this.juice.shake.amplitude > 0)
+      this.camera.position.add(this.juice.shakeOffset(this.shakeOff));
     // perto demais: o próprio avatar some para não tampar a visão
     // (na sinuca, mirando, o próprio boneco também some para não tampar a mesa)
     const aimingPool = !!this.pool && this.mode === 'play' && this.pool.canShoot(this.team);
@@ -1241,12 +1699,20 @@ export class SpaceScene {
     this.css?.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.juice.setView(h * this.renderer.getPixelRatio(), this.camera.fov);
   }
 
   dispose() {
     this.disposed = true;
+    this.motionQuery?.removeEventListener?.('change', this.onMotionChange);
+    this.juice.dispose();
+    this.sfxOff();
+    sfx.stopEngines();
     this.sport?.dispose();
     this.pool?.dispose();
+    this.events.clear();
+    this.inputs.clear();
+    this.setTutorialTarget(null);
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);
@@ -1272,6 +1738,28 @@ export class SpaceScene {
     this.renderer.domElement.remove();
     for (const p of this.participants) if (!p.isLocal) this.hooks.setGain(p.identity, null);
   }
+}
+
+/** as setas sempre andam (contam como a ação para o tutorial) */
+const ARROW_ACTION: Partial<Record<string, Action>> = {
+  ArrowUp: 'forward',
+  ArrowDown: 'back',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+};
+
+/** marcador do tutorial: anel no chão e seta apontando para baixo, na cor de destaque, por cima de tudo */
+function markerMesh(): THREE.Group {
+  const g = new THREE.Group();
+  const mat = () => new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.9, depthTest: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.72, 40), mat());
+  ring.rotation.x = -Math.PI / 2;
+  ring.renderOrder = 10;
+  const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.45, 4), mat());
+  arrow.rotation.x = Math.PI;
+  arrow.renderOrder = 10;
+  g.add(ring, arrow);
+  return g;
 }
 
 function round(n: number) {

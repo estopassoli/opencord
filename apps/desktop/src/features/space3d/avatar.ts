@@ -66,6 +66,42 @@ function label(text: string): THREE.Sprite {
   return sp;
 }
 
+/**
+ * Golpes de esporte (estado `a` 10–13 na rede, plano 2026-11-09 P5): pose procedural por cima da animação de base,
+ * com antecipação (puxa para trás), impacto e recuo. Os outros jogadores veem o mesmo golpe pelo `a`.
+ */
+export const SWING_A = { kick: 10, forehand: 11, backhand: 12, bump: 13 } as const;
+export type SwingA = (typeof SWING_A)[keyof typeof SWING_A];
+/** duração de cada golpe (ms) */
+export const SWING_MS: Record<SwingA, number> = { 10: 340, 11: 380, 12: 380, 13: 360 };
+const isSwing = (a: number): a is SwingA => a >= 10 && a <= 13;
+
+type BoneName =
+  | 'upperarm_l'
+  | 'upperarm_r'
+  | 'lowerarm_l'
+  | 'lowerarm_r'
+  | 'hand_l'
+  | 'hand_r'
+  | 'thigh_r'
+  | 'calf_r'
+  | 'foot_r'
+  | 'spine_02'
+  | 'spine_03';
+const BONES: readonly BoneName[] = [
+  'upperarm_l',
+  'upperarm_r',
+  'lowerarm_l',
+  'lowerarm_r',
+  'hand_l',
+  'hand_r',
+  'thigh_r',
+  'calf_r',
+  'foot_r',
+  'spine_02',
+  'spine_03',
+];
+
 export interface Pose {
   x: number;
   y: number;
@@ -117,6 +153,10 @@ export class Avatar {
   /** segurando a bola: onde ela está (mundo) — os braços vão até ela */
   private hold: THREE.Vector3 | null = null;
   private holdBoth = true;
+  /** ossos usados pelas poses procedurais (guardados no build, sem procurar por nome a cada quadro) */
+  private bones: Partial<Record<BoneName, THREE.Object3D>> = {};
+  /** golpe de esporte em andamento: tempo desde o começo (s; < 0 = nenhum) */
+  private swingT = -1;
 
   constructor(
     readonly id: string,
@@ -168,6 +208,10 @@ export class Avatar {
     });
     this.model.add(doll);
     this.doll = doll;
+    for (const n of BONES) {
+      const b = doll.getObjectByName(n);
+      if (b) this.bones[n] = b;
+    }
     this.face = buildFace(doll, t.info, this.color);
     this.mixer = new THREE.AnimationMixer(doll);
     const team = this.team;
@@ -319,6 +363,16 @@ export class Avatar {
     });
   }
 
+  /** o golpe de esporte (a 10–13) recomeça agora (eu: cada apertar; os outros: quando o estado muda) */
+  strike() {
+    this.swingT = 0;
+  }
+
+  /** material do corpo (o brilho do impacto acende nele) */
+  get material(): THREE.MeshStandardMaterial {
+    return this.skin;
+  }
+
   /** levou um golpe: encolhe e recua */
   hitReact() {
     this.hitT = 0.45;
@@ -360,6 +414,8 @@ export class Avatar {
   /** qual animação para o estado: 0 parado, 1 andando, 2 correndo, 3 no ar, 4 acenando, 5 sentado/pilotando, 6–9 x1 */
   private clipFor(a: number): ClipName {
     if (this.hitT > 0 && a !== 9) return 'Hit_Chest';
+    // golpe de esporte: a base é andar ou parado (a pose do golpe vem por cima)
+    if (isSwing(a)) a = this.speed > 0.4 ? 1 : 0;
     switch (a) {
       case 1:
       case 2: {
@@ -405,7 +461,8 @@ export class Avatar {
     this.clip = name;
   }
 
-  update(dt: number, t: number) {
+  /** `dt` é o tempo do jogo (para na pausa de impacto); `realDt` anda sempre (o golpe continua durante a pausa) */
+  update(dt: number, t: number, realDt = dt) {
     const k = 1 - Math.exp(-dt * 12);
     const pos = this.root.position;
     pos.x += (this.target.x - pos.x) * k;
@@ -418,6 +475,10 @@ export class Avatar {
     if (this.hitT > 0) this.hitT = Math.max(0, this.hitT - dt);
 
     const a = this.target.a;
+    if (isSwing(a)) {
+      if (a !== this.lastA) this.swingT = 0;
+      if (this.swingT >= 0) this.swingT += realDt;
+    } else this.swingT = -1;
     const name = this.clipFor(a);
     // golpe repetido (mesmo estado de novo) recomeça a animação
     this.play(name, a !== this.lastA && (a === 6 || a === 7 || a === 8));
@@ -433,6 +494,8 @@ export class Avatar {
       const p = this.bike ? tpl.drivePelvis : tpl.sitPelvis;
       this.model.position.set(0, (this.bike ? 0.1 : 0.21) - p.y * DOLL_SCALE, this.bike ? 0 : -p.z * DOLL_SCALE);
     } else this.model.position.set(0, 0, 0);
+    const swingU = isSwing(a) && this.swingT >= 0 ? this.swingT / (SWING_MS[a] / 1000) : -1;
+    if (a === SWING_A.bump && swingU >= 0 && swingU < 1) this.model.position.y += bumpDip(swingU);
 
     // velocidade no chão (suavizada)
     if (dt > 0) {
@@ -446,24 +509,101 @@ export class Avatar {
     if (this.action && g) this.action.timeScale = Math.max(0.5, Math.min(2.4, this.speed / g));
 
     this.mixer?.update(dt);
+    if (isSwing(a) && swingU >= 0 && swingU < 1) this.swingPose(a, swingU);
     if (a === 4) this.wave(t);
     if (this.hold && a !== 5 && a < 6) this.reach(this.hold, this.holdBoth);
     this.faceUpdate(dt, t);
   }
 
+  /**
+   * Pose do golpe (u = 0…1 do golpe), no espaço do boneco: +z frente, +x esquerda dele, +y cima. Cada osso gira para
+   * a direção da pose, misturado com a animação pelo peso `w` (entra rápido, sai suave).
+   */
+  private swingPose(a: SwingA, u: number) {
+    const doll = this.doll;
+    const B = this.bones;
+    if (!doll) return;
+    doll.updateMatrixWorld(true);
+    doll.getWorldQuaternion(DQ);
+    if (a === SWING_A.kick) {
+      // perna direita: puxa para trás dobrando o joelho, chuta para a frente esticada, volta
+      const w = u < 0.8 ? 1 : 1 - seg(u, 0.8, 1);
+      const th =
+        u < 0.25
+          ? -0.7 * ease(seg(u, 0, 0.25))
+          : u < 0.42
+            ? lerp(-0.7, 1.4, ease(seg(u, 0.25, 0.42)))
+            : lerp(1.4, 0, ease(seg(u, 0.42, 1)));
+      const knee = u < 0.25 ? 1.3 * ease(seg(u, 0, 0.25)) : u < 0.42 ? lerp(1.3, 0, seg(u, 0.25, 0.42)) : 0;
+      if (B.thigh_r && B.calf_r) aimBlend(B.thigh_r, B.calf_r, dirIn(0, -Math.cos(th), Math.sin(th)), w);
+      if (B.calf_r && B.foot_r) aimBlend(B.calf_r, B.foot_r, dirIn(0, -Math.cos(th - knee), Math.sin(th - knee)), w);
+      // braços abertos para o equilíbrio
+      if (B.upperarm_l && B.lowerarm_l) aimBlend(B.upperarm_l, B.lowerarm_l, dirIn(0.45, -0.7, 0.5), w * 0.7);
+      if (B.upperarm_r && B.lowerarm_r) aimBlend(B.upperarm_r, B.lowerarm_r, dirIn(-0.5, -0.75, -0.4), w * 0.7);
+      return;
+    }
+    if (a === SWING_A.forehand || a === SWING_A.backhand) {
+      // raquete na mão direita: o braço varre de trás para a frente (forehand pela direita, backhand pela esquerda),
+      // com o tronco girando junto
+      const fore = a === SWING_A.forehand;
+      const w = u < 0.12 ? ease(seg(u, 0, 0.12)) : u < 0.75 ? 1 : 1 - ease(seg(u, 0.75, 1));
+      const back = fore ? 2 : -1.75;
+      const end = fore ? -1.3 : 1.4;
+      const ph =
+        u < 0.3
+          ? lerp(back * 0.55, back, ease(seg(u, 0, 0.3)))
+          : u < 0.55
+            ? lerp(back, end, ease(seg(u, 0.3, 0.55)))
+            : end;
+      const el = u < 0.3 ? 0.15 : u < 0.55 ? lerp(0.15, -0.05, seg(u, 0.3, 0.42)) : lerp(-0.05, 0.5, seg(u, 0.55, 1));
+      const twist =
+        (u < 0.3
+          ? fore
+            ? -0.45
+            : 0.45
+          : u < 0.55
+            ? lerp(fore ? -0.45 : 0.45, fore ? 0.5 : -0.5, seg(u, 0.3, 0.55))
+            : fore
+              ? 0.5
+              : -0.5) * w;
+      if (B.spine_02) twistBone(B.spine_02, twist * 0.5);
+      if (B.spine_03) twistBone(B.spine_03, twist * 0.5);
+      // direção do braço: ângulo `ph` a partir da frente, para a direita dele (−x) quando positivo
+      const ce = Math.cos(el);
+      const dx = -Math.sin(ph) * ce;
+      const dy = Math.sin(el);
+      const dz = Math.cos(ph) * ce;
+      if (B.upperarm_r && B.lowerarm_r) aimBlend(B.upperarm_r, B.lowerarm_r, dirIn(dx, dy - 0.25, dz), w);
+      if (B.lowerarm_r && B.hand_r) aimBlend(B.lowerarm_r, B.hand_r, dirIn(dx, dy, dz), w);
+      // braço livre à frente, para o equilíbrio
+      if (B.upperarm_l && B.lowerarm_l) aimBlend(B.upperarm_l, B.lowerarm_l, dirIn(0.4, -0.55, 0.6), w * 0.6);
+      return;
+    }
+    // manchete: braços juntos, esticados à frente e baixos; desce (dobra as pernas) e sobe empurrando a bola
+    const w = u < 0.15 ? ease(seg(u, 0, 0.15)) : u < 0.7 ? 1 : 1 - ease(seg(u, 0.7, 1));
+    const lift = u < 0.35 ? 0 : u < 0.55 ? ease(seg(u, 0.35, 0.55)) : 1 - seg(u, 0.55, 1) * 0.5;
+    const ey = lerp(-0.78, -0.25, lift);
+    const ez = lerp(0.62, 0.95, lift);
+    for (const sd of ['l', 'r'] as const) {
+      const sx = sd === 'l' ? 1 : -1;
+      const up = B[`upperarm_${sd}`];
+      const low = B[`lowerarm_${sd}`];
+      const hand = B[`hand_${sd}`];
+      if (up && low) aimBlend(up, low, dirIn(sx * 0.12, ey, ez), w);
+      // antebraços se juntam na frente (as mãos se encontram)
+      if (low && hand) aimBlend(low, hand, dirIn(-sx * 0.22, ey, ez), w);
+    }
+  }
+
   /** aceno: braço direito para o alto, antebraço balançando (por cima da animação de parado) */
   private wave(t: number) {
     const doll = this.doll;
-    const up = doll?.getObjectByName('upperarm_r');
-    const low = doll?.getObjectByName('lowerarm_r');
-    const hand = doll?.getObjectByName('hand_r');
+    const { upperarm_r: up, lowerarm_r: low, hand_r: hand } = this.bones;
     if (!doll || !up || !low || !hand) return;
     doll.updateMatrixWorld(true);
-    aim(up, low, new THREE.Vector3(-0.55, 0.83, 0.08).applyQuaternion(doll.getWorldQuaternion(new THREE.Quaternion())));
-    const side = new THREE.Vector3(Math.sin(t * 10) * 0.45, 1, 0.1)
-      .normalize()
-      .applyQuaternion(doll.getWorldQuaternion(new THREE.Quaternion()));
-    aim(low, hand, side);
+    doll.getWorldQuaternion(DQ);
+    aim(up, low, dirIn(-0.55, 0.83, 0.08));
+    aim(low, hand, dirIn(Math.sin(t * 10) * 0.45, 1, 0.1));
   }
 
   /** braços até a bola (por cima da animação) */
@@ -471,28 +611,24 @@ export class Avatar {
     const doll = this.doll;
     if (!doll) return;
     doll.updateMatrixWorld(true);
-    for (const sd of both ? ['l', 'r'] : ['r']) {
-      const up = doll.getObjectByName(`upperarm_${sd}`);
-      const low = doll.getObjectByName(`lowerarm_${sd}`);
-      const hand = doll.getObjectByName(`hand_${sd}`);
+    doll.getWorldQuaternion(DQ);
+    for (const sd of both ? (['l', 'r'] as const) : (['r'] as const)) {
+      const up = this.bones[`upperarm_${sd}`];
+      const low = this.bones[`lowerarm_${sd}`];
+      const hand = this.bones[`hand_${sd}`];
       if (!up || !low || !hand) continue;
       // a mão vai para o lado da bola (as duas mãos em volta dela)
-      const side = new THREE.Vector3(sd === 'l' ? 0.11 : -0.11, 0, 0).applyQuaternion(
-        doll.getWorldQuaternion(new THREE.Quaternion()),
-      );
-      const goal = target.clone().add(both ? side : side.multiplyScalar(0.3));
-      const shoulder = up.getWorldPosition(new THREE.Vector3());
-      const dir = goal.clone().sub(shoulder);
+      const off = (sd === 'l' ? 0.11 : -0.11) * (both ? 1 : 0.3);
+      const goal = R_GOAL.set(off, 0, 0).applyQuaternion(DQ).add(target);
+      const dir = up.getWorldPosition(R_DIR).negate().add(goal);
       const len = dir.length();
       dir.normalize();
       // braço reto se a bola está longe; dobra no cotovelo se está perto
       const reachLen = 0.55 * DOLL_SCALE * 1.0;
       const bend = Math.acos(Math.min(1, len / reachLen)) * 0.9;
-      const down = new THREE.Vector3(0, -1, 0);
-      const axis = new THREE.Vector3().crossVectors(dir, down).normalize();
-      const upperDir = dir.clone().applyAxisAngle(axis, -bend);
-      aim(up, low, upperDir);
-      aim(low, hand, goal.clone().sub(low.getWorldPosition(new THREE.Vector3())));
+      R_AXIS.crossVectors(dir, DOWN).normalize();
+      aim(up, low, dir.applyAxisAngle(R_AXIS, -bend));
+      aim(low, hand, low.getWorldPosition(R_DIR).negate().add(goal));
     }
   }
 
@@ -575,14 +711,71 @@ function attachTo(bone: THREE.Object3D, obj: THREE.Object3D, doll: THREE.Object3
   bone.add(obj);
 }
 
+// temporários reaproveitados (as poses rodam a cada quadro em cada boneco: nada de alocar)
+const PA = new THREE.Vector3();
+const PB = new THREE.Vector3();
+const DIR = new THREE.Vector3();
+const AXIS_UP = new THREE.Vector3();
+const QROT = new THREE.Quaternion();
+const QWORLD = new THREE.Quaternion();
+const QPARENT = new THREE.Quaternion();
+const QSAVE = new THREE.Quaternion();
+const QTARGET = new THREE.Quaternion();
+/** orientação do boneco no mundo (preenchida no começo de cada pose) */
+const DQ = new THREE.Quaternion();
+const R_GOAL = new THREE.Vector3();
+const R_DIR = new THREE.Vector3();
+const R_AXIS = new THREE.Vector3();
+const DOWN = new THREE.Vector3(0, -1, 0);
+
 /** gira o osso `a` para que o filho `b` fique na direção `dir` (mundo) */
 function aim(a: THREE.Object3D, b: THREE.Object3D, dir: THREE.Vector3) {
-  const pa = a.getWorldPosition(new THREE.Vector3());
-  const pb = b.getWorldPosition(new THREE.Vector3());
-  const cur = pb.sub(pa).normalize();
-  const q = new THREE.Quaternion().setFromUnitVectors(cur, dir.clone().normalize());
-  const world = a.getWorldQuaternion(new THREE.Quaternion());
-  const parent = a.parent ? a.parent.getWorldQuaternion(new THREE.Quaternion()) : new THREE.Quaternion();
-  a.quaternion.copy(parent.invert().multiply(q.multiply(world)));
+  a.getWorldPosition(PA);
+  b.getWorldPosition(PB);
+  const cur = PB.sub(PA).normalize();
+  QROT.setFromUnitVectors(cur, PA.copy(dir).normalize());
+  a.getWorldQuaternion(QWORLD);
+  if (a.parent) a.parent.getWorldQuaternion(QPARENT);
+  else QPARENT.identity();
+  a.quaternion.copy(QPARENT.invert().multiply(QROT.multiply(QWORLD)));
   a.updateMatrixWorld(true);
+}
+
+/** como `aim`, misturado com a pose que a animação deu (`w` = 0 animação, 1 pose) */
+function aimBlend(a: THREE.Object3D, b: THREE.Object3D, dir: THREE.Vector3, w: number) {
+  if (w <= 0) return;
+  QSAVE.copy(a.quaternion);
+  aim(a, b, dir);
+  if (w >= 1) return;
+  QTARGET.copy(a.quaternion);
+  a.quaternion.copy(QSAVE).slerp(QTARGET, w);
+  a.updateMatrixWorld(true);
+}
+
+/** gira o osso em torno do eixo vertical do boneco (tronco virando) */
+function twistBone(bone: THREE.Object3D, angle: number) {
+  if (!angle) return;
+  AXIS_UP.set(0, 1, 0).applyQuaternion(DQ);
+  QROT.setFromAxisAngle(AXIS_UP, angle);
+  bone.getWorldQuaternion(QWORLD);
+  if (bone.parent) bone.parent.getWorldQuaternion(QPARENT);
+  else QPARENT.identity();
+  bone.quaternion.copy(QPARENT.invert().multiply(QROT.multiply(QWORLD)));
+  bone.updateMatrixWorld(true);
+}
+
+/** direção no espaço do boneco (+z frente, +x esquerda dele) levada para o mundo (vetor reaproveitado) */
+function dirIn(x: number, y: number, z: number): THREE.Vector3 {
+  return DIR.set(x, y, z).normalize().applyQuaternion(DQ);
+}
+
+const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+const ease = (u: number) => u * u * (3 - 2 * u);
+/** quanto de [a, b] já passou (0–1) */
+const seg = (u: number, a: number, b: number) => Math.max(0, Math.min(1, (u - a) / (b - a)));
+/** manchete: desce dobrando as pernas na antecipação e sobe um pouco no impacto (m) */
+function bumpDip(u: number): number {
+  if (u < 0.35) return -0.06 * ease(seg(u, 0, 0.35));
+  if (u < 0.55) return lerp(-0.06, 0.03, ease(seg(u, 0.35, 0.55)));
+  return lerp(0.03, 0, seg(u, 0.55, 1));
 }

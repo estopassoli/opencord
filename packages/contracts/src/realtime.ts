@@ -115,6 +115,8 @@ export const ClientCommands = {
   /** esportes: ponto marcado (detectado por quem simula a bola) e zerar o placar */
   'space:score': SpaceScore,
   'space:score:reset': z.object({ channelId: Id, zone: z.number().int().min(1).max(7) }),
+  /** partida com alvo (arenas 1–5): Jogar/Revanche zera e abre a contagem 3-2-1 para todos */
+  'space:match:start': z.object({ channelId: Id, zone: z.number().int().min(1).max(5) }),
   /** corrida de moto: largar (contagem para todos na pista) e chegada (tempo de prova) */
   'space:race:start': z.object({ channelId: Id }),
   'space:race:finish': z.object({ channelId: Id, ms: z.number().int().min(0).max(3_600_000) }),
@@ -158,6 +160,7 @@ export interface ClientCommandResults {
   'space:duel:get': SpaceDuel[];
   'space:score': SpaceSession;
   'space:score:reset': SpaceSession;
+  'space:match:start': SpaceSession;
   'space:race:start': SpaceSession;
   'space:race:finish': SpaceSession;
 }

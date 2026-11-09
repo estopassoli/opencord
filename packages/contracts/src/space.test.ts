@@ -9,7 +9,13 @@ import {
   SPACE_THEMES,
   SPACE_VOICE_FLOOR,
   SpaceLayout,
+  isMatchPoint,
+  MATCH_RULES,
+  matchPhase,
+  matchRuleLabel,
+  matchWinner,
   SpaceMove,
+  SpaceSession,
   spaceVoiceGain,
 } from './space.js';
 
@@ -55,7 +61,9 @@ describe('Espaço 3D: validação', () => {
     const id = randomUUID();
     expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 1 }).success).toBe(true);
     expect(SpaceMove.safeParse({ channelId: id, x: 1e9, y: 0, z: 1, ry: 0, a: 1 }).success).toBe(false);
-    expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 10 }).success).toBe(false);
+    // golpes de esporte (10–13) valem; além disso, não
+    expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 13 }).success).toBe(true);
+    expect(SpaceMove.safeParse({ channelId: id, x: 1, y: 0, z: 1, ry: 0, a: 14 }).success).toBe(false);
   });
 });
 
@@ -71,5 +79,84 @@ describe('x1 no soco: regras', () => {
     expect(duelDamage(false, false)).toBe(DUEL_JAB);
     expect(duelDamage(true, false)).toBe(DUEL_STRONG);
     expect(duelDamage(true, true)).toBe(Math.round(DUEL_STRONG / 4));
+  });
+});
+
+describe('Espaço 3D: partidas com alvo e vencedor (P2)', () => {
+  it('ping pong: até 11, vence por 2', () => {
+    expect(matchWinner(5, { a: 11, b: 9 })).toBe('a');
+    expect(matchWinner(5, { a: 11, b: 10 })).toBeNull();
+    expect(matchWinner(5, { a: 13, b: 11 })).toBe('a');
+    expect(matchWinner(5, { a: 9, b: 11 })).toBe('b');
+  });
+
+  it('tênis 7 e vôlei 15, os dois vencendo por 2; sem tempo, o relógio não decide', () => {
+    expect(matchWinner(3, { a: 7, b: 5 })).toBe('a');
+    expect(matchWinner(3, { a: 7, b: 6 })).toBeNull();
+    expect(matchWinner(4, { a: 15, b: 13 })).toBe('a');
+    expect(matchWinner(4, { a: 15, b: 14 }, 10 * 60_000)).toBeNull();
+  });
+
+  it('basquete: 21 pontos ou 3 min', () => {
+    expect(matchWinner(1, { a: 21, b: 20 })).toBe('a');
+    expect(matchWinner(1, { a: 20, b: 18 })).toBeNull();
+    expect(matchWinner(1, { a: 8, b: 10 }, MATCH_RULES[1].timeMs!)).toBe('b');
+    expect(matchWinner(1, { a: 10, b: 10 }, MATCH_RULES[1].timeMs!)).toBeNull();
+  });
+
+  it('futebol: 5 gols, ou o tempo esgotado com placar diferente; empatado, gol de ouro', () => {
+    expect(matchWinner(2, { a: 5, b: 4 })).toBe('a');
+    expect(matchWinner(2, { a: 2, b: 1 }, 179_999)).toBeNull();
+    expect(matchWinner(2, { a: 2, b: 1 }, 180_000)).toBe('a');
+    expect(matchWinner(2, { a: 1, b: 1 }, 200_000)).toBeNull();
+    expect(matchWinner(2, { a: 1, b: 2 }, 200_000)).toBe('b');
+    // empate no tempo: qualquer gol decide, então os dois estão em match point
+    expect(isMatchPoint(2, { a: 1, b: 1 }, 'a', 200_000)).toBe(true);
+    expect(isMatchPoint(2, { a: 1, b: 1 }, 'b', 200_000)).toBe(true);
+  });
+
+  it('match point certo nos jogos que vencem por 2', () => {
+    expect(isMatchPoint(5, { a: 10, b: 9 }, 'a')).toBe(true);
+    expect(isMatchPoint(5, { a: 10, b: 10 }, 'a')).toBe(false);
+    expect(isMatchPoint(5, { a: 11, b: 10 }, 'a')).toBe(true);
+    expect(isMatchPoint(5, { a: 11, b: 10 }, 'b')).toBe(false);
+    expect(isMatchPoint(5, { a: 9, b: 9 }, 'a')).toBe(false);
+    expect(isMatchPoint(3, { a: 6, b: 5 }, 'a')).toBe(true);
+    expect(isMatchPoint(4, { a: 14, b: 14 }, 'b')).toBe(false);
+    // partida decidida não tem match point
+    expect(isMatchPoint(5, { a: 11, b: 5 }, 'a')).toBe(false);
+    // basquete: uma cesta de 2 fecha
+    expect(isMatchPoint(1, { a: 19, b: 0 }, 'a')).toBe(true);
+    expect(isMatchPoint(1, { a: 18, b: 0 }, 'a')).toBe(false);
+  });
+
+  it('a contagem vira "playing" sozinha depois do startAt', () => {
+    expect(matchPhase(undefined, 0)).toBe('idle');
+    expect(matchPhase({ phase: 'countdown', startAt: 1000 }, 999)).toBe('countdown');
+    expect(matchPhase({ phase: 'countdown', startAt: 1000 }, 1000)).toBe('playing');
+    expect(matchPhase({ phase: 'ended', startAt: 1000, winner: 'a' }, 9999)).toBe('ended');
+    expect(matchRuleLabel(5)).toBe('até 11, vence por 2');
+    expect(matchRuleLabel(2)).toBe('5 gols ou 3 min');
+  });
+
+  it('sessão antiga, sem matches nem os campos novos, continua válida; os campos novos são opcionais', () => {
+    const old = {
+      channelId: randomUUID(),
+      serverId: randomUUID(),
+      screen: null,
+      scores: { '1': { a: 2, b: 0 } },
+      race: { startAt: 1, laps: 3, results: [] },
+      updatedBy: null,
+      revision: 3,
+    };
+    expect(SpaceSession.safeParse(old).success).toBe(true);
+    expect(SpaceSession.parse(old).matches).toBeUndefined();
+    const next = {
+      ...old,
+      race: { ...old.race, racers: [], endsAt: 5, closed: true, dnf: [] },
+      matches: { '5': { phase: 'ended', startAt: 1, winner: 'a', endedAt: 2 } },
+    };
+    expect(SpaceSession.safeParse(next).success).toBe(true);
+    expect(SpaceSession.safeParse({ ...old, matches: { '5': { phase: 'pausa', startAt: 1 } } }).success).toBe(false);
   });
 });

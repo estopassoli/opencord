@@ -5,6 +5,7 @@ import {
   type SpaceLayout,
   type SpaceMove,
   type SpaceScreen,
+  MATCH_COUNTDOWN_MS,
   RACE_COUNTDOWN_MS,
   type SpaceBall,
   type SpacePool,
@@ -76,8 +77,14 @@ interface SpaceStore {
   raceKey: number | null;
   startRace(): Promise<void>;
   finishRace(ms: number): Promise<void>;
-  score(zone: number, side: 'a' | 'b', points: number, by?: string): void;
+  score(zone: number, side: 'a' | 'b', points: number, by?: string, teams?: { a: number; b: number }): void;
   resetScore(zone: number): Promise<void>;
+  /** Jogar/Revanche: zera e abre a contagem 3-2-1 da partida da arena (o servidor ignora no meio de uma partida) */
+  startMatch(zone: number): Promise<void>;
+  /** partidas: VAI de cada arena no MEU relógio (estimado ao receber a contagem), como a largada da corrida */
+  matchLocalStart: Record<string, number>;
+  /** reconectou com o espaço aberto: busca a sessão e os duelos de novo (o que mudou enquanto estava fora) */
+  refresh(): Promise<void>;
   /** x1 no soco: lutas da chamada (convites, em andamento e as que acabaram há pouco) */
   duels: Record<string, SpaceDuel>;
   /** diferença entre o relógio do servidor e o meu (ms) */
@@ -102,13 +109,22 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
   editing: false,
 
   async open(channelId, serverId) {
-    set({ openChannelId: channelId, editing: false, zone: 0 });
+    set({
+      openChannelId: channelId,
+      editing: false,
+      zone: 0,
+      raceKey: null,
+      raceLocalStart: null,
+      matchLocalStart: {},
+    });
     useUi.getState().setActivitiesOpen(false);
     await get().load(serverId);
     const rt = useSession.getState().realtime;
     try {
       const s = rt ? await rt.command('space:get', { channelId }) : null;
-      set({ session: s });
+      // corrida (ou partida) já em andamento: quem chega assiste até a próxima largada (a chave fica gravada, então o
+      // mesmo estado chegando depois não abre uma contagem nova)
+      set({ session: s, raceKey: s?.race?.startAt ?? null, raceLocalStart: null, matchLocalStart: {} });
       for (const d of rt ? await rt.command('space:duel:get', { channelId }) : []) get().applyDuel(d);
     } catch {
       /* sem conexão: o telão fica vazio até o próximo estado */
@@ -118,7 +134,27 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     const ch = get().openChannelId;
     if (ch) useSession.getState().realtime?.sendVolatile('space:leave', { channelId: ch });
     peers.clear();
-    set({ openChannelId: null, editing: false, duels: {}, zone: 0 });
+    set({
+      openChannelId: null,
+      editing: false,
+      duels: {},
+      zone: 0,
+      raceKey: null,
+      raceLocalStart: null,
+      matchLocalStart: {},
+    });
+  },
+  async refresh() {
+    const channelId = get().openChannelId;
+    const rt = useSession.getState().realtime;
+    if (!channelId || !rt) return;
+    try {
+      const s = await rt.command('space:get', { channelId });
+      if (s) get().applySession(s);
+      for (const d of await rt.command('space:duel:get', { channelId })) get().applyDuel(d);
+    } catch {
+      /* tenta de novo na próxima reconexão */
+    }
   },
   async load(serverId) {
     try {
@@ -144,6 +180,13 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     // (quem abriu o espaço com uma corrida já em andamento espera a próxima)
     if (key !== get().raceKey)
       set({ raceKey: key, raceLocalStart: key !== null && cur ? Date.now() + RACE_COUNTDOWN_MS : null });
+    // partida nova (contagem com outro startAt): o VAI no meu relógio é daqui a MATCH_COUNTDOWN_MS
+    const prevMatches = cur?.channelId === s.channelId ? cur.matches : undefined;
+    let local = get().matchLocalStart;
+    for (const [z, m] of Object.entries(s.matches ?? {}))
+      if (m.phase === 'countdown' && prevMatches?.[z]?.startAt !== m.startAt)
+        local = { ...local, [z]: Date.now() + MATCH_COUNTDOWN_MS };
+    if (local !== get().matchLocalStart) set({ matchLocalStart: local });
     set({ session: s });
   },
   ended(channelId) {
@@ -216,7 +259,16 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
     const ch = get().openChannelId;
     if (ch) useSession.getState().realtime?.sendVolatile('space:leave', { channelId: ch });
     peers.clear();
-    set({ openChannelId: null, editing: false, session: null, duels: {}, zone: 0 });
+    set({
+      openChannelId: null,
+      editing: false,
+      session: null,
+      duels: {},
+      zone: 0,
+      raceKey: null,
+      raceLocalStart: null,
+      matchLocalStart: {},
+    });
   },
   duels: {},
   duelOffset: 0,
@@ -261,12 +313,12 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
       .then((s) => get().applySession(s))
       .catch(() => undefined);
   },
-  score(zone, side, points, by) {
+  score(zone, side, points, by, teams) {
     const channelId = get().openChannelId;
     const rt = useSession.getState().realtime;
     if (!channelId || !rt) return;
     void rt
-      .command('space:score', { channelId, zone, side, points, ...(by ? { by } : {}) })
+      .command('space:score', { channelId, zone, side, points, ...(by ? { by } : {}), ...(teams ? { teams } : {}) })
       .then((s) => get().applySession(s))
       .catch(() => undefined);
   },
@@ -278,6 +330,17 @@ export const useSpace = create<SpaceStore>()((set, get) => ({
       .command('space:score:reset', { channelId, zone })
       .then((s) => get().applySession(s))
       .catch(() => undefined);
+  },
+  matchLocalStart: {},
+  async startMatch(zone) {
+    const channelId = get().openChannelId;
+    const rt = useSession.getState().realtime;
+    if (!channelId || !rt) return;
+    try {
+      get().applySession(await rt.command('space:match:start', { channelId, zone }));
+    } catch (e) {
+      useUi.getState().toast('error', `Não foi possível começar a partida: ${describeError(e)}`);
+    }
   },
   applyDuel(d) {
     if (d.channelId !== get().openChannelId) return;
