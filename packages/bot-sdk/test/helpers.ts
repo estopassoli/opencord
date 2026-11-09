@@ -97,6 +97,7 @@ export function messageDto(over: Partial<MessageDto> = {}): MessageDto {
     poll: null,
     reactionRoles: [],
     replyCount: 0,
+    title: null,
     embeds: [],
     components: [],
     ...over,
@@ -136,6 +137,7 @@ export function channelDto(over: Partial<ChannelDto> = {}): ChannelDto {
     userLimit: null,
     locked: false,
     private: false,
+    slowmodeSec: 0,
     ...over,
   };
 }

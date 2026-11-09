@@ -389,6 +389,7 @@ export class TextChannel {
       userLimit: null,
       locked: false,
       private: false,
+      slowmodeSec: 0,
     };
   }
 }
@@ -541,6 +542,7 @@ export function stubChannel(client: Client, id: string, guildId: string): TextCh
     userLimit: null,
     locked: false,
     private: false,
+    slowmodeSec: 0,
   });
 }
 

@@ -57,6 +57,7 @@ function messageDto(over: Partial<MessageDto> = {}): MessageDto {
     poll: null,
     reactionRoles: [],
     replyCount: 0,
+    title: null,
     embeds: [],
     components: [],
     ...over,
