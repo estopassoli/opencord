@@ -66,6 +66,10 @@ const BLURB: Record<GunId, string> = {
   bfr: 'Revólver gigante de .45-70: o tiro mais forte das pistolas, mas sobe demais e recarrega devagar.',
   karambit: 'Lâmina curva presa na argola: golpe rápido, e o pesado derruba.',
   bayonet: 'Lâmina reta: alcança um pouco mais, golpe um pouco mais lento.',
+  balisong: 'Faca borboleta: abre girando na mão; a mais leve e rápida, de alcance curto.',
+  kabar: 'Faca de combate clássica: equilibrada em alcance e velocidade.',
+  bowie: 'Lâmina longa de ponta recortada: alcança mais, golpe um pouco mais lento.',
+  kukri: 'Lâmina pesada e curva: o maior alcance e o golpe leve mais forte, mas a mais lenta.',
 };
 
 /** a próxima tela do equipamento */

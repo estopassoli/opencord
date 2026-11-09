@@ -250,6 +250,11 @@ export const GUN_IDS = [
   'bfr',
   'stg44',
   'rhino',
+  // facas novas (adendo do ADR-0060, 2026-11-09): também só no fim
+  'balisong',
+  'kabar',
+  'bowie',
+  'kukri',
 ] as const;
 export type GunId = (typeof GUN_IDS)[number];
 export const GunId = z.enum(GUN_IDS);

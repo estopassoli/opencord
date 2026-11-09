@@ -88,6 +88,11 @@ describe('Espaço 3D: validação', () => {
     for (const w of ['rs9', 'msmc', 'mcx', 'scarl', 'mpx', 'automag3', 'aks74u', 'pdw', 'sv98', 'ballista', 'bfr'])
       expect(SpaceMove.safeParse({ ...base, gun: { ...gun, w } }).success).toBe(true);
     for (const w of ['stg44', 'rhino']) expect(SpaceMove.safeParse({ ...base, gun: { ...gun, w } }).success).toBe(true);
+    // facas novas: no fim da lista (as de antes mantêm o índice)
+    expect(GUN_IDS.slice(-4)).toEqual(['balisong', 'kabar', 'bowie', 'kukri']);
+    expect(GUN_IDS.indexOf('rhino')).toBe(23);
+    for (const w of ['balisong', 'kabar', 'bowie', 'kukri'])
+      expect(SpaceMove.safeParse({ ...base, gun: { ...gun, w } }).success).toBe(true);
     expect(SpaceMove.safeParse({ ...base, gun: { ...gun, w: 'gepard' } }).success).toBe(false);
     expect(GUN_IDS.slice(0, 11)).toEqual([
       'm4',

@@ -22,7 +22,7 @@ import { flashTexture } from './fx';
 import { ARM_HAND_FIT, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
 import { aimReticles } from './attachmodels';
-import { disposeGun, movePart, partBox, partCenter, type GunModel, type Part } from './models';
+import { disposeGun, movePart, partBox, partCenter, setBalisong, type GunModel, type Part } from './models';
 import { PINCH_CURL, fitAt, gunHolds, magMesh, stripperClip, warmHolds, type Holds } from './holds';
 import {
   CLIP_ROUNDS,
@@ -300,6 +300,10 @@ interface Offsets {
   spin: number;
   twist: number;
   open: number;
+  /** balisong: quanto ela está fechada (0 aberta) e os giros extras do cabo de morder e da lâmina (rad) */
+  shut: number;
+  bite: number;
+  bladeX: number;
   lx: number;
   ly: number;
   lz: number;
@@ -319,6 +323,9 @@ const zeroOffsets = (): Offsets => ({
   spin: 0,
   twist: 0,
   open: 0,
+  shut: 0,
+  bite: 0,
+  bladeX: 0,
   lx: 0,
   ly: 0,
   lz: 0,
@@ -327,6 +334,7 @@ const zeroOffsets = (): Offsets => ({
 const KD = zeroOffsets();
 const resetKD = () => {
   KD.ex = KD.ey = KD.ez = KD.pro = KD.roll = KD.spin = KD.twist = KD.open = KD.lx = KD.ly = KD.lz = 0;
+  KD.shut = KD.bite = KD.bladeX = 0;
 };
 const KQ = new THREE.Quaternion();
 const KQ2 = new THREE.Quaternion();
@@ -605,7 +613,7 @@ export class Viewmodel {
     // faca não mira (o botão direito dela é o golpe pesado)
     const knife = spec.cls === 'knife';
     const ads = knife ? 0 : ease(inp.ads);
-    const kp = knife ? KNIFE_POSE[g.id === 'bayonet' ? 'bayonet' : 'karambit'] : null;
+    const kp = knife ? KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet'] : null;
     const hip = kp ? kp.pos : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
     // mirando: a linha de mira passa pelo centro da tela, um pouco à frente do olho (na luneta, o olho na ocular)
     const eyeZ =
@@ -944,6 +952,9 @@ export class Viewmodel {
     L.spin = spin;
     L.twist = KD.twist;
     L.open = open;
+    L.shut = KD.shut;
+    L.bite = KD.bite;
+    L.bladeX = KD.bladeX;
     L.lx = KD.lx;
     L.ly = KD.ly;
     L.lz = KD.lz;
@@ -967,6 +978,9 @@ export class Viewmodel {
       KD.lx += c.lx * w;
       KD.ly += c.ly * w;
       KD.lz += c.lz * w;
+      KD.shut += c.shut * w;
+      KD.bite += c.bite * w;
+      KD.bladeX += c.bladeX * w;
       spin += wrapAngle(c.spin) * w;
       open = Math.max(open, c.open * w);
     }
@@ -1025,6 +1039,8 @@ export class Viewmodel {
       SPIN_Q.setFromAxisAngle(this.spinAxis, spin).multiply(TWIST_Q.setFromAxisAngle(Z_AXIS, KD.twist));
       g.root.quaternion.copy(SPIN_Q);
       g.root.position.copy(this.spinPivot).sub(V.copy(this.spinPivot).applyQuaternion(SPIN_Q));
+      // balisong: a lâmina e o cabo de morder giram nos pinos (aberta, fechando ou nos floreios)
+      if (g.flip) setBalisong(g, 1 - KD.shut, KD.bite, KD.bladeX);
     }
     this.holder.updateMatrixWorld(true);
     // recarga: a mão esquerda segue o fundo do pente de verdade (já no lugar deste quadro), a palma por baixo dele
@@ -1158,6 +1174,7 @@ export class Viewmodel {
   ) {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
+    if (this.gun?.flip) return this.balisongDraw(u, full, pos, rot, joltAt);
     // passa um pouco do ponto ao chegar na guarda e volta
     const settle = hump(u, 0.72, 0.8, 0.84, 1);
     pos.y -= 0.02 * settle;
@@ -1196,6 +1213,43 @@ export class Viewmodel {
   }
 
   /**
+   * Saque da balisong: a mão sobe de baixo com ela fechada, de lado para a câmera; os dedos soltam e o cabo de morder dá
+   * meia volta (tranco), a lâmina gira para fora e trava entre os cabos (tranco maior), o pulso batendo para um lado e
+   * para o outro a cada meia volta; os dedos fecham e o braço desce para a guarda. Com "reduzir movimento", ela já
+   * vem aberta.
+   */
+  private balisongDraw(
+    u: number,
+    full: boolean,
+    pos: THREE.Vector3,
+    rot: THREE.Euler,
+    joltAt: (key: string, at: number, v: number) => void,
+  ) {
+    const entry = 1 - ease(seg(u, 0, 0.24));
+    const high = 1 - ease(seg(u, 0.66, 0.86));
+    const settle = hump(u, 0.8, 0.86, 0.9, 1);
+    pos.x += 0.06 * entry - 0.02 * high;
+    pos.y += 0.06 * high - 0.24 * entry - 0.015 * settle;
+    pos.z += 0.03 * high;
+    KD.ez = -0.85 * high;
+    KD.ex = 0.2 * high;
+    KD.pro = 0.15 * high;
+    if (full) {
+      const o = ease(seg(u, 0.3, 0.64));
+      KD.shut = 1 - o;
+      // o pulso acompanha cada meia volta (vai e volta)
+      KD.pro += 0.3 * Math.sin(o * Math.PI * 2);
+      KD.open = hump(u, 0.22, 0.29, 0.64, 0.72) * 0.8;
+      joltAt('bite', 0.47, 0.9);
+      joltAt('lock', 0.64, 1.8);
+    }
+    joltAt('catch', 0.86, 1.4);
+    rot.x += 0.04 * settle;
+    KD.ly = -0.2 * (1 - ease(seg(u, 0.25, 0.75)));
+    KD.lz = 0.05 * (1 - ease(seg(u, 0.25, 0.75)));
+  }
+
+  /**
    * Inspeção da faca no momento `u` (0–1): o braço levanta a faca para o meio-direita da tela e mais perto do rosto; o
    * antebraço gira devagar mostrando uma face da lâmina (pausa) e a outra (pausa); depois o floreio — a karambit gira no
    * indicador com o braço erguido, a baioneta fica em pé e gira no próprio comprimento entre os dedos — e volta para a
@@ -1210,6 +1264,7 @@ export class Viewmodel {
   ) {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
+    const bal = !!this.gun?.flip;
     const lift = hump(u, 0, 0.1, 0.88, 1);
     pos.x -= 0.06 * lift;
     pos.y += 0.07 * lift;
@@ -1234,6 +1289,20 @@ export class Viewmodel {
       KD.ez -= 0.3 * fl;
       KD.spin = full ? -Math.PI * 2 * sU : 0;
       KD.open = full ? hump(u, 0.58, 0.63, 0.8, 0.85) : 0;
+    } else if (bal) {
+      // balisong: em pé, fecha (a lâmina volta para dentro dos cabos, depois o cabo de morder) e abre de novo, com o
+      // pulso batendo para cada lado a cada meia volta
+      KD.ez = -0.8 * fl;
+      KD.ex += 0.15 * fl;
+      if (full) {
+        const close = ease(seg(u, 0.6, 0.7));
+        const reopen = ease(seg(u, 0.73, 0.84));
+        KD.shut = close * (1 - reopen);
+        KD.pro += 0.35 * Math.sin(close * Math.PI * 2) + 0.35 * Math.sin(reopen * Math.PI * 2);
+        KD.open = hump(u, 0.57, 0.61, 0.83, 0.87) * 0.8;
+        joltAt('shut', 0.7, 1);
+        joltAt('lock2', 0.84, 1.4);
+      }
     } else {
       // em pé (a ponta para cima) e girando no comprimento entre os dedos soltos
       KD.ez = -0.9 * fl;

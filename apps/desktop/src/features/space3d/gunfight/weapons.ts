@@ -109,6 +109,32 @@ const NO_RECOIL: RecoilSpec = {
   body: 0,
 };
 
+/** uma faca (o resto é igual em todas): `dmg` do golpe leve, `ms` dele; o pesado (150) sempre derruba */
+function knifeSpec(k: { id: GunId; name: string; rpm: number; range: number; move: number; dmg: number; ms: number }) {
+  return g({
+    id: k.id,
+    name: k.name,
+    cls: 'knife',
+    slot: 'melee',
+    rpm: k.rpm,
+    auto: false,
+    dmg: [150, 150],
+    range: [k.range, k.range],
+    head: 1,
+    mag: 0,
+    reserve: 0,
+    reloadMs: 0,
+    emptyReloadMs: 0,
+    adsMs: 0,
+    zoom: 1,
+    scope: false,
+    recoil: NO_RECOIL,
+    spread: { hip: 0, ads: 0, move: 0 },
+    move: k.move,
+    melee: { dmg: k.dmg, heavy: 150, range: k.range, ms: k.ms },
+  });
+}
+
 export const GUNS: Record<GunId, GunSpec> = {
   m4: g({
     id: 'm4',
@@ -867,6 +893,13 @@ export const GUNS: Record<GunId, GunSpec> = {
     move: 0.98,
     revolver: true,
   }),
+  // ---------------------------------------------------------------- facas novas (adendo do ADR-0060)
+  // balisong: a mais leve e rápida, de alcance curto; Ka-Bar: a faca de combate equilibrada; Bowie: mais comprida e
+  // um pouco mais lenta; kukri: a mais pesada (alcance e golpe leve maiores, ainda dois golpes leves para derrubar)
+  balisong: knifeSpec({ id: 'balisong', name: 'Balisong', rpm: 125, range: 1.9, move: 1.13, dmg: 55, ms: 400 }),
+  kabar: knifeSpec({ id: 'kabar', name: 'Ka-Bar', rpm: 115, range: 2.1, move: 1.11, dmg: 55, ms: 480 }),
+  bowie: knifeSpec({ id: 'bowie', name: 'Bowie', rpm: 105, range: 2.3, move: 1.09, dmg: 58, ms: 560 }),
+  kukri: knifeSpec({ id: 'kukri', name: 'Kukri', rpm: 95, range: 2.45, move: 1.07, dmg: 62, ms: 640 }),
 };
 
 export const CLASS_LABEL: Record<GunClass, string> = {
@@ -899,7 +932,7 @@ export const SLOT_GUNS: Record<GunSlot, GunId[]> = {
     'kar98k',
   ],
   secondary: ['m9', 'deagle', 'automag3', 'rhino', 'bfr'],
-  melee: ['karambit', 'bayonet'],
+  melee: ['karambit', 'bayonet', 'balisong', 'kabar', 'bowie', 'kukri'],
 };
 
 export interface Loadout {

@@ -45,3 +45,20 @@ A atribuição também aparece no app, no menu "Esta partida" do gunfight.
 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) — sem atribuição obrigatória, registrada por cortesia.
 Modificações (`apps/desktop/scripts/arms-build.py`): esqueleto limpo, escala em metros, braço, antebraço e falanges
 esticados, manga e luva feitas a partir da malha, uma subdivisão.
+
+## Facas (Sketchfab)
+
+As facas abaixo foram publicadas no Sketchfab sob a licença
+[Creative Commons Attribution 4.0 (CC-BY 4.0)](https://creativecommons.org/licenses/by/4.0/):
+
+| Arquivo | Modelo | Autor |
+| --- | --- | --- |
+| `balisong.glb` | [Balisong (Low Poly)](https://sketchfab.com/3d-models/balisong-low-poly-7f7196fe394f409fbd14978ee38de7e5) | Jawa ([HELLBRAD](https://sketchfab.com/HELLBRAD)) |
+| `kabar.glb` | [Low-Poly USMC KA-BAR 1217](https://sketchfab.com/3d-models/low-poly-usmc-ka-bar-1217-01e23386270b4c008f3176cf18cec3ee) | Boleklolo ([BolekloloR](https://sketchfab.com/BolekloloR)) |
+| `bowie.glb` | [Simple Bowie Knife](https://sketchfab.com/3d-models/simple-bowie-knife-e5c453d0a2e54ed2aea9486f63731177) | [Big2XG](https://sketchfab.com/Big2XG) |
+| `kukri.glb` | [Low-Poly Kukri](https://sketchfab.com/3d-models/low-poly-kukri-0e4323816a78466a8fa2c677e7cdeaf1) | [jsbgamedev123](https://sketchfab.com/jsbgamedev123) |
+
+Modificações (`apps/desktop/scripts/knives-build.py`, Blender): escala em metros (comprimento de faca de verdade),
+eixos e origem no cabo, cabo do kukri alinhado, texturas reduzidas para 512 px (JPEG); balisong só com a pose
+fechada, com a lâmina e o cabo de morder separados em nós que giram nos pinos; cores novas na balisong e no kukri (o
+arquivo é quase todo preto).

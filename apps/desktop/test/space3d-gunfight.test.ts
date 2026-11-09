@@ -1416,6 +1416,25 @@ describe('gunfight: rodada do jogo todo (Caio, pegada/recoil r1)', () => {
     expect(maxDamage(GUNS.bayonet)).toBe(GUNS.bayonet.melee!.heavy);
   });
 
+  it('facas novas (balisong, Ka-Bar, Bowie, kukri): na lista de facas, dois golpes leves e um pesado derrubam', () => {
+    const knives = ['balisong', 'kabar', 'bowie', 'kukri'] as const;
+    for (const id of knives) {
+      const k = GUNS[id];
+      expect(k.cls).toBe('knife');
+      expect(k.slot).toBe('melee');
+      expect(w.SLOT_GUNS.melee).toContain(id);
+      expect(k.melee!.dmg).toBeLessThan(100);
+      expect(k.melee!.dmg * 2).toBeGreaterThanOrEqual(100);
+      expect(maxDamage(k)).toBe(150);
+    }
+    // da mais leve para a mais pesada: alcance sobe, golpe fica mais lento, anda mais devagar
+    const [bal, kab, bow, kuk] = knives.map((id) => GUNS[id].melee!);
+    expect(bal!.range < kab!.range && kab!.range < bow!.range && bow!.range < kuk!.range).toBe(true);
+    expect(bal!.ms < kab!.ms && kab!.ms < bow!.ms && bow!.ms < kuk!.ms).toBe(true);
+    expect(GUNS.balisong.move).toBeGreaterThan(GUNS.kukri.move);
+    expect(validLoadout({ primary: 'm4', secondary: 'm9', melee: 'kukri' }).melee).toBe('kukri');
+  });
+
   it('o tiro que acerta parede ou chão traz a normal da face (para a marca)', () => {
     const wall = { min: { x: -1, y: 0, z: -6 }, max: { x: 1, y: 3, z: -5 } };
     const o = { x: 0, y: 1.1, z: 0 };

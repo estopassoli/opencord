@@ -44,3 +44,21 @@ um modelo de braços de verdade, com esqueleto, e poses escritas por arma.
 - Limitações conhecidas: anelar e mindinho às vezes ficam mais abertos que o ideal no punho de fuzil (o encaixe abre o
   dedo quando ele encosta no guarda-mato ou no poço do pente); o encaixe é por esferas, então pode sobrar ~1 mm de
   folga ou de contato; teste em máquina real (Windows) pendente.
+
+## Adendo (2026-11-09, noite): quatro facas novas e a argola da karambit
+- **Facas de arquivo**: balisong (Jawa/HELLBRAD), Ka-Bar 1217 (Boleklolo), Bowie (Big2XG) e kukri (jsbgamedev123), do
+  Sketchfab sob CC-BY 4.0 (créditos em `assets/guns/CREDITS.md` e no menu "Esta partida"). Convertidas por
+  `apps/desktop/scripts/knives-build.py` (Blender, sem rodar nada do arquivo): metros, lâmina para −z e fio para baixo,
+  origem no meio do cabo, cabo alinhado com o eixo (o do kukri é inclinado), nó `guard` na frente do cabo, texturas a
+  512 px; ~450 KB no total. `GunId` cresce no fim (`balisong`, `kabar`, `bowie`, `kukri`): contrato, API e app sobem
+  juntos.
+- **Pegada**: as quatro usam o martelo da baioneta (`grips.ts`), com o punho fechado logo atrás da guarda medida no
+  arquivo e os dedos fechando até encostar no cabo (mesmo encaixe da baioneta). Terceira pessoa usa a mesma conta.
+- **Balisong**: a lâmina e o cabo de morder são nós que giram nos pinos (`GunModel.flip`, `setBalisong`): o saque abre
+  a faca (meia volta do cabo de morder, meia volta da lâmina, tranco ao travar) e a inspeção fecha e abre de novo, com
+  os dedos soltos durante o giro. Com "reduzir movimento", ela já vem aberta. Ka-Bar, Bowie e kukri usam o saque e a
+  inspeção da baioneta. Nada copiado de animação de outro jogo: só o princípio (a peça gira em volta de um pino real).
+- **Atributos**: classe faca, golpe pesado 150, dois golpes leves derrubam; da balisong (mais leve e rápida, menor
+  alcance) ao kukri (maior alcance, mais lenta).
+- **Karambit**: a mão vai 3 cm para trás e 6 mm para baixo (`ARM_HAND_FIT.ring`): o indicador passa pela argola em vez
+  de ficar pendurado na frente dela.

@@ -274,7 +274,7 @@ export const ARM_HAND_FIT = {
   curl: FIST_CURL,
   grip: GRIP_HOLE,
   clamp: 0.022,
-  ring: { row: 0.016, back: 0 },
+  ring: { row: 0.022, back: 0.03 },
   vgripTilt: 0.5,
 };
 

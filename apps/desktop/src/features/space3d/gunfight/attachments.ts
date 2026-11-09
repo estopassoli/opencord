@@ -198,6 +198,10 @@ const FOR: Record<GunId, Partial<Record<AttSlot, readonly AttId[]>>> = {
   // revólver: sem supressor nem carregador (o tambor é fixo); o ponto vai no topo da armação
   rhino: { optic: ['pdot'], muzzle: ['comp'] },
   bfr: { optic: ['pdot'], muzzle: ['comp'] },
+  balisong: {},
+  kabar: {},
+  bowie: {},
+  kukri: {},
 };
 
 /** os acessórios que cabem na arma, num encaixe (vazio = o encaixe não existe nela) */

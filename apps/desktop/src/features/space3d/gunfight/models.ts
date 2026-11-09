@@ -37,6 +37,10 @@ import rs9Url from '../assets/guns/rs9.glb?url';
 import scarlUrl from '../assets/guns/scarl.glb?url';
 import stg44Url from '../assets/guns/stg44.glb?url';
 import sv98Url from '../assets/guns/sv98.glb?url';
+import balisongUrl from '../assets/guns/balisong.glb?url';
+import bowieUrl from '../assets/guns/bowie.glb?url';
+import kabarUrl from '../assets/guns/kabar.glb?url';
+import kukriUrl from '../assets/guns/kukri.glb?url';
 
 export type PartName = 'mag' | 'bolt' | 'slide' | 'charge' | 'boltRot' | 'blade' | 'trigger';
 
@@ -99,6 +103,11 @@ export interface GunModel {
   ownSight?: { y: number; z: number; r: number };
   /** a frente da lâmina do gatilho, quando ele é parte da armação (sem peça separada): o indicador encosta aí */
   trigFace?: THREE.Vector3;
+  /**
+   * Balisong: a lâmina (gira no pino do cabo seguro) e o cabo de morder (gira no pino dele, preso à lâmina), os dois
+   * em volta do eixo x da faca. Aberta: os dois em π; fechada: em 0 (`setBalisong`).
+   */
+  flip?: { blade: THREE.Object3D; bite: THREE.Object3D };
 }
 
 /** o vidro de uma mira com retículo aceso (ponto vermelho, reflexa mini, ponto de pistola) */
@@ -217,6 +226,17 @@ const FILE: Partial<Record<GunId, string>> = {
   rhino: rhinoUrl,
 };
 
+/**
+ * Facas que vêm de arquivo (Sketchfab, CC-BY 4.0; `scripts/knives-build.py`): lâmina para −z, fio para baixo, origem
+ * no meio do cabo, um nó `guard` na frente do cabo (a balisong traz a lâmina e o cabo de morder em nós que giram).
+ */
+const KNIFE_FILE: Partial<Record<GunId, string>> = {
+  balisong: balisongUrl,
+  kabar: kabarUrl,
+  bowie: bowieUrl,
+  kukri: kukriUrl,
+};
+
 /** nome do osso no arquivo → peça */
 const BONE_PART: Record<string, PartName> = {
   mag: 'mag',
@@ -237,9 +257,14 @@ export function loadGuns(): Promise<void> {
   loading ??= (async () => {
     const loader = new GLTFLoader();
     // os braços da primeira pessoa vêm junto (o viewmodel monta a malha quando a primeira arma aparece)
-    const [files] = await Promise.all([
+    const [files, knives] = await Promise.all([
       Promise.all(
         (Object.entries(FILE) as [GunId, string][]).map(
+          async ([id, url]) => [id, await loader.loadAsync(url)] as const,
+        ),
+      ),
+      Promise.all(
+        (Object.entries(KNIFE_FILE) as [GunId, string][]).map(
           async ([id, url]) => [id, await loader.loadAsync(url)] as const,
         ),
       ),
@@ -255,6 +280,7 @@ export function loadGuns(): Promise<void> {
     }
     templates.set('karambit', { scene: new THREE.Group(), build: () => knife('karambit') });
     templates.set('bayonet', { scene: new THREE.Group(), build: () => knife('bayonet') });
+    for (const [id, gl] of knives) templates.set(id, { scene: gl.scene, build: () => fileKnife(id, gl.scene) });
   })();
   return loading;
 }
@@ -967,6 +993,73 @@ function knife(id: 'karambit' | 'bayonet'): GunModel {
     sight: new THREE.Vector3(0, 0.05, 0),
     support: new THREE.Vector3(0, 0, 0),
     length: 0.25,
+  };
+}
+
+/**
+ * Abre (1) ou fecha (0) a balisong: de 0 a ½ o cabo de morder dá meia volta no pino dele (sai de cima da lâmina); de ½
+ * a 1 a lâmina dá meia volta no pino do cabo seguro, levando o de morder, que volta a encostar no seguro do outro lado.
+ * Fora desse caminho (`bite` e `blade` à parte, em rad) para os floreios.
+ */
+export function setBalisong(g: GunModel, open: number, extraBite = 0, extraBlade = 0) {
+  const f = g.flip;
+  if (!f) return;
+  const u = Math.max(0, Math.min(1, open));
+  f.bite.rotation.x = Math.PI * Math.min(1, u * 2) + extraBite;
+  f.blade.rotation.x = Math.PI * Math.max(0, u * 2 - 1) + extraBlade;
+}
+
+/**
+ * Faca de arquivo: a mão fecha logo atrás da guarda (o punho tem ~8,5 cm; o centro dele fica a 4,5 cm da guarda),
+ * com a mesma conta da baioneta (`grips.ts` põe o punho 2,2 cm à frente de `handle`).
+ */
+const FIST_BEHIND_GUARD = 0.045 + 0.022;
+
+function fileKnife(id: GunId, scene: THREE.Object3D): GunModel {
+  const src = scene.clone(true);
+  const root = new THREE.Group();
+  root.add(src);
+  src.traverse((o) => {
+    if (o instanceof THREE.Mesh) o.castShadow = true;
+  });
+  const blade = src.getObjectByName('blade');
+  const bite = src.getObjectByName('bite');
+  const flip = blade && bite ? { blade, bite } : undefined;
+  // balisong: medida aberta (os dois cabos juntos atrás da lâmina); a origem vai para o meio dos cabos
+  if (flip) {
+    flip.blade.rotation.x = Math.PI;
+    flip.bite.rotation.x = Math.PI;
+    root.updateMatrixWorld(true);
+    const hb = new THREE.Box3();
+    for (const n of ['safe_mesh', 'bite_mesh']) {
+      const o = src.getObjectByName(n);
+      if (o) hb.expandByObject(o);
+    }
+    src.position.sub(hb.getCenter(new THREE.Vector3()));
+  }
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(src);
+  let guardZ: number;
+  const guard = src.getObjectByName('guard');
+  if (guard) guardZ = guard.getWorldPosition(new THREE.Vector3()).z;
+  else {
+    const hb = new THREE.Box3();
+    for (const n of ['safe_mesh', 'bite_mesh']) {
+      const o = src.getObjectByName(n);
+      if (o) hb.expandByObject(o);
+    }
+    guardZ = hb.isEmpty() ? -0.05 : hb.min.z;
+  }
+  return {
+    id,
+    root,
+    parts: {},
+    handle: new THREE.Vector3(0, 0, guardZ + FIST_BEHIND_GUARD),
+    muzzle: new THREE.Vector3(0, 0, box.min.z),
+    sight: new THREE.Vector3(0, 0.05, 0),
+    support: new THREE.Vector3(0, 0, 0),
+    length: box.max.z - box.min.z,
+    ...(flip ? { flip } : {}),
   };
 }
 
