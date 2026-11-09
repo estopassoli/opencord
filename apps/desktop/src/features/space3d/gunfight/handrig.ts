@@ -275,6 +275,7 @@ export const ARM_HAND_FIT = {
   grip: GRIP_HOLE,
   clamp: 0.022,
   ring: { row: 0.016, back: 0 },
+  vgripTilt: 0.5,
 };
 
 /** o descanso do osso da mão no espaço da mão (para pôr o osso de verdade onde a pegada põe a mão) */

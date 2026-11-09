@@ -225,6 +225,7 @@ interface Debris {
 }
 const HQ = new THREE.Quaternion();
 const FORE_DIR = new THREE.Vector3();
+const FORE_L = new THREE.Vector3();
 const SPIN_Q = new THREE.Quaternion();
 /**
  * Saque das facas (ms): o braço entra pelo alto à direita (karambit, que gira no indicador com a mão erguida) ou de baixo
@@ -1069,7 +1070,10 @@ export class Viewmodel {
     if (this.arms.build()) {
       elbowHint(this.handR.root.getWorldPosition(W1), 1, ELBOW, 0, kp ? 1 : 0, FORE_DIR);
       this.arms.solve(1, shoulderAt(1, 0, SH), ELBOW);
-      elbowHint(this.handL.root.getWorldPosition(W1), -1, ELBOW, shoulderOut);
+      // empunhadura vertical: o antebraço esquerdo segue a linha da mão (vem de baixo e de trás, o pulso reto)
+      const vg = g.foregrip?.kind === 'vertical' ? (1 - magHold) * (1 - leftAlt) * (1 - leftAway) : 0;
+      if (vg > 0) FORE_L.set(0, 0, -1).applyQuaternion(this.handL.root.getWorldQuaternion(HQ));
+      elbowHint(this.handL.root.getWorldPosition(W1), -1, ELBOW, shoulderOut, 0.85 * vg, FORE_L);
       this.arms.solve(-1, shoulderAt(-1, shoulderOut, SH), ELBOW);
     }
     // ferrolho aberto: o estojo sai (com a arma já no lugar deste quadro); peças soltas caindo

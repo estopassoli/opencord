@@ -144,10 +144,12 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
   const trig = g.parts.trigger;
   const soup = soupOf(g.root, { at: pos0, r: 0.18 }, undefined, trig?.obj);
   const box = trig ? partBox(g, trig) : null;
-  // a frente da lâmina do gatilho, um pouco abaixo do meio (onde a polpa do dedo fica)
-  const target = box
+  // a frente da lâmina do gatilho, um pouco abaixo do meio; a polpa (o centro da esfera) fica encostada na frente dela,
+  // não dentro (o gatilho fica fora da sopa para o dedo poder tocar, e o dedo reto atravessava a lâmina e o guarda-mato)
+  const face = box
     ? new THREE.Vector3(0, box.min.y + (box.max.y - box.min.y) * 0.45, box.min.z)
     : (TRIGGER_AT[g.id]?.clone() ?? null);
+  const target = face ? face.clone().add(new THREE.Vector3(PAD_X, 0, -PAD_R)) : null;
   const down = new THREE.Vector3(1, 0, 0).applyQuaternion(quat);
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
   /** o indicador: o fechamento com a ponta mais perto do gatilho sem encostar no resto (e a distância) */
@@ -158,13 +160,18 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
       const o: [number, number, number, number, number] = [ix - rc[2], 0, 0, 0, 0];
       const pr = handProbes(1, rc[0], rc[1], rc[2], o, 'index');
       if (clearance(soup, [], pr, pos, quat, 0.004) < 0.0005) return;
-      // a polpa da ponta: a penúltima esfera da falange da ponta
-      tried.push([ix, pr[pr.length - 2]!.at.clone().applyQuaternion(quat).add(pos).distanceTo(target)]);
+      // a polpa da ponta: a penúltima esfera da falange da ponta; a ponta não passa da frente do gatilho (o dedo reto
+      // saía pela frente do guarda-mato) e o dedo dobra como dedo de gatilho (esticado, ele atravessava a lâmina)
+      const tip = pr[pr.length - 1]!.at.clone().applyQuaternion(quat).add(pos);
+      // nem passa para o lado esquerdo do gatilho (vista da primeira pessoa, a ponta aparecia solta dentro do guarda-mato)
+      const over = Math.max(0, face!.z - OVERSHOOT - tip.z) + Math.max(0, -LEFT_MAX - tip.x);
+      const d = pr[pr.length - 2]!.at.clone().applyQuaternion(quat).add(pos).distanceTo(target);
+      tried.push([ix, d + 2 * over + 0.12 * Math.max(0, HOOK - ix)]);
     };
-    for (let ix = 0.2; ix <= 1.0001; ix += 0.05) at(ix);
+    for (let ix = 0.2; ix <= 1.2001; ix += 0.05) at(ix);
     tried.sort((a, b) => a[1] - b[1]);
     const c = tried[0]?.[0];
-    if (c !== undefined) for (let ix = c - 0.04; ix <= c + 0.0401; ix += 0.01) if (ix >= 0 && ix <= 1) at(ix);
+    if (c !== undefined) for (let ix = c - 0.04; ix <= c + 0.0401; ix += 0.01) if (ix >= 0 && ix <= 1.2) at(ix);
     tried.sort((a, b) => a[1] - b[1]);
     // longe de qualquer superfície não quer dizer fora: o dedo pode estar inteiro dentro do punho (a malha é maciça);
     // na escolha final, o centro de cada esfera tem que estar fora da malha
@@ -183,7 +190,7 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
   let best = { score: Infinity, pos: pos0.clone(), ix: rc[2] };
   const cands: { score: number; pos: THREE.Vector3; ix: number }[] = [];
   for (let dy = -0.03; dy <= 0.0181; dy += 0.003)
-    for (let dz = -0.01; dz <= 0.0101; dz += 0.005) {
+    for (let dz = -0.01; dz <= 0.0301; dz += 0.005) {
       const p = pos0.clone().addScaledVector(down, dy).addScaledVector(fwd, dz);
       const f = fitHand(soup, 1, p, quat, rc, { palm: true, fingers: ['middle', 'ring'] });
       const mid = rc[0] + f.offsets[1];
@@ -215,6 +222,15 @@ const TRIGGER_AT: Partial<Record<GunId, THREE.Vector3>> = {
 /** conferir se o indicador ficou dentro da malha (número de voltas): os modelos feitos em código têm furos (o
  * guarda-mato) que a soma dos ângulos não entende, e o teste dava "dentro" no vão do guarda-mato */
 const DEEP_CHECK = false;
+/** raio da polpa do indicador (a esfera fica encostada na frente da lâmina) */
+const PAD_R = 0.006;
+/** a polpa um pouco à direita do meio da lâmina (o dedo entra pela direita) e até onde a ponta passa para a esquerda */
+const PAD_X = 0.003;
+const LEFT_MAX = 0.008;
+/** quanto a ponta do indicador pode passar da frente do gatilho */
+const OVERSHOOT = 0.01;
+/** o dedo de gatilho dobrado: abaixo disso ele está quase reto */
+const HOOK = 0.55;
 /** o médio e o anelar têm que fechar pelo menos isto em volta do punho (senão a mão desce) */
 const MIDDLE_WRAP = 0.7;
 

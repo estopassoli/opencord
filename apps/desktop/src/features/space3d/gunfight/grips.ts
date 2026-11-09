@@ -92,6 +92,11 @@ export interface HandFit {
    * a mão vai para trás até o indicador passar na argola (a argola fica em cima do meio do cabo)
    */
   ring: { row: number; back: number };
+  /**
+   * empunhadura vertical: quanto a mão inclina a mais (o pulso desce para trás, na linha do antebraço que vem de baixo;
+   * reta, o pulso dobrava em ângulo)
+   */
+  vgripTilt: number;
 }
 const CAPSULE_HAND: HandFit = {
   hole: FIST_HOLE,
@@ -99,6 +104,7 @@ const CAPSULE_HAND: HandFit = {
   grip: FIST_HOLE,
   clamp: 0,
   ring: { row: 0.027, back: 0.05 },
+  vgripTilt: 0,
 };
 /** onde o vão da mão fechada fica em relação ao pulso num giro (espaço da arma) */
 const holeIn = (h: HandFit, q: THREE.Quaternion) => h.hole.clone().applyQuaternion(q);
@@ -171,9 +177,10 @@ export function leftGrip(
   if (g.foregrip?.kind === 'vertical') {
     // empunhadura vertical: a esquerda fecha em volta dela como a direita no punho (o vão da mão no meio dela, a palma
     // pela esquerda, o indicador em cima, logo abaixo do guarda-mão)
+    const q = rotX(hf.vgripTilt).multiply(VGRIP);
     return {
-      pos: g.foregrip.at.clone().sub(gripIn(hf, VGRIP)).add(VGRIP_SHIFT),
-      quat: VGRIP.clone(),
+      pos: g.foregrip.at.clone().sub(gripIn(hf, q)).add(VGRIP_SHIFT),
+      quat: q,
       curl: [0.92, 0.6, 0.92],
     };
   }
