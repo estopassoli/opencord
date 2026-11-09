@@ -297,32 +297,160 @@ export function buildRaceDecor(): THREE.Group {
   return g;
 }
 
-/** a moto (embaixo do avatar) */
+/**
+ * Uma roda: pneu, aro de metal, cubo e raios, com o eixo em x (girar `rotation.x` faz a roda rodar).
+ */
+function wheelMesh(dark: THREE.Material, metal: THREE.Material, accent: THREE.Material): THREE.Group {
+  const w = new THREE.Group();
+  const tire = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.075, 10, 28).rotateY(Math.PI / 2), dark);
+  w.add(tire);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.175, 0.018, 6, 28).rotateY(Math.PI / 2), accent);
+  w.add(rim);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.12, 12).rotateZ(Math.PI / 2), metal);
+  w.add(hub);
+  for (let i = 0; i < 5; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.17, 0.03), accent);
+    const a = (i / 5) * Math.PI * 2;
+    spoke.position.set(0, Math.cos(a) * 0.09, Math.sin(a) * 0.09);
+    spoke.rotation.x = -a;
+    w.add(spoke);
+  }
+  w.name = 'wheel';
+  return w;
+}
+
+/** cilindro de `a` até `b` (garfo, escapamento, balança) */
+function tube(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Material): THREE.Mesh {
+  const d = new THREE.Vector3().subVectors(b, a);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 10), mat);
+  m.position.copy(a).addScaledVector(d, 0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+  return m;
+}
+
+/**
+ * A moto (embaixo do avatar), desenho nosso: carenagem esportiva na cor da pessoa (um pouco mais viva que o boneco),
+ * quadro e banco escuros, rodas com aro e raios, garfo e escapamento de metal, farol aceso. Frente em +z.
+ */
 export function bikeMesh(color: number): THREE.Group {
   const g = new THREE.Group();
-  const mat = new THREE.MeshLambertMaterial({ color, flatShading: true });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x1b1d22 });
-  for (const z of [0.62, -0.62]) {
-    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.09, 6, 14), dark);
-    wheel.rotation.y = Math.PI / 2;
-    wheel.position.set(0, 0.3, z);
-    wheel.name = 'wheel';
-    g.add(wheel);
+  const base = new THREE.Color(color);
+  const hsl = { h: 0, s: 0, l: 0 };
+  base.getHSL(hsl);
+  // a moto não pode sumir no boneco: a carenagem é mais saturada e um pouco mais escura que a pele
+  const paint = new THREE.Color().setHSL(
+    hsl.h,
+    Math.min(1, hsl.s + 0.35),
+    Math.max(0.28, Math.min(0.48, hsl.l - 0.12)),
+  );
+  const body = new THREE.MeshStandardMaterial({ color: paint, roughness: 0.35, metalness: 0.15 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1c1e23, roughness: 0.85 });
+  const frame = new THREE.MeshStandardMaterial({ color: 0x2c2f36, roughness: 0.6, metalness: 0.3 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.25, metalness: 0.9 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.5 });
+  const lamp = new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff0c0, emissiveIntensity: 0.9 });
+  const glass = new THREE.MeshStandardMaterial({
+    color: 0x9fb4c8,
+    roughness: 0.1,
+    metalness: 0.2,
+    transparent: true,
+    opacity: 0.45,
+  });
+
+  const front = wheelMesh(dark, metal, white);
+  front.position.set(0, 0.32, 0.66);
+  g.add(front);
+  const rear = wheelMesh(dark, metal, white);
+  rear.position.set(0, 0.32, -0.62);
+  g.add(rear);
+
+  // carenagem: perfil lateral (z para a frente, y para cima) extrudado na largura, com borda arredondada
+  const prof = new THREE.Shape();
+  const pts: [number, number][] = [
+    [-0.74, 0.66],
+    [-0.42, 0.54],
+    [0.02, 0.52],
+    [0.2, 0.7],
+    [0.46, 0.8],
+    [0.66, 0.7],
+    [0.7, 0.54],
+    [0.5, 0.38],
+    [0.12, 0.34],
+    [-0.22, 0.38],
+    [-0.5, 0.5],
+  ];
+  prof.moveTo(pts[0]![0], pts[0]![1]);
+  for (const [z, y] of pts.slice(1)) prof.lineTo(z, y);
+  prof.closePath();
+  const W = 0.24;
+  const shell = new THREE.ExtrudeGeometry(prof, {
+    depth: W,
+    bevelEnabled: true,
+    bevelThickness: 0.04,
+    bevelSize: 0.035,
+    bevelSegments: 3,
+  });
+  shell.translate(0, 0, -W / 2).rotateY(-Math.PI / 2);
+  g.add(new THREE.Mesh(shell, body));
+
+  // faixa branca e o número na lateral
+  for (const sx of [1, -1]) {
+    const plate = new THREE.Mesh(new THREE.CircleGeometry(0.085, 20), white);
+    plate.position.set(sx * (W / 2 + 0.042), 0.47, -0.3);
+    plate.rotation.y = sx * (Math.PI / 2);
+    g.add(plate);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.035, 0.62), white);
+    stripe.position.set(sx * (W / 2 + 0.04), 0.6, 0.32);
+    stripe.rotation.x = -0.12;
+    g.add(stripe);
   }
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.32, 1.1), mat);
-  body.position.set(0, 0.55, 0);
-  g.add(body);
-  const tank = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.22, 0.42), mat);
-  tank.position.set(0, 0.76, 0.22);
+
+  // tanque (arredondado) e banco
+  const tank = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 12), body);
+  tank.scale.set(0.85, 0.55, 1.15);
+  tank.position.set(0, 0.74, 0.22);
   g.add(tank);
-  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 6), dark);
-  bar.rotation.z = Math.PI / 2;
-  bar.position.set(0, 1.0, 0.5);
-  g.add(bar);
-  const fork = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 0.08), dark);
-  fork.position.set(0, 0.68, 0.58);
-  fork.rotation.x = 0.35;
-  g.add(fork);
-  g.traverse((o) => (o.raycast = () => undefined));
+  const seat = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.36, 4, 10).rotateX(Math.PI / 2), dark);
+  seat.scale.set(1.1, 0.55, 1);
+  seat.position.set(0, 0.56, -0.2);
+  g.add(seat);
+
+  // quadro: motor, balança traseira e pedaleiras
+  const engine = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.3), frame);
+  engine.position.set(0, 0.36, 0.02);
+  g.add(engine);
+  for (const sx of [1, -1]) {
+    g.add(tube(new THREE.Vector3(sx * 0.07, 0.32, -0.62), new THREE.Vector3(sx * 0.07, 0.42, -0.1), 0.022, frame));
+    const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.12, 6).rotateZ(Math.PI / 2), metal);
+    peg.position.set(sx * 0.17, 0.36, -0.08);
+    g.add(peg);
+  }
+
+  // garfo da frente (dois tubos inclinados), guidão e manoplas
+  for (const sx of [1, -1])
+    g.add(tube(new THREE.Vector3(sx * 0.08, 0.32, 0.66), new THREE.Vector3(sx * 0.08, 0.88, 0.42), 0.024, metal));
+  g.add(tube(new THREE.Vector3(-0.3, 0.88, 0.42), new THREE.Vector3(0.3, 0.88, 0.42), 0.018, frame));
+  for (const sx of [1, -1]) {
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.1, 8).rotateZ(Math.PI / 2), dark);
+    grip.position.set(sx * 0.33, 0.88, 0.42);
+    g.add(grip);
+  }
+
+  // farol e para-brisa
+  const light = new THREE.Mesh(new THREE.CircleGeometry(0.065, 18), lamp);
+  light.position.set(0, 0.74, 0.745);
+  g.add(light);
+  const shield = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.2), glass);
+  shield.position.set(0, 0.86, 0.58);
+  shield.rotation.x = -0.6;
+  g.add(shield);
+
+  // escapamento cromado do lado direito
+  g.add(tube(new THREE.Vector3(-0.15, 0.3, 0.05), new THREE.Vector3(-0.17, 0.44, -0.62), 0.04, metal));
+
+  g.traverse((o) => {
+    o.raycast = () => undefined;
+    if (o instanceof THREE.Mesh) o.castShadow = true;
+  });
   return g;
 }

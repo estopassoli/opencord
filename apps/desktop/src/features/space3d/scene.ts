@@ -355,6 +355,12 @@ export class SpaceScene {
     this.pool = null;
     this.bike = null;
     this.me.setBike(false);
+    // o aviso e o selo da zona anterior não ficam na tela (a sinuca na pista de corrida)
+    this.lastPrompt = 0;
+    if (this.promptLabel !== null) {
+      this.promptLabel = null;
+      this.hooks.onPrompt?.(null);
+    }
     if (this.decor) {
       this.scene.remove(this.decor);
       this.decor.traverse((o) => o instanceof THREE.Mesh && o.geometry.dispose());
@@ -470,6 +476,7 @@ export class SpaceScene {
 
   private stepRace(dt: number, now: number) {
     const b = this.bike!;
+    this.updatePrompt(now);
     const start = this.raceInfo.localStart;
     const go = start !== null && Date.now() >= start && !this.raceFinished;
     // contagem 3-2-1 e "vai" (efeito)
