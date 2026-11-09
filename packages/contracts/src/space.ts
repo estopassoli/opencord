@@ -236,6 +236,20 @@ export const GUN_IDS = [
   'deagle',
   'karambit',
   'bayonet',
+  // armas novas (ADR-0058, adendo de 2026-11-09): só no fim, a ordem antiga não muda
+  'rs9',
+  'msmc',
+  'mcx',
+  'scarl',
+  'mpx',
+  'automag3',
+  'aks74u',
+  'pdw',
+  'sv98',
+  'ballista',
+  'bfr',
+  'stg44',
+  'rhino',
 ] as const;
 export type GunId = (typeof GUN_IDS)[number];
 export const GunId = z.enum(GUN_IDS);

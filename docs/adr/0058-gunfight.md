@@ -86,3 +86,30 @@ em Fácil, Médio e Difícil. Nada de mapas, arte, sons ou interface copiados de
   abafado (> 25 m) e panorâmica ±0,8 na zona 8.
 - **Contrato:** `SpaceGunPose` ganha `prot`, `ft`, `fl` (opcionais) e `act: 'inspect'`. Servidor e app sobem juntos
   (servidor antigo recusa a pose com `act: 'inspect'`).
+
+## Adendo (2026-11-09): armas novas e troca da M200 e da Desert Eagle
+
+- **Modelos:** 13 armas novas dos modelos "Low Poly" de TastyTony no Sketchfab (CC-BY 4.0, atribuição em
+  `assets/guns/CREDITS.md` e no menu): Haenel RS9, FN Ballista e SV-98 (snipers de ferrolho), SCAR-L, Sig MCX, AKS-74U e
+  StG 44 (fuzis), Sig MPX, MSMC e KAC PDW (submetralhadoras), Automag III (pistola), Magnum BFR e Chiappa Rhino
+  (revólveres). A M200 e a Desert Eagle feitas em código foram trocadas pelos modelos dele, com o mesmo id, números e
+  acessórios. Gepard, Mateba e Judge ficaram de fora.
+- **Conversão** (`apps/desktop/scripts/guns-build.py`, Blender, sem rodar nada do arquivo): pose de descanso aplicada,
+  cada vértice na peça do osso de maior peso (ou por nome da malha/caixa nos modelos sem esqueleto), peças rígidas como
+  nós com o nome que o jogo procura (`mag`, `bullets`, `bolt`, `boltmove`, `boltrotate`, `slide`, `charginghandle`,
+  `bolthandle`, `irons`, `optic`, `foregrip`), um nó `trigger` vazio na frente do gatilho, escala para o comprimento da
+  arma de verdade (a Automag do arquivo é baixa e larga: escala por eixo), sem UV nem cor de vértice. ~7 MB a mais no total.
+- **Jogo:** mira de ferro medida com raios no modelo (furo da alça/fundo do entalhe e ponta da massa); lunetas e o ponto
+  vermelho de fábrica (MSMC, MCX) pelo eixo óptico, com retículo aceso no vidro; a alça e a massa de SCAR-L, MPX, PDW,
+  AKS-74U e StG 44 deitam com uma mira do armeiro; a mira e a empunhadura de fábrica saem quando se monta outra.
+- **Recarga:** pente pela lateral (fuzis e submetralhadoras), no punho (MSMC, como a MP7), pistola, ferrolho (snipers) e,
+  nova, a do revólver (`reload.ts cylinderPose`): o tambor abre para a esquerda girando, a mão aninha por baixo, vai ao
+  cinto e volta com o carregador rápido, empurra e o tambor fecha. Revólver não solta estojo no tiro.
+- **Números:** no estilo dos que já existiam (SCAR-L entre M4 e AK; MCX leve; AKS-74U ágil e de dano que cai cedo;
+  StG 44 lenta e forte; MPX estável; MSMC a mais rápida de perto; PDW alcança mais; RS9 e Ballista derrubam no peito,
+  SV-98 mira rápido e de longe precisa de dois; Automag de cano longo; Rhino de coice baixo; BFR com o tiro mais forte
+  das pistolas e coice enorme).
+- **Contrato:** `GUN_IDS` ganha os 13 ids no fim (a ordem antiga não muda). API e app sobem juntos (a API antiga recusa
+  a pose com arma nova). Sem migração.
+- **Limitações:** recarga do revólver simplificada (sem estojos caindo do tambor); dedos da mão de apoio na pegada em
+  "C" sobem pela lateral do guarda-mão como nas armas antigas; teste em máquina real (Windows) pendente.

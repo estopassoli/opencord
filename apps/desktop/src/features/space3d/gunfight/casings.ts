@@ -48,6 +48,17 @@ const GUN_CAL: Partial<Record<GunId, string>> = {
   m200: '408',
   kar98k: '792',
   deagle: '50ae',
+  scarl: '556',
+  mcx: '556',
+  aks74u: '556',
+  stg44: '762',
+  mpx: '9',
+  msmc: '9',
+  pdw: '46',
+  rs9: '338',
+  ballista: '338',
+  sv98: '792',
+  automag3: '9',
 };
 
 /**
@@ -60,10 +71,21 @@ export const PORT: Partial<Record<GunId, THREE.Vector3Tuple>> = {
   mp7: [0.022, 0.056, 0.01],
   mp5: [0.024, 0.095, -0.1],
   l115: [0.028, 0.085, -0.1],
-  m200: [0.029, 0.087, -0.085],
+  m200: [0.03, 0.07, -0.12],
   kar98k: [0.02, 0.09, -0.1],
   m9: [0.013, 0.066, -0.03],
-  deagle: [0.019, 0.085, -0.03],
+  deagle: [0.02, 0.07, -0.03],
+  scarl: [0.026, 0.088, -0.11],
+  mcx: [0.022, 0.085, -0.1],
+  aks74u: [0.022, 0.075, -0.15],
+  stg44: [0.025, 0.06, -0.15],
+  mpx: [0.024, 0.075, -0.1],
+  msmc: [0.02, 0.07, -0.05],
+  pdw: [0.02, 0.075, -0.1],
+  rs9: [0.028, 0.06, -0.11],
+  ballista: [0.03, 0.075, -0.1],
+  sv98: [0.024, 0.065, -0.09],
+  automag3: [0.016, 0.055, -0.02],
 };
 
 /** a boca de cada arma no espaço dela (y, z): nos bonecos, a janela sai da boca (que eles informam) para trás */
@@ -73,10 +95,23 @@ const MUZZLE: Partial<Record<GunId, [number, number]>> = {
   mp7: [0.002, -0.247],
   mp5: [0.034, -0.361],
   l115: [0.076, -0.951],
-  m200: [0.076, -0.952],
+  m200: [0.082, -1.032],
   kar98k: [0.03, -0.781],
   m9: [0.023, -0.148],
-  deagle: [0.066, -0.218],
+  deagle: [0.057, -0.191],
+  scarl: [0.08, -0.565],
+  mcx: [0.078, -0.601],
+  aks74u: [0.058, -0.429],
+  stg44: [0.076, -0.597],
+  mpx: [0.076, -0.364],
+  msmc: [0.058, -0.297],
+  pdw: [0.069, -0.404],
+  rs9: [0.079, -0.904],
+  ballista: [0.082, -0.932],
+  sv98: [0.08, -0.872],
+  automag3: [0.04, -0.17],
+  rhino: [0.052, -0.209],
+  bfr: [0.078, -0.293],
 };
 /** a arma do boneco é menor que a da primeira pessoa (escala do boneco, ~0,85) */
 const DOLL_GUN = 0.85;
@@ -364,5 +399,5 @@ export class Casings {
 /** a classe de saída da arma (pistola sobe mais; ferrolho sai fraco) */
 export function ejectKind(w: GunId, bolt: boolean): EjectKind {
   if (bolt) return 'bolt';
-  return w === 'm9' || w === 'deagle' ? 'pistol' : 'rifle';
+  return w === 'm9' || w === 'deagle' || w === 'automag3' ? 'pistol' : 'rifle';
 }

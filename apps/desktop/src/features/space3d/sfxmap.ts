@@ -284,6 +284,19 @@ const SHOT_SOUND: Record<GunId, SfxName> = {
   deagle: 'shotDeagle',
   karambit: 'knifeSwing',
   bayonet: 'knifeSwing',
+  scarl: 'shotRifle',
+  mcx: 'shotRifle',
+  aks74u: 'shotAk',
+  stg44: 'shotAk',
+  mpx: 'shotSmg',
+  msmc: 'shotSmg',
+  pdw: 'shotSmg',
+  rs9: 'shotSniper',
+  ballista: 'shotSniper',
+  sv98: 'shotSniper',
+  automag3: 'shotPistol',
+  rhino: 'shotDeagle',
+  bfr: 'shotDeagle',
 };
 
 /** família da arma para as gravações de manuseio (recarga, ferrolho, saque, clique seco) */
@@ -300,19 +313,65 @@ export const GUN_CLASS: Record<GunId, string> = {
   deagle: 'pistol',
   karambit: 'knife',
   bayonet: 'knife',
+  scarl: 'rifle',
+  mcx: 'rifle',
+  aks74u: 'ak',
+  stg44: 'ak',
+  mpx: 'smg',
+  msmc: 'smg',
+  pdw: 'smg',
+  rs9: 'bolt',
+  ballista: 'bolt',
+  sv98: 'bolt',
+  automag3: 'pistol',
+  rhino: 'pistol',
+  bfr: 'pistol',
 };
 
 /** sons de manuseio que têm gravação por família de arma */
 const GUN_HANDLING = new Set<string>(['draw', 'magOut', 'magIn', 'charge', 'boltOpen', 'boltClose', 'boltPull', 'dry']);
 
 /** armas cujo cartucho cai logo depois do tiro (as de ferrolho soltam o cartucho ao abrir; facas não têm) */
-const SHELL_AFTER_SHOT = new Set<GunId>(['m4', 'ak47', 'mp7', 'mp5', 'm9', 'deagle']);
+const SHELL_AFTER_SHOT = new Set<GunId>([
+  'm4',
+  'ak47',
+  'mp7',
+  'mp5',
+  'm9',
+  'deagle',
+  'scarl',
+  'mcx',
+  'aks74u',
+  'stg44',
+  'mpx',
+  'msmc',
+  'pdw',
+  'automag3',
+]);
 
 /** o tom de cada arma por cima do estampido da família (as três snipers e as duas SMGs não soam iguais) */
 /** tiro com supressor: corta o estalo acima disso (Hz) */
 export const SUPPRESSED_HZ = 1200;
 
-const SHOT_PITCH: Partial<Record<GunId, number>> = { kar98k: 1.12, m200: 0.9, mp7: 1.1, mp5: 0.95 };
+const SHOT_PITCH: Partial<Record<GunId, number>> = {
+  kar98k: 1.12,
+  m200: 0.9,
+  mp7: 1.1,
+  mp5: 0.95,
+  scarl: 0.94,
+  mcx: 1.06,
+  aks74u: 1.08,
+  stg44: 0.9,
+  mpx: 1.02,
+  msmc: 1.14,
+  pdw: 0.92,
+  rs9: 0.95,
+  ballista: 0.92,
+  sv98: 1.05,
+  automag3: 0.9,
+  rhino: 1.15,
+  bfr: 0.8,
+};
 
 /** sons de um evento (vazio = sem som) */
 export function sfxFor(e: GameEvent, ctx: SfxCtx): SfxCue[] {

@@ -36,10 +36,24 @@ const MOUNT: Partial<Record<GunId, Mount>> = {
   mp7: { top: [0.1, -0.005], r: 0.008, gripDz: 0.01, over: 0.02 },
   mp5: { top: [0.131, -0.055], r: 0.008, over: 0.012 },
   l115: { r: 0.012 },
-  m200: { r: 0.024 },
+  m200: { r: 0.024, over: 0.03 },
   kar98k: { top: [0.096, -0.385], r: 0.009 },
   m9: { top: [0.074, -0.005], slide: true, r: 0.01 },
-  deagle: { top: [0.094, -0.125], r: 0.012 },
+  deagle: { top: [0.074, 0.004], slide: true, r: 0.012 },
+  // armas do Sketchfab: o topo do trilho (ou da caixa da culatra, sem trilho) medido nas vistas de lado
+  rs9: { r: 0.013, over: 0.04 },
+  sv98: { r: 0.011 },
+  ballista: { r: 0.012, over: 0.03 },
+  scarl: { top: [0.114, -0.02], r: 0.011, over: 0.03 },
+  mcx: { top: [0.121, -0.119], r: 0.011, over: 0.03 },
+  mpx: { top: [0.116, -0.034], r: 0.009, over: 0.02 },
+  pdw: { top: [0.099, -0.094], r: 0.009, over: 0.02 },
+  msmc: { top: [0.091, -0.003], r: 0.008, over: 0.02 },
+  aks74u: { top: [0.094, -0.024], r: 0.012, over: 0.03 },
+  stg44: { top: [0.084, -0.087], r: 0.009 },
+  automag3: { top: [0.0607, 0.007], slide: true, r: 0.008 },
+  bfr: { top: [0.089, -0.055], r: 0.011 },
+  rhino: { top: [0.085, -0.064], r: 0.009 },
 };
 
 /**
@@ -48,13 +62,23 @@ const MOUNT: Partial<Record<GunId, Mount>> = {
  */
 const EYEPIECE: Partial<Record<GunId, { z: number; r: number }>> = {
   l115: { z: 0.045, r: 0.0175 },
-  m200: { z: 0.066, r: 0.0172 },
+  m200: { z: 0.013, r: 0.0228 },
+  rs9: { z: 0.038, r: 0.0214 },
+  sv98: { z: 0.032, r: 0.019 },
+  ballista: { z: 0.026, r: 0.0208 },
 };
 
 /** a arma montada: o modelo de fábrica com os acessórios da montagem (sem montagem, o de fábrica) */
 export function makeBuiltGun(id: GunId, build?: GunBuild): GunModel | null {
   const g = makeGun(id);
   if (!g) return null;
+  // mira de fábrica com ponto aceso (MSMC, MCX): o retículo no vidro dela
+  if (g.ownSight) {
+    const s = g.ownSight;
+    const r = reticle(new THREE.CircleGeometry(s.r, 24), 0, s.r, s.y, s.z);
+    g.root.add(r.mesh);
+    g.reticles = [r];
+  }
   if (build && buildKey(build)) mountAttachments(g, build);
   return g;
 }
@@ -339,6 +363,12 @@ function mountOptic(g: GunModel, m: Mount, id: OpticId) {
     return;
   }
   if (!m.top) return;
+  // a mira de fábrica sai (com o retículo dela)
+  if (g.ownOptic) g.ownOptic.visible = false;
+  if (g.reticles) {
+    for (const r of g.reticles) r.mesh.visible = false;
+    delete g.reticles;
+  }
   const o =
     id === 'reddot'
       ? redDot(t)
@@ -438,6 +468,8 @@ function mountMuzzle(g: GunModel, m: Mount, id: MuzzleId, cls: GunClass) {
 
 function mountUnder(g: GunModel, m: Mount, id: 'vgrip' | 'agrip') {
   const t = mats();
+  // a empunhadura de fábrica sai: a nova vai no lugar dela, encostada no guarda-mão
+  if (g.ownGrip) g.ownGrip.visible = false;
   const group = new THREE.Group();
   const y = g.support.y;
   const z = g.support.z + (m.gripDz ?? 0);

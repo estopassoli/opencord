@@ -51,6 +51,8 @@ function basis(x: THREE.Vector3Tuple, y: THREE.Vector3Tuple, z: THREE.Vector3Tup
 const MAG_SIDE = new THREE.Quaternion()
   .setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.35)
   .multiply(basis([0, 1, 0], [-1, 0, 0], [0, 0, 1]));
+/** esquerda aninhando o tambor do revólver: palma para cima, dedos para a frente */
+const CRADLE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI);
 /** esquerda por baixo do pente da pistola: palma para cima, dedos para a direita (sobem pela lateral direita) */
 const MAG_UNDER = basis([0, 0, -1], [0, -1, 0], [-1, 0, 0]);
 /** a mão da pegada da alavanca (giro da pegada do punho, dedos em volta da bola) */
@@ -148,7 +150,7 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
   // não dentro (o gatilho fica fora da sopa para o dedo poder tocar, e o dedo reto atravessava a lâmina e o guarda-mato)
   const face = box
     ? new THREE.Vector3(0, box.min.y + (box.max.y - box.min.y) * 0.45, box.min.z)
-    : (TRIGGER_AT[g.id]?.clone() ?? null);
+    : (TRIGGER_AT[g.id]?.clone() ?? g.trigFace?.clone() ?? null);
   const target = face ? face.clone().add(new THREE.Vector3(PAD_X, 0, -PAD_R)) : null;
   const down = new THREE.Vector3(1, 0, 0).applyQuaternion(quat);
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
@@ -215,10 +217,11 @@ function fitRight(g: GunModel, pos0: THREE.Vector3, quat: THREE.Quaternion, rc: 
   off[0] = best.ix - rc[2];
   return { pos: best.pos, quat: quat.clone(), curl: rc, off };
 }
-/** gatilho das armas sem a peça separada (o da Desert Eagle é parte da armação): a frente da lâmina */
-const TRIGGER_AT: Partial<Record<GunId, THREE.Vector3>> = {
-  deagle: new THREE.Vector3(0, 0.006, -0.027),
-};
+/**
+ * gatilho das armas sem a peça separada: a frente da lâmina (os modelos do Sketchfab trazem a deles em `trigFace`;
+ * aqui só o acerto de alguma que precise)
+ */
+const TRIGGER_AT: Partial<Record<GunId, THREE.Vector3>> = {};
 /** conferir se o indicador ficou dentro da malha (número de voltas): os modelos feitos em código têm furos (o
  * guarda-mato) que a soma dos ângulos não entende, e o teste dava "dentro" no vão do guarda-mato */
 const DEEP_CHECK = false;
@@ -286,7 +289,17 @@ function balls(h: Hold, side: 1 | -1): Sphere[] {
 }
 
 /** pente curto ou dentro do punho (pistola, MP7, snipers): a mão segura por baixo da base */
-const UNDER: ReadonlySet<GunId> = new Set<GunId>(['m9', 'deagle', 'mp7', 'l115', 'm200']);
+const UNDER: ReadonlySet<GunId> = new Set<GunId>([
+  'm9',
+  'deagle',
+  'mp7',
+  'l115',
+  'm200',
+  'msmc',
+  'rs9',
+  'sv98',
+  'ballista',
+]);
 
 /**
  * Esquerda no pente. Fuzil: pela lateral esquerda, os nós dos dedos na frente do pente (os dedos dão a volta nela),
@@ -298,6 +311,19 @@ function magHold(g: GunModel, cls: GunClass, avoid: Sphere[]): Hold | null {
   const box = mag ? partBox(g, mag) : null;
   if (!mag || !box) return null;
   const only = magSoup(g, mag) ?? soupOf(g.root);
+  if (GUNS[g.id].revolver) {
+    // revólver: o tambor aberto fica à esquerda da armação; a mão vem por baixo dele, palma para cima e dedos para a
+    // frente (aninhando o tambor), o antebraço vindo de baixo (pela lateral, o braço passava por cima da arma)
+    const curl: [number, number, number] = [0.45, 0.35, 0.45];
+    const quat = CRADLE.clone();
+    const pos = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y - 0.019, (box.min.z + box.max.z) / 2 + 0.046);
+    const f = fitHand(only, -1, pos, quat, curl, {
+      palm: true,
+      palmOut: 0.02,
+      fingers: ['index', 'middle', 'ring', 'pinky', 'thumb'],
+    });
+    return { pos: f.pos, quat, curl, off: f.offsets };
+  }
   if (UNDER.has(g.id) || cls === 'pistol') {
     const curl: [number, number, number] = [0.6, 0.5, 0.6];
     const quat = MAG_UNDER.clone();

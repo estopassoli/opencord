@@ -26,11 +26,14 @@ import { disposeGun, movePart, partBox, partCenter, type GunModel, type Part } f
 import { PINCH_CURL, fitAt, gunHolds, magMesh, stripperClip, warmHolds, type Holds } from './holds';
 import {
   CLIP_ROUNDS,
+  CYL_CLOSE_AT,
   MAG_OUT_AT,
   MAG_SEAT_AT,
   blankClip,
+  blankCylinder,
   blankPose,
   clipPose,
+  cylinderPose,
   reloadPose,
   reloadStyle,
 } from './reload';
@@ -151,7 +154,22 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   m200: 'bolt',
   m9: 'pistol',
   deagle: 'pistol',
+  scarl: 'slap',
+  mcx: 'slap',
+  mpx: 'slap',
+  pdw: 'slap',
+  msmc: 'slap',
+  aks74u: 'under',
+  stg44: 'front',
+  rs9: 'bolt',
+  ballista: 'bolt',
+  sv98: 'bolt',
+  automag3: 'pistol',
 };
+/** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
+const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
+/** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
+const CYL_OUT = new THREE.Vector3(-0.034, -0.01, 0);
 /** o gesto da recarga vazia neste quadro (preenchido pelo `emptyGesture`; peças, mãos e o giro da esquerda) */
 const EG = {
   bolt: 0,
@@ -172,6 +190,7 @@ const RIGHT_Q = new THREE.Quaternion();
 /** a pose da recarga e do pente-lâmina neste quadro (`reload.ts`) */
 const RP = blankPose();
 const CP = blankClip();
+const CY = blankCylinder();
 /**
  * Porta-carregador no colete (esquerda, embaixo, fora da tela) e a cartucheira da direita (Kar98k), no espaço da
  * câmera: a mão leva o pente velho / busca o novo ali
@@ -202,7 +221,7 @@ const NO_OFF: FingerOffsets = [0, 0, 0, 0, 0];
 const M1 = new THREE.Matrix4();
 const POUCH = new THREE.Vector3();
 /** armas em que a mão de apoio pega o pente pela lateral (na inspeção) */
-const SIDE_MAG: ReadonlySet<string> = new Set(['m4', 'ak47', 'mp5']);
+const SIDE_MAG: ReadonlySet<string> = new Set(['m4', 'ak47', 'mp5', 'scarl', 'mcx', 'aks74u', 'stg44', 'mpx', 'pdw']);
 const M2 = new THREE.Matrix4();
 const Q1 = new THREE.Quaternion();
 const S1 = new THREE.Vector3();
@@ -667,6 +686,8 @@ export class Viewmodel {
     let handPouch = 0;
     let magPalm = 0;
     let magPull = MAG_PULL;
+    /** revólver: o giro do tambor aberto (rad) */
+    let cylSpin = 0;
     let rightCurl = this.rightCurl[0];
     let rightThumb = this.rightCurl[1];
     // o indicador fica no gatilho; correndo, na tática, recarregando ou inspecionando, esticado sobre a armação
@@ -744,8 +765,28 @@ export class Viewmodel {
           // gesto da arma solta o ferrolho. A arma sobe e inclina para o pente e a mão ficarem na tela
           const empty = a.kind === 'reloadEmpty';
           const pistol = spec.cls === 'pistol';
-          // a MP7 tem o pente no punho, como a pistola: ele cai e o novo entra por baixo
-          const rp = reloadPose(reloadStyle(empty, pistol || g.id === 'mp7'), u, RP);
+          if (spec.revolver) {
+            // revólver (`cylinderPose`): a arma deita para a direita e mostra o tambor aberto; a esquerda segura por
+            // baixo dele, busca o carregador rápido no cinto, empurra os cartuchos e o tambor fecha
+            const cp = cylinderPose(u, CY);
+            rot.z -= cp.tilt * 0.75 * mo;
+            rot.x += cp.tilt * 0.4;
+            pos.y += cp.tilt * 0.09;
+            pos.x -= cp.tilt * 0.03;
+            joltAt('out', MAG_OUT_AT + 0.02, -1.2);
+            joltAt('seat', MAG_SEAT_AT, 1.6);
+            joltAt('close', CYL_CLOSE_AT, 2.4);
+            magPull = CYL_OUT;
+            MAG.copy(CYL_OUT).multiplyScalar(cp.out);
+            cylSpin = cp.spin;
+            magHold = cp.hold;
+            handOut = cp.out;
+            handPouch = cp.pouch;
+            magPalm = cp.palm;
+            break;
+          }
+          // a MP7 e a MSMC têm o pente no punho, como a pistola: ele cai e o novo entra por baixo
+          const rp = reloadPose(reloadStyle(empty, pistol || GRIP_MAG.has(g.id)), u, RP);
           rot.z -= rp.tilt * 0.55 * mo;
           rot.x += rp.tilt * (pistol ? 0.45 : 0.3);
           pos.y += rp.tilt * (pistol ? 0.1 : 0.06);
@@ -962,7 +1003,7 @@ export class Viewmodel {
       this.holder.worldToLocal(POUCH.copy(POUCH_L)).sub(this.magHome);
     }
     if (magPouch > 0) MAG.lerp(POUCH, magPouch).addScaledVector(ARC_POUCH, 4 * magPouch * (1 - magPouch));
-    movePart(g.parts.mag, MAG);
+    movePart(g.parts.mag, MAG, cylSpin);
     // os cartuchos só aparecem com o pente fora do lugar (o modelo é oco: no lugar, eles vazavam pela culatra); o pente
     // que sai e o novo estão com bala (o vazio que cai é uma cópia sem eles)
     if (g.rounds) g.rounds.visible = MAG.lengthSq() > 1e-6;

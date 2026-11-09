@@ -184,6 +184,20 @@ const FOR: Record<GunId, Partial<Record<AttSlot, readonly AttId[]>>> = {
   deagle: { optic: ['pdot'], muzzle: ['comp'], mag: ['ext'] },
   karambit: {},
   bayonet: {},
+  scarl: RIFLE,
+  mcx: RIFLE,
+  aks74u: RIFLE,
+  stg44: RIFLE,
+  mpx: RIFLE,
+  msmc: RIFLE,
+  pdw: RIFLE,
+  rs9: { optic: ['lpvo'], muzzle: ['sup', 'comp'], mag: ['ext'] },
+  ballista: { optic: ['lpvo'], muzzle: ['sup', 'comp'], mag: ['ext'] },
+  sv98: { optic: ['lpvo'], muzzle: ['sup'], mag: ['ext'] },
+  automag3: { optic: ['pdot'], muzzle: ['sup', 'comp'], mag: ['ext'] },
+  // revólver: sem supressor nem carregador (o tambor é fixo); o ponto vai no topo da armação
+  rhino: { optic: ['pdot'], muzzle: ['comp'] },
+  bfr: { optic: ['pdot'], muzzle: ['comp'] },
 };
 
 /** os acessórios que cabem na arma, num encaixe (vazio = o encaixe não existe nela) */
@@ -199,10 +213,15 @@ export function slotsFor(id: GunId): AttSlot[] {
 /** o nome do padrão de cada encaixe (o que a arma tem sem acessório) */
 export function defaultLabel(id: GunId, slot: AttSlot): string {
   const spec = GUNS[id];
-  if (slot === 'optic') return spec.scope ? 'Luneta de precisão' : 'Mira de ferro';
+  if (slot === 'optic')
+    return spec.scope ? 'Luneta de precisão' : FACTORY_KIT.has(id) ? 'Ponto vermelho de fábrica' : 'Mira de ferro';
   if (slot === 'mag') return `Padrão (${spec.mag})`;
+  if (slot === 'under' && FACTORY_KIT.has(id)) return 'Empunhadura de fábrica';
   return 'Nenhum';
 }
+
+/** armas que já vêm com ponto vermelho e empunhadura vertical montados (o modelo traz as peças) */
+const FACTORY_KIT: ReadonlySet<GunId> = new Set<GunId>(['msmc', 'mcx']);
 
 /** a montagem salva (pode vir de uma versão antiga ou mexida à mão): só fica o que cabe na arma */
 export function validBuild(id: GunId, raw: unknown): GunBuild {

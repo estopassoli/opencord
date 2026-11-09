@@ -149,3 +149,39 @@ export function blankClip(): ClipPose {
     tossed: false,
   };
 }
+
+/**
+ * Revólver (Rhino, BFR): o tambor abre para a esquerda girando, a mão esquerda segura por baixo dele, vai ao cinto e
+ * volta com o carregador rápido, empurra os cartuchos para dentro (a palma), solta, e o tambor fecha com um tranco.
+ * Os momentos batem com os sons do `game.ts` (tambor sai em 0,18 — o mesmo do pente — e os cartuchos entram em 0,6).
+ */
+export interface CylinderPose {
+  tilt: number;
+  /** o tambor fora da armação (0 fechado, 1 aberto) e o giro dele (rad) */
+  out: number;
+  spin: number;
+  /** a mão esquerda no tambor (0 no apoio, 1 segurando) */
+  hold: number;
+  /** a mão vai ao cinto e volta com o carregador rápido (0–1) */
+  pouch: number;
+  /** a palma empurra o carregador rápido (0–1) */
+  palm: number;
+}
+
+export const CYL_CLOSE_AT = 0.8;
+
+export function cylinderPose(u: number, out: CylinderPose = blankCylinder()): CylinderPose {
+  out.tilt = hump(u, 0, 0.14, 0.86, 1);
+  // abre (0,1–0,2) e fecha (0,74–0,8)
+  out.out = ease(seg(u, 0.1, MAG_OUT_AT + 0.02)) * (1 - ease(seg(u, 0.74, CYL_CLOSE_AT)));
+  // gira um pouco ao abrir e de novo ao fechar (a catraca)
+  out.spin = 0.9 * ease(seg(u, 0.1, 0.3)) + 0.5 * ease(seg(u, 0.74, 0.86));
+  out.hold = ease(seg(u, 0.06, 0.18)) * (1 - ease(seg(u, 0.8, 0.92)));
+  out.pouch = hump(u, 0.3, 0.42, 0.44, 0.56);
+  out.palm = hump(u, 0.56, MAG_SEAT_AT, 0.62, 0.7);
+  return out;
+}
+
+export function blankCylinder(): CylinderPose {
+  return { tilt: 0, out: 0, spin: 0, hold: 0, pouch: 0, palm: 0 };
+}

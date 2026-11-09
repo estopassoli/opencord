@@ -6,6 +6,7 @@ import {
   duelDamage,
   duelReaches,
   generateSpace,
+  GUN_IDS,
   SPACE_THEMES,
   SPACE_VOICE_FLOOR,
   SpaceLayout,
@@ -79,6 +80,28 @@ describe('Espaço 3D: validação', () => {
     expect(SpaceMove.safeParse({ ...base, gun: { ...gun, att: [-1] } }).success).toBe(false);
     expect(SpaceMove.safeParse({ ...base, gun: { ...gun, att: [1.5] } }).success).toBe(false);
     expect(SpaceMove.safeParse({ ...base, gun: { ...gun, att: 'reddot' } }).success).toBe(false);
+  });
+
+  it('gunfight: as armas novas valem na pose e as antigas mantêm a ordem (índice da rede)', () => {
+    const base = { channelId: randomUUID(), x: 1, y: 0, z: 1, ry: 0, a: 1, zone: 8 };
+    const gun = { pitch: 0, crouch: false, ads: false, alive: true };
+    for (const w of ['rs9', 'msmc', 'mcx', 'scarl', 'mpx', 'automag3', 'aks74u', 'pdw', 'sv98', 'ballista', 'bfr'])
+      expect(SpaceMove.safeParse({ ...base, gun: { ...gun, w } }).success).toBe(true);
+    for (const w of ['stg44', 'rhino']) expect(SpaceMove.safeParse({ ...base, gun: { ...gun, w } }).success).toBe(true);
+    expect(SpaceMove.safeParse({ ...base, gun: { ...gun, w: 'gepard' } }).success).toBe(false);
+    expect(GUN_IDS.slice(0, 11)).toEqual([
+      'm4',
+      'ak47',
+      'mp7',
+      'mp5',
+      'l115',
+      'm200',
+      'kar98k',
+      'm9',
+      'deagle',
+      'karambit',
+      'bayonet',
+    ]);
   });
 
   it('bola do futebol leva o lance uma vez (desarme, falta, drible)', () => {

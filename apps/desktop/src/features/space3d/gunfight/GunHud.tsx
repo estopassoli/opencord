@@ -586,9 +586,10 @@ export function GunMatchPanel({
           {blocked ? 'Recomeçar a partida para todos' : 'Recomeçar a partida'}
         </Button>
       )}
-      {/* atribuição exigida pela licença CC-BY 4.0 do pacote de armas (ver assets/guns/CREDITS.md) */}
+      {/* atribuição exigida pela licença CC-BY 4.0 dos modelos de armas (ver assets/guns/CREDITS.md) */}
       <p className="gf-note">
-        Modelos de armas: Ultimate Low Poly Guns, de TastyTony e Pichuliru (CC-BY 4.0), adaptados.
+        Modelos de armas: Ultimate Low Poly Guns, de TastyTony e Pichuliru, e modelos Low Poly de TastyTony no Sketchfab
+        (CC-BY 4.0), adaptados.
       </p>
     </div>
   );
