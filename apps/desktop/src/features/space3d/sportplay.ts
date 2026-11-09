@@ -73,6 +73,11 @@ export class SportPlay {
     return this.authority === this.selfId;
   }
 
+  /** quem está com a bola (id) */
+  get holder() {
+    return this.held;
+  }
+
   get holding() {
     return this.held === this.selfId;
   }
@@ -164,7 +169,7 @@ export class SportPlay {
   release(now: number) {
     if (this.zone !== 1 || !this.holding || this.charge === null) return;
     const hand = this.handOf(this.selfId) ?? { x: this.me.x, y: HAND_Y + 0.6, z: this.me.z };
-    const from = { x: hand.x, y: hand.y + 0.5, z: hand.z };
+    const from = { x: hand.x, y: hand.y + 0.2, z: hand.z };
     Object.assign(this.ball, from, basketShot(from, this.charge, this.me.ry));
     this.shotFrom = { x: this.me.x, y: 0, z: this.me.z };
     this.charge = null;

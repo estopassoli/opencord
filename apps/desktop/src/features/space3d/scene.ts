@@ -377,11 +377,36 @@ export class SpaceScene {
     return { x: who.x + Math.sin(who.ry) * 0.7, y: 1.2, z: who.z + Math.cos(who.ry) * 0.7 };
   }
 
-  /** mão de alguém (onde a bola fica quando a pessoa segura) */
+  /**
+   * Mão de alguém (onde a bola fica quando a pessoa segura): parado, nas duas mãos na frente da barriga; andando,
+   * quicando no chão ao lado da mão direita; carregando o arremesso, acima da cabeça.
+   */
   private handOf(id: string): { x: number; y: number; z: number } | null {
     const p = id === this.selfId ? this.pose : peers.get(id);
     if (!p) return null;
-    return { x: p.x + Math.sin(p.ry) * 0.42, y: p.y + 1.15, z: p.z + Math.cos(p.ry) * 0.42 };
+    const fx = Math.sin(p.ry);
+    const fz = Math.cos(p.ry);
+    if (id === this.selfId && this.sport?.charging != null)
+      return { x: p.x + fx * 0.14, y: p.y + 1.45, z: p.z + fz * 0.14 };
+    if (p.a === 1 || p.a === 2) {
+      const ph = Math.abs(Math.sin((performance.now() / 1000) * (p.a === 2 ? 9 : 7)));
+      return {
+        x: p.x + fx * 0.38 - fz * 0.16,
+        y: p.y + 0.14 + ph * 0.5,
+        z: p.z + fz * 0.38 + fx * 0.16,
+      };
+    }
+    return { x: p.x + fx * 0.3, y: p.y + 0.76, z: p.z + fz * 0.3 };
+  }
+
+  /** os braços de quem está com a bola vão até ela */
+  private holdOf(id: string, av: Avatar) {
+    const h = this.sport && this.sport.holder === id ? this.handOf(id) : null;
+    if (!h) return av.setHold(null);
+    const p = id === this.selfId ? this.pose : peers.get(id);
+    const dribbling = !!p && (p.a === 1 || p.a === 2) && !(id === this.selfId && this.sport?.charging != null);
+    // quicando, a mão fica na altura em que a bola sobe (não vai até o chão)
+    av.setHold(new THREE.Vector3(h.x, dribbling ? Math.max(h.y, (p?.y ?? 0) + 0.55) : h.y, h.z), !dribbling);
   }
 
   private applyLayout(l: SpaceLayout, keepPosition: boolean) {
@@ -960,6 +985,7 @@ export class SpaceScene {
     if (this.mode === 'play') this.stepPlayer(dt, now);
     else this.stepEditorCamera(dt);
     this.me.setVoiceLevel(this.hooks.audioLevel?.(this.selfId) ?? 0);
+    this.holdOf(this.selfId, this.me);
     this.me.update(dt, t);
     this.stepOthers(dt, t, now);
     this.placeCamera();
@@ -1136,6 +1162,7 @@ export class SpaceScene {
         this.others.delete(id);
         continue;
       }
+      this.holdOf(id, av);
       av.update(dt, t);
     }
   }

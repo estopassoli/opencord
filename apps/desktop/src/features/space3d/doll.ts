@@ -46,6 +46,8 @@ export interface DollTemplate {
   /** posição do quadril (unidades do arquivo) sentado e pilotando, para apoiar o boneco no assento */
   sitPelvis: THREE.Vector3;
   drivePelvis: THREE.Vector3;
+  /** velocidade (m/s no espaço, já com a escala) em que cada animação de andar/correr não escorrega */
+  gait: Partial<Record<ClipName, number>>;
 }
 
 let loading: Promise<DollTemplate> | null = null;
@@ -69,6 +71,33 @@ function pelvisAt(scene: THREE.Object3D, clip: THREE.AnimationClip | undefined):
   return p;
 }
 
+/**
+ * Velocidade natural de uma animação de andar (no lugar): o pé apoiado percorre, para trás, a distância que o corpo
+ * andaria. Essa distância é a amplitude do pé para a frente e para trás, durante a fração do ciclo em que ele fica
+ * no chão (`stance`: ~60% andando, menos correndo).
+ */
+function gaitSpeed(scene: THREE.Object3D, clip: THREE.AnimationClip | undefined, stance: number): number {
+  if (!clip) return 1;
+  const c = SkeletonUtils.clone(scene);
+  const mixer = new THREE.AnimationMixer(c);
+  mixer.clipAction(clip).play();
+  const foot = c.getObjectByName('foot_l');
+  let lo = Infinity;
+  let hi = -Infinity;
+  const N = 60;
+  for (let i = 0; i <= N && foot; i++) {
+    mixer.setTime((i / N) * clip.duration);
+    c.updateMatrixWorld(true);
+    const z = foot.getWorldPosition(new THREE.Vector3()).z;
+    lo = Math.min(lo, z);
+    hi = Math.max(hi, z);
+  }
+  mixer.stopAllAction();
+  mixer.uncacheRoot(c);
+  if (!foot || !Number.isFinite(hi)) return 1;
+  return Math.max(0.3, ((hi - lo) / (stance * clip.duration)) * DOLL_SCALE);
+}
+
 /** carrega o boneco uma vez (as próximas chamadas reaproveitam) */
 export function loadDoll(): Promise<DollTemplate> {
   loading ??= new GLTFLoader().loadAsync(dollUrl).then((gltf) => {
@@ -90,6 +119,11 @@ export function loadDoll(): Promise<DollTemplate> {
       info: { eyeL, eyeR, mouth, antenna },
       sitPelvis: pelvisAt(scene, clips.get('Sitting_Idle_Loop')),
       drivePelvis: pelvisAt(scene, clips.get('Driving_Loop')),
+      gait: {
+        Walk_Loop: gaitSpeed(scene, clips.get('Walk_Loop'), 0.62),
+        Jog_Fwd_Loop: gaitSpeed(scene, clips.get('Jog_Fwd_Loop'), 0.42),
+        Sprint_Loop: gaitSpeed(scene, clips.get('Sprint_Loop'), 0.35),
+      },
     };
     ready = t;
     return t;

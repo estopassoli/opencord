@@ -110,6 +110,13 @@ export class Avatar {
   private action: THREE.AnimationAction | null = null;
   private lastA = -1;
   private disposed = false;
+  /** velocidade no chão medida pelo deslocamento (m/s), para as pernas acompanharem sem escorregar */
+  private speed = 0;
+  private lastX = 0;
+  private lastZ = 0;
+  /** segurando a bola: onde ela está (mundo) — os braços vão até ela */
+  private hold: THREE.Vector3 | null = null;
+  private holdBoth = true;
 
   constructor(
     readonly id: string,
@@ -322,6 +329,13 @@ export class Avatar {
     this.ring.visible = on;
   }
 
+  /** segurando a bola em `at` (mundo); `both` = as duas mãos (parado/arremesso), senão só a direita (quicando) */
+  setHold(at: THREE.Vector3 | null, both = true) {
+    if (!at) this.hold = null;
+    else (this.hold ??= new THREE.Vector3()).copy(at);
+    this.holdBoth = both;
+  }
+
   /** volume da voz agora (0..1) — abre a boca; sem volume (0) e falando, a boca mexe num ritmo de fala */
   setVoiceLevel(v: number) {
     this.level = Math.max(0, Math.min(1, v));
@@ -348,9 +362,14 @@ export class Avatar {
     if (this.hitT > 0 && a !== 9) return 'Hit_Chest';
     switch (a) {
       case 1:
-        return 'Walk_Loop';
-      case 2:
-        return 'Jog_Fwd_Loop';
+      case 2: {
+        // pela velocidade de verdade: andar, trotar ou correr
+        const g = this.tpl?.gait ?? {};
+        const walk = g.Walk_Loop ?? 1;
+        const jog = g.Jog_Fwd_Loop ?? 2.5;
+        if (this.speed < walk * 1.5) return 'Walk_Loop';
+        return this.speed < jog * 1.35 ? 'Jog_Fwd_Loop' : 'Sprint_Loop';
+      }
       case 3:
         return 'Jump_Loop';
       case 5:
@@ -415,8 +434,20 @@ export class Avatar {
       this.model.position.set(0, (this.bike ? 0.1 : 0.21) - p.y * DOLL_SCALE, this.bike ? 0 : -p.z * DOLL_SCALE);
     } else this.model.position.set(0, 0, 0);
 
+    // velocidade no chão (suavizada)
+    if (dt > 0) {
+      const v = Math.hypot(pos.x - this.lastX, pos.z - this.lastZ) / dt;
+      this.speed += (Math.min(v, 12) - this.speed) * Math.min(1, dt * 8);
+    }
+    this.lastX = pos.x;
+    this.lastZ = pos.z;
+    // pernas no ritmo do deslocamento
+    const g = this.tpl?.gait[name];
+    if (this.action && g) this.action.timeScale = Math.max(0.5, Math.min(2.4, this.speed / g));
+
     this.mixer?.update(dt);
     if (a === 4) this.wave(t);
+    if (this.hold && a !== 5 && a < 6) this.reach(this.hold, this.holdBoth);
     this.faceUpdate(dt, t);
   }
 
@@ -433,6 +464,36 @@ export class Avatar {
       .normalize()
       .applyQuaternion(doll.getWorldQuaternion(new THREE.Quaternion()));
     aim(low, hand, side);
+  }
+
+  /** braços até a bola (por cima da animação) */
+  private reach(target: THREE.Vector3, both: boolean) {
+    const doll = this.doll;
+    if (!doll) return;
+    doll.updateMatrixWorld(true);
+    for (const sd of both ? ['l', 'r'] : ['r']) {
+      const up = doll.getObjectByName(`upperarm_${sd}`);
+      const low = doll.getObjectByName(`lowerarm_${sd}`);
+      const hand = doll.getObjectByName(`hand_${sd}`);
+      if (!up || !low || !hand) continue;
+      // a mão vai para o lado da bola (as duas mãos em volta dela)
+      const side = new THREE.Vector3(sd === 'l' ? 0.11 : -0.11, 0, 0).applyQuaternion(
+        doll.getWorldQuaternion(new THREE.Quaternion()),
+      );
+      const goal = target.clone().add(both ? side : side.multiplyScalar(0.3));
+      const shoulder = up.getWorldPosition(new THREE.Vector3());
+      const dir = goal.clone().sub(shoulder);
+      const len = dir.length();
+      dir.normalize();
+      // braço reto se a bola está longe; dobra no cotovelo se está perto
+      const reachLen = 0.55 * DOLL_SCALE * 1.0;
+      const bend = Math.acos(Math.min(1, len / reachLen)) * 0.9;
+      const down = new THREE.Vector3(0, -1, 0);
+      const axis = new THREE.Vector3().crossVectors(dir, down).normalize();
+      const upperDir = dir.clone().applyAxisAngle(axis, -bend);
+      aim(up, low, upperDir);
+      aim(low, hand, goal.clone().sub(low.getWorldPosition(new THREE.Vector3())));
+    }
   }
 
   private faceUpdate(dt: number, t: number) {
