@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-09',
+    time: '18:00',
+    kind: 'novo',
+    icon: 'gamepad',
+    title: '13 armas novas no gunfight',
+    body: 'Chegaram Sig MCX, SCAR-L, AKS-74U e StG 44 (fuzis), MSMC, Sig MPX e PDW (submetralhadoras), Haenel RS9, SV-98 e FN Ballista (snipers), Automag III e os revólveres Magnum BFR e Chiappa Rhino, com recarga de tambor. A CheyTac M200 e a Desert Eagle ganharam modelos novos, mais fiéis.',
+  },
+  {
+    date: '2026-11-09',
     time: '14:00',
     kind: 'correção',
     icon: 'microphone',
