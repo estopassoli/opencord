@@ -12,6 +12,8 @@ import { AuthController } from './auth/auth.controller.js';
 import { AuthService } from './auth/auth.service.js';
 import { TokenService } from './auth/token.service.js';
 import { AuditService } from './audit/audit.service.js';
+import { ClipsController } from './clips/clips.controller.js';
+import { ClipsService } from './clips/clips.service.js';
 import { AttachmentsController } from './attachments/attachments.controller.js';
 import { AttachmentsService } from './attachments/attachments.service.js';
 import { LargeUploadService } from './attachments/large-upload.service.js';
@@ -103,6 +105,7 @@ export class AppModule {
         ModerationController,
         ModerationCasesController,
         AttachmentsController,
+        ClipsController,
         SocialController,
         VoiceController,
       ],
@@ -151,6 +154,7 @@ export class AppModule {
         BotsService,
         InteractionsService,
         AttachmentsService,
+        ClipsService,
         LargeUploadService,
         BoardsService,
         MessagesService,

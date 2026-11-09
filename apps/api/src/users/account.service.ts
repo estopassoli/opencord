@@ -208,6 +208,23 @@ export class AccountService {
       })),
     );
 
+    const clips = await this.prisma.profileClip.findMany({
+      where: { userId },
+      orderBy: { recordedAt: 'asc' },
+      select: { id: true, title: true, game: true, videoId: true, featured: true, recordedAt: true },
+    });
+    yield sec(
+      'clipesNaConta',
+      clips.map((c) => ({
+        id: c.id,
+        titulo: c.title,
+        jogo: c.game,
+        arquivoId: c.videoId,
+        emDestaque: c.featured,
+        gravadoEm: iso(c.recordedAt),
+      })),
+    );
+
     yield ',\n"mensagens": [';
     let cursor: string | null = null;
     let first = true;

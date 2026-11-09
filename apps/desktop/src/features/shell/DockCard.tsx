@@ -10,10 +10,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ProfileCardHead, profileThemeVars } from '../../components/ProfileCardView';
 import { ProfileBadges } from '../../components/UserBadges';
 import { useData } from '../../store/data';
+import { ProfileClips } from '../../components/ProfileClips';
 import { EMPTY_APPEARANCE, useProfiles } from '../../store/profiles';
 import { useSession } from '../../store/session';
 import { useUi } from '../../store/ui';
-import { bridge } from '../../lib/bridge';
 
 type Settable = Exclude<PresenceStatus, 'offline'>;
 const STATUSES: Settable[] = ['online', 'idle', 'dnd', 'invisible'];
@@ -41,6 +41,7 @@ export function DockCard({
   const myStatus = useData((s) => s.myStatus);
   const myText = useData((s) => s.myStatusText);
   const appearance = useProfiles((s) => (me ? s.byId[me.id] : undefined)) ?? EMPTY_APPEARANCE;
+  const clips = useProfiles((s) => (me ? s.clipsById[me.id] : undefined));
   const [statusOpen, setStatusOpen] = useState(false);
   const card = useRef<HTMLDivElement>(null);
 
@@ -103,6 +104,7 @@ export function DockCard({
         }
       />
       <ProfileBadges userId={me.id} fallback={me.badges} verified={me.verified || undefined} />
+      <ProfileClips clips={clips} owner={me} />
 
       <ul className="dock-card-menu" role="menu">
         <li role="none">
@@ -153,19 +155,18 @@ export function DockCard({
             <Icon name="star" size={18} /> <span>Insígnias em destaque</span>
           </button>
         </li>
-        {bridge && (
-          <li role="none">
-            <button
-              role="menuitem"
-              onClick={() => {
-                onClose();
-                useUi.getState().openModal({ kind: 'clips' });
-              }}
-            >
-              <Icon name="film" size={18} /> <span>Clipes</span>
-            </button>
-          </li>
-        )}
+        {/* no navegador a página mostra os clipes salvos na conta (ADR-0057) */}
+        <li role="none">
+          <button
+            role="menuitem"
+            onClick={() => {
+              onClose();
+              useUi.getState().openModal({ kind: 'clips' });
+            }}
+          >
+            <Icon name="film" size={18} /> <span>Clipes</span>
+          </button>
+        </li>
       </ul>
 
       <ul className="dock-card-menu" role="menu">

@@ -7,6 +7,7 @@ import {
   type UserProfile,
   type UserPublic,
 } from '@opencord/contracts';
+import { ClipsService } from '../clips/clips.service.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { USER_PUBLIC_SELECT, userPublic } from '../common/serialize.js';
@@ -20,6 +21,7 @@ export class SocialService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly clips: ClipsService,
   ) {}
 
   private async isBlockedEitherWay(a: string, b: string) {
@@ -99,9 +101,12 @@ export class SocialService {
     ]);
     if (viewerId !== userId && !friendship && servers.length === 0 && !convo) throw notFound('usuário');
     const mutualIds = [...myFriends].filter((x) => theirFriends.has(x) && x !== viewerId && x !== userId);
-    const mutual = mutualIds.length
-      ? await this.prisma.user.findMany({ where: { id: { in: mutualIds } }, select: USER_PUBLIC_SELECT })
-      : [];
+    const [mutual, clips] = await Promise.all([
+      mutualIds.length
+        ? this.prisma.user.findMany({ where: { id: { in: mutualIds } }, select: USER_PUBLIC_SELECT })
+        : Promise.resolve([]),
+      this.clips.featured(userId),
+    ]);
     return {
       user: userPublic(target),
       createdAt: target.createdAt.toISOString(),
@@ -114,6 +119,7 @@ export class SocialService {
         bannerUrl: target.bannerUrl,
         colors: target.profileColors.length === 2 ? [target.profileColors[0]!, target.profileColors[1]!] : null,
       },
+      clips,
     };
   }
 

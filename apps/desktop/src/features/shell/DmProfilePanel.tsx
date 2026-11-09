@@ -1,4 +1,5 @@
 import type { UserProfile, UserPublic } from '@opencord/contracts';
+import { ProfileClips } from '../../components/ProfileClips';
 import { Avatar, avatarColor, Button, Icon, STATUS_LABEL } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import { ServerIcon } from '../../components/ServerIcon';
@@ -100,6 +101,7 @@ export function DmProfilePanel({ conversationId }: { conversationId: string }) {
             )}
           </dl>
         )}
+        <ProfileClips clips={profile?.clips} owner={peer} className="dm-profile-section" />
         {profile && profile.mutualServers.length > 0 && (
           <section className="dm-profile-section">
             <h3>

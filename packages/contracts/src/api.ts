@@ -367,6 +367,58 @@ export const ProfileUpdateResponse = z.object({ me: Me, appearance: ProfileAppea
 export type ProfileUpdateResponse = z.infer<typeof ProfileUpdateResponse>;
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>;
 
+/**
+ * Clipes na conta (ADR-0057): o clipe gravado no computador sobe para a conta (anexo grande + miniatura) e aparece em
+ * qualquer aparelho em que a pessoa entrar. Até CLIP_FEATURED_MAX ficam em destaque no perfil.
+ */
+export const ACCOUNT_CLIPS_MAX = 50;
+export const ACCOUNT_CLIPS_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+export const CLIP_FEATURED_MAX = 6;
+export const AccountClip = z.object({
+  id: Id,
+  title: z.string(),
+  game: z.string().nullable(),
+  durationMs: z.number().int(),
+  sizeBytes: z.number().int(),
+  width: z.number().int().nullable(),
+  height: z.number().int().nullable(),
+  /** quando o clipe foi gravado (ms) — liga o clipe da conta ao arquivo do computador */
+  recordedAt: z.number().int(),
+  featured: z.boolean(),
+  /** URLs assinadas (valem ~1 h) */
+  url: z.string(),
+  thumbUrl: z.string().nullable(),
+});
+export type AccountClip = z.infer<typeof AccountClip>;
+/** GET /me/clips */
+export const AccountClipsResponse = z.object({
+  clips: z.array(AccountClip),
+  usedBytes: z.number().int(),
+  maxBytes: z.number().int(),
+  maxClips: z.number().int(),
+});
+export type AccountClipsResponse = z.infer<typeof AccountClipsResponse>;
+/** POST /me/clips: o vídeo já enviado por /attachments/large (e a miniatura por /attachments) */
+export const CreateAccountClipRequest = z.object({
+  videoId: Id,
+  thumbId: Id.nullable().optional(),
+  title: z.string().trim().min(1).max(100),
+  game: z.string().trim().max(100).nullable().optional(),
+  durationMs: z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 3600_000),
+  recordedAt: z.number().int().min(0),
+});
+export type CreateAccountClipRequest = z.input<typeof CreateAccountClipRequest>;
+/** PATCH /me/clips/:id */
+export const UpdateAccountClipRequest = z.object({
+  title: z.string().trim().min(1).max(100).optional(),
+  featured: z.boolean().optional(),
+});
+export type UpdateAccountClipRequest = z.input<typeof UpdateAccountClipRequest>;
+
 // ---------- Servidores, cargos, canais ----------
 export const ChannelKind = z.enum(['text', 'voice', 'board', 'forum']);
 /** modo lento (ADR-0052): opções do seletor, em segundos (0 = desligado); a API aceita qualquer valor até 6 h */
@@ -1730,6 +1782,8 @@ export const UserProfile = z.object({
   mutualFriends: z.array(UserPublic),
   /** bio, banner e cores (ADR-0048); API antiga não manda */
   appearance: ProfileAppearance.optional(),
+  /** clipes em destaque (ADR-0057); API antiga não manda */
+  clips: z.array(AccountClip).optional(),
 });
 export type UserProfile = z.infer<typeof UserProfile>;
 

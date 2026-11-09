@@ -1,16 +1,22 @@
 /**
  * Página de clipes: todos os clipes salvos neste computador, agrupados por jogo, com uma barra à esquerda para filtrar
- * por jogo. Clicar num clipe abre o visualizador (que fica por cima da página). Só no app desktop, onde ficam os clipes.
+ * por jogo, e os clipes salvos na conta (ADR-0057), que aparecem em qualquer aparelho. Clicar num clipe abre o
+ * visualizador (que fica por cima da página).
  */
+import type { AccountClip } from '@opencord/contracts';
 import { Button, Icon } from '@opencord/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { bridge } from '../../lib/bridge';
 import { useClips } from '../../store/clips';
 import { useUi } from '../../store/ui';
+import { asLocal, cloudOf, useAccountClips } from './account';
 import { clipTitle } from './ClipViewer';
 import { groupClips } from './groups';
 
 const PAGE = 6;
+/** filtro da barra: os clipes da conta */
+const ACCOUNT = '\u0000conta';
+const gb = (n: number) => `${(n / 1024 ** 3).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB`;
 
 const ago = (t: number) => {
   const d = Math.max(0, Date.now() - t);
@@ -32,8 +38,10 @@ export function ClipsPage({ onClose }: { onClose: () => void }) {
   const [filter, setFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  const account = useAccountClips();
   useEffect(() => {
     void useClips.getState().loadLibrary();
+    void useAccountClips.getState().load();
   }, []);
   // Esc fecha a página (com um clipe aberto, o Esc é do visualizador)
   useEffect(() => {
@@ -45,7 +53,14 @@ export function ClipsPage({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const groups = useMemo(() => groupClips(library), [library]);
-  const shown = filter ? groups.filter((g) => g.key === filter) : groups;
+  const cloudOnly = filter === ACCOUNT;
+  const shown = cloudOnly
+    ? groupClips(account.clips.map(asLocal))
+    : filter
+      ? groups.filter((g) => g.key === filter)
+      : groups;
+  // no navegador não há clipes do computador: a página mostra os da conta
+  const showAccount = cloudOnly || !bridge;
 
   return (
     <div className="clips-page-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -61,6 +76,18 @@ export function ClipsPage({ onClose }: { onClose: () => void }) {
           >
             <Icon name="home" size={20} />
           </button>
+          {account.loaded && (
+            <button
+              type="button"
+              className="clips-rail-item"
+              aria-pressed={showAccount}
+              aria-label="Clipes salvos na conta"
+              data-tip={`Na conta · ${account.clips.length}`}
+              onClick={() => setFilter(ACCOUNT)}
+            >
+              <Icon name="cloud" size={20} />
+            </button>
+          )}
           <span className="clips-rail-sep" aria-hidden />
           {groups.map((g) => (
             <button
@@ -110,11 +137,19 @@ export function ClipsPage({ onClose }: { onClose: () => void }) {
           </header>
 
           <div className="clips-scroll">
-            {!bridge ? (
-              <p className="muted clips-empty">
-                Os clipes ficam no app para computador, que grava os últimos segundos do jogo.
-              </p>
-            ) : library.length === 0 ? (
+            {showAccount ? (
+              <>
+                <h3 className="clips-title">Na conta</h3>
+                <p className="muted small clips-account-note">
+                  {account.clips.length
+                    ? `${account.clips.length} de ${account.maxClips} clipes · ${gb(account.usedBytes)} de ${gb(account.maxBytes)}. Eles aparecem em qualquer aparelho em que você entrar; os marcados com estrela ficam no seu perfil.`
+                    : bridge
+                      ? 'Nenhum clipe na conta ainda. Abra um clipe e escolha "Salvar na conta" para vê-lo em qualquer aparelho e poder destacá-lo no perfil.'
+                      : 'Nenhum clipe na conta ainda. No app para computador, abra um clipe e escolha "Salvar na conta".'}
+                </p>
+              </>
+            ) : null}
+            {!showAccount && library.length === 0 ? (
               <div className="clips-empty">
                 <Icon name="film" size={32} />
                 <p>Nenhum clipe ainda.</p>
@@ -123,11 +158,13 @@ export function ClipsPage({ onClose }: { onClose: () => void }) {
                   aparecem aqui.
                 </p>
               </div>
-            ) : (
+            ) : !shown.length ? null : (
               <>
-                <h3 className="clips-title">{filter ? (shown[0]?.game ?? 'Sem jogo') : 'Clipes recentes'}</h3>
+                {!showAccount && (
+                  <h3 className="clips-title">{filter ? (shown[0]?.game ?? 'Sem jogo') : 'Clipes recentes'}</h3>
+                )}
                 {shown.map((g) => {
-                  const open = expanded[g.key] || filter !== null;
+                  const open = expanded[g.key] || filter !== null || !bridge;
                   const list = open ? g.clips : g.clips.slice(0, PAGE);
                   return (
                     <section key={g.key} className="clips-group" aria-label={g.game ?? 'Sem jogo'}>
@@ -159,6 +196,10 @@ export function ClipsPage({ onClose }: { onClose: () => void }) {
                                   <Icon name="film" size={28} />
                                 </span>
                               )}
+                              <CloudMark
+                                clip={cloudOf(account.clips, c)}
+                                uploading={account.uploading[Math.round(c.createdAt)]}
+                              />
                               <span className="clips-card-info">
                                 <span className="clips-card-title truncate">
                                   <Icon name="record" size={14} /> {clipTitle(c)}
@@ -192,5 +233,22 @@ export function ClipsPage({ onClose }: { onClose: () => void }) {
         </div>
       </section>
     </div>
+  );
+}
+
+/** selo no cartão: na conta (com estrela se está no perfil) ou enviando */
+function CloudMark({ clip, uploading }: { clip: AccountClip | undefined; uploading: number | undefined }) {
+  if (uploading !== undefined)
+    return (
+      <span className="clips-card-cloud" aria-label="Enviando para a conta">
+        <Icon name="cloud-upload" size={14} /> {Math.round(uploading * 100)}%
+      </span>
+    );
+  if (!clip) return null;
+  return (
+    <span className="clips-card-cloud" aria-label={clip.featured ? 'Na conta e no perfil' : 'Na conta'}>
+      <Icon name="cloud" size={14} />
+      {clip.featured && <Icon name="star" size={14} />}
+    </span>
   );
 }

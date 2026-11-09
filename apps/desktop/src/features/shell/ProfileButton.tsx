@@ -1,5 +1,6 @@
 import { ProfileBadges } from '../../components/UserBadges';
 import { ProfileCardHead, profileThemeVars } from '../../components/ProfileCardView';
+import { ProfileClips } from '../../components/ProfileClips';
 import { EMPTY_APPEARANCE, useProfiles } from '../../store/profiles';
 import { askConfirm, askText } from '../../components/AskDialog';
 import { hasPermission, Permission, type Conversation, type Member } from '@opencord/contracts';
@@ -381,6 +382,7 @@ function ProfileCard({
   const myCall = useVoice((s) => (s.machine.status === 'disconnected' ? null : s.machine.channelId));
   // bio, banner e cores (ADR-0048): carrega ao abrir o cartão
   const appearance = useProfiles((s) => s.byId[userId]) ?? EMPTY_APPEARANCE;
+  const clips = useProfiles((s) => s.clipsById[userId]);
   useEffect(() => {
     void useProfiles.getState().load(userId);
   }, [userId]);
@@ -423,6 +425,7 @@ function ProfileCard({
         }
       />
       <ProfileBadges userId={userId} fallback={user.badges} verified={user.verified || undefined} />
+      <ProfileClips clips={clips} owner={user} />
       <PlayingNow userId={userId} />
       {member && detail && (
         <div className="profile-roles">

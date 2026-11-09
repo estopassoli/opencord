@@ -16,7 +16,6 @@ import { askText } from '../../components/AskDialog';
 import { autoIdleEnabled, setAutoIdleEnabled } from '../../lib/auto-idle';
 import { ResumeCall } from './ResumeCall';
 
-
 const VOICE_LABEL = {
   authorizing: 'Autorizando…',
   connecting: 'Conectando…',

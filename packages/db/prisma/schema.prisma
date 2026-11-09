@@ -88,6 +88,7 @@ model User {
   conversations     ConversationMember[]
   auditLogs         AuditLog[]
   attachments       Attachment[]
+  profileClips      ProfileClip[]
 }
 
 model Session {
@@ -550,10 +551,32 @@ model Attachment {
   uploader     User     @relation(fields: [uploaderId], references: [id])
   message      Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
   case         ModerationCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  clipVideo    ProfileClip?    @relation("ClipVideo")
+  clipThumb    ProfileClip?    @relation("ClipThumb")
 
   @@index([messageId])
   @@index([caseId])
   @@index([uploaderId, createdAt])
+}
+
+/** Clipe salvo na conta (ADR-0057): vídeo e miniatura são anexos sem mensagem, presos aqui (não expiram como órfãos). */
+model ProfileClip {
+  id         String      @id @default(uuid(7)) @db.Uuid
+  userId     String      @db.Uuid
+  videoId    String      @unique @db.Uuid
+  thumbId    String?     @unique @db.Uuid
+  title      String
+  game       String?
+  durationMs Int
+  /** quando foi gravado no computador */
+  recordedAt DateTime    @db.Timestamptz(3)
+  featured   Boolean     @default(false)
+  createdAt  DateTime    @default(now()) @db.Timestamptz(3)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video      Attachment  @relation("ClipVideo", fields: [videoId], references: [id], onDelete: Cascade)
+  thumb      Attachment? @relation("ClipThumb", fields: [thumbId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
 }
 
 model Reaction {

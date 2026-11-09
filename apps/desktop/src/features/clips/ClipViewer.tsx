@@ -4,6 +4,7 @@
  * sonoros do servidor.
  */
 import { askConfirm } from '../../components/AskDialog';
+import type { AccountClip } from '@opencord/contracts';
 import { Button, Icon, Slider } from '@opencord/ui';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { ClipInfo } from '../../../electron/shared/ipc';
@@ -17,6 +18,7 @@ import { useUi } from '../../store/ui';
 import { useVoice } from '../../store/voice';
 import { moveHandle, type TrimRange } from '../voice/soundTrim';
 import { UploadSoundDialog } from '../voice/Soundboard';
+import { cloudIdOf, cloudOf, useAccountClips } from './account';
 import { ShareClipDialog } from './ShareClip';
 
 const THUMBS = 10;
@@ -99,16 +101,29 @@ function Viewer({ clip }: { clip: ClipInfo }) {
   const viewServer = useUi((s) => (s.view.kind === 'server' ? s.view.serverId : null));
   const soundServer = callServer ?? viewServer;
 
+  // clipe da conta (ADR-0057): o salvo deste arquivo ou, sem arquivo aqui, o próprio clipe aberto
+  const cloudId = cloudIdOf(clip);
+  const accountClips = useAccountClips((s) => s.clips);
+  const inAccount = cloudOf(accountClips, clip);
+  const uploading = useAccountClips((s) => s.uploading[Math.round(clip.createdAt)]);
+  const cloudUrl = useRef(inAccount?.url);
   useEffect(() => {
     let alive = true;
-    bridge?.clips
-      .read(clip.file)
+    const read = cloudId
+      ? cloudUrl.current
+        ? fetch(cloudUrl.current).then((r) => {
+            if (!r.ok) throw new Error(String(r.status));
+            return r.arrayBuffer();
+          })
+        : Promise.reject(new Error('clipe sumiu da conta'))
+      : (bridge?.clips.read(clip.file) ?? Promise.reject(new Error('sem o app para computador')));
+    read
       .then((data) => alive && setBlob(new Blob([data], { type: 'video/mp4' })))
       .catch(() => alive && setError('Não consegui abrir este clipe.'));
     return () => {
       alive = false;
     };
-  }, [clip.file]);
+  }, [clip.file, cloudId]);
   useEffect(() => () => (url ? URL.revokeObjectURL(url) : undefined), [url]);
   // trilhas de som separadas (clipes novos): o vídeo fica mudo e as fontes ligadas tocam pelo Web Audio
   useEffect(() => {
@@ -375,7 +390,16 @@ function Viewer({ clip }: { clip: ClipInfo }) {
                 className="icon-btn"
                 aria-label="Apagar clipe"
                 onClick={async () => {
-                  if (await confirmDelete()) void useClips.getState().remove(clip);
+                  if (!cloudId) {
+                    if (await confirmDelete()) void useClips.getState().remove(clip);
+                  } else if (await confirmRemoveFromAccount()) {
+                    await useAccountClips
+                      .getState()
+                      .remove(cloudId)
+                      .then(close, (e: unknown) => {
+                        useUi.getState().toast('error', describeError(e));
+                      });
+                  }
                 }}
               >
                 <Icon name="trash" />
@@ -444,41 +468,57 @@ function Viewer({ clip }: { clip: ClipInfo }) {
               </ul>
             </>
           )}
-          <h3 className="clip-side-title">Exportar {trimmed ? 'o corte' : ''}</h3>
-          <div className="clip-actions">
-            <Button
-              variant="secondary"
-              icon="download"
-              disabled={!blob || !!busy}
-              onClick={() => void exportAs('video')}
-            >
-              Arquivo de vídeo
-            </Button>
-            <Button
-              variant="secondary"
-              icon="speaker"
-              disabled={!blob || !!busy}
-              onClick={() => void exportAs('audio')}
-            >
-              Arquivo de áudio
-            </Button>
-            <Button
-              variant="secondary"
-              icon="copy"
-              disabled={!!busy}
-              onClick={() =>
-                void run('Copiando…', async () => {
-                  await bridge?.clips.copy(clip.file);
-                  useUi.getState().toast('success', 'Clipe copiado. Cole onde quiser (Ctrl+V).');
-                })
-              }
-            >
-              Copiar arquivo
-            </Button>
-            <Button variant="secondary" icon="folder" onClick={() => void bridge?.clips.reveal(clip.file)}>
-              Mostrar na pasta
-            </Button>
-          </div>
+          <AccountActions
+            clip={clip}
+            saved={inAccount}
+            uploading={uploading}
+            disabled={!blob || !!busy}
+            trimmed={trimmed}
+            getData={async () => (trimmed ? new Blob([await render('video')], { type: 'video/mp4' }) : blob!)}
+          />
+          {bridge && (
+            <>
+              <h3 className="clip-side-title">Exportar {trimmed ? 'o corte' : ''}</h3>
+              <div className="clip-actions">
+                <Button
+                  variant="secondary"
+                  icon="download"
+                  disabled={!blob || !!busy}
+                  onClick={() => void exportAs('video')}
+                >
+                  Arquivo de vídeo
+                </Button>
+                <Button
+                  variant="secondary"
+                  icon="speaker"
+                  disabled={!blob || !!busy}
+                  onClick={() => void exportAs('audio')}
+                >
+                  Arquivo de áudio
+                </Button>
+                {!cloudId && (
+                  <>
+                    <Button
+                      variant="secondary"
+                      icon="copy"
+                      disabled={!!busy}
+                      onClick={() =>
+                        void run('Copiando…', async () => {
+                          await bridge?.clips.copy(clip.file);
+                          useUi.getState().toast('success', 'Clipe copiado. Cole onde quiser (Ctrl+V).');
+                        })
+                      }
+                    >
+                      Copiar arquivo
+                    </Button>
+                    <Button variant="secondary" icon="folder" onClick={() => void bridge?.clips.reveal(clip.file)}>
+                      Mostrar na pasta
+                    </Button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
           {busy && (
             <p className="small muted" role="status">
               {busy}
@@ -519,6 +559,97 @@ const SOURCE_ICON: Record<string, 'screen' | 'microphone' | 'soundboard' | 'user
   'Vozes da chamada': 'users',
   'Efeitos sonoros': 'soundboard',
 };
+
+const confirmRemoveFromAccount = () =>
+  askConfirm('O clipe sai da sua conta e do seu perfil. Cópias neste ou em outros computadores continuam lá.', {
+    title: 'Tirar da conta',
+    confirmLabel: 'Tirar da conta',
+    danger: true,
+  });
+
+/**
+ * Clipe na conta (ADR-0057): salvar (sobe o vídeo e a miniatura), destacar no perfil e tirar da conta.
+ */
+function AccountActions({
+  clip,
+  saved,
+  uploading,
+  disabled,
+  trimmed,
+  getData,
+}: {
+  clip: ClipInfo;
+  saved: AccountClip | undefined;
+  uploading: number | undefined;
+  disabled: boolean;
+  trimmed: boolean;
+  getData: () => Promise<Blob>;
+}) {
+  const loaded = useAccountClips((s) => s.loaded);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!useAccountClips.getState().loaded) void useAccountClips.getState().load();
+  }, []);
+  if (!loaded) return null;
+  const fail = (e: unknown) => useUi.getState().toast('error', describeError(e));
+  const save = async () => {
+    setBusy(true);
+    try {
+      await useAccountClips.getState().save(clip, await getData(), clipTitle(clip));
+      useUi.getState().toast('success', 'Clipe salvo na conta. Ele aparece em qualquer aparelho em que você entrar.');
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const feature = async (on: boolean) => {
+    if (!saved) return;
+    setBusy(true);
+    await useAccountClips
+      .getState()
+      .setFeatured(saved.id, on)
+      .then(
+        () => useUi.getState().toast('success', on ? 'Clipe em destaque no seu perfil.' : 'Clipe tirado do perfil.'),
+        fail,
+      )
+      .finally(() => setBusy(false));
+  };
+  return (
+    <>
+      <h3 className="clip-side-title">Na conta</h3>
+      <div className="clip-actions">
+        {uploading !== undefined ? (
+          <p className="small muted" role="status">
+            <Icon name="cloud-upload" size={14} /> Enviando para a conta… {Math.round(uploading * 100)}%
+          </p>
+        ) : !saved ? (
+          <>
+            <Button variant="secondary" icon="cloud-upload" disabled={disabled || busy} onClick={() => void save()}>
+              {trimmed ? 'Salvar o corte na conta' : 'Salvar na conta'}
+            </Button>
+            <p className="small muted">Fica disponível em qualquer aparelho e pode ir para o seu perfil.</p>
+          </>
+        ) : (
+          <>
+            <p className="small muted">
+              <Icon name="cloud" size={14} /> Salvo na conta{saved.featured ? ' e em destaque no perfil' : ''}.
+            </p>
+            <Button
+              variant="secondary"
+              icon="star"
+              aria-pressed={saved.featured}
+              disabled={busy}
+              onClick={() => void feature(!saved.featured)}
+            >
+              {saved.featured ? 'Tirar do perfil' : 'Destacar no perfil'}
+            </Button>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
 
 const confirmDelete = () =>
   askConfirm('O arquivo do clipe é apagado deste computador.', {

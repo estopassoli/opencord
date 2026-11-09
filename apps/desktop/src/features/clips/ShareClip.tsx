@@ -2,15 +2,16 @@
  * Compartilhar um clipe numa conversa ou canal de texto: o vídeo (ou o corte) sobe em partes de 8 MB, até 1 GB,
  * vira anexo e vai numa mensagem.
  */
-import { LARGE_UPLOAD_MAX_BYTES, type Attachment } from '@opencord/contracts';
+import { LARGE_UPLOAD_MAX_BYTES } from '@opencord/contracts';
 import { Avatar, Button, Icon, TextField } from '@opencord/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { ServerIcon } from '../../components/ServerIcon';
 import { useData, keyOf } from '../../store/data';
-import { api, describeError, loadServer } from '../../store/session';
+import { describeError, loadServer } from '../../store/session';
 import { useUi } from '../../store/ui';
 import { sendMessage, type ChatTarget } from '../chat/ChatView';
+import { uploadLarge } from './account';
 
 interface Destination {
   id: string;
@@ -19,35 +20,6 @@ interface Destination {
   sub: string;
   icon: React.ReactNode;
   go: () => void;
-}
-
-/** Sobe o vídeo em partes e devolve o anexo. */
-async function uploadLarge(data: Blob, name: string, onProgress: (p: number) => void): Promise<Attachment> {
-  const a = api();
-  const { id, partBytes } = await a.request<{ id: string; partBytes: number }>('POST', '/attachments/large', {
-    name,
-    size: data.size,
-  });
-  try {
-    const parts = Math.ceil(data.size / partBytes);
-    for (let n = 1; n <= parts; n++) {
-      const chunk = data.slice((n - 1) * partBytes, n * partBytes);
-      for (let attempt = 0; ; attempt++) {
-        try {
-          await a.upload(`/attachments/large/${id}/parts`, new File([chunk], `parte-${n}`), { n: String(n) });
-          break;
-        } catch (e) {
-          if (attempt >= 3) throw e;
-          await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
-        }
-      }
-      onProgress(n / parts);
-    }
-    return (await a.request<{ attachment: Attachment }>('POST', `/attachments/large/${id}/complete`)).attachment;
-  } catch (e) {
-    await a.request('POST', `/attachments/large/${id}/abort`).catch(() => undefined);
-    throw e;
-  }
 }
 
 export function ShareClipDialog({

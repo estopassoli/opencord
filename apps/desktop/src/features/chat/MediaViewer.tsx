@@ -57,6 +57,7 @@ function Viewer({ items, start }: { items: MediaItem[]; start: number }) {
   const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const item = items[index]!;
+  const isVideo = item.mime.startsWith('video/');
   const close = () => useUi.getState().closeMedia();
   const toast = (ok: string) => useUi.getState().toast('success', ok);
   const fail = () => useUi.getState().toast('error', 'Não foi possível concluir.');
@@ -141,22 +142,26 @@ function Viewer({ items, start }: { items: MediaItem[]; start: number }) {
             <span className="muted small">{new Date(item.createdAt).toLocaleString()}</span>
           </span>
         </div>
-        <div className="media-tools" role="toolbar" aria-label="Ações da imagem">
-          <Tooltip label={zoom > 1 ? 'Tamanho normal' : 'Ampliar'}>
-            <button
-              className="media-btn"
-              aria-label={zoom > 1 ? 'Tamanho normal' : 'Ampliar'}
-              aria-pressed={zoom > 1}
-              onClick={() => setZoom((z) => (z > 1 ? 1 : 2))}
-            >
-              <Icon name="search" size={18} />
-            </button>
-          </Tooltip>
-          <Tooltip label="Girar">
-            <button className="media-btn" aria-label="Girar" onClick={() => setRot((r) => (r + 90) % 360)}>
-              <Icon name="refresh" size={18} />
-            </button>
-          </Tooltip>
+        <div className="media-tools" role="toolbar" aria-label={isVideo ? 'Ações do vídeo' : 'Ações da imagem'}>
+          {!isVideo && (
+            <>
+              <Tooltip label={zoom > 1 ? 'Tamanho normal' : 'Ampliar'}>
+                <button
+                  className="media-btn"
+                  aria-label={zoom > 1 ? 'Tamanho normal' : 'Ampliar'}
+                  aria-pressed={zoom > 1}
+                  onClick={() => setZoom((z) => (z > 1 ? 1 : 2))}
+                >
+                  <Icon name="search" size={18} />
+                </button>
+              </Tooltip>
+              <Tooltip label="Girar">
+                <button className="media-btn" aria-label="Girar" onClick={() => setRot((r) => (r + 90) % 360)}>
+                  <Icon name="refresh" size={18} />
+                </button>
+              </Tooltip>
+            </>
+          )}
           <Tooltip label="Baixar">
             <button className="media-btn" aria-label="Baixar" onClick={() => void download(item).catch(fail)}>
               <Icon name="download" size={18} />
@@ -192,33 +197,38 @@ function Viewer({ items, start }: { items: MediaItem[]; start: number }) {
         </button>
       )}
 
-      <img
-        key={item.id}
-        className="media-img"
-        src={item.url}
-        alt={item.name}
-        draggable={false}
-        data-zoomed={zoom > 1 ? 'true' : undefined}
-        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rot}deg)` }}
-        onPointerDown={(e) => {
-          drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false };
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          const d = drag.current;
-          if (!d || zoom === 1) return;
-          const dx = e.clientX - d.x;
-          const dy = e.clientY - d.y;
-          if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
-          setPan({ x: d.px + dx, y: d.py + dy });
-        }}
-        onPointerUp={() => {
-          const d = drag.current;
-          drag.current = null;
-          // clique sem arrastar alterna o zoom
-          if (d && !d.moved) setZoom((z) => (z > 1 ? 1 : 2));
-        }}
-      />
+      {isVideo ? (
+        // clipes em destaque no perfil (ADR-0057)
+        <video key={item.id} className="media-img media-video" src={item.url} controls autoPlay playsInline />
+      ) : (
+        <img
+          key={item.id}
+          className="media-img"
+          src={item.url}
+          alt={item.name}
+          draggable={false}
+          data-zoomed={zoom > 1 ? 'true' : undefined}
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rot}deg)` }}
+          onPointerDown={(e) => {
+            drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false };
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            const d = drag.current;
+            if (!d || zoom === 1) return;
+            const dx = e.clientX - d.x;
+            const dy = e.clientY - d.y;
+            if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+            setPan({ x: d.px + dx, y: d.py + dy });
+          }}
+          onPointerUp={() => {
+            const d = drag.current;
+            drag.current = null;
+            // clique sem arrastar alterna o zoom
+            if (d && !d.moved) setZoom((z) => (z > 1 ? 1 : 2));
+          }}
+        />
+      )}
 
       {items.length > 1 && (
         <span className="media-count muted small">

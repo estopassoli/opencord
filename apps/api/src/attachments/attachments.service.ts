@@ -17,6 +17,8 @@ import { StorageService } from './storage.service.js';
 const SIGNED_URL_BUCKET_S = 3600;
 const ORPHAN_TTL_MS = 24 * 3600 * 1000;
 const MAX_UNCLAIMED_PER_USER = 50;
+/** vídeo e miniatura de um clipe da conta (ADR-0057) não são órfãos nem podem ir para uma mensagem */
+const NOT_IN_CLIP = { clipVideo: { is: null }, clipThumb: { is: null } } as const;
 const INLINE_MIME = /^(image\/(png|jpeg|gif|webp)|video\/(mp4|webm)|audio\/(mpeg|ogg))$/;
 
 export function sanitizeFilename(name: string): string {
@@ -152,7 +154,12 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
     // anexos ainda não usados em mensagem ficam 24 h ocupando espaço: limita quantos cada pessoa acumula
     // (conferido depois de ler o corpo: recusar no meio do envio deixa o upload pendurado)
     const pending = await this.prisma.attachment.count({
-      where: { uploaderId: userId, messageId: null, createdAt: { gte: new Date(Date.now() - ORPHAN_TTL_MS) } },
+      where: {
+        uploaderId: userId,
+        messageId: null,
+        ...NOT_IN_CLIP,
+        createdAt: { gte: new Date(Date.now() - ORPHAN_TTL_MS) },
+      },
     });
     if (pending >= MAX_UNCLAIMED_PER_USER)
       throw new BadRequestException('muitos anexos enviados e ainda não usados; envie as mensagens ou espere');
@@ -219,6 +226,7 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
         id: { in: unique },
         uploaderId: userId,
         messageId: null,
+        ...NOT_IN_CLIP,
         ...(caseId ? { caseId } : { caseId: null, createdAt: { gt: new Date(Date.now() - ORPHAN_TTL_MS) } }),
       },
       data: { messageId, caseId: null },
@@ -279,7 +287,7 @@ export class AttachmentsService implements OnModuleInit, OnModuleDestroy {
   async cleanupOrphans(): Promise<number> {
     const old = await this.prisma.attachment.findMany({
       // retidos pela moderação (caseId) esperam a decisão dos moderadores
-      where: { messageId: null, caseId: null, createdAt: { lt: new Date(Date.now() - ORPHAN_TTL_MS) } },
+      where: { messageId: null, caseId: null, ...NOT_IN_CLIP, createdAt: { lt: new Date(Date.now() - ORPHAN_TTL_MS) } },
       take: 500,
     });
     for (const a of old) {
