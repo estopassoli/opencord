@@ -43,9 +43,9 @@ export interface DollTemplate {
   scene: THREE.Object3D;
   clips: Map<string, THREE.AnimationClip>;
   info: DollInfo;
-  /** altura do quadril (unidades do arquivo) sentado e pilotando, para apoiar o boneco no assento */
-  sitPelvis: number;
-  drivePelvis: number;
+  /** posição do quadril (unidades do arquivo) sentado e pilotando, para apoiar o boneco no assento */
+  sitPelvis: THREE.Vector3;
+  drivePelvis: THREE.Vector3;
 }
 
 let loading: Promise<DollTemplate> | null = null;
@@ -55,18 +55,18 @@ function isV3(v: unknown): v is V3 {
   return Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number');
 }
 
-/** altura do osso do quadril com a animação parada no começo (num clone, sem mexer no modelo base) */
-function pelvisHeight(scene: THREE.Object3D, clip: THREE.AnimationClip | undefined): number {
-  if (!clip) return 0.5;
+/** posição do osso do quadril com a animação parada no começo (num clone, sem mexer no modelo base) */
+function pelvisAt(scene: THREE.Object3D, clip: THREE.AnimationClip | undefined): THREE.Vector3 {
+  if (!clip) return new THREE.Vector3(0, 0.5, 0);
   const c = SkeletonUtils.clone(scene);
   const mixer = new THREE.AnimationMixer(c);
   mixer.clipAction(clip).play();
   mixer.update(0);
   c.updateMatrixWorld(true);
-  const y = c.getObjectByName('pelvis')?.getWorldPosition(new THREE.Vector3()).y ?? 0.5;
+  const p = c.getObjectByName('pelvis')?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3(0, 0.5, 0);
   mixer.stopAllAction();
   mixer.uncacheRoot(c);
-  return y;
+  return p;
 }
 
 /** carrega o boneco uma vez (as próximas chamadas reaproveitam) */
@@ -88,8 +88,8 @@ export function loadDoll(): Promise<DollTemplate> {
       scene,
       clips,
       info: { eyeL, eyeR, mouth, antenna },
-      sitPelvis: pelvisHeight(scene, clips.get('Sitting_Idle_Loop')),
-      drivePelvis: pelvisHeight(scene, clips.get('Driving_Loop')),
+      sitPelvis: pelvisAt(scene, clips.get('Sitting_Idle_Loop')),
+      drivePelvis: pelvisAt(scene, clips.get('Driving_Loop')),
     };
     ready = t;
     return t;

@@ -220,7 +220,11 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
         <PauseMenu
           onResume={() => {
             setPaused(false);
-            sceneRef.current?.lockPointer();
+            if (noLock) {
+              // sem trava até agora: Continuar tenta prender o mouse de novo
+              setNoLock(false);
+              sceneRef.current?.retryLock();
+            } else sceneRef.current?.lockPointer();
             host.current?.focus({ preventScroll: true });
           }}
           onLeave={() => useSpace.getState().close()}

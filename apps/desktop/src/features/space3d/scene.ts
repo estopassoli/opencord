@@ -455,6 +455,7 @@ export class SpaceScene {
   }
 
   private onLockChange = () => {
+    if (this.aimLocked) this.lockFails = 0;
     if (!this.aimLocked) {
       // soltou (Esc): nada fica "segurado"
       this.leftHeld = false;
@@ -734,11 +735,24 @@ export class SpaceScene {
   /** o último pedido de trava veio de um clique (só aí uma recusa significa "o sistema não deixa") */
   private lockByGesture = false;
 
+  /** recusas seguidas a pedidos feitos por clique */
+  private lockFails = 0;
+
   private onLockError = () => {
     if (this.noLock || !this.lockByGesture) return;
+    // uma recusa sozinha é comum (clicar logo depois de soltar com Esc: o navegador pede ~1 s de espera); só depois de
+    // várias seguidas é que o sistema realmente não deixa e o jogo passa a arrastar para olhar
+    if (++this.lockFails < 3) return;
     this.noLock = true;
     this.hooks.onLockFailed?.();
   };
+
+  /** tenta de novo prender o mouse depois de ter desistido (Continuar na pausa) */
+  retryLock() {
+    this.noLock = false;
+    this.lockFails = 0;
+    this.lockPointer(true);
+  }
 
   /** prende o mouse na visão (mexer o mouse gira a câmera, sem clicar); Esc solta */
   lockPointer(byGesture = true) {

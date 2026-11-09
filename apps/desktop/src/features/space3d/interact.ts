@@ -17,7 +17,8 @@ export const SEATS: Partial<Record<SpaceItemKind, { x: number; z: number; y: num
   armchair: [{ x: 0, z: 0.1, y: 0.56 }],
   chair: [{ x: 0, z: 0.02, y: 0.51 }],
   stool: [{ x: 0, z: 0, y: 0.8 }],
-  beanbag: [{ x: 0, z: 0.05, y: 0.45 }],
+  // o puff afunda um pouco: senta um tiquinho abaixo do topo (0,6 m)
+  beanbag: [{ x: 0, z: 0.05, y: 0.54 }],
   bed: [
     { x: -0.38, z: 0.3, y: 0.6 },
     { x: 0.38, z: 0.3, y: 0.6 },

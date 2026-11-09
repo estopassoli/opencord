@@ -409,9 +409,11 @@ export class Avatar {
     // sentado ou pilotando: o quadril vai para a altura do assento (raiz = assento)
     const tpl = this.tpl;
     if (tpl && a === 5) {
-      const pelvis = this.bike ? tpl.drivePelvis : tpl.sitPelvis;
-      this.model.position.y = (0.12 - pelvis) * DOLL_SCALE + (this.bike ? 0.02 : 0.06);
-    } else this.model.position.y = 0;
+      // raiz = assento − 0,14 (scene.ts): o quadril fica ~7 cm acima do assento (o bumbum apoiado em cima),
+      // centrado sobre o lugar (a animação de sentar leva o quadril para trás)
+      const p = this.bike ? tpl.drivePelvis : tpl.sitPelvis;
+      this.model.position.set(0, (this.bike ? 0.1 : 0.21) - p.y * DOLL_SCALE, this.bike ? 0 : -p.z * DOLL_SCALE);
+    } else this.model.position.set(0, 0, 0);
 
     this.mixer?.update(dt);
     if (a === 4) this.wave(t);

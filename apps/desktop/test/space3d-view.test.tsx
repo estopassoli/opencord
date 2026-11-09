@@ -19,6 +19,7 @@ vi.mock('../src/features/space3d/scene', () => ({
     setTeam() {}
     newMatch() {}
     lockPointer() {}
+    retryLock() {}
     setRace() {}
     rerack() {}
     remotePool() {}
