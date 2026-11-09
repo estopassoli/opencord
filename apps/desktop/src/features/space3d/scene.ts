@@ -85,6 +85,8 @@ export interface SceneHooks {
   onRaceFinish?(ms: number): void;
   /** atalho "Mostrar os comandos" */
   onHelp?(): void;
+  /** soltou o cursor pelo botão do meio: sem menu, só a faixa para voltar */
+  onFreeCursor?(): void;
 }
 
 export interface FightState {
@@ -175,6 +177,9 @@ export class SpaceScene {
   private markerTarget: TutorialTarget | null = null;
   private wasHolding = false;
   private lookYaw = 0;
+  /** visão livre (Alt segurado): a câmera gira em volta do boneco sem mudar a frente dele; solta, volta ao lugar */
+  private freeYaw = 0;
+  private freePitch = 0;
   private lookAcc = 0;
   /** "reduzir movimento" do sistema (lido de novo quando muda): sem tremor, sem balanço, efeitos pela metade */
   private readonly motionQuery =
@@ -654,6 +659,10 @@ export class SpaceScene {
 
   private onAimMove = (e: MouseEvent) => {
     if (!this.aimLocked) return;
+    if (this.freeLooking) {
+      this.lookAround(e.movementX * 0.0026, e.movementY * 0.002);
+      return;
+    }
     this.yaw -= e.movementX * 0.0026;
     this.pitch = this.fight
       ? Math.max(-0.25, Math.min(0.7, this.pitch + e.movementY * 0.002))
@@ -945,6 +954,7 @@ export class SpaceScene {
       else if (a === 'scoreboard') this.showScoreboard(true);
       else if (a === 'rematch') this.hooks.onRematch?.();
       else if (a === 'help') this.hooks.onHelp?.();
+      else if (a === 'cursor') this.freeCursor();
     }
   }
 
@@ -1001,6 +1011,13 @@ export class SpaceScene {
       c[p.zone] = (c[p.zone] ?? 0) + 1;
     }
     return c;
+  }
+
+  /** botão do meio (configurável): solta o cursor sem abrir o menu; clicar na cena (ou o botão do meio) prende de novo */
+  private freeCursor() {
+    if (!this.aimLocked) return;
+    this.cancelHeld();
+    this.hooks.onFreeCursor?.();
   }
 
   /** tenta de novo prender o mouse depois de ter desistido (Continuar na pausa) */
@@ -1123,6 +1140,8 @@ export class SpaceScene {
         this.renderer.domElement.setPointerCapture(e.pointerId);
         return;
       }
+      // botão do meio solto: sem a rolagem automática do Windows
+      if (e.button === 1) e.preventDefault();
       if (!this.aimLocked) this.lockPointer();
       return;
     }
@@ -1158,9 +1177,33 @@ export class SpaceScene {
       this.clampFocus();
       return;
     }
+    if (this.freeLooking) {
+      this.lookAround(dx * 0.006, dy * 0.004);
+      return;
+    }
     this.yaw -= dx * 0.006;
     this.pitch = Math.max(-0.15, Math.min(1.35, this.pitch + dy * 0.004));
   };
+
+  /** Alt (configurável) segurado jogando: visão livre */
+  private get freeLooking() {
+    return this.mode === 'play' && this.held('freeLook');
+  }
+
+  private lookAround(dx: number, dy: number) {
+    // até meia volta para cada lado (olhar para trás) e sem passar do chão nem do alto
+    this.freeYaw = Math.max(-Math.PI, Math.min(Math.PI, this.freeYaw - dx));
+    this.freePitch = Math.max(-0.15 - this.pitch, Math.min(1.35 - this.pitch, this.freePitch + dy));
+  }
+
+  /** soltou o Alt: a câmera volta para trás do boneco */
+  private settleFreeLook(dt: number) {
+    if (this.freeLooking || (this.freeYaw === 0 && this.freePitch === 0)) return;
+    const k = this.reducedMotion ? 1 : 1 - Math.exp(-dt * 12);
+    this.freeYaw -= this.freeYaw * k;
+    this.freePitch -= this.freePitch * k;
+    if (Math.abs(this.freeYaw) < 0.002 && Math.abs(this.freePitch) < 0.002) this.freeYaw = this.freePitch = 0;
+  }
 
   private onPointerUp = (e: PointerEvent) => {
     if (this.noLock && this.mode === 'play') this.release(`Mouse${e.button}`);
@@ -1311,6 +1354,7 @@ export class SpaceScene {
 
   private stepPlayer(dt: number, now: number) {
     this.turnCamera(dt);
+    this.settleFreeLook(dt);
     let fx = 0;
     let fz = 0;
     if (this.held('forward')) fz += 1;
@@ -1664,11 +1708,9 @@ export class SpaceScene {
       target.z -= Math.sin(this.yaw) * 0.6;
       target.y += 0.15;
     }
-    const dir = new THREE.Vector3(
-      Math.sin(this.yaw) * Math.cos(this.pitch),
-      Math.sin(this.pitch),
-      Math.cos(this.yaw) * Math.cos(this.pitch),
-    );
+    const yaw = this.yaw + this.freeYaw;
+    const pitch = this.pitch + this.freePitch;
+    const dir = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
     let d = this.dist;
     if (this.mode === 'play' && this.world) {
       // a câmera não atravessa paredes: encurta até a primeira

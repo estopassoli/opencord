@@ -135,6 +135,8 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   /** faixa verde do arremesso (rules.goodBand: encolhe com a distância e com marcador perto) */
   const [band, setBand] = useState<{ lo: number; hi: number } | null>(null);
   const [aimLocked, setAimLocked] = useState(false);
+  /** cursor solto pelo botão do meio (sem menu) */
+  const [cursorFree, setCursorFree] = useState(false);
   /** o sistema não deixou prender o mouse: joga arrastando; a pausa abre pelo botão */
   const [noLock, setNoLock] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -192,8 +194,8 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     host.current?.focus({ preventScroll: true });
   };
   // Esc com o menu fechado e o mouse solto (faixa na tela): abre o menu
-  const escState = useRef({ menuOpen, loose, noLock });
-  escState.current = { menuOpen, loose, noLock };
+  const escState = useRef({ menuOpen, loose, noLock, cursorFree });
+  escState.current = { menuOpen, loose, noLock, cursorFree };
   useEffect(() => {
     const el = host.current;
     if (!el) return;
@@ -201,7 +203,13 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       if (e.key !== 'Escape' || e.target !== el) return;
       const st = escState.current;
       if (st.menuOpen) return;
-      if (st.noLock) setPaused(true);
+      if (st.cursorFree) {
+        // cursor solto pelo botão do meio: Esc abre o menu como de costume
+        menuFree.current = false;
+        setCursorFree(false);
+        setForced(true);
+        setDismissed(false);
+      } else if (st.noLock) setPaused(true);
       else if (st.loose) {
         setForced(true);
         setDismissed(false);
@@ -245,6 +253,12 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       onScoreboard: (held) => setTabBoard(held),
       onRematch: () => rematchKey(me.id, sceneRef.current),
       onHelp: () => useTutorial.getState().togglePanel(),
+      onFreeCursor: () => {
+        // cursor solto pelo botão do meio: nada de menu, só a faixa (clique volta ao jogo)
+        menuFree.current = true;
+        setCursorFree(true);
+        if (document.pointerLockElement) document.exitPointerLock();
+      },
       onCharge: (c, b) => {
         setCharge(c);
         setBand(b ?? null);
@@ -254,6 +268,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
         // voltou a prender o mouse (clicou na cena): o menu do telão fecha
         if (locked) {
           menuFree.current = false;
+          setCursorFree(false);
           if (useSpace.getState().screenMenu) useSpace.getState().setScreenMenu(false);
         }
       },
@@ -433,6 +448,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       )}
       {!editing && aimLocked && <LockHint fighting={fighting} />}
       {strip && <LockStrip />}
+      {cursorFree && !aimLocked && !editing && !menuOpen && <LockStrip free />}
       {menuOpen && (
         <GameMenu
           tab={menuTab ?? (hasMatch ? 'match' : 'games')}

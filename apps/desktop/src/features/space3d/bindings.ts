@@ -3,7 +3,7 @@
  * Cada ação tem um "código": tecla (`KeyW`, `Space`, `Shift`…) ou botão do mouse (`Mouse0` esquerdo, `Mouse1` meio,
  * `Mouse2` direito). As setas sempre andam também. Esc é do navegador (solta o mouse e abre o menu): não dá para usar.
  * Convenção de PC: W A S D andar, Q/E girar a câmera, Tab segurado mostra o placar, R revanche, F interagir,
- * H mostra os comandos.
+ * H mostra os comandos, botão do meio solta o cursor e Alt segurado olha em volta (visão livre).
  */
 import { create } from 'zustand';
 
@@ -24,6 +24,8 @@ export const ACTIONS = [
   'rematch',
   'decline',
   'help',
+  'cursor',
+  'freeLook',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -44,6 +46,8 @@ export const ACTION_LABELS: Record<Action, string> = {
   rematch: 'Começar partida · revanche',
   decline: 'Recusar um convite de x1',
   help: 'Mostrar ou esconder os comandos',
+  cursor: 'Soltar o cursor (sem abrir o menu)',
+  freeLook: 'Visão livre (segurar)',
 };
 
 export const DEFAULT_BINDINGS: Record<Action, string> = {
@@ -63,6 +67,8 @@ export const DEFAULT_BINDINGS: Record<Action, string> = {
   rematch: 'KeyR',
   decline: 'KeyX',
   help: 'KeyH',
+  cursor: 'Mouse1',
+  freeLook: 'Alt',
 };
 
 /**

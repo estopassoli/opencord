@@ -2,7 +2,8 @@
  * Boneco de massinha do Espaço 3D (ADR-0055): corpo liso feito por nós (gerado a partir de cápsulas que se fundem,
  * com cabeça esculpida) sobre o esqueleto e as animações da Universal Animation Library da Quaternius (CC0). O
  * arquivo `assets/doll.glb` já traz a malha pronta, o esqueleto e só as animações usadas; o rosto (olhos que piscam,
- * boca que fala) e a antena são montados aqui, presos ao osso da cabeça.
+ * boca que fala) é montado aqui, preso ao osso da cabeça. O arquivo ainda grava a posição da antena (`antenna`), que
+ * saiu do boneco em 2026-11-09.
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -139,17 +140,14 @@ export function dollNow(): DollTemplate | null {
 // peças do rosto compartilhadas por todos (nunca descartadas)
 const SPHERE = new THREE.SphereGeometry(1, 20, 14);
 const SPHERE_LO = new THREE.SphereGeometry(1, 10, 8);
-const STALK = new THREE.CylinderGeometry(0.008, 0.008, 0.13, 8);
 const INK = new THREE.MeshStandardMaterial({ color: 0x1b1d22, roughness: 0.35 });
 const GLINT = new THREE.MeshBasicMaterial({ color: 0xffffff });
 const MOUTH_IN = new THREE.MeshStandardMaterial({ color: 0x7a2a35, roughness: 0.6 });
-const STALK_MAT = new THREE.MeshStandardMaterial({ color: 0x2b2e36, roughness: 0.55 });
 
 export interface DollFace {
   eyes: THREE.Object3D[];
   lip: THREE.Object3D;
   inner: THREE.Object3D;
-  tip: THREE.Mesh;
 }
 
 /**
@@ -166,8 +164,8 @@ export function attachUpright(bone: THREE.Object3D, obj: THREE.Object3D, model: 
   bone.add(obj);
 }
 
-/** olhos, boca e antena no osso da cabeça (posições gravadas no arquivo, na superfície da cabeça) */
-export function buildFace(model: THREE.Object3D, info: DollInfo, tipColor: THREE.ColorRepresentation): DollFace {
+/** olhos e boca no osso da cabeça (posições gravadas no arquivo, na superfície da cabeça) */
+export function buildFace(model: THREE.Object3D, info: DollInfo): DollFace {
   const head = model.getObjectByName('Head');
   if (!head) throw new Error('boneco sem cabeça');
   const eyes: THREE.Object3D[] = [];
@@ -195,20 +193,7 @@ export function buildFace(model: THREE.Object3D, info: DollInfo, tipColor: THREE
   mouth.position.fromArray(info.mouth);
   attachUpright(head, mouth, model);
 
-  const antenna = new THREE.Group();
-  const stalk = new THREE.Mesh(STALK, STALK_MAT);
-  stalk.position.y = 0.065;
-  antenna.add(stalk);
-  const tip = new THREE.Mesh(
-    new THREE.SphereGeometry(0.026, 16, 12),
-    new THREE.MeshStandardMaterial({ color: tipColor, emissive: tipColor, emissiveIntensity: 0.35, roughness: 0.4 }),
-  );
-  tip.position.y = 0.135;
-  antenna.add(tip);
-  antenna.position.fromArray(info.antenna);
-  antenna.rotation.z = -0.25;
-  attachUpright(head, antenna, model);
-  return { eyes, lip, inner, tip };
+  return { eyes, lip, inner };
 }
 
 /** um boneco novo (clone do modelo: a malha é compartilhada, o esqueleto é de cada um) */

@@ -72,6 +72,8 @@ const ROOM: Row[] = [
   { input: { acts: ['run'], hold: true }, label: 'Correr' },
   { input: { acts: ['jump'] }, label: 'Pular' },
   { input: { acts: ['turnLeft', 'turnRight'] }, label: 'Girar a câmera' },
+  { input: { acts: ['freeLook'], hold: true }, label: 'Visão livre' },
+  { input: { acts: ['cursor'] }, label: 'Soltar o cursor' },
   { input: { acts: ['wave'] }, label: 'Acenar' },
   { input: { acts: ['interact'] }, label: 'Interagir · desafiar para um x1' },
 ];
@@ -211,12 +213,13 @@ export function LockHint({ fighting }: { fighting: boolean }) {
  * Mouse solto com o menu fechado (Esc fechou, ou no x1 e na corrida, onde o menu não abre sozinho): uma faixa leve
  * que não cobre o jogo. O clique na cena prende o mouse de novo; Esc abre o menu.
  */
-export function LockStrip() {
+export function LockStrip({ free = false }: { free?: boolean }) {
   return (
     <div className="space3d-lockstrip" role="status">
       <MouseIcon btn="left" />
       <span>
-        <strong>Voltar ao jogo:</strong> clique na tela
+        <strong>{free ? 'Cursor livre.' : 'Voltar ao jogo:'}</strong>{' '}
+        {free ? 'Clique na tela para voltar' : 'clique na tela'}
       </span>
       <span className="space3d-lockstrip-esc">
         <Keys keys={['Esc']} /> menu

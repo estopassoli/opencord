@@ -1,7 +1,7 @@
 /**
  * Avatar do Espaço 3D (ADR-0055): boneco de massinha liso (doll.ts) animado pelas animações do esqueleto — parado,
  * conversando, andando, correndo, pulando, sentado, pilotando, socos, nocaute. Olhos que piscam sozinhos, boca que
- * abre com o volume da voz, antena com a cor da pessoa. Cor estável por pessoa; nome em cima; anel verde quando fala.
+ * abre com o volume da voz. Cor estável por pessoa; nome em cima; anel verde quando fala.
  */
 import * as THREE from 'three';
 import { bikeMesh } from './race';
@@ -212,7 +212,7 @@ export class Avatar {
       const b = doll.getObjectByName(n);
       if (b) this.bones[n] = b;
     }
-    this.face = buildFace(doll, t.info, this.color);
+    this.face = buildFace(doll, t.info);
     this.mixer = new THREE.AnimationMixer(doll);
     const team = this.team;
     this.team = null;
@@ -688,8 +688,6 @@ export class Avatar {
     this.setRacket(null);
     this.setBike(false);
     this.skin.dispose();
-    this.face?.tip.geometry.dispose();
-    (this.face?.tip.material as THREE.Material | undefined)?.dispose();
     for (const m of [this.ring]) {
       m.geometry.dispose();
       (m.material as THREE.Material).dispose();
