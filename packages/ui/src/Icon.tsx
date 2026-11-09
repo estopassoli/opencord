@@ -99,6 +99,14 @@ import {
   VolumeHighIcon,
   VolumeOffIcon,
   Wifi01Icon,
+  BasketballIcon,
+  FootballIcon,
+  TennisRacketIcon,
+  VolleyballIcon,
+  TableTennisBatIcon,
+  Billiard01Icon,
+  Motorbike01Icon,
+  BoxingGloveIcon,
 } from '@hugeicons/core-free-icons';
 
 /**
@@ -107,6 +115,14 @@ import {
  * o traço engrossa suavemente (ver icon.css), respeitando "reduzir movimento".
  */
 const ICONS = {
+  basketball: BasketballIcon,
+  football: FootballIcon,
+  tennis: TennisRacketIcon,
+  volleyball: VolleyballIcon,
+  pingpong: TableTennisBatIcon,
+  billiard: Billiard01Icon,
+  motorbike: Motorbike01Icon,
+  boxing: BoxingGloveIcon,
   hashtag: HashtagIcon,
   speaker: VolumeHighIcon,
   'speaker-off': VolumeOffIcon,

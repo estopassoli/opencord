@@ -20,6 +20,9 @@ vi.mock('../src/features/space3d/scene', () => ({
     newMatch() {}
     lockPointer() {}
     retryLock() {}
+    zoneCounts() {
+      return {};
+    }
     setRace() {}
     rerack() {}
     remotePool() {}
@@ -66,7 +69,9 @@ describe('Espaço 3D: tela', () => {
     act(() => {
       useVoice.setState((s) => ({ participants: s.participants.map((p) => ({ ...p, speaking: p.identity === 'b' })) }));
     });
-    expect(r.getByText(/Espaço 3D/)).toBeTruthy();
+    expect(r.getAllByText(/Espaço 3D/).length).toBeGreaterThan(0);
+    // com o mouse solto, o menu do jogo aparece com os jogos
+    expect(r.getByRole('dialog', { name: 'Menu do jogo' })).toBeTruthy();
     expect(errors.filter((e) => String(e).includes('185') || String(e).includes('Maximum update'))).toHaveLength(0);
     spy.mockRestore();
   });

@@ -25,7 +25,7 @@ import { useVoice } from '../../store/voice';
 import { SpaceEditor } from './editor';
 import { SpaceScene, type ScreenSource } from './scene';
 import { DuelHud, useDuelScene } from './DuelHud';
-import { Binding, ControlsPanel, LockHint, PauseMenu } from './GameHud';
+import { Binding, ControlsPanel, GameMenu, LockHint } from './GameHud';
 import { TelaoSource, useTelaoPlayer } from './Telao';
 import './space3d.css';
 
@@ -66,6 +66,8 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   /** o sistema não deixou prender o mouse: joga arrastando; a pausa abre pelo botão */
   const [noLock, setNoLock] = useState(false);
   const [paused, setPaused] = useState(false);
+  /** aba aberta no menu do jogo (o botão Jogos da barra abre direto nos jogos) */
+  const [menuTab, setMenuTab] = useState<'games' | 'keys'>('games');
   /** o mouse foi solto para usar um menu do jogo (telão, música): não é pausa */
   const menuFree = useRef(false);
   const screenMenu = useSpace((s) => s.screenMenu);
@@ -85,6 +87,26 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   );
   const [race, setRace] = useState<{ lap: number; item: boolean; boost: boolean; speed: number } | null>(null);
   const zone = useSpace((s) => s.zone);
+  // menu do jogo: aparece com o mouse solto (Esc) ou, sem trava, pela Pausa — nunca no editor nem nos menus do telão
+  const menuOpen = !editing && ((!noLock && !aimLocked && !menuFree.current && !screenMenu) || (noLock && paused));
+  const [counts, setCounts] = useState<Record<number, number>>({});
+  useEffect(() => {
+    if (!menuOpen) return;
+    const read = () => setCounts(sceneRef.current?.zoneCounts() ?? {});
+    read();
+    const t = window.setInterval(read, 1000);
+    return () => window.clearInterval(t);
+  }, [menuOpen]);
+  const resume = () => {
+    setPaused(false);
+    setMenuTab('games');
+    if (noLock) {
+      // sem trava até agora: Continuar tenta prender o mouse de novo
+      setNoLock(false);
+      sceneRef.current?.retryLock();
+    } else sceneRef.current?.lockPointer();
+    host.current?.focus({ preventScroll: true });
+  };
   const toggles = useSpace((s) => s.session?.toggles);
 
   // a cena nasce uma vez por chamada; ambiente, pessoas e telão chegam depois
@@ -197,13 +219,20 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       <div className="space3d-host" ref={host} aria-label="Espaço 3D. Use W, A, S e D para andar." />
       <TelaoSource onSource={onSource} />
       {!editing && zone === 0 && <TelaoControls />}
-      <SpaceBar serverId={serverId} />
+      <SpaceBar
+        serverId={serverId}
+        onGames={() => {
+          setMenuTab('games');
+          if (noLock) setPaused(true);
+          else if (document.pointerLockElement) document.exitPointerLock();
+        }}
+      />
       {!editing && zone === 0 && <DuelHud aimLocked={aimLocked} />}
       {!editing && zone !== 0 && zone !== 7 && (
         <SportHud zone={zone as SportZone} charge={charge} onNewMatch={() => sceneRef.current?.newMatch()} />
       )}
       {!editing && zone === 7 && <RaceHud hud={race} />}
-      {!editing && prompt && (
+      {!editing && !menuOpen && prompt && (
         <button
           className="space3d-prompt"
           onClick={() => {
@@ -214,18 +243,18 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
           <Binding action={prompt.action} /> {prompt.label}
         </button>
       )}
-      {!editing && <ControlsPanel zone={zone} fighting={fighting} />}
+      {!editing && !menuOpen && <ControlsPanel zone={zone} fighting={fighting} />}
       {!editing && aimLocked && <LockHint locked fighting={fighting} />}
-      {!editing && ((!noLock && !aimLocked && !menuFree.current && !screenMenu) || (noLock && paused)) && (
-        <PauseMenu
-          onResume={() => {
-            setPaused(false);
-            if (noLock) {
-              // sem trava até agora: Continuar tenta prender o mouse de novo
-              setNoLock(false);
-              sceneRef.current?.retryLock();
-            } else sceneRef.current?.lockPointer();
-            host.current?.focus({ preventScroll: true });
+      {menuOpen && (
+        <GameMenu
+          tab={menuTab}
+          zone={zone}
+          counts={counts}
+          place={space ? SPACE_THEME_LABELS[space.layout.theme] : ''}
+          onResume={resume}
+          onPick={(z) => {
+            if (z !== zone) useSpace.getState().setZone(z);
+            resume();
           }}
           onLeave={() => useSpace.getState().close()}
         />
@@ -244,7 +273,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
   );
 }
 
-function SpaceBar({ serverId }: { serverId: string }) {
+function SpaceBar({ serverId, onGames }: { serverId: string; onGames: () => void }) {
   const editing = useSpace((s) => s.editing);
   const screen = useSpace((s) => s.session?.screen ?? null);
   const theme = useSpace((s) => s.spaces[serverId]?.layout.theme);
@@ -271,7 +300,6 @@ function SpaceBar({ serverId }: { serverId: string }) {
         : 'Nada no telão';
 
   const zone = useSpace((s) => s.zone);
-  const [games, setGames] = useState(false);
   if (editing) return null;
   return (
     <div className="space3d-bar">
@@ -279,43 +307,9 @@ function SpaceBar({ serverId }: { serverId: string }) {
         <Icon name="activities" size={16} /> Espaço 3D
         {theme && <span className="muted small">{SPACE_THEME_LABELS[theme]}</span>}
       </span>
-      <div className="space3d-menu-wrap">
-        <Button size="sm" variant="secondary" icon="gamepad" onClick={() => setGames((g) => !g)} aria-expanded={games}>
-          {zone ? SPORT_LABELS[zone as SportZone] : 'Jogos'}
-        </Button>
-        {games && (
-          <ul className="space3d-menu" role="menu">
-            {SPORTS_READY.map((z) => (
-              <li key={z}>
-                <button
-                  role="menuitem"
-                  aria-current={zone === z ? 'true' : undefined}
-                  onClick={() => {
-                    setGames(false);
-                    useSpace.getState().setZone(z);
-                  }}
-                >
-                  <Icon name="trophy" size={16} /> {SPORT_LABELS[z]}
-                </button>
-              </li>
-            ))}
-            {zone !== 0 && (
-              <li>
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    setGames(false);
-                    useSpace.getState().setZone(0);
-                  }}
-                >
-                  <Icon name="home" size={16} /> Voltar para a sala
-                </button>
-              </li>
-            )}
-            <li className="muted small space3d-menu-note">x1 no soco: na sala, chegue perto de alguém e aperte F.</li>
-          </ul>
-        )}
-      </div>
+      <Button size="sm" variant="secondary" icon="gamepad" onClick={onGames}>
+        {zone ? SPORT_LABELS[zone as SportZone] : 'Jogos'}
+      </Button>
       {zone === 0 && (
         <div className="space3d-menu-wrap">
           <Button size="sm" variant="secondary" icon="screen" onClick={() => setMenu((m) => !m)} aria-expanded={menu}>
@@ -839,8 +833,6 @@ function SportHud({ zone, charge, onNewMatch }: { zone: SportZone; charge: numbe
 }
 
 /** esportes que já aparecem no menu Jogos */
-const SPORTS_READY = [1, 2, 3, 4, 5, 6, 7] as const satisfies readonly SportZone[];
-
 const fmtRace = (ms: number) => {
   const t = Math.max(0, ms);
   const m = Math.floor(t / 60000);

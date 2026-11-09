@@ -772,6 +772,18 @@ export class SpaceScene {
     this.hooks.onLockFailed?.();
   };
 
+  /** quantas pessoas há em cada jogo agora (zona → quantidade, contando comigo) */
+  zoneCounts(): Record<number, number> {
+    const now = performance.now();
+    const c: Record<number, number> = { [this.zone]: 1 };
+    const inCall = new Set(this.participants.map((p) => p.identity));
+    for (const [id, p] of peers) {
+      if (id === this.selfId || !inCall.has(id) || now - p.at > PEER_TIMEOUT_MS) continue;
+      c[p.zone] = (c[p.zone] ?? 0) + 1;
+    }
+    return c;
+  }
+
   /** tenta de novo prender o mouse depois de ter desistido (Continuar na pausa) */
   retryLock() {
     this.noLock = false;

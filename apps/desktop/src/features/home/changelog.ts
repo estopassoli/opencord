@@ -22,6 +22,14 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-09',
+    time: '06:00',
+    kind: 'melhoria',
+    icon: 'gamepad',
+    title: 'Menu de jogo no Espaço 3D',
+    body: 'O Esc agora abre um menu de jogo de verdade: continuar, escolher um jogo em cartões (com quantas pessoas estão em cada um), mudar os comandos ou sair. O botão Jogos da barra abre direto na escolha. E no basquete a bola fica nas mãos: segura no peito, quica enquanto anda e sobe para o arremesso; os bonecos também não escorregam mais ao andar.',
+  },
+  {
+    date: '2026-11-09',
     time: '05:00',
     kind: 'novo',
     icon: 'user',

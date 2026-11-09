@@ -3,6 +3,7 @@
  * prender o mouse na visão e a mira no centro. Teclado só tem W A S D, E e F; o resto é no mouse.
  */
 import type { SportZone } from '@opencord/contracts';
+import { Icon, type IconName } from '@opencord/ui';
 import { useEffect, useState } from 'react';
 import { ACTION_LABELS, ACTIONS, codeLabel, isMouse, normalizeCode, useBindings, type Action } from './bindings';
 
@@ -189,11 +190,159 @@ export function LockHint({ locked, fighting }: { locked: boolean; fighting: bool
   );
 }
 
+/** os jogos do espaço, como aparecem no menu (0 = a sala) */
+const GAMES: { zone: number; icon: IconName; title: string; text: string; hue: string }[] = [
+  { zone: 0, icon: 'home', title: 'Sala', text: 'Telão, sofás, música e x1 no soco.', hue: '#8b7cf6' },
+  {
+    zone: 1,
+    icon: 'basketball',
+    title: 'Basquete',
+    text: 'Pegue a bola e acerte a cesta do outro time.',
+    hue: '#f08a3c',
+  },
+  {
+    zone: 2,
+    icon: 'football',
+    title: 'Futebol',
+    text: 'Encoste para chutar; clique para o chute forte.',
+    hue: '#3fbf6a',
+  },
+  { zone: 3, icon: 'tennis', title: 'Tênis', text: 'Raquete na mão: rebata por cima da rede.', hue: '#c8e04a' },
+  { zone: 4, icon: 'volleyball', title: 'Vôlei', text: 'Na areia: não deixe a bola cair do seu lado.', hue: '#f2c94c' },
+  { zone: 5, icon: 'pingpong', title: 'Ping pong', text: 'Rápido: a bolinha quica na mesa.', hue: '#e05a5a' },
+  { zone: 6, icon: 'billiard', title: 'Sinuca', text: 'Mire, dose a força e encaçape.', hue: '#2fb39a' },
+  { zone: 7, icon: 'motorbike', title: 'Corrida de moto', text: 'Três voltas na pista, com turbo.', hue: '#3f8fe0' },
+];
+
+type MenuTab = 'games' | 'keys';
+
 /**
- * Menu de pausa (Esc solta o mouse e abre): continuar, mudar os atalhos (tecla ou botão do mouse) e sair do espaço.
+ * Menu do jogo (Esc solta o mouse e abre): à esquerda Continuar, Jogos, Comandos e Sair; à direita os jogos em
+ * cartões (com quantas pessoas estão em cada um) ou os atalhos para mudar.
  */
-export function PauseMenu({ onResume, onLeave }: { onResume: () => void; onLeave: () => void }) {
-  const [view, setView] = useState<'menu' | 'keys'>('menu');
+export function GameMenu({
+  tab: initialTab = 'games',
+  zone,
+  counts,
+  place,
+  onResume,
+  onPick,
+  onLeave,
+}: {
+  tab?: MenuTab;
+  zone: number;
+  /** pessoas em cada jogo agora (zona → quantidade, contando comigo) */
+  counts: Record<number, number>;
+  /** nome do lugar (tema da sala) */
+  place: string;
+  onResume: () => void;
+  onPick: (zone: number) => void;
+  onLeave: () => void;
+}) {
+  const [tab, setTab] = useState<MenuTab>(initialTab);
+  useEffect(() => setTab(initialTab), [initialTab]);
+  const here = GAMES.find((g) => g.zone === zone) ?? GAMES[0]!;
+  const nav = [
+    { id: 'resume', icon: 'play', label: 'Continuar' },
+    { id: 'games', icon: 'gamepad', label: 'Jogos' },
+    { id: 'keys', icon: 'keyboard', label: 'Comandos' },
+    { id: 'leave', icon: 'logout', label: 'Sair do espaço' },
+  ] as const;
+
+  // setas para cima/baixo andam pelo menu da esquerda
+  const onNavKey = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const items = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('button')];
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length];
+    next?.focus();
+    e.preventDefault();
+  };
+
+  return (
+    <div className="gm" role="dialog" aria-modal="true" aria-label="Menu do jogo">
+      <aside className="gm-side">
+        <div className="gm-brand">
+          <span className="gm-paused">
+            <Icon name="pause" size={14} /> Pausado
+          </span>
+          <strong>Espaço 3D</strong>
+          <span className="gm-where">
+            <span className="gm-dot" style={{ background: here.hue }} />
+            {here.title} · {place}
+          </span>
+        </div>
+        <nav className="gm-nav" onKeyDown={onNavKey}>
+          {nav.map((n) => (
+            <button
+              key={n.id}
+              className="gm-navbtn"
+              data-kind={n.id}
+              aria-current={tab === n.id ? 'page' : undefined}
+              autoFocus={n.id === 'resume'}
+              onClick={() => {
+                if (n.id === 'resume') onResume();
+                else if (n.id === 'leave') onLeave();
+                else setTab(n.id);
+              }}
+            >
+              <Icon name={n.icon} size={20} />
+              <span>{n.label}</span>
+            </button>
+          ))}
+        </nav>
+        <p className="gm-foot">
+          <Keys keys={['↑', '↓']} /> navegar · <Keys keys={['Enter']} /> escolher
+        </p>
+      </aside>
+      <section className="gm-main">
+        {tab === 'games' ? (
+          <>
+            <header className="gm-head">
+              <h2>Jogos</h2>
+              <p>Escolha um jogo para ir até ele. Para um x1 no soco, chegue perto de alguém na sala e aperte F.</p>
+            </header>
+            <ul className="gm-grid">
+              {GAMES.map((g) => {
+                const n = counts[g.zone] ?? 0;
+                const cur = g.zone === zone;
+                return (
+                  <li key={g.zone}>
+                    <button
+                      className="gm-card"
+                      style={{ '--hue': g.hue } as React.CSSProperties}
+                      aria-current={cur ? 'true' : undefined}
+                      onClick={() => (cur ? onResume() : onPick(g.zone))}
+                    >
+                      <span className="gm-art" aria-hidden="true">
+                        <Icon name={g.icon} size={40} />
+                      </span>
+                      <span className="gm-card-body">
+                        <span className="gm-card-title">{g.title}</span>
+                        <span className="gm-card-text">{g.text}</span>
+                      </span>
+                      <span className="gm-card-foot">
+                        <span className="gm-people" data-on={n > 0 ? 'true' : undefined}>
+                          <Icon name="users" size={14} /> {n === 0 ? 'Ninguém' : n === 1 ? '1 pessoa' : `${n} pessoas`}
+                        </span>
+                        <span className="gm-go">{cur ? 'Você está aqui' : g.zone === 0 ? 'Voltar' : 'Jogar'}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        ) : (
+          <KeysPanel />
+        )}
+      </section>
+    </div>
+  );
+}
+
+/** atalhos: clique em Alterar e aperte a tecla ou o botão do mouse (Esc cancela) */
+function KeysPanel() {
   const [listening, setListening] = useState<Action | null>(null);
   const map = useBindings((b) => b.map);
 
@@ -230,58 +379,36 @@ export function PauseMenu({ onResume, onLeave }: { onResume: () => void; onLeave
 
   return (
     <>
-      {/* esperando o atalho: cobre a cena, para o clique virar atalho em vez de prender o mouse */}
       {listening && <div className="space3d-capture" aria-hidden="true" />}
-      <div className="space3d-pause" role="dialog" aria-label="Pausa">
-        {view === 'menu' ? (
-          <>
-            <h3>Pausado</h3>
-            <button className="space3d-gbtn space3d-gbtn-play space3d-pause-main" onClick={onResume} autoFocus>
-              Continuar
+      <header className="gm-head">
+        <h2>Comandos</h2>
+        <p>Clique em Alterar e aperte a tecla ou o botão do mouse que quiser. Fica salvo neste computador.</p>
+      </header>
+      <ul className="gm-binds">
+        {ACTIONS.map((a) => (
+          <li key={a} data-listening={listening === a ? 'true' : undefined}>
+            <span>{ACTION_LABELS[a]}</span>
+            <span className="gm-bind-cur">
+              {listening === a ? (
+                <span className="gm-listening">Aperte uma tecla ou botão…</span>
+              ) : (
+                <Binding action={a} />
+              )}
+            </span>
+            <button
+              className="gm-btn"
+              aria-label={`Alterar: ${ACTION_LABELS[a]} (agora ${codeLabel(map[a])})`}
+              onClick={() => setListening(listening === a ? null : a)}
+            >
+              {listening === a ? 'Cancelar' : 'Alterar'}
             </button>
-            <button className="space3d-gbtn space3d-pause-main" onClick={() => setView('keys')}>
-              Comandos
-            </button>
-            <button className="space3d-gbtn space3d-pause-main" onClick={onLeave}>
-              Sair do espaço
-            </button>
-            <p className="small">Clique na cena para voltar. Esc pausa de novo.</p>
-          </>
-        ) : (
-          <>
-            <h3>Comandos</h3>
-            <p className="small">Clique em Alterar e aperte a tecla ou o botão do mouse que quiser.</p>
-            <ul className="space3d-binds">
-              {ACTIONS.map((a) => (
-                <li key={a}>
-                  <span>{ACTION_LABELS[a]}</span>
-                  <span className="space3d-bind-cur">
-                    {listening === a ? (
-                      <span className="space3d-listening">Aperte uma tecla ou botão…</span>
-                    ) : (
-                      <Binding action={a} />
-                    )}
-                  </span>
-                  <button
-                    className="space3d-gbtn space3d-gbtn-sm"
-                    aria-label={`Alterar: ${ACTION_LABELS[a]} (agora ${codeLabel(map[a])})`}
-                    onClick={() => setListening(listening === a ? null : a)}
-                  >
-                    {listening === a ? 'Cancelar' : 'Alterar'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <div className="space3d-pause-row">
-              <button className="space3d-gbtn" onClick={() => useBindings.getState().reset()}>
-                Restaurar padrão
-              </button>
-              <button className="space3d-gbtn space3d-gbtn-play" onClick={() => setView('menu')}>
-                Voltar
-              </button>
-            </div>
-          </>
-        )}
+          </li>
+        ))}
+      </ul>
+      <div className="gm-row">
+        <button className="gm-btn" onClick={() => useBindings.getState().reset()}>
+          Restaurar padrão
+        </button>
       </div>
     </>
   );
