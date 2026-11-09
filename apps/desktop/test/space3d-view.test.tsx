@@ -61,7 +61,8 @@ const SERVER = '0190a000-0000-7000-8000-0000000000aa';
 const CHANNEL = '0190a000-0000-7000-8000-0000000000bb';
 
 describe('Espaço 3D: tela', () => {
-  it('renderiza numa chamada com gente sem entrar em ciclo de atualizações', async () => {
+  // a 1ª importação da cena 3D (com o gunfight) é pesada; no CI passa de 5 s
+  it('renderiza numa chamada com gente sem entrar em ciclo de atualizações', { timeout: 20000 }, async () => {
     const { useData } = await import('../src/store/data');
     const { useVoice } = await import('../src/store/voice');
     const { useSpace } = await import('../src/store/space');
