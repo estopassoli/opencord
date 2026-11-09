@@ -1,0 +1,14 @@
+# Memória — Téo Amaral (sensação e arte técnica)
+
+_Acrescente aprendizados curtos e datados. Não apague o que outros escreveram._
+
+- 2026-11-09: time criado a pedido do mantenedor ("ainda está muito amador"). Primeira rodada: revisar o mundo 3D e refatorar os minigames para ficarem imersivos e autoexplicativos.
+- 2026-11-09: mundo é sem sombras de propósito (world.ts:1-3); `castShadow` do boneco (doll.ts:110) é morto. Profundidade da bola tem que vir de blob shadow + marcador de queda, não de shadowMap.
+- 2026-11-09: estado de pose `a` (0–9, avatar.ts:360) é o único canal das animações pela rede; `a=6` vira Sword_Attack com raquete e Punch_Jab sem (futebol/vôlei "socam"). Golpe novo por esporte precisa de valor novo de `a` (combinar com Caio/contrato).
+- 2026-11-09: poses procedurais seguem o padrão `aim()` de avatar.ts (wave/reach); ossos UE: thigh_*/calf_*/foot_*/upperarm_*/lowerarm_*/hand_*/spine_*. Cachear ossos no build() antes de somar poses (hoje getObjectByName por quadro).
+- 2026-11-09: boneco tem 1,31 m mas as quadras usam medidas reais (aro 3,05 = 2,3× o boneco). Escala das arenas é o maior "cara de protótipo" estático.
+- 2026-11-09: eventos `bounce/score` de sportplay só chegam a quem simula (`if (this.mine)`); efeitos/sons para todos exigem barramento de eventos local ou evento pela rede. Scene não lê prefers-reduced-motion (só o CSS).
+- 2026-11-09 (P5): `juice.ts` (HitStop, Shake, Particles com pool fixo de 256 em ShaderMaterial com alpha/tamanho por ponto, flash emissive em 6 slots, redes `net:±1/0` nomeadas no arena3d) ligado por `juice.attach(scene.events)`. A pausa de impacto escala só o `dt` do jogo; golpes (`Avatar.update(dt, t, realDt)`), partículas e câmera usam o tempo real — assim a bola fica parada no contato enquanto o braço faz a antecipação. Bom padrão, manter.
+- 2026-11-09 (P5): poses procedurais em `avatar.ts` (`swingPose`, a 10 chute, 11 forehand, 12 backhand, 13 manchete; contrato `SpaceMove.a` agora até 13 — API e desktop juntos). Ossos em cache no `build()`; `aim/aimBlend/twistBone/dirIn` usam temporários de módulo (zero alocação). Frame do boneco: +z frente, +x esquerda dele; direita no mundo = (−cos ry, 0, sin ry). Não validado a olho num boneco real (só tsc/testes): conferir os ângulos no Electron.
+- 2026-11-09 (P5): `hitQuality(dt)` + `contactDt` (tênis/ping pong pela aproximação no plano; vôlei pela queda até o peito) e `netShotTarget` puros. `landingPoint` analítico casa com `stepBall` a < 0,1 m (Euler semi-implícito); só vale até o 1º quique e ignora rede/muro.
+- 2026-11-09 (P5): FPS medido em Chromium headless com SwiftShader (sem GPU, 8 bonecos, quadra de tênis): antes ~6,98, depois ~6,77 (−3%). Número absoluto não vale nada (software); repetir num Windows real. Banco: página temporária no vite + playwright-core de fora do repo (o repo não tem Playwright instalado); a porta 5199 já estava ocupada por outro servidor.

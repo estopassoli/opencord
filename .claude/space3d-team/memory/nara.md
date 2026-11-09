@@ -1,0 +1,19 @@
+# Memória — Nara Siqueira (UX de jogo)
+
+_Acrescente aprendizados curtos e datados. Não apague o que outros escreveram._
+
+- 2026-11-09: time criado a pedido do mantenedor ("ainda está muito amador"). Primeira rodada: revisar o mundo 3D e refatorar os minigames para ficarem imersivos e autoexplicativos.
+- 2026-11-09: revisão em `context/reviews/2026-11-09-nara.md`. Armadilha central: `menuOpen` (SpaceView.tsx:91) = mouse solto, e o `.gm` (z 4, inset 0) cobre o HUD (z 2) — botões do HUD só funcionam no modo sem trava. Toda ação de partida precisa estar no menu ou numa tecla.
+- 2026-11-09: textos com tecla fixa mentem quando o atalho muda (e "Turbo (F)" já estava errado: turbo é a Ação). Sempre `<Binding action>` de GameHud.tsx.
+- 2026-11-09: não existe estado "já aprendeu"; só `opencord.space3d.bindings` em localStorage. Para tutorial, seguir o mesmo padrão com try/catch.
+- 2026-11-09: placar no contrato é só {a,b} sem alvo/estado de partida; fim de partida e revanche exigem contrato novo (ADR) — combinar com Bento e Caio.
+- 2026-11-09: regiões aria-live do HUD re-renderizam a 100–200 ms (corrida, x1): cronômetro fora da região viva.
+- 2026-11-09 (P3 feito): menu do Esc tem a aba "Esta partida" (`MatchPanel` em `MatchHud.tsx`, passada a `GameMenu` pela prop `match`); o HUD não tem mais botões de partida. Estado do menu em `SpaceView`: `dismissed` (Esc fechou → só a `LockStrip`), `forced` (Esc com a faixa na tela ou botão Jogos → abre mesmo no x1/corrida). Esc não é gesto: depois de fechar não dá para prender o mouse sem clique.
+- 2026-11-09: região viva única = `LiveRegion` + `useAnnounce().say()` (MatchHud). Ninguém mais põe `aria-live` em placar/cronômetro; anunciar só ponto, fim, VAI e chegada. Faixa e contagem ficam `aria-hidden`.
+- 2026-11-09: atalhos novos turnLeft Q, turnRight E, scoreboard Tab, rematch R, decline X; acenar foi de E para G. `fromSaved` migra mapas antigos (E salvo como padrão antigo do aceno vira câmera) e ação nova nunca rouba tecla escolhida (pega uma de `SPARE_CODES`). Ao criar ação nova: atualizar `LEGACY_DEFAULTS` se um padrão mudar.
+- 2026-11-09: botão "desabilitado" com Tooltip = `aria-disabled` + `preventDefault` (o `disabled` nativo não dispara hover/foco e o Tooltip não abre). Convite de x1 responde por tecla num listener de `window` na captura (funciona com o foco no menu) e fica em z 5, acima do menu.
+- 2026-11-09: para testar a view, o mock da cena usa `vi.hoisted` + `vi.importActual` do `GameBus` para emitir eventos de verdade (ver `space3d-view.test.tsx`).
+- 2026-11-09 (P4 feito): tutorial em dados puros (`tutorial.ts`: `TUTORIALS[key]`, `advance`, `HintTracker`, `loadLearned/saveLearned`) + `TutorialHud.tsx` (store `useTutorial`: `enter/setStep/skip/restart/hintShown/togglePanel`). Chave = zona '0'–'7' ou 'duel' (`tutorialKey(zone, fighting)`). `advance` pula adiante: fazer um passo posterior conta os anteriores (quem já sabe não repete). O passo não tem relógio; só a dica sai em `HINT_MS` (8 s).
+- 2026-11-09: entrada para o tutorial é um barramento à parte (`scene.inputs`, `InputBus` em `input.ts`: press/grab/charge/shot/look/ready), separado do `GameEvent` para o mapa de som do P6 não precisar cobrir entrada. "ready" sai quando o aviso com tecla aparece (= bola ao alcance).
+- 2026-11-09: o `TutorialHud` fica montado com o menu aberto (`hidden`) para não perder o passo nem as inscrições; `onTarget` depende de `scene` porque o efeito do filho roda antes da cena nascer. Marcador do mundo: `scene.setTutorialTarget` (anel + seta amarelos, sem balanço com reduzir movimento, 0,22× na sinuca).
+- 2026-11-09: nova ação `help` (H) abre/fecha o painel de comandos; o painel começa recolhido e o estado fica em `learned.panel`. H saiu de `SPARE_CODES`. Cuidado em testes de menu: "Como jogar" casa com `/jogar/i` — use `/^jogar/i`.
