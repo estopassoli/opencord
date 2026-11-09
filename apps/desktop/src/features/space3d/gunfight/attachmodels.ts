@@ -222,7 +222,10 @@ function miniReflex(t: Mats): Optic {
     // degrau de montagem no trilho e a trava (botão redondo do lado direito)
     .box(t.dark, 0.022, 0.009, 0.034, 0, 0.0045, 0.002)
     .box(t.metal, 0.026, 0.003, 0.02, 0, 0.0015, 0.002)
-    .add(new THREE.CylinderGeometry(0.005, 0.005, 0.005, 10).rotateZ(Math.PI / 2).translate(0.0145, 0.0045, 0.002), t.body)
+    .add(
+      new THREE.CylinderGeometry(0.005, 0.005, 0.005, 10).rotateZ(Math.PI / 2).translate(0.0145, 0.0045, 0.002),
+      t.body,
+    )
     // a base da mira: chapa baixa e a caixa da eletrônica atrás, descendo em rampa para a janela
     .front(t.body, chamfered(W + RIM * 2, 0.009, 0.019, 0.0025, 0.001), 0.022, ZW - 0.004)
     .side(
@@ -241,7 +244,11 @@ function miniReflex(t: Mats): Optic {
     .add(rimGeo, t.body)
     .bake(group);
   // o vidro no formato da janela (cantos chanfrados), centrado na linha de mira
-  const glass = new THREE.ShapeGeometry(chamfered(W + 0.0006, y0 + 0.002, y1 - RIM + 0.0003, 0.0075, 0), 2).translate(0, -A, 0);
+  const glass = new THREE.ShapeGeometry(chamfered(W + 0.0006, y0 + 0.002, y1 - RIM + 0.0003, 0.0075, 0), 2).translate(
+    0,
+    -A,
+    0,
+  );
   const r = reticle(glass, 0, 0.016, A, ZW + (A - y0) * Math.sin(0.17));
   r.mesh.rotation.x = 0.17;
   group.add(r.mesh);
