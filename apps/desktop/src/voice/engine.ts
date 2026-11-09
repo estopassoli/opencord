@@ -116,6 +116,11 @@ export interface EngineCallbacks {
   onStreamPreview?(image: Blob): void;
   /** tela de bloqueio/fones pediram para desligar (Media Session) */
   onHangupRequested?(): void;
+  /**
+   * o microfone escolhido não existe mais (fone desconectado): entrou com o padrão do sistema (`default`) ou, sem
+   * nenhum microfone, só ouvindo (`none`)
+   */
+  onMicFallback?(kind: 'default' | 'none'): void;
 }
 
 export interface AudioPrefs {
@@ -231,8 +236,7 @@ export class VoiceEngine {
     // assinar microfones/câmeras já publicados; streams só sob demanda
     for (const p of room.remoteParticipants.values())
       for (const pub of p.trackPublications.values()) this.autoSubscribe(pub as RemoteTrackPublication, p);
-    if (opts.canSpeak) {
-      await room.localParticipant.setMicrophoneEnabled(true, this.captureOpts());
+    if (opts.canSpeak && (await this.enableMic(room))) {
       await this.applyNoiseFilter();
       await this.applyMic();
       this.startVad();
@@ -323,12 +327,38 @@ export class VoiceEngine {
     this.cb.onParticipants([]);
   }
 
-  private captureOpts() {
+  /**
+   * Liga o microfone. Se o escolhido nas configurações sumiu ("Requested device not found": fone desconectado, outro
+   * PC com a mesma conta), tenta o padrão do sistema; sem nenhum microfone, segue na chamada só ouvindo em vez de
+   * derrubar a conexão. Devolve se o microfone abriu.
+   */
+  private async enableMic(room: Room): Promise<boolean> {
+    try {
+      await room.localParticipant.setMicrophoneEnabled(true, this.captureOpts());
+      return true;
+    } catch (e) {
+      if (!isMissingDevice(e)) throw e;
+      this.note(`mic-missing ${(e as Error).name}`);
+    }
+    if (this.prefs.inputDeviceId) {
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true, this.captureOpts(true));
+        this.cb.onMicFallback?.('default');
+        return true;
+      } catch (e) {
+        if (!isMissingDevice(e)) throw e;
+      }
+    }
+    this.cb.onMicFallback?.('none');
+    return false;
+  }
+
+  private captureOpts(anyDevice = false) {
     return {
       echoCancellation: this.prefs.echoCancellation,
       noiseSuppression: this.prefs.noiseSuppression,
       autoGainControl: this.prefs.autoGainControl,
-      ...(this.prefs.inputDeviceId ? { deviceId: this.prefs.inputDeviceId } : {}),
+      ...(this.prefs.inputDeviceId && !anyDevice ? { deviceId: this.prefs.inputDeviceId } : {}),
     };
   }
 
@@ -1339,3 +1369,15 @@ export const RECONNECT = {
   maxAttempts: MAX_RECONNECT_ATTEMPTS,
   delay: (attempt: number) => backoffDelay(attempt, 750, 10_000),
 };
+
+/** o microfone pedido não existe (sumiu ou nunca houve um): NotFoundError/OverconstrainedError do getUserMedia */
+function isMissingDevice(e: unknown): boolean {
+  const name = e instanceof Error || e instanceof DOMException ? e.name : '';
+  const msg = e instanceof Error ? e.message : '';
+  return (
+    name === 'NotFoundError' ||
+    name === 'OverconstrainedError' ||
+    name === 'DevicesNotFoundError' ||
+    /requested device not found/i.test(msg)
+  );
+}

@@ -198,6 +198,15 @@ export const useVoice = create<VoiceStore>()((set, get) => {
         },
         onDisconnected: (reason, detail) => void handleDisconnect(reason, detail),
         onHangupRequested: () => void get().leave(),
+        onMicFallback: (kind) =>
+          useUi
+            .getState()
+            .toast(
+              'info',
+              kind === 'default'
+                ? 'O microfone escolhido não foi encontrado: entrei com o padrão do sistema. Troque em Configurações > Voz.'
+                : 'Nenhum microfone encontrado: você entrou só ouvindo. Conecte um microfone e entre de novo para falar.',
+            ),
         onStreamEnded: () => {
           sdispatch({ type: 'SOURCE_ENDED' });
           void get().stopStream();
