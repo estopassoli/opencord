@@ -254,6 +254,13 @@ const GAMES: { zone: number; icon: IconName; title: string; text: string; hue: s
   { zone: 5, icon: 'pingpong', title: 'Ping pong', text: 'Rápido: a bolinha quica na mesa.', hue: '#e05a5a' },
   { zone: 6, icon: 'billiard', title: 'Sinuca', text: 'Mire, dose a força e encaçape.', hue: '#2fb39a' },
   { zone: 7, icon: 'motorbike', title: 'Corrida de moto', text: 'Três voltas na pista, com turbo.', hue: '#3f8fe0' },
+  {
+    zone: 8,
+    icon: 'gun',
+    title: 'Gunfight',
+    text: 'Todos contra todos, em primeira ou terceira pessoa. Primeiro a 30 abates.',
+    hue: '#c8503c',
+  },
 ];
 
 export type MenuTab = 'games' | 'keys' | 'match';

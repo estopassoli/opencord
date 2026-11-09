@@ -51,6 +51,9 @@ const SAMPLES: GameEvent[] = [
   { kind: 'countdown', n: 3, power: 0.6, zone: 7, at },
   { kind: 'go', power: 1, zone: 7, at },
   { kind: 'control', by: 'eu', power: 0.3, zone: 2, at },
+  { kind: 'gunshot', by: 'eu', w: 'm4', power: 1, zone: 8, at },
+  { kind: 'impact', flesh: true, head: false, power: 0.6, zone: 8, at },
+  { kind: 'gunfx', what: 'magIn', w: 'm4', power: 0.6, zone: 8, at },
   { kind: 'trick', by: 'eu', trick: 'bicicleta', power: 1, zone: 2, at },
   { kind: 'tackle', by: 'eu', on: 'ana', foul: true, slide: true, power: 1, zone: 2, at },
 ];
@@ -325,7 +328,7 @@ describe('Espaço 3D: som do jogo (sfx, P6)', () => {
     expect(s.active).toBeLessThanOrEqual(SFX_MAX_VOICES);
     // um som mais baixo que todos não entra com as 12 ocupadas
     const before = s.log.length;
-    tick(41);
+    tick(5);
     s.play('kick', { gain: 0.01 });
     expect(s.active).toBeLessThanOrEqual(SFX_MAX_VOICES);
     expect(s.log.length).toBe(before);

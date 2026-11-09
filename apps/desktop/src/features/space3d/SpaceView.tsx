@@ -31,6 +31,7 @@ import { SpaceEditor } from './editor';
 import { SpaceScene, type ScreenSource } from './scene';
 import { setSfxDeafened } from './sfx';
 import { DuelHud, rematchDuel, useDuelScene } from './DuelHud';
+import { GunHud, GunMatchPanel, GunScoreboard } from './gunfight/GunHud';
 import { Binding, ControlsPanel, GameMenu, LockHint, LockStrip, type MenuTab } from './GameHud';
 import {
   BigCountdown,
@@ -69,6 +70,10 @@ const SWATCHES = [
  */
 function playZone(zone: number, scene: SpaceScene | null) {
   const st = useSpace.getState();
+  if (zone === 8) {
+    scene?.restartGun();
+    return;
+  }
   // contra o bot: a partida é local (Revanche com o mesmo bot)
   if (botIn(zone)) {
     const m = useBotPlay.getState().match;
@@ -304,6 +309,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       sendPool: (m) => useSession.getState().realtime?.sendVolatile('space:pool', { channelId, ...m }),
       onRace: setRace,
       onRaceFinish: (ms) => void useSpace.getState().finishRace(ms),
+      sendGun: (g) => useSession.getState().realtime?.sendVolatile('space:gun', { channelId, ...g }),
       sendBall: (z, b) => useSession.getState().realtime?.sendVolatile('space:ball', { channelId, zone: z, ...b }),
       onScore: (z, side, points, by, teams) => useSpace.getState().score(z, side, points, by, teams),
       onPunch: (strong) => {
@@ -339,12 +345,16 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     setScene(s);
     // quem abriu o espaço acabou de clicar: tenta já prender o mouse na visão (sem gesto, o aviso pede um clique)
     s.lockPointer(false);
-    useSpace.setState({ ballListener: (b) => s.remoteBall(b), poolListener: (m) => s.remotePool(m) });
+    useSpace.setState({
+      ballListener: (b) => s.remoteBall(b),
+      poolListener: (m) => s.remotePool(m),
+      gunListener: (g) => s.remoteGun(g),
+    });
     el.focus({ preventScroll: true });
     return () => {
       s.dispose();
       useBotPlay.getState().stop();
-      useSpace.setState({ ballListener: null, poolListener: null });
+      useSpace.setState({ ballListener: null, poolListener: null, gunListener: null });
       useVoice.getState().engine()?.clearSpatialGains();
       sceneRef.current = null;
       setScene(null);
@@ -365,7 +375,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
 
   const team = useSpace((s) => s.team);
   useEffect(() => {
-    scene?.setZone(zone as 0 | SportZone, useSpace.getState().team);
+    scene?.setZone(zone as 0 | SportZone | 8, useSpace.getState().team);
     host.current?.focus({ preventScroll: true });
   }, [scene, zone]);
   useEffect(() => {
@@ -475,21 +485,23 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       />
       <LiveRegion />
       {!editing && zone === 0 && <DuelHud aimLocked={aimLocked} />}
-      {!editing && zone !== 0 && zone !== 7 && (
+      {!editing && zone === 8 && <GunHud />}
+      {!editing && zone !== 0 && zone !== 7 && zone !== 8 && (
         <SportHud zone={zone as SportZone} charge={charge} band={band} status={status} />
       )}
-      {!editing && zone !== 0 && zone !== 7 && !menuOpen && (
+      {!editing && zone !== 0 && zone !== 7 && zone !== 8 && !menuOpen && (
         <MatchEnd
           zone={zone as SportZone}
           onRematch={() => playZone(zone, sceneRef.current)}
           onLeave={() => useSpace.getState().setZone(0)}
         />
       )}
-      {!editing && zone !== 0 && <PointBanner bus={scene?.events ?? null} zone={zone} />}
-      {!editing && zone !== 0 && zone !== 7 && <BigCountdown goAt={matchCountdownAt} sound />}
+      {!editing && zone !== 0 && zone !== 8 && <PointBanner bus={scene?.events ?? null} zone={zone} />}
+      {!editing && zone !== 0 && zone !== 7 && zone !== 8 && <BigCountdown goAt={matchCountdownAt} sound />}
       {!editing && zone === 7 && <RaceHud hud={race} />}
       {!editing && zone === 7 && !menuOpen && <RaceEnd onAgain={() => playZone(7, sceneRef.current)} />}
-      {!editing && tabBoard && zone !== 0 && !menuOpen && <HeldScoreboard zone={zone} />}
+      {!editing && tabBoard && zone !== 0 && zone !== 8 && !menuOpen && <HeldScoreboard zone={zone} />}
+      {!editing && tabBoard && zone === 8 && !menuOpen && <GunScoreboard />}
       {!editing && !menuOpen && prompt && (
         <button
           className="space3d-prompt"
@@ -530,16 +542,28 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
           counts={counts}
           place={space ? SPACE_THEME_LABELS[space.layout.theme] : ''}
           match={
-            <MatchPanel
-              zone={zone}
-              fight={myFight ? { duelId: myFight.id } : null}
-              others={Math.max(0, (counts[zone] ?? 1) - 1)}
-              onBot={pickBot}
-              onPlay={() => {
-                playZone(zone, sceneRef.current);
-                resume();
-              }}
-            />
+            zone === 8 ? (
+              <GunMatchPanel
+                others={Math.max(0, (counts[8] ?? 1) - 1)}
+                onBots={(level, n) => sceneRef.current?.setGunBots(level, n)}
+                onRestart={() => {
+                  sceneRef.current?.restartGun();
+                  resume();
+                }}
+                onView={() => sceneRef.current?.toggleGunView()}
+              />
+            ) : (
+              <MatchPanel
+                zone={zone}
+                fight={myFight ? { duelId: myFight.id } : null}
+                others={Math.max(0, (counts[zone] ?? 1) - 1)}
+                onBot={pickBot}
+                onPlay={() => {
+                  playZone(zone, sceneRef.current);
+                  resume();
+                }}
+              />
+            )
           }
           onResume={resume}
           onHowTo={() => {
