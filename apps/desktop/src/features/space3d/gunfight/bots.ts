@@ -15,10 +15,14 @@ import {
   RESPAWN_MS,
   SLOT_GUNS,
   aimDir,
+  bloomNow,
   headY,
   lineOfSight,
   lookAt,
+  recoilKick,
+  recoilMul,
   shotInterval,
+  spreadNow,
   type Target,
   type V3,
 } from './weapons';
@@ -35,6 +39,8 @@ interface Ctx {
   host: GunHost;
   me(): Target | null;
   shoot(s: BotShot): void;
+  /** eu acabei de nascer (protegido): os bots não miram em mim */
+  shielded?(): boolean;
   killed(by: string, target: string, w: GunId, head: boolean): void;
 }
 
@@ -49,11 +55,17 @@ interface Bot {
   hp: number;
   alive: boolean;
   respawnAt: number;
+  /** proteção ao nascer até tal hora (como a minha) */
+  protUntil: number;
+  /** viu alguém agora: o primeiro tiro sai de aviso (erra de propósito) */
+  warn: boolean;
   w: GunId;
   mag: number;
   nextShot: number;
   reloadUntil: number;
   burstLeft: number;
+  /** tiros da rajada de agora (o recuo e a abertura crescem com ele) */
+  burstN: number;
   pauseUntil: number;
   path: { x: number; z: number }[];
   target: string | null;
@@ -142,8 +154,19 @@ export const AIM_FLOOR: Record<BotLevel, number> = { facil: 0.05, medio: 0.02, d
 const BURST: Record<BotLevel, { min: number; extra: number; pause: number }> = {
   facil: { min: 2, extra: 3, pause: 450 },
   medio: { min: 3, extra: 5, pause: 150 },
-  dificil: { min: 3, extra: 6, pause: 0 },
+  dificil: { min: 3, extra: 6, pause: 120 },
 };
+/**
+ * Tempo de reação no gunfight (s): o do nível dos outros jogos, mas o difícil um pouco mais lento (com o tempo para
+ * matar de ~0,2 s, reagir em 0,2 s matava antes de a pessoa ver o bot).
+ */
+export const GUN_REACTION: Record<BotLevel, number> = { facil: 0.75, medio: 0.4, dificil: 0.28 };
+/** quanto do recuo o bot não corrige (fica na mira e volta aos poucos): o fácil quase nada, o difícil quase tudo */
+export const BOT_RECOIL_LEFT: Record<BotLevel, number> = { facil: 0.7, medio: 0.35, dificil: 0.15 };
+/** o tiro de aviso (o primeiro depois de ver alguém) erra pelo menos isso (rad) */
+export const WARN_MISS = 0.03;
+/** proteção ao nascer (ms), a mesma das pessoas */
+const BOT_PROT_MS = 1500;
 
 export class GunBots {
   private readonly list: Bot[] = [];
@@ -175,11 +198,14 @@ export class GunBots {
         hp: MAX_HP,
         alive: false,
         respawnAt: 0,
+        protUntil: 0,
+        warn: false,
         w,
         mag: GUNS[w].mag,
         nextShot: 0,
         reloadUntil: 0,
         burstLeft: 0,
+        burstN: 0,
         pauseUntil: 0,
         path: [],
         target: null,
@@ -220,6 +246,12 @@ export class GunBots {
     return this.list.find((b) => b.id === id)?.name;
   }
 
+  /** o bot acabou de nascer e ainda não atirou (não leva dano) */
+  shielded(id: string, now = performance.now()): boolean {
+    const b = this.list.find((x) => x.id === id);
+    return !!b && b.alive && now < b.protUntil;
+  }
+
   targets(): Target[] {
     return this.list.filter((b) => b.alive).map((b) => ({ id: b.id, x: b.x, y: 0, z: b.z, crouch: b.crouch }));
   }
@@ -249,6 +281,8 @@ export class GunBots {
     b.path = [];
     b.reloadUntil = 0;
     b.alertAt = 0;
+    b.warn = false;
+    b.protUntil = now + BOT_PROT_MS;
     b.nextShot = now + 400;
   }
 
@@ -256,16 +290,18 @@ export class GunBots {
   hurt(id: string, dmg: number, by: string, w: GunId, head: boolean): boolean {
     const b = this.list.find((x) => x.id === id);
     if (!b || !b.alive) return false;
-    b.hp -= dmg;
+    // protegido (acabou de nascer): o tiro não tira vida, mas avisa (ele vira para quem atirou)
+    const shielded = performance.now() < b.protUntil;
+    if (!shielded) b.hp -= dmg;
     // quem atirou vira o alvo (vira para ele)
     if (by !== b.id) {
       b.target = by;
       // a próxima pensada sorteia o tempo de reação de novo: o alerta guarda o "mais cedo" para ela respeitar
-      const soon = performance.now() + this.skill.reaction * 500;
+      const soon = performance.now() + GUN_REACTION[this.level] * 500;
       b.alertAt = b.alertAt ? Math.min(b.alertAt, soon) : soon;
       b.reactAt = Math.min(b.reactAt, soon);
     }
-    if (b.hp > 0) return false;
+    if (shielded || b.hp > 0) return false;
     b.alive = false;
     b.respawnAt = performance.now() + RESPAWN_MS;
     this.ctx.killed(by, b.id, w, head);
@@ -284,8 +320,11 @@ export class GunBots {
     const eye = { x: b.x, y: b.crouch ? EYE.crouch : EYE.stand, z: b.z };
     const cands: Target[] = [];
     const me = this.ctx.me();
-    if (me) cands.push(me);
-    for (const o of this.list) if (o !== b && o.alive) cands.push({ id: o.id, x: o.x, y: 0, z: o.z, crouch: o.crouch });
+    // quem acabou de nascer (protegido) não é alvo: não adianta atirar
+    if (me && !this.ctx.shielded?.()) cands.push(me);
+    const now = performance.now();
+    for (const o of this.list)
+      if (o !== b && o.alive && now >= o.protUntil) cands.push({ id: o.id, x: o.x, y: 0, z: o.z, crouch: o.crouch });
     let best: Target | null = null;
     let bestD = 48;
     for (const t of cands) {
@@ -322,8 +361,9 @@ export class GunBots {
     const seen = this.look(b);
     if (seen) {
       if (b.target !== seen.id || !b.lastSeen || now - b.lastSeen.at > 1500) {
-        // viu agora: reage depois do tempo de reação (com um sorteio em volta)
-        b.reactAt = now + this.skill.reaction * 1000 * (0.7 + this.rand() * 0.6);
+        // viu agora: reage depois do tempo de reação (com um sorteio em volta); o primeiro tiro é de aviso
+        b.reactAt = now + GUN_REACTION[this.level] * 1000 * (0.7 + this.rand() * 0.6);
+        b.warn = true;
         b.errYaw = (this.rand() - 0.5) * this.skill.error * 0.5;
         b.errPitch = (this.rand() - 0.5) * this.skill.error * 0.3;
       }
@@ -441,14 +481,43 @@ export class GunBots {
     const burst = BURST[this.level];
     if (b.burstLeft <= 0) {
       b.burstLeft = spec.auto ? burst.min + Math.floor(this.rand() * (burst.extra + 1)) : 1;
+      b.burstN = 0;
     }
     b.mag--;
     b.burstLeft--;
-    b.nextShot = now + shotInterval(spec) * (spec.auto ? 1 : 1.3 + this.skill.error);
+    b.burstN++;
+    b.protUntil = 0;
+    // automática: a cadência conta do tiro anterior (o atraso do quadro não se perde, como a minha)
+    const iv = shotInterval(spec) * (spec.auto ? 1 : 1.3 + this.skill.error);
+    const late = now - b.nextShot;
+    b.nextShot = spec.auto && late >= 0 && late < iv ? b.nextShot + iv : now + iv;
     if (b.burstLeft <= 0) b.pauseUntil = now + (200 + this.rand() * 500) * (1 + this.skill.error * 2) + burst.pause;
     const eye = { x: b.x, y: b.crouch ? EYE.crouch : EYE.stand, z: b.z };
-    const spread = (this.skill.smart > 0.8 ? spec.spread.ads + 0.006 : spec.spread.hip * 0.6) + this.skill.error * 0.03;
-    const dir = aimDir(b.yaw, b.pitch, spread, this.rand(), this.rand());
+    const smart = this.skill.smart > 0.8;
+    // a rajada abre (como a minha) e andar espalha (o fácil e o médio atiram do quadril)
+    const n = b.burstN;
+    const moving = Math.min(1, b.moving / 3.2);
+    const spread =
+      (smart ? spreadNow(spec, 1, moving, b.crouch) + 0.006 : spreadNow(spec, 0, moving, b.crouch) * 0.6) +
+      this.skill.error * 0.03 +
+      bloomNow(spec, n, smart ? 1 : 0);
+    // o tiro de aviso: o primeiro depois de ver alguém passa perto, não acerta
+    let yaw = b.yaw;
+    let pitch = b.pitch;
+    if (b.warn) {
+      b.warn = false;
+      const a = this.rand() * Math.PI * 2;
+      const r = WARN_MISS + this.rand() * 0.03;
+      yaw += Math.cos(a) * r;
+      pitch += Math.sin(a) * r * 0.6;
+    }
+    const dir = aimDir(yaw, pitch, spread, this.rand(), this.rand());
+    // o recuo do mesmo padrão da arma: o bot corrige parte (pelo nível) e o resto fica na mira e volta aos poucos
+    const k = recoilKick(spec, n, this.rand(), this.rand());
+    const mul = recoilMul(smart ? 1 : 0, b.crouch);
+    const left = BOT_RECOIL_LEFT[this.level];
+    b.errPitch -= k.up * mul.up * left;
+    b.errYaw -= k.side * mul.side * left;
     const fx = -Math.sin(b.yaw);
     const fz = -Math.cos(b.yaw);
     // a boca da arma do boneco (se ele já tem a arma na mão); senão um ponto à frente e à direita do peito
@@ -467,9 +536,11 @@ export class GunBots {
         w: b.w,
         pitch: b.pitch,
         crouch: b.crouch,
-        ads: !!b.target,
+        // faca não mira: com alvo, o bot com faca não estica o braço como se apontasse uma arma
+        ads: !!b.target && GUNS[b.w].cls !== 'knife',
         alive: b.alive,
         ...(b.act ? { act: b.act, an: b.an } : {}),
+        ...(b.alive && performance.now() < b.protUntil ? { prot: true } : {}),
       },
     };
     b.av.place(pose);

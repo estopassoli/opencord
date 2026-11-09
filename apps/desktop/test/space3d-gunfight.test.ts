@@ -37,8 +37,8 @@ type GunHost = import('../src/features/space3d/gunfight/game').GunHost;
 type GunPlayer = import('../src/features/space3d/gunfight/game').GunPlayer;
 const { useGunHud, validLoadout } = await import('../src/features/space3d/gunfight/state');
 const { findPath } = await import('../src/features/space3d/gunfight/bots');
-const { GUN_BOXES, GUN_SPAWNS, blockedAt, gunObstacles, pickSpawn } =
-  await import('../src/features/space3d/gunfight/map');
+const mapMod = await import('../src/features/space3d/gunfight/map');
+const { GUN_BOXES, GUN_SPAWNS, blockedAt, gunObstacles, pickSpawn } = mapMod;
 const mv = await import('../src/features/space3d/gunfight/movement');
 const w = await import('../src/features/space3d/gunfight/weapons');
 const {
@@ -97,11 +97,17 @@ function fakeHost(over: Partial<GunHost> = {}) {
 }
 
 /** um jogo já nascido (o nascer espera a promessa dos modelos) */
-async function started(over: Partial<GunHost> = {}) {
+/** tira a proteção de quem acabou de nascer (os testes antigos atiram e levam tiro logo depois de nascer) */
+function unshield(g: InstanceType<typeof GunGame>) {
+  Reflect.set(g, 'protUntil', 0);
+}
+
+async function started(over: Partial<GunHost> = {}, o: { shield?: boolean } = {}) {
   const f = fakeHost(over);
   const g = new GunGame(f.host);
   await Promise.resolve();
   await Promise.resolve();
+  if (!o.shield) unshield(g);
   return { g, ...f };
 }
 
@@ -134,7 +140,7 @@ describe('gunfight: armas e equilíbrio', () => {
     const ttk = (id: keyof typeof GUNS, d: number) => (shotsToKill(GUNS[id], d) - 1) * shotInterval(GUNS[id]);
     // de perto a AK não perde para o M4 (bate mais forte); de longe empatam e a AK sobe mais
     expect(ttk('ak47', 5)).toBeLessThanOrEqual(ttk('m4', 5));
-    expect(GUNS.ak47.recoil.up).toBeGreaterThan(GUNS.m4.recoil.up);
+    expect(GUNS.ak47.recoil.pattern[0]!.up).toBeGreaterThan(GUNS.m4.recoil.pattern[0]!.up);
   });
 
   it('de perto a submetralhadora mata mais rápido que o fuzil; de longe, o fuzil', () => {
@@ -565,6 +571,7 @@ describe('gunfight: o controlador', () => {
   it('bots saem quando alguém entra; morte por bot vai sem matador na rede', async () => {
     const { g, sent, setPlayers } = await started();
     g.setBots('dificil', 1);
+    unshield(g);
     expect(useGunHud.getState().bot).toBe('dificil');
     const t0 = performance.now();
     // um bot mata (o id do bot não vai para a rede)
@@ -943,5 +950,537 @@ describe('gunfight: rodada 3 (integração)', () => {
     expect(nearCamera({ x: 0, y: 0, z: 0 }, { x: 0.5, y: 1, z: 0 })).toBe(true);
     expect(nearCamera({ x: 0, y: 0, z: 0 }, { x: 1.2, y: 1, z: 0 })).toBe(false);
     expect(nearCamera({ x: 0, y: 0, z: 0 }, { x: 0, y: 2.4, z: 0 })).toBe(false);
+  });
+});
+
+describe('gunfight: recuo (padrão, volta, cadência e molas)', () => {
+  const D = 180 / Math.PI;
+  /** subida e o maior desvio de lado (graus) de `n` tiros sem sorteio, no quadril */
+  const spray = (id: keyof typeof GUNS, n: number) => {
+    let up = 0;
+    let side = 0;
+    let maxSide = 0;
+    for (let i = 1; i <= n; i++) {
+      const k = w.recoilKick(GUNS[id], i);
+      up += k.up * D;
+      side += k.side * D;
+      maxSide = Math.max(maxSide, Math.abs(side));
+    }
+    return { up, maxSide };
+  };
+
+  it('o padrão é fixo por arma: o mesmo tiro dá o mesmo recuo a cada pente', () => {
+    for (const id of ['m4', 'ak47', 'mp7', 'mp5'] as const)
+      for (let i = 1; i <= 30; i++) expect(w.recoilKick(GUNS[id], i)).toEqual(w.recoilKick(GUNS[id], i));
+    // o sorteio só varia um pouco por cima (±noise)
+    const a = w.recoilKick(GUNS.m4, 10, 0, 0).up;
+    const b = w.recoilKick(GUNS.m4, 10, 0.999, 0.999).up;
+    const mid = w.recoilKick(GUNS.m4, 10).up;
+    expect(Math.abs(a - mid) / mid).toBeLessThanOrEqual(GUNS.m4.recoil.noise + 1e-6);
+    expect(Math.abs(b - mid) / mid).toBeLessThanOrEqual(GUNS.m4.recoil.noise + 1e-6);
+  });
+
+  it('a AK sobe e desvia mais que o M4; a SMG é rápida e baixa', () => {
+    const ak = spray('ak47', 30);
+    const m4 = spray('m4', 30);
+    const mp5 = spray('mp5', 30);
+    const mp7 = spray('mp7', 30);
+    expect(ak.up).toBeGreaterThan(m4.up);
+    expect(m4.up).toBeGreaterThan(mp5.up);
+    expect(mp5.up).toBeGreaterThan(mp7.up);
+    expect(ak.maxSide).toBeGreaterThanOrEqual(1.8 * m4.maxSide);
+    // mirando, 30 tiros: M4 ~7° e AK ~10° (o primeiro tiro sai com 60% do recuo)
+    const ads = w.recoilMul(1, false).up;
+    expect(m4.up * ads).toBeGreaterThan(5);
+    expect(m4.up * ads).toBeLessThan(9);
+    expect(ak.up * ads).toBeGreaterThan(m4.up * ads * 1.3);
+    expect(w.recoilKick(GUNS.m4, 1).up).toBeCloseTo(w.recoilKick(GUNS.m4, 2).up * w.FIRST_SHOT, 6);
+    // pistolas: a Desert Eagle coiceia muito mais que a M9, na mira e na arma
+    expect(w.recoilKick(GUNS.deagle, 2).up).toBeGreaterThan(3 * w.recoilKick(GUNS.m9, 2).up);
+    expect(GUNS.deagle.recoil.vm.rise).toBeGreaterThan(GUNS.m9.recoil.vm.rise);
+    expect(GUNS.ak47.recoil.vm.rise).toBeGreaterThan(GUNS.m4.recoil.vm.rise);
+  });
+
+  it('mirar e agachar reduzem; a rajada esfria aos poucos e a dispersão abre com ela', () => {
+    expect(w.recoilMul(1, false).up).toBeCloseTo(0.6);
+    expect(w.recoilMul(0, true).up).toBeCloseTo(0.85);
+    // clicar rápido não volta ao primeiro tiro; parar esfria
+    expect(w.burstNow(GUNS.m9, 5, GUNS.m9.recoil.recover.delay)).toBe(5);
+    expect(w.shotIndex(w.burstNow(GUNS.m9, 5, 1500))).toBe(1);
+    expect(w.bloomNow(GUNS.m4, 15, 0)).toBeGreaterThan(w.bloomNow(GUNS.m4, 1, 0));
+    expect(w.bloomNow(GUNS.m4, 10, 1)).toBeLessThan(w.bloomNow(GUNS.m4, 10, 0));
+  });
+
+  it('mola: o pico é o pedido e não muda com o fps', async () => {
+    const { spring, kickSpring, stepSpring } = await import('../src/features/space3d/gunfight/spring');
+    for (const id of ['m4', 'deagle', 'l115'] as const) {
+      const v = GUNS[id].recoil.vm;
+      /** onde a mola está em `at` s, andando a `fps`, e o maior valor visto */
+      const run = (fps: number, at: number) => {
+        const s = spring();
+        kickSpring(s, v.k, v.c, v.rise);
+        let peak = 0;
+        for (let t = 0; t < at - 1e-9; t += 1 / fps) {
+          stepSpring(s, v.k, v.c, 1 / fps);
+          peak = Math.max(peak, s.x);
+        }
+        return { x: s.x, peak };
+      };
+      // o pico (visto de perto) é o pedido
+      expect(Math.abs(run(480, 0.5).peak - v.rise) / v.rise).toBeLessThan(0.1);
+      // no mesmo instante, a mola está no mesmo lugar a 30 e a 144 qps
+      const a = run(30, 4 / 30).x;
+      const b = run(144, 4 / 30).x;
+      expect(Math.abs(a - b)).toBeLessThan(v.rise * 0.1);
+      // e volta ao lugar em menos de 1 s
+      expect(Math.abs(run(60, 1).x)).toBeLessThan(v.rise * 0.05);
+    }
+  });
+
+  it('a cadência não depende do fps (3 s de M4 = 40 tiros a 30, 60 e 144 qps)', async () => {
+    for (const fps of [30, 60, 144]) {
+      const { g, sent, held } = await started();
+      let t = performance.now() + 1000;
+      for (let i = 0; i < 60; i++) g.step(0.016, (t += 16));
+      held.add('fire');
+      g.press('fire', t);
+      const dt = 1000 / fps;
+      // munição infinita: o pente não acaba no meio (o teste é da cadência)
+      const ammo = (g as unknown as { ammo: Map<string, { mag: number }> }).ammo;
+      const end = t + 3000;
+      while (t < end - 1e-6) {
+        ammo.get('m4')!.mag = 30;
+        g.step(dt / 1000, (t += dt));
+      }
+      expect(Math.abs(fires(sent) - 40)).toBeLessThanOrEqual(1);
+      held.clear();
+      g.dispose();
+    }
+  });
+
+  it('a mira volta sozinha depois da rajada, e o mouse puxando para baixo paga a conta', async () => {
+    const { g, held, view } = await started();
+    let t = performance.now() + 1000;
+    for (let i = 0; i < 60; i++) g.step(0.016, (t += 16));
+    const p0 = view.pitch;
+    held.add('fire');
+    g.press('fire', t);
+    for (let i = 0; i < 48; i++) g.step(0.016, (t += 16));
+    held.clear();
+    g.release('fire');
+    const rise = p0 - view.pitch;
+    expect(rise).toBeGreaterThan(0.03);
+    for (let i = 0; i < 38; i++) g.step(0.016, (t += 16));
+    // 600 ms depois: no máximo 35% da subida
+    expect(p0 - view.pitch).toBeLessThanOrEqual(rise * 0.35);
+    expect(p0 - view.pitch).toBeGreaterThanOrEqual(0);
+
+    // com o mouse compensando tudo durante a rajada, a volta não passa da mira inicial
+    const p1 = view.pitch;
+    held.add('fire');
+    g.press('fire', t);
+    for (let i = 0; i < 48; i++) {
+      const before = view.pitch;
+      g.step(0.016, (t += 16));
+      view.pitch = before;
+    }
+    held.clear();
+    g.release('fire');
+    expect(g.recoilDebt).toBeLessThan(1e-3);
+    for (let i = 0; i < 60; i++) g.step(0.016, (t += 16));
+    expect(view.pitch).toBeLessThanOrEqual(p1 + 1e-3);
+    g.dispose();
+  });
+
+  it('clicar rápido com a pistola sobe mais que tocar devagar (soltar não zera a rajada)', async () => {
+    const climb = async (gap: number) => {
+      const { g, view } = await started();
+      let t = performance.now() + 1000;
+      g.switchTo('secondary', t);
+      for (let i = 0; i < 40; i++) g.step(0.016, (t += 16));
+      const ups: number[] = [];
+      for (let k = 0; k < 5; k++) {
+        const p = view.pitch;
+        g.press('fire', t);
+        g.release('fire');
+        g.step(0.001, (t += 1));
+        ups.push(p - view.pitch);
+        for (let i = 0; i < gap / 16; i++) g.step(0.016, (t += 16));
+      }
+      g.dispose();
+      return ups;
+    };
+    const fast = await climb(160);
+    const slow = await climb(800);
+    // devagar, cada tiro é o primeiro (60% do recuo); rápido, a partir do segundo é o recuo inteiro
+    expect(fast[3]!).toBeGreaterThan(slow[3]! * 1.3);
+  });
+});
+
+describe('gunfight: rodada do jogo todo (Caio, pegada/recoil r1)', () => {
+  it('nasce protegido: o dano é ignorado por 1,5 s ou até o primeiro tiro; a pose avisa os outros', async () => {
+    const { g, setPlayers, held } = await started({}, { shield: true });
+    setPlayers([{ id: BOB, name: 'Bob', x: 0, y: 0, z: 0, ry: 0, crouch: false, alive: true }]);
+    const t0 = performance.now();
+    expect(g.shielded).toBe(true);
+    expect(g.pose().prot).toBe(true);
+    expect(SpaceGunPose.safeParse(g.pose()).success).toBe(true);
+    g.remote({ channelId: ME, kind: 'hit', w: 'm4', target: ME, dmg: 28, sender: BOB }, t0 + 100);
+    expect(useGunHud.getState().hp).toBe(100);
+    // atirar tira a proteção na hora
+    held.add('fire');
+    g.press('fire', t0 + 700);
+    g.step(0.016, t0 + 700);
+    held.delete('fire');
+    g.release('fire');
+    expect(g.shielded).toBe(false);
+    g.remote({ channelId: ME, kind: 'hit', w: 'm4', target: ME, dmg: 28, sender: BOB }, t0 + 900);
+    expect(useGunHud.getState().hp).toBe(72);
+    g.dispose();
+  });
+
+  it('a proteção acaba sozinha em 1,5 s', async () => {
+    const { g, setPlayers } = await started({}, { shield: true });
+    setPlayers([{ id: BOB, name: 'Bob', x: 0, y: 0, z: 0, ry: 0, crouch: false, alive: true }]);
+    const t0 = performance.now();
+    g.remote({ channelId: ME, kind: 'hit', w: 'm4', target: ME, dmg: 28, sender: BOB }, t0 + 1400);
+    expect(useGunHud.getState().hp).toBe(100);
+    g.remote({ channelId: ME, kind: 'hit', w: 'm4', target: ME, dmg: 28, sender: BOB }, t0 + 1600);
+    expect(useGunHud.getState().hp).toBe(72);
+    g.dispose();
+  });
+
+  it('nunca nasce à vista de um inimigo a menos de 30 m (se houver um ponto seguro) e olha para a vista livre', () => {
+    const eye = (p: { x: number; z: number }) => ({ x: p.x, y: 1.12, z: p.z });
+    for (const e of GUN_SPAWNS) {
+      for (const u of [0, 0.4, 0.99]) {
+        const s = pickSpawn([e], u);
+        const safe = GUN_SPAWNS.some(
+          (o) => Math.hypot(o.x - e.x, o.z - e.z) >= 30 || !lineOfSight(eye(o), eye(e), GUN_BOXES),
+        );
+        if (!safe) continue;
+        const near = Math.hypot(s.x - e.x, s.z - e.z) < 30;
+        expect(near && lineOfSight(eye(s), eye(e), GUN_BOXES)).toBe(false);
+      }
+    }
+    // a direção de nascer vê pelo menos 6 m livres em todo ponto
+    const { spawnFacing } = mapMod;
+    for (const s of GUN_SPAWNS) {
+      const ry = spawnFacing(s);
+      const o = { x: s.x, y: 1.12, z: s.z };
+      const d = { x: Math.sin(ry), y: 0, z: Math.cos(ry) };
+      const free = Math.min(25, ...GUN_BOXES.map((b) => w.rayBox(o, d, b)));
+      expect(free).toBeGreaterThan(6);
+    }
+  });
+
+  it('agachado atrás da mureta, a cabeça não aparece', () => {
+    const low = GUN_BOXES.find((b) => b.kind === 'low')!;
+    expect(low.max.y).toBeGreaterThan(w.headY(true) + w.HEAD_R);
+  });
+
+  it('o alvo de abates segue o tamanho da partida e a partida acaba no tempo', async () => {
+    expect(w.ffaTarget(2)).toBe(15);
+    expect(w.ffaTarget(4)).toBe(20);
+    expect(w.ffaTarget(8)).toBe(25);
+    const { g } = await started();
+    g.setBots('facil', 3);
+    expect(g.killTarget).toBe(20);
+    unshield(g);
+    const t0 = performance.now();
+    g.hurt('bot:1', 200, 'm4', false, null, t0);
+    // o bot 1 fez um abate; no fim do tempo, ele vence com 1
+    g.step(0.016, t0 + w.MATCH_MS + 10);
+    expect(g.over).toBe(true);
+    expect(useGunHud.getState().winner).toBe('Bot 1');
+    g.dispose();
+  });
+
+  it('o relógio da partida segue o de quem já estava jogando', async () => {
+    const { g, setPlayers } = await started();
+    const t0 = performance.now();
+    setPlayers([{ id: BOB, name: 'Bob', x: 0, y: 0, z: 0, ry: 0, crouch: false, alive: true, ft: 20, fl: 120 }]);
+    g.step(0.016, t0 + 3000);
+    expect(g.killTarget).toBe(20);
+    // 120 s a partir do quadro de 3 s (a pose conta pelo relógio de agora)
+    expect(g.pose().fl).toBeLessThanOrEqual(124);
+    expect(g.pose().fl).toBeGreaterThan(110);
+    expect(SpaceGunPose.safeParse(g.pose()).success).toBe(true);
+    g.dispose();
+  });
+
+  it('faca: o golpe rápido precisa de dois, o pesado derruba de uma vez', async () => {
+    expect(GUNS.karambit.melee!.dmg * 2).toBeGreaterThanOrEqual(100);
+    expect(GUNS.karambit.melee!.dmg).toBeLessThan(100);
+    expect(GUNS.karambit.melee!.heavy).toBeGreaterThanOrEqual(100);
+    expect(maxDamage(GUNS.bayonet)).toBe(GUNS.bayonet.melee!.heavy);
+  });
+
+  it('o tiro que acerta parede ou chão traz a normal da face (para a marca)', () => {
+    const wall = { min: { x: -1, y: 0, z: -6 }, max: { x: 1, y: 3, z: -5 } };
+    const o = { x: 0, y: 1.1, z: 0 };
+    expect(castShot(o, { x: 0, y: 0, z: -1 }, [], [wall]).normal).toEqual({ x: 0, y: 0, z: 1 });
+    const down = { x: 0, y: -Math.SQRT1_2, z: -Math.SQRT1_2 };
+    const g = castShot(o, down, [], []);
+    expect(g.normal).toEqual({ x: 0, y: 1, z: 0 });
+    expect(g.dist).toBeCloseTo(1.1 * Math.SQRT2, 3);
+  });
+
+  it('a dispersão lateral não cresce olhando para cima', () => {
+    const ang = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
+      Math.acos(Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z));
+    const c = aimDir(0, -1.2, 0, 0, 0);
+    // u1 = 1, u2 = 0: todo o espalhamento para o lado
+    const side = aimDir(0, -1.2, 0.05, 0.999999, 0);
+    expect(ang(c, side)).toBeCloseTo(0.05, 2);
+  });
+
+  it('as marcas de tiro ficam num pool de 64, a mais velha sai, e somem em 8 s', async () => {
+    const { GunFx, MARKS, MARK_MS } = await import('../src/features/space3d/gunfight/fx');
+    const scene = new THREE.Scene();
+    const fx = new GunFx(scene);
+    const before = scene.children.length;
+    for (let i = 0; i < 100; i++) fx.mark({ x: i * 0.1, y: 1, z: -5 }, { x: 0, y: 0, z: 1 }, 1000);
+    expect(fx.marksAlive(1000)).toBe(MARKS);
+    // nada de malha nova por tiro
+    expect(scene.children.length).toBe(before);
+    fx.update(1000 + MARK_MS + 1, new THREE.Vector3());
+    expect(fx.marksAlive(1000 + MARK_MS + 1)).toBe(0);
+    fx.dispose();
+  });
+
+  it('câmera da morte: fora das caixas, vira para quem matou e sobe quando a parede encosta', async () => {
+    const { deathCam, DEATH_CAM } = await import('../src/features/space3d/gunfight/camera');
+    const inside = (p: { x: number; y: number; z: number }) =>
+      GUN_BOXES.some(
+        (b) => p.x > b.min.x && p.x < b.max.x && p.y > b.min.y && p.y < b.max.y && p.z > b.min.z && p.z < b.max.z,
+      );
+    const killer = { x: 0, y: 1.12, z: -12 };
+    for (const s of GUN_SPAWNS) {
+      const c = deathCam({ x: s.x, y: 0, z: s.z }, killer, 2000, 0, GUN_BOXES);
+      expect(inside(c.pos)).toBe(false);
+      // depois de virar, olha para o matador
+      expect(c.look).toEqual(killer);
+    }
+    // no começo olha o corpo
+    const c0 = deathCam({ x: 0, y: 0, z: 0 }, killer, 0, 0, GUN_BOXES);
+    expect(c0.look).toEqual({ x: 0, y: 0.9, z: 0 });
+    // de costas para o contêiner (x = -14, z = -12; a face leste fica em x ≈ -12,78): a câmera sobe
+    const wallBody = { x: -12.5, y: 0, z: -12 };
+    const top = deathCam(wallBody, { x: 10, y: 1.12, z: -12 }, 500, 0, GUN_BOXES);
+    expect(top.pos.y).toBeGreaterThan(DEATH_CAM.top - 0.2);
+    expect(inside(top.pos)).toBe(false);
+  });
+
+  it('o boneco ganha um passo a cada passada (0,55 m andando), agachado não', async () => {
+    const { g, events, setPlayers } = await started();
+    const t0 = performance.now();
+    const steps = () => events.filter((e) => e.kind === 'gunfx' && e.what === 'step' && e.by === BOB).length;
+    for (let i = 0; i <= 51; i++) {
+      setPlayers([{ id: BOB, name: 'Bob', x: 10, y: 0, z: i * 0.11, ry: 0, crouch: false, alive: true }]);
+      g.step(0.033, t0 + i * 33);
+    }
+    // 5,6 m andados = 10 passos
+    expect(steps()).toBe(10);
+    for (let i = 52; i <= 100; i++) {
+      setPlayers([{ id: BOB, name: 'Bob', x: 10, y: 0, z: i * 0.11, ry: 0, crouch: true, alive: true }]);
+      g.step(0.033, t0 + i * 33);
+    }
+    expect(steps()).toBe(10);
+    g.dispose();
+  });
+
+  it('a aceleração no chão não depende do fps', () => {
+    const t90 = (fps: number) => {
+      const s = mv.newMove();
+      const dt = 1 / fps;
+      let t = 0;
+      for (let i = 0; i < fps * 3; i++) {
+        mv.stepMove(
+          s,
+          { wx: 0, wz: -1, runHeld: false, forward: true, ads: false, gunK: 1, firing: false },
+          dt,
+          1000 + t * 1000,
+        );
+        t += dt;
+        if (Math.hypot(s.vx, s.vz) >= 0.9 * mv.MOVE.walk) return t;
+      }
+      return Infinity;
+    };
+    const a = t90(30);
+    const b = t90(240);
+    expect(Math.abs(a - b) / b).toBeLessThan(0.12);
+  });
+
+  it('os bots sentem o recuo (a mira sobe na rajada) e atiram na cadência certa com qualquer fps', async () => {
+    const { GunBots, BOT_RECOIL_LEFT } = await import('../src/features/space3d/gunfight/bots');
+    expect(BOT_RECOIL_LEFT.facil).toBeGreaterThan(BOT_RECOIL_LEFT.dificil);
+    const { host } = fakeHost();
+    let shots = 0;
+    const bots = new GunBots('dificil', 1, { host, me: () => null, shoot: () => shots++, killed: () => undefined }, 5);
+    const b = (Reflect.get(bots, 'list') as Record<string, unknown>[])[0]!;
+    b.w = 'm4';
+    b.mag = 999;
+    b.burstLeft = 1e6;
+    b.reactAt = 0;
+    b.nextShot = 0;
+    const trigger = Reflect.get(bots, 'trigger') as (this: unknown, b: unknown, now: number) => void;
+    let t = 1000;
+    for (let i = 0; i < 90; i++) {
+      trigger.call(bots, b, t);
+      t += 1000 / 30;
+    }
+    // 3 s de M4 (800 rpm) a 30 qps: 40 ± 1 tiros
+    expect(Math.abs(shots - 40)).toBeLessThanOrEqual(1);
+    // o recuo ficou na mira (sobe: pitch negativo)
+    expect(b.errPitch as number).toBeLessThan(0);
+    bots.dispose();
+  });
+});
+
+describe('gunfight: som (passos, tiro de longe, lado)', () => {
+  it('passo, tom por arma, tiro de longe e panorâmica maior no gunfight', async () => {
+    const m = await import('../src/features/space3d/sfxmap');
+    const at = { x: 0, y: 0, z: 0 };
+    const step = m.sfxFor(
+      { kind: 'gunfx', what: 'step', w: 'm4', by: BOB, power: 0.55, zone: 8, at },
+      { me: ME, team: 'a' },
+    );
+    expect(step[0]).toMatchObject({ name: 'step', gain: 0.55 });
+    const other = m.sfxFor({ kind: 'gunshot', by: BOB, w: 'kar98k', power: 1, zone: 8, at }, { me: ME, team: 'a' });
+    expect(other[0]).toMatchObject({ name: 'shotSniper', pitch: 1.12, far: 'shotFar' });
+    const mine = m.sfxFor({ kind: 'gunshot', by: ME, w: 'm4', power: 1, zone: 8, at }, { me: ME, team: 'a' });
+    expect(mine[0]!.far).toBeUndefined();
+    const right = { x: 10, z: 0 };
+    expect(m.sfxPan({ x: 0, z: 0, yaw: 0, zone: 8 }, right)).toBeCloseTo(m.SFX_PAN_GUN, 5);
+    expect(m.sfxPan({ x: 0, z: 0, yaw: 0, zone: 1 }, right)).toBeCloseTo(m.SFX_PAN_MAX, 5);
+  });
+});
+
+describe('gunfight: recuo (Téo, pegada/recoil r2)', () => {
+  const D = 180 / Math.PI;
+  const holdFire = async (fps: number, ms: number) => {
+    const { g, held, view, sent } = await started();
+    // sem o sorteio por cima do padrão (o teste é do fps, não do ruído)
+    Reflect.set(g, 'rand', () => 0.5);
+    let t = performance.now() + 1000;
+    for (let i = 0; i < 100; i++) g.step(0.016, (t += 16));
+    const p0 = view.pitch;
+    const ammo = (g as unknown as { ammo: Map<string, { mag: number }> }).ammo;
+    held.add('fire');
+    g.press('fire', t);
+    const dt = 1000 / fps;
+    const end = t + ms;
+    while (t < end - 1e-6) {
+      ammo.get(g.weapon)!.mag = 30;
+      g.step(dt / 1000, (t += dt));
+    }
+    const rise = p0 - view.pitch;
+    held.clear();
+    g.release('fire');
+    return { g, view, rise, p0, t, shots: fires(sent) };
+  };
+
+  it('a rajada esfria junto com a volta da mira: parar 600 ms volta ao primeiro tiro; tocar rápido, não', () => {
+    const m4 = GUNS.m4;
+    // 10 tiros e 600 ms parado: o próximo é o primeiro (com o bônus)
+    expect(w.shotIndex(w.burstNow(m4, 10, 600))).toBe(1);
+    // toques: a rajada fica no ponto em que esfria tanto quanto sobe a cada toque
+    const steady = (gap: number) => {
+      let b = 0;
+      for (let i = 0; i < 30; i++) b = w.burstNow(m4, b, gap) + 1;
+      return w.shotIndex(w.burstNow(m4, b, gap));
+    };
+    expect(steady(160)).toBeGreaterThanOrEqual(3);
+    expect(steady(250)).toBeLessThanOrEqual(2);
+    expect(steady(250)).toBeLessThan(steady(160));
+    // a Desert Eagle a 450 ms entre tiros não acumula a rajada para sempre
+    let b = 0;
+    for (let i = 0; i < 10; i++) b = w.burstNow(GUNS.deagle, b, 450) + 1;
+    expect(w.shotIndex(w.burstNow(GUNS.deagle, b, 450))).toBeLessThanOrEqual(2);
+  });
+
+  it('dispersão: o primeiro tiro só ajuda parado; pular, andar e deslizar nunca ficam perfeitos, nem com a luneta', () => {
+    const st = { ads: 1, moving: 0, crouch: false, grounded: true, sliding: false, scoped: true, n: 1 };
+    // parado e mirando: preciso
+    expect(w.shotSpread(GUNS.l115, st)).toBeLessThan(1e-6);
+    expect(w.shotSpread(GUNS.m4, st)).toBeLessThan(0.001);
+    // no ar com a luneta: pelo menos 0,05 rad
+    expect(w.shotSpread(GUNS.l115, { ...st, grounded: false })).toBeGreaterThanOrEqual(0.05);
+    // no ar mirando o fuzil: longe de perfeito
+    expect(w.shotSpread(GUNS.m4, { ...st, grounded: false, scoped: false })).toBeGreaterThan(0.02);
+    // andando e deslizando somam por cima do primeiro tiro
+    const still = w.shotSpread(GUNS.m4, { ...st, scoped: false });
+    expect(w.shotSpread(GUNS.m4, { ...st, scoped: false, moving: 1 })).toBeGreaterThan(still + 0.005);
+    expect(w.shotSpread(GUNS.m4, { ...st, scoped: false, sliding: true })).toBeGreaterThan(still + 0.019);
+    // sniper sem a luneta (meio caminho da mira): a dispersão do quadril caindo com a mira, sem bônus de primeiro tiro
+    const half = w.shotSpread(GUNS.l115, { ...st, ads: 0.5, scoped: false });
+    expect(half).toBeCloseTo(GUNS.l115.spread.hip * 0.5, 4);
+    // no quadril, o primeiro tiro do fuzil vai mais certo que o segundo
+    const hip = { ...st, ads: 0, scoped: false };
+    expect(w.shotSpread(GUNS.m4, hip)).toBeLessThan(w.shotSpread(GUNS.m4, { ...hip, n: 2 }));
+  });
+
+  it('o "S" da AK: vai para a esquerda, cruza o centro voltando e termina perto dele', () => {
+    let side = 0;
+    const at: number[] = [];
+    for (let i = 1; i <= 30; i++) {
+      side += w.recoilKick(GUNS.ak47, i).side * D;
+      at.push(side);
+    }
+    expect(at[13]!).toBeLessThan(-2.5);
+    const cross = at.findIndex((x, i) => i > 13 && x >= 0) + 1;
+    expect(cross).toBeGreaterThanOrEqual(19);
+    expect(cross).toBeLessThanOrEqual(24);
+    expect(Math.abs(at[29]!)).toBeLessThan(1);
+  });
+
+  it('a subida da rajada não depende do fps (M4 por 1 s a 30, 60 e 144 qps)', async () => {
+    const rises: number[] = [];
+    for (const fps of [30, 60, 144]) {
+      const r = await holdFire(fps, 1000);
+      rises.push(r.rise);
+      r.g.dispose();
+    }
+    const max = Math.max(...rises);
+    const min = Math.min(...rises);
+    expect(min).toBeGreaterThan(0.05);
+    expect((max - min) / max).toBeLessThan(0.08);
+  });
+
+  it('trocar de arma depois da rajada não deixa a mira lá em cima', async () => {
+    const r = await holdFire(60, 800);
+    let t = r.t;
+    r.g.switchTo('secondary', t);
+    for (let i = 0; i < 90; i++) r.g.step(0.016, (t += 16));
+    expect(r.p0 - r.view.pitch).toBeLessThan(r.rise * 0.35);
+    r.g.dispose();
+  });
+
+  it('olhando quase para o alto, a volta do recuo não desce além de onde a mira começou', async () => {
+    const lim = 1.35;
+    const view = { yaw: 0, pitch: 0 };
+    // o pitch preso como na cena
+    const { g, held } = await started({
+      yaw: () => view.yaw,
+      pitch: () => view.pitch,
+      turn: (dy, dp) => {
+        view.yaw += dy;
+        view.pitch = Math.max(-lim, Math.min(lim, view.pitch + dp));
+      },
+    });
+    let t = performance.now() + 1000;
+    for (let i = 0; i < 60; i++) g.step(0.016, (t += 16));
+    view.pitch = -1.3;
+    for (let i = 0; i < 5; i++) g.step(0.016, (t += 16));
+    const p0 = view.pitch;
+    held.add('fire');
+    g.press('fire', t);
+    for (let i = 0; i < 60; i++) g.step(0.016, (t += 16));
+    held.clear();
+    g.release('fire');
+    for (let i = 0; i < 150; i++) g.step(0.016, (t += 16));
+    expect(view.pitch).toBeLessThanOrEqual(p0 + 1e-3);
+    g.dispose();
   });
 });

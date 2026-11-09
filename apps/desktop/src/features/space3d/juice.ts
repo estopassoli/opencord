@@ -293,6 +293,19 @@ const FX = {
     life: 0.4,
     size: 0.045,
   },
+  // tiro na parede (gunfight): faíscas pequenas e rápidas que somem logo, e um pouco de poeira cinza que sobe devagar
+  shotSpark: {
+    count: 5,
+    color: 0xffd58a,
+    color2: 0xfff6dc,
+    speed: 4,
+    up: 0.5,
+    gravity: 9,
+    drag: 2,
+    life: 0.12,
+    size: 0.025,
+  },
+  shotDust: { count: 4, color: 0x8d877e, speed: 0.6, up: 0.35, gravity: 0.6, drag: 3, life: 0.4, size: 0.1 },
   puff: { count: 5, color: 0xffffff, speed: 0.9, up: 0.2, gravity: 0, drag: 5, life: 0.25, size: 0.09 },
   chalk: { count: 7, color: 0x6fb6ff, speed: 0.6, up: 0.3, gravity: 2, drag: 3, life: 0.45, size: 0.025 },
   pocket: { count: 6, color: 0x2a2a2a, speed: 0.4, up: 0.2, gravity: 0, drag: 4, life: 0.35, size: 0.05 },
@@ -625,8 +638,8 @@ export class Juice {
           p.burst(at, { ...FX.puff, count: e.head ? 9 : 6, color: 0x4a2a2a }, k);
           p.burst(at, { ...FX.spark, count: e.head ? 6 : 4, color: 0xffe2b8 }, k * 0.6);
         } else {
-          p.burst(at, { ...FX.spark, count: 6 }, k * 0.7);
-          p.burst(at, FX.puff, k * 0.5);
+          p.burst(at, FX.shotSpark, k);
+          p.burst(at, FX.shotDust, k);
         }
         break;
       case 'tackle':

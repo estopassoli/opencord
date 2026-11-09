@@ -44,3 +44,45 @@ em Fácil, Médio e Difícil. Nada de mapas, arte, sons ou interface copiados de
 - Trapaça possível por cliente modificado (como nos outros minigames); aceitável no contexto de amigos.
 - Pessoas de verdade ainda se atravessam (a separação vale só para os bots).
 - Teste manual com duas pessoas em máquinas diferentes: PENDENTE.
+
+## Adendo (2026-11-09): pegada e recuo
+
+- **Recuo por padrão fixo por arma** (`weapons.ts` `RecoilSpec`, `recoilKick`): trechos em graus por tiro (subida, lado
+  e balanço), o mesmo a cada pente, com pouca variação sorteada por cima. Mirando ×0,6 (lado ×0,5), agachado ×0,85;
+  o primeiro tiro sai com 60% (menos na sniper). A rajada não zera ao soltar o gatilho: esfria aos poucos (`burstNow`),
+  e a dispersão abre com ela (`bloomNow`, também na mira do HUD e nos bots).
+- **A mira volta:** parte do recuo (`recover.frac`) vira uma conta que volta sozinha depois de um tempo sem atirar
+  (exponencial); puxar o mouse contra o recuo paga a conta, e a volta nunca passa da mira inicial.
+- **Tranco da vista** (para cima, para o lado e rolagem) com a mola da arma; o tiro sai do centro da tela que se vê.
+- **Molas** (`gunfight/spring.ts`): coice da 1ª pessoa, tranco da câmera e coice do boneco, em subpassos de 1/120 s
+  (o mesmo pico a 30 e 144 qps), escritas pelo pico que se vê.
+- **Cadência** contada do tiro anterior (até 3 tiros por quadro): não cai mais com o fps.
+- **Pegada:** indicador separado no gatilho (`hand.ts setCurl(c, t, index)`); na 3ª pessoa, arma longa a 0,86 da
+  escala do boneco e coronha no ombro, para a mão de apoio alcançar o guarda-mão; o tronco (tiro levado e coice) leva
+  a arma junto.
+
+## Adendo (2026-11-09): o jogo todo (rodada 1 de pegada/recuo, integração do Caio)
+
+- **Partida curta:** o alvo de abates sai do tamanho da partida no começo (`ffaTarget`: 2–3 pessoas e bots → 15,
+  4–5 → 20, 6+ → 25) e a partida acaba em 8 min (`MATCH_MS`; vence quem tem mais abates, empate pelo menor número de
+  mortes; sem nenhum abate, só recomeça). Cada um publica na pose o alvo e os segundos que faltam (`ft`, `fl`); quem
+  entra depois, ou começou depois, pega o relógio de quem está há mais tempo (só se estiver 3 s à frente, e nunca
+  logo depois de um recomeço).
+- **Proteção ao nascer:** 1,5 s sem levar dano, ou até o primeiro tiro/golpe (`prot` na pose; o boneco fica meio
+  transparente para os outros; bots não miram em quem está protegido). Os bots também nascem protegidos.
+- **Nascer:** nunca à vista (olho a olho) de um inimigo vivo a menos de 30 m, se houver ponto seguro; olhando para a
+  direção de vista mais livre (`spawnFacing`).
+- **Bots:** sentem o recuo da arma pelo mesmo padrão (corrigem 30%/65%/85% conforme o nível), espalham andando,
+  cadência pelo tiro anterior, reação no Difícil 0,28 s e pausa de 120 ms entre rajadas, e o primeiro tiro depois de
+  ver alguém é de aviso (erra por ≥ 0,03 rad). Medido parado contra 3 bots no Difícil (4 × 90 s): vida média 15,4 s,
+  mínima 1,9 s (antes: 7,4 s, 3,1 s e 1,1 s).
+- **Marcas de tiro** na parede e no chão (`fx.ts`: pool fixo de 64 numa `InstancedMesh`, somem em 8 s); o tiro para no
+  chão (`castShot` devolve a normal da face).
+- **Câmera da morte** (`camera.ts deathCam`): atrás e acima do corpo, do lado oposto a quem matou, virando em 1,2 s
+  para o atirador; encostada na parede, sobe e olha de cima.
+- **Céu:** o pátio usa a luz da estação, sem as estrelas e o buraco negro (escondidos pelo nome), com céu liso escuro.
+- **Faca:** golpe rápido 55 (dois golpes), pesado 150.
+- **Som:** passos (meus, dos outros e dos bots, pela distância andada; agachado não), tom por arma, tiro de longe
+  abafado (> 25 m) e panorâmica ±0,8 na zona 8.
+- **Contrato:** `SpaceGunPose` ganha `prot`, `ft`, `fl` (opcionais) e `act: 'inspect'`. Servidor e app sobem juntos
+  (servidor antigo recusa a pose com `act: 'inspect'`).

@@ -45,7 +45,9 @@ export interface TutorialStep {
 export interface TutorialHint {
   id: string;
   text: string;
-  action: Action;
+  /** a tecla configurável da dica; sem ela, `keys` (uma tecla fixa, como os números das armas) */
+  action?: Action;
+  keys?: string;
   also?: Action[];
   hold?: boolean;
   mouse?: boolean;
@@ -283,7 +285,7 @@ export const TUTORIALS: Record<TutorialKey, Tutorial> = {
   '8': {
     key: '8',
     title: 'Gunfight',
-    objective: 'Todos contra todos: quem fizer 30 abates primeiro vence.',
+    objective: 'Todos contra todos: vence quem chegar ao alvo de abates (ou tiver mais no fim do tempo).',
     steps: [
       { text: 'Atire', action: 'primary', mouse: true, conclui: (e, c) => e.kind === 'gunshot' && e.by === c.me },
       { text: 'Segure para mirar', action: 'secondary', hold: true, conclui: pressed('secondary') },
@@ -298,8 +300,8 @@ export const TUTORIALS: Record<TutorialKey, Tutorial> = {
     hints: [
       {
         id: 'gun-swap',
-        text: 'Sem bala? Troque para a pistola (2) ou gire a roda do mouse',
-        action: 'rematch',
+        text: 'Sem bala? Troque para a pistola ou gire a roda do mouse',
+        keys: '2',
         vezes: 2,
         // o clique seco só sai sem munição nenhuma (com reserva, a recarga começa sozinha): some ao trocar de arma
         quando: (e) => e.kind === 'gunfx' && e.what === 'dry',

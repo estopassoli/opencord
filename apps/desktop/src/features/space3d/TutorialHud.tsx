@@ -99,11 +99,16 @@ export const useTutorial = create<TutorialState>()((set, get) => ({
 }));
 
 /** as teclas de um passo ou dica (atalho escolhido, com "segure" e o mouse quando é mirar) */
-function StepKeys({ item }: { item: Pick<TutorialStep, 'action' | 'also' | 'hold' | 'mouse'> }) {
+function StepKeys({
+  item,
+}: {
+  item: Pick<TutorialStep, 'also' | 'hold' | 'mouse'> & { action?: Action; keys?: string };
+}) {
   return (
     <span className="space3d-keys space3d-tut-keys">
       {item.mouse && <MouseIcon btn="move" />}
-      <Binding action={item.action} {...(item.hold ? { hold: true } : {})} />
+      {item.action ? <Binding action={item.action} {...(item.hold ? { hold: true } : {})} /> : null}
+      {item.keys && <kbd>{item.keys}</kbd>}
       {item.also?.map((a) => (
         <Binding key={a} action={a} />
       ))}

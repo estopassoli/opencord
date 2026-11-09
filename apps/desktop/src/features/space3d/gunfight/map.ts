@@ -5,7 +5,7 @@
  * visão dos bots.
  */
 import type { Obstacles } from '../physics';
-import type { Box } from './weapons';
+import { EYE, lineOfSight, rayBox, type Box } from './weapons';
 
 export const GUN_HALF = 24;
 const WALL_H = 5;
@@ -18,6 +18,8 @@ export interface MapBox extends Box {
 }
 
 const CONTAINER = { l: 6.1, w: 2.44, h: 2.6 };
+/** altura da mureta: agachado, o alto da cabeça (1,00 m) fica atrás dela */
+export const LOW_H = 1.02;
 const COLORS = [0x8f2f24, 0x2f5f8f, 0x3d7a46, 0xb7832b, 0x6b6f78, 0x7a3f74];
 
 function box(kind: BoxKind, x: number, z: number, sx: number, sz: number, h: number, color: number, y0 = 0): MapBox {
@@ -89,7 +91,7 @@ function buildBoxes(): MapBox[] {
     [-17, -20, true],
     [17, 20, true],
   ] as const)
-    b.push(box('low', x, z, alongX ? 4 : 0.5, alongX ? 0.5 : 4, 0.95, 0x7d7f84));
+    b.push(box('low', x, z, alongX ? 4 : 0.5, alongX ? 0.5 : 4, LOW_H, 0x7d7f84));
   return b;
 }
 
@@ -138,11 +140,59 @@ export function blockedAt(x: number, z: number, pad = 0.45): boolean {
   return false;
 }
 
-/** ponto de nascer mais longe de todos os `enemies` (com um sorteio entre os 3 melhores) */
-export function pickSpawn(enemies: { x: number; z: number }[], u: number) {
-  const scored = GUN_SPAWNS.map((s) => ({
-    s,
-    d: enemies.length ? Math.min(...enemies.map((e) => Math.hypot(e.x - s.x, e.z - s.z))) : Math.random(),
-  })).sort((a, b) => b.d - a.d);
-  return scored[Math.min(scored.length - 1, Math.floor(u * 3))]!.s;
+/** só não nasce à vista de inimigo vivo até esta distância (m) */
+const SPAWN_SIGHT = 30;
+/** quanto a vista livre na frente do nascer é medida (m) */
+const VIEW_MAX = 25;
+
+/** até onde se vê do olho, de (x, z) na direção `ry` (frente = (sen, cos)), até `VIEW_MAX` */
+function viewLength(x: number, z: number, ry: number): number {
+  const o = { x, y: EYE.stand, z };
+  const d = { x: Math.sin(ry), y: 0, z: Math.cos(ry) };
+  let t = VIEW_MAX;
+  for (const b of GUN_BOXES) t = Math.min(t, rayBox(o, d, b));
+  return t;
+}
+
+/**
+ * Para onde olhar ao nascer: a direção (das 8, mais a do mapa) com a vista livre mais longa. Nascer olhando um
+ * contêiner a 2 m vira "onde estou?"; a direção do mapa fica se ela vê quase tão longe quanto a melhor.
+ */
+export function spawnFacing(s: { x: number; z: number; ry: number }): number {
+  const base = viewLength(s.x, s.z, s.ry);
+  let best = s.ry;
+  let bestLen = base;
+  for (let i = 0; i < 8; i++) {
+    const ry = (i * Math.PI) / 4;
+    const l = viewLength(s.x, s.z, ry);
+    if (l > bestLen + 1e-6) {
+      best = ry;
+      bestLen = l;
+    }
+  }
+  return base >= bestLen * 0.9 ? s.ry : best;
+}
+
+let facings: number[] | null = null;
+const facingOf = (i: number) => (facings ??= GUN_SPAWNS.map(spawnFacing))[i]!;
+
+/**
+ * Onde nascer: longe dos inimigos vivos e nunca à vista de um deles a menos de 30 m (do olho de um ao olho do outro).
+ * Sorteia entre os 3 mais longe que ninguém vê; se todos estão à vista, o mais longe. Olha para a vista mais livre.
+ */
+export function pickSpawn(enemies: { x: number; z: number; y?: number }[], u: number) {
+  const scored = GUN_SPAWNS.map((s, i) => {
+    let d = enemies.length ? Infinity : Math.random();
+    let seen = false;
+    const eye = { x: s.x, y: EYE.stand, z: s.z };
+    for (const e of enemies) {
+      const de = Math.hypot(e.x - s.x, e.z - s.z);
+      d = Math.min(d, de);
+      if (!seen && de < SPAWN_SIGHT) seen = lineOfSight(eye, { x: e.x, y: (e.y ?? 0) + EYE.stand, z: e.z }, GUN_BOXES);
+    }
+    return { s, i, d, seen };
+  }).sort((a, b) => b.d - a.d);
+  const safe = scored.filter((c) => !c.seen);
+  const pick = safe.length ? safe[Math.min(safe.length - 1, Math.floor(u * 3))]! : scored[0]!;
+  return { x: pick.s.x, z: pick.s.z, ry: facingOf(pick.i) };
 }

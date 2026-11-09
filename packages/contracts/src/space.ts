@@ -250,8 +250,13 @@ export const SpaceGunPose = z.object({
   k: z.number().int().min(0).max(999).optional(),
   d: z.number().int().min(0).max(999).optional(),
   /** a última ação da mão (os outros veem no boneco) e um contador: a mesma ação de novo troca o número */
-  act: z.enum(['reload', 'melee', 'bolt', 'draw']).optional(),
+  act: z.enum(['reload', 'melee', 'bolt', 'draw', 'inspect']).optional(),
   an: z.number().int().min(0).max(999).optional(),
+  /** acabou de nascer e ainda não atirou: não leva dano (os outros veem o boneco meio transparente) */
+  prot: z.boolean().optional(),
+  /** a partida de quem publica: o alvo de abates e os segundos que faltam (quem entra depois usa o mesmo relógio) */
+  ft: z.number().int().min(1).max(99).optional(),
+  fl: z.number().int().min(0).max(600).optional(),
 });
 export type SpaceGunPose = z.infer<typeof SpaceGunPose>;
 export type GunAct = NonNullable<SpaceGunPose['act']>;

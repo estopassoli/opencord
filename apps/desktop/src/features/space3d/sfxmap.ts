@@ -68,6 +68,7 @@ export type SfxName =
   | 'charge'
   | 'boltOpen'
   | 'boltClose'
+  | 'boltPull'
   | 'dryFire'
   | 'hitmarker'
   | 'headshot'
@@ -77,7 +78,9 @@ export type SfxName =
   | 'land'
   | 'impactWall'
   | 'impactFlesh'
-  | 'drawGun';
+  | 'drawGun'
+  | 'step'
+  | 'shotFar';
 
 /** um som a tocar */
 export interface SfxCue {
@@ -88,7 +91,14 @@ export interface SfxCue {
   pitch?: number;
   /** é informação (placar, apito, contagem): abaixa menos quando alguém fala */
   info?: boolean;
+  /** varia o tom um pouco a cada vez (±fração): a rajada não soa como o mesmo som repetido */
+  jitter?: number;
+  /** de longe (além de `SFX_FAR_M`), toca este no lugar (o estampido abafado de longe) */
+  far?: SfxName;
 }
+
+/** a partir de quantos metros o tiro de outra pessoa soa de longe */
+export const SFX_FAR_M = 25;
 
 /** de quem é o ponto: o meu time ouve "subindo", o outro "descendo" */
 export interface SfxCtx {
@@ -183,11 +193,21 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
   // drible: o vento do corpo passando (a bicicleta ainda tem o chute forte, pelo evento do chute)
   trick: (e) => [{ name: 'swing', gain: e.trick === 'bicicleta' ? 0.9 : 0.6, pitch: e.trick === 'elastico' ? 1.2 : 1 }],
   // falta: apito; desarme limpo: o choque na bola
-  gunshot: (e, ctx) => [{ name: SHOT_SOUND[e.w], gain: e.by === ctx.me ? 1 : 0.9 }],
+  gunshot: (e, ctx) => [
+    {
+      name: SHOT_SOUND[e.w],
+      gain: e.by === ctx.me ? 1 : 0.9,
+      pitch: SHOT_PITCH[e.w] ?? 1,
+      jitter: 0.03,
+      ...(e.by === ctx.me ? {} : { far: 'shotFar' as const }),
+    },
+  ],
   impact: (e) => [e.flesh ? { name: 'impactFlesh', gain: 0.6 } : { name: 'impactWall', gain: 0.45 }],
   gunfx: (e) => {
     // a corrida tática não tem som próprio (o passo já muda)
     if (e.what === 'tactical') return [];
+    // passo: o ganho vem no `power` (o meu baixo, o dos outros mais alto: é informação de onde a pessoa está)
+    if (e.what === 'step') return [{ name: 'step', gain: e.power, jitter: 0.08 }];
     const g: Record<string, [SfxName, number]> = {
       draw: ['drawGun', 0.5],
       magOut: ['magOut', 0.6],
@@ -195,6 +215,7 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
       charge: ['charge', 0.7],
       boltOpen: ['boltOpen', 0.7],
       boltClose: ['boltClose', 0.7],
+      boltPull: ['boltPull', 0.55],
       dry: ['dryFire', 0.6],
       hitmarker: ['hitmarker', 0.8],
       headshot: ['headshot', 0.9],
@@ -231,6 +252,9 @@ const SHOT_SOUND: Record<GunId, SfxName> = {
   bayonet: 'knifeSwing',
 };
 
+/** o tom de cada arma por cima do estampido da família (as três snipers e as duas SMGs não soam iguais) */
+const SHOT_PITCH: Partial<Record<GunId, number>> = { kar98k: 1.12, m200: 0.9, mp7: 1.1, mp5: 0.95 };
+
 /** sons de um evento (vazio = sem som) */
 export function sfxFor(e: GameEvent, ctx: SfxCtx): SfxCue[] {
   const m = SFX_MAP[e.kind] as Mapper<GameEventKind> | typeof NO_SOUND;
@@ -256,6 +280,8 @@ export const SUPERSEDE_MS = 150;
 export const SFX_FLOOR = 0.15;
 /** panorâmica máxima (−1 esquerda … +1 direita): leve, só para efeitos curtos (ADR-0055, adendo) */
 export const SFX_PAN_MAX = 0.5;
+/** no gunfight (zona 8) o lado importa: de onde veio o tiro e o passo */
+export const SFX_PAN_GUN = 0.8;
 /** ducking: alguém fala perto */
 export const SFX_DUCK = 0.4;
 /** placar, apito e contagem abaixam menos: são informação */
@@ -279,7 +305,7 @@ export interface Listener {
   zone: number;
 }
 
-/** panorâmica pelo ângulo do som em relação à câmera, limitada a ±0,5 */
+/** panorâmica pelo ângulo do som em relação à câmera, limitada a ±0,5 (±0,8 no gunfight) */
 export function sfxPan(l: Listener, at: Pick<At, 'x' | 'z'>): number {
   const dx = at.x - l.x;
   const dz = at.z - l.z;
@@ -287,7 +313,8 @@ export function sfxPan(l: Listener, at: Pick<At, 'x' | 'z'>): number {
   if (d < 0.5) return 0;
   // vetor "direita" da câmera
   const side = (dx * Math.cos(l.yaw) - dz * Math.sin(l.yaw)) / d;
-  return Math.max(-SFX_PAN_MAX, Math.min(SFX_PAN_MAX, side * SFX_PAN_MAX));
+  const max = l.zone === 8 ? SFX_PAN_GUN : SFX_PAN_MAX;
+  return Math.max(-max, Math.min(max, side * max));
 }
 
 /** curva perceptual do mestre: 0,25·vol² */

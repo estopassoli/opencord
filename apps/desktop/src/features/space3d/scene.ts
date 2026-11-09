@@ -29,7 +29,7 @@ import { sfx } from './sfx';
 import { chargeStep } from './sfxmap';
 import { SLIDE_MS, SportPlay, type FootMove, type RemoteBall } from './sportplay';
 import { GunGame, type GunAction, type GunHost, type GunPlayer } from './gunfight/game';
-import { shoulderCam } from './gunfight/camera';
+import { deathCam, shoulderCam } from './gunfight/camera';
 import { GUN_BOXES, gunObstacles } from './gunfight/map';
 import { buildGunMap } from './gunfight/mapmesh';
 import { floorLayout } from './sports';
@@ -119,8 +119,19 @@ const GRAVITY = 15;
 const YT_PX_W = 1280;
 const YT_PX_H = 720;
 
-/** gunfight: o chão e o céu do tema; os muros e caixas vêm de `gunfight/map.ts` (sem paredes do layout) */
+/**
+ * gunfight: o chão e a luz do tema; os muros e caixas vêm de `gunfight/map.ts` (sem paredes do layout). Pátio à noite:
+ * a luz fria da estação (asfalto e contêineres legíveis), mas sem as estrelas e o buraco negro brilhante, que brigavam
+ * com as silhuetas nas linhas de tiro; céu escuro liso e a luz quente dos postes do mapa.
+ */
 const GUN_LAYOUT = { ...floorLayout('station', 48, 48, '#3a3c40', '#4a4d55', 0.01), walls: [] };
+const GUN_SKY = 0x0e121a;
+const GUN_FOG = { near: 40, far: 130 };
+/** sensibilidade da mira com zoom: a mesma tela anda o mesmo tanto (tan do meio campo de visão) */
+const GUN_BASE_TAN = Math.tan((35 * Math.PI) / 180);
+/** câmera do gunfight sem alocar por quadro */
+const GC_DIR = new THREE.Vector3();
+const GC_LOOK = new THREE.Vector3();
 
 export class SpaceScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -456,6 +467,12 @@ export class SpaceScene {
       // gunfight: o mapa de contêineres, a colisão dele e o jogo
       this.decor = buildGunMap();
       this.scene.add(this.decor);
+      for (const n of ['blackhole', 'stars']) {
+        const o = this.world?.group.getObjectByName(n);
+        if (o) o.visible = false;
+      }
+      this.scene.background = new THREE.Color(GUN_SKY);
+      this.scene.fog = new THREE.Fog(GUN_SKY, GUN_FOG.near, GUN_FOG.far);
       this.obstacles = gunObstacles();
       this.gun = new GunGame(this.gunHost());
       this.yaw = 0;
@@ -841,8 +858,8 @@ export class SpaceScene {
       return;
     }
     if (this.gun) {
-      // mirando com zoom, o mouse fica mais lento na mesma proporção
-      const k = this.camera.fov / 70;
+      // mirando com zoom, o mouse fica mais lento na mesma proporção do que se vê (pela tangente, não pelo ângulo)
+      const k = Math.tan((this.camera.fov * Math.PI) / 360) / GUN_BASE_TAN;
       this.yaw -= e.movementX * 0.0026 * k;
       this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch + e.movementY * 0.002 * k));
       return;
@@ -1955,7 +1972,7 @@ export class SpaceScene {
     const g = this.gun?.pose();
     // a ação (recarga, golpe, ferrolho) entra na chave: parado, ela sai no quadro seguinte (não no envio de 1 s)
     return g
-      ? `${g.w}:${g.pitch.toFixed(2)}:${g.crouch}:${g.ads}:${g.alive}:${g.k}:${g.d}:${g.act ?? ''}:${g.an ?? ''}`
+      ? `${g.w}:${g.pitch.toFixed(2)}:${g.crouch}:${g.ads}:${g.alive}:${g.k}:${g.d}:${g.act ?? ''}:${g.an ?? ''}:${g.prot ? 1 : 0}:${g.ft}`
       : '';
   }
 
@@ -2024,6 +2041,8 @@ export class SpaceScene {
             alive: p.gun?.alive ?? true,
             ...(p.gun ? { w: p.gun.w } : {}),
             ...(p.gun?.k !== undefined && p.gun.d !== undefined ? { k: p.gun.k, d: p.gun.d } : {}),
+            ...(p.gun?.prot ? { prot: true } : {}),
+            ...(p.gun?.ft !== undefined && p.gun.fl !== undefined ? { ft: p.gun.ft, fl: p.gun.fl } : {}),
           });
         }
         return out;
@@ -2041,6 +2060,7 @@ export class SpaceScene {
       muzzleOf: (id) => this.others.get(id)?.muzzleWorld() ?? null,
       shotFx: (id) => (id === this.selfId ? this.me : (this.others.get(id) ?? this.botAvs.get(id)))?.gunKick(),
       paused: () => !this.aimLocked && !this.noLock,
+      viewHeight: () => this.host.clientHeight,
       hitFx: (id) => {
         const av = this.others.get(id) ?? this.botAvs.get(id);
         if (!av) return;
@@ -2099,10 +2119,10 @@ export class SpaceScene {
   private placeGunCamera(g: GunGame) {
     const e = g.eye;
     // a câmera é a mira: sem visão livre (o tiro sai de `this.yaw`/`this.pitch`)
-    const yaw = this.yaw;
-    // o tranco do recuo é só da câmera (volta sozinho); a mira de verdade fica em `this.pitch`
+    // o tranco do recuo (para cima, para o lado e a rolagem) é da vista e volta sozinho; o tiro sai do centro dela
+    const yaw = this.yaw + g.viewPunchYaw;
     const pitch = this.pitch - g.viewPunch;
-    const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+    const dir = GC_DIR.set(-Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     const fov = g.fov(70);
     if (Math.abs(this.camera.fov - fov) > 0.01) {
       this.camera.fov = fov;
@@ -2110,15 +2130,31 @@ export class SpaceScene {
     }
     const fp = g.firstPerson && g.isAlive;
     let hideSelf = fp;
-    if (fp) {
-      this.camera.position.set(e.x, e.y, e.z);
-    } else {
-      // por cima do ombro direito, sem entrar nas caixas; morto, a câmera se afasta um pouco
-      const c = shoulderCam(e, yaw, pitch, { aiming: g.aiming, alive: g.isAlive }, GUN_BOXES);
+    const dead = g.deathView();
+    if (dead) {
+      // morto: atrás e acima do corpo, virando devagar para quem matou (sem entrar no corpo nem na parede)
+      const c = deathCam(
+        { x: this.pose.x, y: this.pose.y, z: this.pose.z },
+        dead.killer,
+        dead.since,
+        this.yaw,
+        GUN_BOXES,
+      );
       this.camera.position.set(c.pos.x, c.pos.y, c.pos.z);
+      this.camera.lookAt(GC_LOOK.set(c.look.x, c.look.y, c.look.z));
       hideSelf = c.hideSelf;
+    } else {
+      if (fp) {
+        this.camera.position.set(e.x, e.y, e.z);
+      } else {
+        // por cima do ombro direito, sem entrar nas caixas
+        const c = shoulderCam(e, yaw, pitch, { aiming: g.aiming, alive: true }, GUN_BOXES);
+        this.camera.position.set(c.pos.x, c.pos.y, c.pos.z);
+        hideSelf = c.hideSelf;
+      }
+      this.camera.lookAt(GC_LOOK.copy(this.camera.position).add(dir));
+      if (g.viewRoll) this.camera.rotateZ(g.viewRoll);
     }
-    this.camera.lookAt(this.camera.position.clone().add(dir));
     if (this.juice.shake.amplitude > 0) this.camera.position.add(this.juice.shakeOffset(this.shakeOff));
     // primeira pessoa, ou a câmera encostada na cabeça (parede atrás): o meu boneco some para não tampar a tela
     this.me.root.visible = !hideSelf;

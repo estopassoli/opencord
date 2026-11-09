@@ -69,3 +69,35 @@ _Acrescente aprendizados curtos e datados. Não apague o que outros escreveram._
   para esvaziar pente, mexer `g.ammo.get(g.weapon).mag` direto. Não usar `pkill -f` no mesmo comando (mata o shell).
 - 2026-11-09 (gunfight r3): clique seco só sem reserva; com reserva, o `semiReady` não pode ficar falso (senão, segurando
   o gatilho até zerar tudo, o clique final nunca sai).
+- 2026-11-09 (pegada/recoil r1): sonda `scratchpad/caio-pg` (porta 5521): `rc.cjs` mede recuo por arma (pitch/yaw por
+  tiro pelo `hooks.sendGun`), `tp2/tp3.cjs` mãos × apoio no espaço do boneco, `tpshot.cjs` câmera presa à arma
+  (`window.__cam`; viewport 960x540 e `clip`, porque o canvas é 960x540 fixo no CSS). PIL não existe: montar folhas com
+  `ffmpeg xstack`/`tile`. Variante de teste sem mexer no repo: substituir trechos do `app.js` (`app_a.js`).
+- 2026-11-09: cadência presa ao quadro (`nextShot = now + iv`, 1 tiro/quadro): M4 720 rpm a 60 fps, 600 a 30. Sempre
+  carregar o resto do intervalo. Recuo hoje: sem volta, lado sorteado, rajada zera no `release` (clique rápido = 1º tiro).
+- 2026-11-09: 3ª pessoa — braço 0,38 m (+0,075 da mão); a coronha ficava 21 cm à frente do ombro. Arma longa ×0,86 e
+  `SHOULDER_PT` (-0.10, 0.92, -0.03) põe a mão esquerda a < 4,4 cm do apoio. `flinchPose` depois da IK solta as mãos.
+- 2026-11-09 (jogo todo r1): sonda em `scratchpad/caio-pr2` (porta 5561; scripts `wall`, `death`, `death2`, `hud`,
+  `run3` no entry.tsx; `window.__side = [dx, dy, dz]` põe uma câmera de lado no meu boneco). `probe/lvl.test.ts` mede
+  vida parado contra 3 bots com `vi.useFakeTimers({ toFake: ['performance', 'Date'] })` (sem WebGL, rápido).
+- 2026-11-09: textura de canvas precisa de `colorSpace = SRGBColorSpace`, senão o escuro sai cinza claro (marca de tiro).
+- 2026-11-09: campo novo no contrato com enum (`act`) faz o servidor antigo recusar a pose inteira: API sobe junto.
+  Campo opcional novo (sem enum) só é cortado pelo zod, sem quebrar.
+- 2026-11-09: proteção ao nascer quebra testes que levam tiro logo após nascer: helper `unshield(g)` no teste
+  (`Reflect.set(g, 'protUntil', 0)`); `started({}, { shield: true })` quando o teste é da proteção.
+- 2026-11-09: com vencedor no tempo (abates abaixo do alvo), "o vencedor recomeçou" não pode ser `k < alvo`: guardar os
+  abates do vencedor ao vencer (`winK`) e comparar com eles.
+- 2026-11-09 (pegada/recoil r2): sonda `scratchpad/caio-pr3` (porta 5531): `tpk.cjs`/`tpk2.cjs` mãos × punho/apoio na
+  3ª pessoa com pitch ±0,6 e coice (eixo da arma por `(0,0,-1)` no quaternion do mundo; medir pela boca vs. coronha
+  engana nas pistolas, a boca fica acima do punho). `me3e.cjs` fotos com a câmera mirando o punho da arma.
+- 2026-11-09: multiplicar a dispersão inteira pelo bônus de primeiro tiro zera as punições de pulo/deslize mirando;
+  bônus só na parte parada, punições somadas depois.
+- 2026-11-09: `burstNow` (espera iv+180, −1/90 ms) esfria bem mais devagar que a volta da mira (τ 0,14 s): casar os dois.
+- 2026-11-09: `rm` com glob relativo depois de `cd` é bloqueado pela checagem; gravar em pasta nova em vez de limpar.
+- 2026-11-09 (pegada/recoil r2, integração do resto): os .glb do pacote são uma malha com esqueleto e paleta 8x8; os
+  cartuchos não têm osso próprio (pesam no `mag`; na MP5 o da câmara no `neutral_bone`). Achar por cor de latão no texel
+  da UV + osso dominante; separar num 2º grupo do índice com material próprio (`material.visible` vale por grupo).
+  Material vira lista: código que faz `o.material instanceof MeshStandardMaterial` na arma (m200, sondas) precisa tratar.
+- 2026-11-09: mira de ferro — `frontTop` com fatia fixa (60% até a boca) erra em arma curta (MP7: massa a 55%). Perfil de
+  cima por fatia de z (`caio-pr4/prof.cjs`) mostra a massa; `SIGHT_AT` por arma. Sonda desta rodada: `scratchpad/caio-pr4`
+  (porta 5571; `gold.cjs` acha latão, `shield.cjs` HUD logo após nascer, `hv.cjs` corrigido para material em lista).

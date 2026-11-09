@@ -20,7 +20,7 @@ import m9Url from '../assets/guns/m9.glb?url';
 import mp5Url from '../assets/guns/mp5.glb?url';
 import mp7Url from '../assets/guns/mp7.glb?url';
 
-export type PartName = 'mag' | 'bolt' | 'slide' | 'charge' | 'boltRot' | 'blade';
+export type PartName = 'mag' | 'bolt' | 'slide' | 'charge' | 'boltRot' | 'blade' | 'trigger';
 
 /** uma peça que mexe: deslocar (no espaço da arma) e girar em volta do eixo z da arma (o ferrolho do sniper) */
 export interface Part {
@@ -39,7 +39,15 @@ export interface GunModel {
   muzzle: THREE.Vector3;
   sight: THREE.Vector3;
   support: THREE.Vector3;
-  /** centro do cabo (facas): a mão fecha em volta dele, pela medida do modelo */
+  /** meia largura do guarda-mão no apoio (m): a mão de apoio fecha mais no fino */
+  supportW?: number;
+  /**
+   * Os cartuchos do pente (material próprio deste modelo). Os modelos são ocos: com o pente no lugar, os cartuchos de
+   * cima apareciam pela caixa da culatra (dourados no meio da tela ao mirar). Ficam escondidos; o viewmodel mostra
+   * quando o pente sai do lugar na recarga.
+   */
+  rounds?: THREE.Material;
+  /** centro do cabo (facas) ou do punho (armas de fogo): a mão fecha em volta dele, pela medida do modelo */
   handle?: THREE.Vector3;
   length: number;
 }
@@ -49,13 +57,22 @@ export interface GunModel {
  * e Kar98k na ponta da coronha de madeira, por baixo; submetralhadora bem à frente.
  */
 const SUPPORT_AT: Partial<Record<GunId, number>> = {
-  m4: 0.55,
-  ak47: 0.5,
+  m4: 0.48,
+  ak47: 0.44,
   l115: 0.3,
   m200: 0.3,
   kar98k: 0.3,
   mp7: 0.7,
   mp5: 0.7,
+};
+
+/**
+ * Linha de mira das armas de mira de ferro: a massa é o ponto mais alto da arma à frente desta fração do caminho do
+ * punho até a boca. A MP7 é curta: a massa fica a ~55% (z −0,14 m) e escapava da fatia padrão (o ponto ia para o topo
+ * do cano, 2 cm abaixo, e a massa aparecia ~90 px acima do centro da tela mirando).
+ */
+const SIGHT_AT: Partial<Record<GunId, number>> = {
+  mp7: 0.45,
 };
 
 interface Template {
@@ -83,6 +100,7 @@ const BONE_PART: Record<string, PartName> = {
   charginghandle: 'charge',
   bolthandle: 'charge',
   boltrotate: 'boltRot',
+  trigger: 'trigger',
 };
 
 const templates = new Map<GunId, Template>();
@@ -98,6 +116,10 @@ export function loadGuns(): Promise<void> {
       ),
     );
     const scenes = new Map(files.map(([id, g]) => [id, g.scene]));
+    const kar = scenes.get('kar98k');
+    if (kar) darkenWood(kar);
+    // a M24 é a base da M200, que tinge o material inteiro (precisa dele sozinho, sem a lista de dois materiais)
+    for (const [id, scene] of scenes) if (id !== 'm24') splitRounds(scene);
     for (const [id, scene] of scenes) {
       if (id === 'm24') continue;
       templates.set(id, { scene, build: () => fromFile(id, scene) });
@@ -109,6 +131,108 @@ export function loadGuns(): Promise<void> {
     templates.set('bayonet', { scene: new THREE.Group(), build: () => knife('bayonet') });
   })();
   return loading;
+}
+
+/**
+ * A madeira da Kar98k tem quase a cor da pele: a mão sumia na coronha (no quadril e no ferrolho). Escurece 25% só os
+ * materiais de madeira (tons de laranja/vermelho), uma vez no carregamento (as cópias da arma usam os mesmos).
+ */
+function darkenWood(scene: THREE.Object3D) {
+  const hsl = { h: 0, s: 0, l: 0 };
+  const done = new Set<THREE.Material>();
+  scene.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      if (!(m instanceof THREE.MeshStandardMaterial) || done.has(m)) continue;
+      done.add(m);
+      m.color.getHSL(hsl);
+      if (hsl.s > 0.2 && (hsl.h < 0.12 || hsl.h > 0.95)) m.color.multiplyScalar(0.75);
+    }
+  });
+}
+
+/** ossos que levam os cartuchos (o pente, e o cartucho na câmara da MP5, preso ao osso neutro) */
+const ROUND_BONES = new Set(['mag', 'bullet', 'bullets', 'neutral_bone']);
+/** nome do material dos cartuchos (o segundo da malha), para cada cópia da arma achar e trocar pelo seu */
+const ROUNDS = 'gf-rounds';
+
+/**
+ * Separa os triângulos dos cartuchos (cor de latão na paleta do modelo, presos ao pente) num segundo grupo da malha,
+ * com material próprio escondido. Uma vez por arquivo, no carregamento (as cópias usam a mesma geometria).
+ */
+function splitRounds(scene: THREE.Object3D) {
+  scene.traverse((o) => {
+    if (!(o instanceof THREE.SkinnedMesh) || !(o.material instanceof THREE.MeshStandardMaterial)) return;
+    const geo = o.geometry;
+    const index = geo.index;
+    const uv = geo.getAttribute('uv');
+    const si = geo.getAttribute('skinIndex');
+    const sw = geo.getAttribute('skinWeight');
+    const tex = texels(o.material.map);
+    if (!index || !uv || !si || !sw || !tex || geo.groups.length) return;
+    const flip = o.material.map?.flipY ?? false;
+    const brass = (i: number) => {
+      let bone = 0;
+      let best = -1;
+      for (let c = 0; c < 4; c++) {
+        const w = sw.getComponent(i, c);
+        if (w > best) {
+          best = w;
+          bone = si.getComponent(i, c);
+        }
+      }
+      if (!ROUND_BONES.has(o.skeleton.bones[bone]?.name ?? '')) return false;
+      const u = uv.getX(i) - Math.floor(uv.getX(i));
+      let v = uv.getY(i) - Math.floor(uv.getY(i));
+      if (flip) v = 1 - v;
+      const k = (Math.min(tex.h - 1, Math.floor(v * tex.h)) * tex.w + Math.min(tex.w - 1, Math.floor(u * tex.w))) * 4;
+      const r = tex.data[k]!;
+      const g = tex.data[k + 1]!;
+      const b = tex.data[k + 2]!;
+      // latão: vermelho e verde altos, azul baixo
+      return r > 150 && g > 100 && b < 110 && r - b > 80;
+    };
+    const keep: number[] = [];
+    const rounds: number[] = [];
+    for (let t = 0; t + 2 < index.count; t += 3) {
+      const a = index.getX(t);
+      const b = index.getX(t + 1);
+      const c = index.getX(t + 2);
+      (brass(a) && brass(b) && brass(c) ? rounds : keep).push(a, b, c);
+    }
+    if (!rounds.length) return;
+    const arr = index.array.slice();
+    arr.set(keep, 0);
+    arr.set(rounds, keep.length);
+    geo.setIndex(new THREE.BufferAttribute(arr, 1));
+    geo.clearGroups();
+    geo.addGroup(0, keep.length, 0);
+    geo.addGroup(keep.length, rounds.length, 1);
+    const hidden = o.material.clone();
+    hidden.name = ROUNDS;
+    hidden.visible = false;
+    o.material = [o.material, hidden];
+  });
+}
+
+/** os pixels da textura (paleta pequena do modelo), ou nada fora do navegador */
+function texels(map: THREE.Texture | null): { data: Uint8ClampedArray; w: number; h: number } | null {
+  const img: unknown = map?.image;
+  if (typeof document === 'undefined' || !img || typeof img !== 'object') return null;
+  const w = 'width' in img && typeof img.width === 'number' ? img.width : 0;
+  const h = 'height' in img && typeof img.height === 'number' ? img.height : 0;
+  if (!w || !h || w * h > 1024 * 1024) return null;
+  try {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const x = c.getContext('2d');
+    if (!x) return null;
+    x.drawImage(img as CanvasImageSource, 0, 0);
+    return { data: x.getImageData(0, 0, w, h).data, w, h };
+  } catch {
+    return null;
+  }
 }
 
 export function gunsReady(): boolean {
@@ -156,9 +280,15 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   holder.updateMatrixWorld(true);
   let trigger: THREE.Vector3 | null = null;
   const bones: [string, THREE.Object3D][] = [];
+  let rounds: THREE.Material | undefined;
   src.traverse((o) => {
     if (o instanceof THREE.Mesh) {
       o.castShadow = true;
+      // cartuchos: cada cópia tem o seu material (escondido; a recarga mostra só nesta arma)
+      if (Array.isArray(o.material) && o.material[1]?.name === ROUNDS) {
+        rounds = own(o.material[1].clone());
+        o.material = [o.material[0]!, rounds];
+      }
       // malha com esqueleto: a esfera de corte do three é calculada uma vez, com os ossos de antes de mover a arma, e
       // fica errada (a arma sumia no boneco). Só ela fica sem corte; as peças sem esqueleto são cortadas normalmente
       if (o instanceof THREE.SkinnedMesh) o.frustumCulled = false;
@@ -181,18 +311,35 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   const muzzle = new THREE.Vector3(0, (box.max.y + box.min.y) / 2 + 0.02, box.min.z);
   // eixo do cano: a altura dos pontos da metade da frente (só o cano e o guarda-mão; nada de pente ou coronha)
   const axisY = barrelAxis(holder, box.min.z) ?? muzzle.y;
-  // linha de mira: o alto da arma (alça e massa); na luneta, o eixo óptico (o centro do tubo, um pouco abaixo do topo)
+  // linha de mira: na mira de ferro, o topo da massa (o ponto mais alto da parte da frente da arma: a ponta dela fica
+  // no centro da tela, onde a bala vai); na luneta, o eixo óptico (o centro do tubo, um pouco abaixo do topo)
   const scoped = id === 'l115' || id === 'm200';
-  const sight = new THREE.Vector3(0, box.max.y + (scoped ? -0.025 : 0.01), -0.05);
-  // mão de apoio: o ponto da arma (`SUPPORT_AT`). A altura vem da própria arma: o fundo do guarda-mão naquela fatia
-  // (a palma encosta nele), só se ele estiver perto do eixo do cano — senão a palma fica logo abaixo do cano
+  const sight = new THREE.Vector3(
+    0,
+    scoped ? box.max.y - 0.025 : (frontTop(holder, box.min.z * (SIGHT_AT[id] ?? 0.6)) ?? box.max.y),
+    -0.05,
+  );
+  // mão de apoio: o ponto da arma (`SUPPORT_AT`). A altura é a da primeira superfície de baixo para cima no meio da
+  // arma naquela fatia (a palma encosta nela), só se estiver perto do eixo do cano — senão logo abaixo do cano
   const sz = box.min.z * (SUPPORT_AT[id] ?? 0.6);
-  const support = new THREE.Vector3(0, bottomAt(holder, sz, 0.03, axisY) ?? axisY - 0.02, sz);
+  const under = bottomUnder(holder, sz, axisY);
+  const support = new THREE.Vector3(0, under ?? axisY - 0.02, sz);
+  const supportW = halfWidthAt(holder, sz, support.y);
   if (id === 'm9') {
     // pistola: as duas mãos no punho
     support.set(0.01, -0.02, 0.02);
   }
-  return { id, root: holder, parts, muzzle, sight, support, length: box.max.z - box.min.z };
+  return {
+    id,
+    root: holder,
+    parts,
+    muzzle,
+    sight,
+    support,
+    ...(supportW ? { supportW } : {}),
+    ...(rounds ? { rounds } : {}),
+    length: box.max.z - box.min.z,
+  };
 }
 
 /** cada ponto das malhas da arma (no espaço da arma) */
@@ -219,18 +366,36 @@ function barrelAxis(root: THREE.Object3D, front: number): number | null {
   return Number.isFinite(lo) ? (lo + hi) / 2 : null;
 }
 
-/**
- * O ponto mais baixo da arma numa fatia em z (± `half`), perto do eixo do cano (no máximo `BOTTOM_MAX` abaixo dele:
- * pente, bipé e coronha funda não contam); null se não houver nada ali.
- */
-function bottomAt(root: THREE.Object3D, z: number, half: number, axisY: number): number | null {
-  let min = Infinity;
+/** o topo da parte da frente da arma (z < `front`): a ponta da massa da mira de ferro */
+function frontTop(root: THREE.Object3D, front: number): number | null {
+  let max = -Infinity;
   eachPoint(root, (p) => {
-    if (Math.abs(p.z - z) <= half && Math.abs(p.x) < 0.05 && p.y >= axisY - BOTTOM_MAX && p.y < min) min = p.y;
+    if (p.z < front && Math.abs(p.x) < 0.03 && p.y > max) max = p.y;
   });
-  return Number.isFinite(min) ? min : null;
+  return Number.isFinite(max) ? max : null;
+}
+
+/**
+ * A primeira superfície da arma de baixo para cima no meio dela (x = 0), na fatia `z`: o fundo do guarda-mão, onde a
+ * palma encosta (um raio contra os triângulos: os vértices de uma fatia pegam pontos da lateral e erravam ~2 cm).
+ * Só vale perto do eixo do cano (no máximo `BOTTOM_MAX` abaixo: pente, bipé e coronha funda não contam).
+ */
+function bottomUnder(root: THREE.Object3D, z: number, axisY: number): number | null {
+  root.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster(new THREE.Vector3(0, axisY - BOTTOM_MAX, z), new THREE.Vector3(0, 1, 0), 0, 0.2);
+  const hit = ray.intersectObject(root, true)[0];
+  return hit && hit.point.y <= axisY + 0.01 ? root.worldToLocal(hit.point.clone()).y : null;
 }
 const BOTTOM_MAX = 0.07;
+
+/** meia largura da arma na fatia `z`, nos 4 cm acima de `y` (o guarda-mão onde os dedos fecham) */
+function halfWidthAt(root: THREE.Object3D, z: number, y: number): number | null {
+  let w = 0;
+  eachPoint(root, (p) => {
+    if (Math.abs(p.z - z) < 0.015 && p.y >= y && p.y <= y + 0.04) w = Math.max(w, Math.abs(p.x));
+  });
+  return w > 0 ? w : null;
+}
 
 /**
  * Centro (espaço da arma, parada) do que se vê de uma peça: na peça com esqueleto, os vértices presos ao osso dela

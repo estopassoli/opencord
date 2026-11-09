@@ -202,7 +202,8 @@ export function stepMove(s: MoveState, inp: MoveInput, dt: number, now: number) 
       (inp.ads ? MOVE.adsK : 1);
     const tx = wl > 0 ? (inp.wx / wl) * top * Math.min(1, wl) : 0;
     const tz = wl > 0 ? (inp.wz / wl) * top * Math.min(1, wl) : 0;
-    const a = Math.min(1, MOVE.accel * dt * 0.25);
+    // exponencial: o tempo até a velocidade de cima é o mesmo a 30 e a 240 qps
+    const a = 1 - Math.exp(-MOVE.accel * 0.25 * Math.max(0, dt));
     s.vx += (tx - s.vx) * a;
     s.vz += (tz - s.vz) * a;
   } else if (wl > 0) {

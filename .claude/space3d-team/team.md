@@ -139,6 +139,55 @@ depois). Todo o teste manual está PENDENTE. Falta: `docs/IMPLEMENTATION_PLAN.md
   (`viewmodel.ts`), bots atravessavam a pessoa (`BODY_GAP` em `bots.ts`, com teste), nome do bot gigante colado na
   câmera (some a 1,6 m). Abertos: mãos juntas no punho na 3ª pessoa, antebraço na recarga vazia e na Kar98k, dedos
   abertos no karambit no golpe pesado. Teste manual com 2 pessoas PENDENTE.
+  **Pegada e recoil r1 (Rita, 2026-11-09):** medido sem mexer no código. A cadência depende do FPS (MP5 a 600 rpm a 30 qps), o
+  recuo não tem padrão nem recuperação, o coice visual não aparece (1 mm), a palma de apoio flutua 2 cm ou entra 1 cm na arma, o
+  cabo da karambit fica fora da mão e as mãos ficam juntas na 3ª pessoa. Lista em `context/reviews/2026-11-09-pegada-recoil-r1-rita.md`.
+  **Pegada e recoil r1 integrada (Téo, 2026-11-09):** recuo por padrão fixo por arma com volta da mira, tranco da vista
+  (cima/lado/rolagem) por arma, coice da 1ª pessoa e do boneco por molas (`gunfight/spring.ts`, subpassos), cadência
+  que não cai com o fps, abertura da dispersão na rajada (HUD e bots), luneta pula com o tranco. Pegada: indicador no
+  gatilho, mão no punho pelo vão da mão, karambit reversa, pistola com polegares para a frente, recarga com a mão no
+  pente de verdade, recarga vazia por arma (tapa no retém, alavanca por baixo/pela frente, polegar na pistola, ferrolho
+  na sniper), Kar98k carregada pela mão direita, 3ª pessoa com a mão no guarda-mão. ADR-0058 com adendo. Checks verdes
+  (69/497). Teste manual PENDENTE.
+  **Jogo todo r1 integrado (Caio, 2026-11-09):** partida com alvo pelo tamanho (15/20/25) e limite de 8 min (relógio e
+  alvo na pose: `ft`/`fl`), proteção ao nascer de 1,5 s (`prot`, boneco meio transparente), nascer fora da vista de
+  inimigos e olhando para a vista livre, bots com recuo/aviso/reação mais humana no Difícil, marcas de tiro (pool de
+  64), câmera da morte para o atirador, céu sem buraco negro, faca 55/150, passos com som, tiro de longe, panorâmica
+  ±0,8, placar curto no alto e lista 1·2·3 ao trocar, painel de morte com arma e cabeça, cruz na 3ª pessoa mirando,
+  inspecionar na rede, corrida com a arma baixa no boneco. Contrato: `SpaceGunPose` com `prot`, `ft`, `fl` e
+  `act: 'inspect'`. Checks verdes (desktop 69/512, contracts 37, api tsc). Teste manual PENDENTE.
+  **Teste da Rita (pegada/recoil r1):** recoil medido e conferido nos quadros, mãos na 3ª pessoa no apoio. Corrigido o
+  antebraço esquerdo, que tinha a ponta reta solta na tela no quadril (`placeArm` estica a manga até o cotovelo, teto
+  2×). Abertos: cartuchos do .glb visíveis na mira de ferro, marcas de tiro pouco visíveis em parede escura, selo de
+  proteção logo abaixo da mira. Checks verdes (69/512). Teste manual PENDENTE.
+  **Pegada e recoil r2 (Caio, revisão):** alto: o 1º tiro mirando zera também a punição de pulo/deslize/movimento
+  (`fire`). Médios: a rajada esfria bem depois de a mira voltar (`burstNow`), o tronco do boneco não curva com a mira
+  (olhando para baixo, a mão esquerda escorrega 6–10 cm) e o antebraço esquerdo na 1ª pessoa é um tubo que esconde a mão.
+  Lista em `context/reviews/2026-11-09-pegada-recoil-r2-caio.md`.
+  **Pegada e recoil r2 (Téo, revisão, 2026-11-09):** recuo ok nos quadros. Abertos: indicador fora do gatilho em
+  todas as armas (~2,5 cm abaixo/atrás, `grips.ts`/`hand.ts`), Kar98k com a mão 6–7 cm atrás do gatilho, braço
+  esquerdo no quadril esticado 1,4–1,8× (tubo no meio da tela; `HIP_LONG` longe demais), argola da karambit fora do
+  indicador, mira de ferro da MP7 ~90 px acima do ponto, cartuchos visíveis, no-scope preciso demais. Lista em
+  `context/reviews/2026-11-09-pegada-recoil-r2-teo.md`.
+  **Pegada e recoil r2 integrada (Téo, 2026-11-09):** indicador de gatilho próprio em `hand.ts` (base quase reta, meio
+  dobrado, abre 0,8 rad para o polegar quando fica mais aberto que os outros dedos): a ponta a ≤ 0,5 cm da lâmina em todas
+  as armas; Kar98k mais à frente e inclinada, madeira 25% mais escura; karambit 5 cm para trás (indicador na argola);
+  `HIP_LONG` (0,13, −0,15, −0,38) + ombro esquerdo próprio (−0,26, −0,32, −0,08) + antebraço fino (estica ≤ 1,1×);
+  mão esquerda some no espaço da câmera (tática→slide, inspeção da pistola). Recuo: `shotSpread` único (tiro e mira),
+  1º tiro só na parte parada, ar/deslize somam, sniper sem bônus; `burstNow` esfria no `recover.delay` por exponencial;
+  hora lógica do tiro e sem volta com o gatilho preso (subida igual a 30/60/144 qps); volta pelo quanto a mira andou e
+  continua ao trocar de arma; tranco inteiro na pontaria com "reduzir movimento"; "S" da AK. 3ª pessoa: coluna curva
+  com a mira, coice ×0,55 mirando, sniper em 0,78. Checks verdes (69/518). Teste manual PENDENTE.
+  **Resto do jogo r2 integrado (Caio, 2026-11-09):** mira de ferro da MP7 no ponto (`SIGHT_AT` 0,45 em `models.ts`);
+  cartuchos do .glb num grupo próprio escondido (`splitRounds`, `GunModel.rounds`), aparecem só com o pente fora na
+  recarga; marca de tiro 8,5 cm com anel claro de poeira; tiro na parede com faísca pequena e poeira cinza próprias
+  (`FX.shotSpark`/`shotDust` em `juice.ts`); selo "Protegido" em cima da barra de vida. Checks verdes (69/518). Teste
+  manual PENDENTE.
+  **Pegada e recoil r2, teste da Rita (2026-11-09):** checks verdes (prettier, tsc, eslint, vitest 69/518). Recuo medido
+  a 60 qps coerente (mirando, 30 tiros: M4 7,0°, AK 9,8° com S, MP7 4,6°, MP5 4,1°; Deagle 6,4° de câmera no quadril ×
+  M9 2,1°; sniper com tranco 3,4° e coice 5,5 cm). Corrigido: anel de poeira da marca de tiro some aos poucos (de perto
+  parecia um adesivo de alvo; `fx.ts`). Aberto: na 3ª pessoa mirando a arma fica no peito (não sobe ao rosto); mão
+  esquerda no guarda-mão da 1ª pessoa quase toda escondida. Lista em `context/reviews/2026-11-09-pegada-recoil-r2-teste-rita.md`.
 
 ## Decisões registradas
 

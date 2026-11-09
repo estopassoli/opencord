@@ -7,8 +7,9 @@ import * as THREE from 'three';
 import { bikeMesh } from './race';
 import { makeHand, type Hand } from './hand';
 import { disposeGun, disposeSkeletons, gunsReady, makeGun, type GunModel } from './gunfight/models';
-import { leftGrip, rightGrip } from './gunfight/grips';
+import { TRIGGER_OFF, leftGrip, rightGrip } from './gunfight/grips';
 import { MOVE } from './gunfight/movement';
+import { kickSpring, spring, stepSpring } from './gunfight/spring';
 import { GUNS } from './gunfight/weapons';
 import type { GunAct, GunId } from '@opencord/contracts';
 import {
@@ -112,6 +113,7 @@ type BoneName =
   | 'thigh_l'
   | 'calf_l'
   | 'foot_l'
+  | 'spine_01'
   | 'spine_02'
   | 'spine_03';
 const BONES: readonly BoneName[] = [
@@ -127,6 +129,7 @@ const BONES: readonly BoneName[] = [
   'thigh_l',
   'calf_l',
   'foot_l',
+  'spine_01',
   'spine_02',
   'spine_03',
 ];
@@ -165,14 +168,23 @@ export class Avatar {
   private gun: GunModel | null = null;
   private gunId: GunId | null = null;
   private gunPose: GunHold = { pitch: 0, crouch: false, ads: false, alive: true };
-  /** coice do tiro (s restantes) e a ação da mão que os outros veem (recarga, golpe, ferrolho, sacar) */
-  private kickT = 0;
+  /** coice do tiro (mola da arma, 0–~1,5: os tiros de uma rajada se somam) e a ação da mão que os outros veem */
+  private readonly kick = spring();
+  /** o cano mostrado (a pose chega da rede a cada ~100 ms: suaviza para a rajada não subir aos saltos) */
+  private pitchShown: number | null = null;
   private gunAct: { kind: GunAct; t: number; s: number } | null = null;
   private lastAn: number | null = null;
+  /** correndo com a arma (0–1, suave): o cano desce e vira para dentro, a mão esquerda solta */
+  private runW = 0;
+  /** protegido ao nascer: o corpo fica meio transparente */
+  private ghost = false;
   /** comprimento do braço e do antebraço de cada lado (medidos no boneco, para a IK de dois ossos) */
   private armLen: Record<'l' | 'r', [number, number]> = { l: [0, 0], r: [0, 0] };
   /** tranco do tronco ao levar um tiro (s restantes) */
   private flinchT = 0;
+  /** o tronco para trás neste quadro: quanto o ombro direito andou (espaço do boneco) e o giro (rad) */
+  private readonly leanD = new THREE.Vector3();
+  private leanA = 0;
   private skin: THREE.MeshStandardMaterial;
   private readonly ring: THREE.Mesh;
   /** sombra redonda no chão (do boneco: liberada no `dispose`) */
@@ -437,9 +449,10 @@ export class Avatar {
     this.hitT = 0.45;
   }
 
-  /** atirou: a arma dá um coice curto na mão (mola de ~80 ms) */
+  /** atirou: a arma dá um coice na mão pela mola da arma (Desert Eagle alta e lenta, SMG curta), e o tronco recua */
   gunKick() {
-    this.kickT = KICK_S;
+    const v = this.gunId ? GUNS[this.gunId].recoil.vm : null;
+    if (v) kickSpring(this.kick, v.k, v.c, 1);
   }
 
   /** levou um tiro: um tranco curto do tronco para trás (não a animação inteira, que travaria numa rajada) */
@@ -555,7 +568,10 @@ export class Avatar {
     this.root.rotation.y = this.ry;
     if (this.hitT > 0) this.hitT = Math.max(0, this.hitT - dt);
     if (this.flinchT > 0) this.flinchT = Math.max(0, this.flinchT - realDt);
-    if (this.kickT > 0) this.kickT = Math.max(0, this.kickT - realDt);
+    if (this.gunId) {
+      const v = GUNS[this.gunId].recoil.vm;
+      stepSpring(this.kick, v.k, v.c, realDt);
+    }
     if (this.gunAct && (this.gunAct.t += realDt) >= this.gunAct.s) this.gunAct = null;
 
     const a = this.target.a;
@@ -629,8 +645,9 @@ export class Avatar {
         this.model.position.y -= 0.26;
         this.crouchPose();
       }
-      this.holdGun(a === SWING_A.slide);
-      if (this.flinchT > 0) this.flinchPose();
+      // o tronco (levar tiro, coice) antes das mãos: a arma vai junto com o ombro e as mãos não soltam dela
+      this.leanPose();
+      this.holdGun(a === SWING_A.slide, realDt, a === 2);
     } else if (this.hands) {
       // sem nada na mão: dedos relaxados (no soco do x1, fechados)
       const fist = a >= 6 && a <= 8;
@@ -876,7 +893,7 @@ export class Avatar {
     if (!id || !gunsReady()) return;
     const g = makeGun(id);
     if (!g) return;
-    g.root.scale.setScalar(DOLL_SCALE);
+    g.root.scale.setScalar(gunScale(id));
     // na escala do boneco a sombra da arma não aparece, mas cada luz com sombra a desenharia de novo
     g.root.traverse((o) => (o.castShadow = false));
     this.root.add(g.root);
@@ -885,6 +902,12 @@ export class Avatar {
 
   setGunPose(p: GunHold) {
     this.gunPose = p;
+    if (!!p.prot !== this.ghost) {
+      this.ghost = !!p.prot;
+      this.skin.transparent = this.ghost;
+      this.skin.opacity = this.ghost ? 0.45 : 1;
+      this.skin.needsUpdate = true;
+    }
     // ação nova (o contador mudou): toca no boneco. A primeira pose que chega só marca (não repete o passado)
     if (p.an === undefined || p.an === this.lastAn) return;
     const first = this.lastAn === null;
@@ -898,7 +921,11 @@ export class Avatar {
           ? Math.max(0.3, (spec.boltMs ?? 600) / 1000 - 0.12)
           : p.act === 'melee'
             ? (spec.melee?.ms ?? 500) / 1000
-            : 0.5;
+            : p.act === 'inspect'
+              ? spec.cls === 'knife'
+                ? 2
+                : 2.4
+              : 0.5;
     this.gunAct = { kind: p.act, t: 0, s };
   }
 
@@ -908,7 +935,7 @@ export class Avatar {
    * frente, faca na mão baixa. Deslizando, a arma vai junto com o corpo deitado. Os braços chegam às pegadas (as mesmas
    * da primeira pessoa) por IK de dois ossos, e a mão gira para a pegada.
    */
-  private holdGun(slide: boolean) {
+  private holdGun(slide: boolean, dt: number, running: boolean) {
     const g = this.gun;
     const id = this.gunId;
     if (!g || !id) return;
@@ -917,49 +944,66 @@ export class Avatar {
     const spec = GUNS[id];
     const knife = spec.cls === 'knife';
     const pistol = spec.cls === 'pistol';
+    // faca não mira (o botão direito dela é o golpe pesado): sem o braço esticado como se apontasse
+    const ads = p.ads && !knife;
+    this.pitchShown =
+      this.pitchShown === null ? p.pitch : this.pitchShown + (p.pitch - this.pitchShown) * (1 - Math.exp(-dt * 15));
+    const pitch = this.pitchShown;
     const crouch = p.crouch && !slide ? -0.26 : 0;
     // a ação da mão (os outros veem): recarga inclina e baixa a arma (a mão esquerda vai ao pente), golpe empurra (a
     // faca corta de lado), ferrolho baixa um pouco (a mão direita vai à alavanca), sacar vem de baixo; e o coice
     const act = this.gunAct;
     const u = act ? Math.min(1, act.t / act.s) : 0;
     const w = act ? hump01(u) : 0;
-    const kick = this.kickT > 0 ? Math.sin((1 - this.kickT / KICK_S) * Math.PI) : 0;
+    // mirando com a coronha no ombro, o corpo segura o coice (a pistola, esticada, pula igual)
+    const kick = Math.max(0, this.kick.x) * (ads && !pistol && !knife ? TP_KICK_ADS : 1);
+    const vk = spec.recoil.vm;
     const reload = act?.kind === 'reload' ? w : 0;
     const melee = act?.kind === 'melee' ? w : 0;
     const bolt = act?.kind === 'bolt' ? w : 0;
     const draw = act?.kind === 'draw' ? 1 - ease(u) : 0;
+    const inspect = act?.kind === 'inspect' ? w : 0;
+    // correndo (sem mirar): o cano desce e vira para dentro, a mão esquerda solta (quem vê sabe que não dá para atirar)
+    this.runW += ((running && !ads && !knife ? 1 : 0) - this.runW) * Math.min(1, dt * 8);
+    const run = this.runW;
     // no quadril o cano desce um pouco e vira para dentro (de trás, aparece ao lado do corpo); mirando, reto. A boca
     // fica em −z: x positivo levanta o cano (o coice levanta; o sacar vem com o cano para baixo)
     const hipYaw = knife || pistol ? 0.06 : 0;
+    // o coice do boneco é o da 1ª pessoa, maior (de longe tem que se ler): a Desert Eagle pula, o fuzil treme
     g.root.rotation.set(
-      -p.pitch -
-        (p.ads || knife ? 0 : pistol ? 0.18 : 0.15) +
+      -pitch -
+        (ads || knife ? 0 : pistol ? 0.18 : 0.15) +
         reload * 0.35 +
         bolt * 0.12 -
         draw * 0.9 +
-        kick * (spec.cls === 'sniper' ? 0.2 : 0.1) -
-        (knife ? melee * 0.6 : 0),
-      Math.PI + (p.ads ? 0 : hipYaw) + (knife ? melee * 0.9 : 0),
-      reload * 0.5 + (knife ? 0 : melee * 0.4),
+        kick * vk.rise * TP_KICK +
+        this.leanA -
+        (knife ? melee * 0.6 : 0) -
+        run * 0.6,
+      Math.PI + (ads ? 0 : hipYaw) + (knife ? melee * 0.9 : 0) + run * 0.4,
+      reload * 0.5 + (knife ? 0 : melee * 0.4) + inspect * 0.6,
       'YXZ',
     );
     if (knife || pistol) {
       // na frente do corpo: faca baixa, pistola esticada (mirando, na altura dos olhos)
-      const y = (p.ads ? 0.98 : knife ? 0.72 : 0.84) + crouch;
-      g.root.position.set(p.ads ? -0.06 : -0.1, y, p.ads ? 0.4 : knife ? 0.14 : 0.28);
+      const y = (ads ? 0.98 : knife ? 0.72 : 0.84) + crouch;
+      g.root.position.set(ads ? -0.06 : -0.1, y, ads ? 0.4 : knife ? 0.14 : 0.28);
     } else {
-      // coronha no ombro direito: a origem (punho) fica à frente dela pelo comprimento da coronha
+      // coronha encostada no ombro direito (que fica em ~(−0,12, 0,99, −0,09)): a origem (punho) fica à frente dela pelo
+      // comprimento da coronha; a arma na escala do braço do boneco (curto), para a mão de apoio chegar ao guarda-mão
       G_Q.setFromEuler(g.root.rotation);
       // coronha curta (MP7) com um mínimo: senão a arma fica longe do corpo e os braços esticam
       const back = Math.max(0.28, g.length + g.muzzle.z);
-      G_OFF.set(0, 0.035, back).multiplyScalar(DOLL_SCALE).applyQuaternion(G_Q);
-      // um pouco para fora do ombro: na visão por cima do ombro direito a arma passa ao lado do corpo (não atrás dele)
-      SHOULDER_PT.set(p.ads ? -0.13 : -0.2, (p.ads ? 1.0 : 0.9) + crouch, p.ads ? 0.07 : 0.08);
+      G_OFF.set(0, 0.035, back).multiplyScalar(gunScale(id)).applyQuaternion(G_Q);
+      if (ads) SHOULDER_PT.set(-0.08, 0.96 + crouch, -0.04);
+      else SHOULDER_PT.set(-0.1, 0.92 + crouch, -0.03);
       g.root.position.copy(SHOULDER_PT).sub(G_OFF);
     }
+    // o tronco recuou ou levou tiro: a arma vai junto com o ombro
+    g.root.position.add(this.leanD);
     // recarga baixa a arma; golpe empurra para a frente; coice para trás; sacar vem de baixo
     g.root.position.y += -reload * 0.06 - draw * 0.22;
-    g.root.position.z += melee * 0.16 - kick * 0.04;
+    g.root.position.z += melee * 0.16 - kick * vk.back * TP_KICK_BACK;
     if (slide) {
       // presa ao corpo inclinado do deslize
       g.root.position.applyEuler(this.model.rotation).add(this.model.position);
@@ -968,13 +1012,15 @@ export class Avatar {
     g.root.updateMatrixWorld(true);
     g.root.getWorldQuaternion(G_WQ);
     // mão direita no punho; a esquerda no guarda-mão (ou envolvendo a direita, na pistola)
-    const rg = rightGrip(spec.cls, id, g.handle);
+    const rg = rightGrip(g, spec.cls);
     // ferrolho: a mão direita sobe e vai para trás, até a alavanca
     G_R.copy(rg.pos).add(G_AN.set(0.02, 0.05, 0.04).multiplyScalar(bolt));
     this.reachTo('r', g.root.localToWorld(G_R), G_HQ.copy(G_WQ).multiply(rg.quat));
-    this.hands?.r.setCurl(rg.curl[0] - bolt * 0.3, rg.curl[1]);
-    if (!knife) {
-      const lg = leftGrip(spec.cls, g.support);
+    // o indicador no gatilho; recarregando ou no ferrolho, esticado fora dele
+    const off = Math.max(reload, bolt);
+    this.hands?.r.setCurl(rg.curl[0] - bolt * 0.3, rg.curl[1], knife ? rg.curl[2] : lerp(rg.curl[2], TRIGGER_OFF, off));
+    if (!knife && run < 0.5) {
+      const lg = leftGrip(g, spec.cls);
       // recarga: a mão esquerda desce até o pente (embaixo do punho) e volta
       G_L.copy(lg.pos).lerp(G_AN.set(-0.04, -0.12, 0.02), reload);
       G_HQ.copy(G_WQ).multiply(lg.quat);
@@ -983,7 +1029,7 @@ export class Avatar {
       // alcançar (senão a IK estica e a mão fica aberta no ar, longe da arma)
       this.pullInReach('l', G_L, g.root.localToWorld(G_M.copy(rg.pos)), G_HQ);
       this.reachTo('l', G_L, G_HQ);
-      this.hands?.l.setCurl(lg.curl[0] - reload * 0.2, lg.curl[1]);
+      this.hands?.l.setCurl(lg.curl[0] - reload * 0.2, lg.curl[1], lg.curl[2] - reload * 0.2);
     } else this.hands?.l.setCurl(0.35, 0.3);
   }
 
@@ -1001,8 +1047,13 @@ export class Avatar {
     const far = (t: number) => R_GOAL2.copy(wrist).lerp(toward, t).add(back).distanceTo(sh) > reach;
     if (!far(0)) return;
     // busca binária em [0, 1] (a distância ao ombro cai ao longo da reta até o punho)
+    // no máximo até a metade do caminho (no pior caso a mão para no pente, nunca em cima da direita)
     let lo = 0;
-    let hi = 1;
+    let hi = PULL_MAX;
+    if (far(hi)) {
+      wrist.lerp(toward, hi);
+      return;
+    }
     for (let i = 0; i < 10; i++) {
       const mid = (lo + hi) / 2;
       if (far(mid)) lo = mid;
@@ -1050,21 +1101,43 @@ export class Avatar {
     }
   }
 
-  /** levou tiro: o tronco vai para trás e volta (mola curta) */
-  private flinchPose() {
+  /**
+   * O tronco: para trás ao levar tiro (tranco curto) e no coice da arma (o fuzil pouco, a sniper e a Desert Eagle mais),
+   * e curvado pela mira (olhando para baixo, o peito desce junto com a arma; para cima, sobe), senão a arma ficava
+   * pendurada de um tronco reto e a mão de apoio escorregava pelo cano. Gira a coluna (`spine_01`–`03`, um terço em
+   * cada) e guarda quanto o ombro direito andou (`leanD`, espaço do boneco) e o giro do coice (`leanA`): a arma vai
+   * junto (`holdGun` roda depois), e as mãos não saem dela.
+   */
+  private leanPose() {
+    this.leanD.set(0, 0, 0);
+    this.leanA = 0;
     const B = this.bones;
     const doll = this.doll;
-    if (!doll || !B.spine_02) return;
-    const u = 1 - this.flinchT / FLINCH_S;
-    const k = Math.sin(Math.min(1, u) * Math.PI) * 0.22;
+    if (!doll || !B.spine_02 || !B.upperarm_r) return;
+    const u = this.flinchT > 0 ? 1 - this.flinchT / FLINCH_S : 1;
+    const body = this.gunId ? GUNS[this.gunId].recoil.body * Math.max(0, this.kick.x) : 0;
+    const k = (this.flinchT > 0 ? Math.sin(Math.min(1, u) * Math.PI) * 0.22 : 0) + body;
+    // a mira curva a coluna (pitch positivo = olhando para baixo = peito para a frente); faca não aponta
+    const knife = !this.gunId || GUNS[this.gunId].cls === 'knife';
+    const pitch = this.pitchShown ?? this.gunPose.pitch;
+    const bend = knife ? 0 : Math.max(-AIM_BEND_MAX, Math.min(AIM_BEND_MAX, AIM_BEND * pitch));
+    const total = k - bend;
+    if (Math.abs(total) < 1e-4) return;
+    this.root.updateMatrixWorld(true);
+    this.root.worldToLocal(B.upperarm_r.getWorldPosition(LEAN0));
     doll.getWorldQuaternion(DQ);
     AXIS_UP.set(1, 0, 0).applyQuaternion(DQ);
-    QROT.setFromAxisAngle(AXIS_UP, -k);
-    B.spine_02.getWorldQuaternion(QWORLD);
-    if (B.spine_02.parent) B.spine_02.parent.getWorldQuaternion(QPARENT);
-    else QPARENT.identity();
-    B.spine_02.quaternion.copy(QPARENT.invert().multiply(QROT.multiply(QWORLD)));
-    B.spine_02.updateMatrixWorld(true);
+    const spine = [B.spine_01, B.spine_02, B.spine_03].filter((b): b is THREE.Object3D => !!b);
+    QROT.setFromAxisAngle(AXIS_UP, -total / spine.length);
+    for (const b of spine) {
+      b.getWorldQuaternion(QWORLD);
+      if (b.parent) b.parent.getWorldQuaternion(QPARENT);
+      else QPARENT.identity();
+      b.quaternion.copy(QPARENT.invert().multiply(QWORLD.premultiply(QROT)));
+      b.updateMatrixWorld(true);
+    }
+    this.root.worldToLocal(B.upperarm_r.getWorldPosition(this.leanD)).sub(LEAN0);
+    this.leanA = k;
   }
 
   /** agachado: quadril desce, coxas para a frente, canelas para trás */
@@ -1149,7 +1222,24 @@ const R_ELBOW = new THREE.Vector3();
 const HAND_OFFSET = 0.075;
 /** duração do tranco de levar tiro (s) */
 const FLINCH_S = 0.16;
-const KICK_S = 0.08;
+const LEAN0 = new THREE.Vector3();
+/** o coice do boneco em relação ao da 1ª pessoa (giro e recuo); mirando, com a coronha no ombro, `TP_KICK_ADS` disso */
+const TP_KICK = 2;
+const TP_KICK_BACK = 1.2;
+const TP_KICK_ADS = 0.55;
+/** a coluna curva com a mira (rad por rad de pitch, no total) até um limite */
+const AIM_BEND = 0.6;
+const AIM_BEND_MAX = 0.35;
+/** a mão de apoio escorrega no máximo até aqui do caminho apoio → punho (`pullInReach`) */
+const PULL_MAX = 0.5;
+/** arma longa no boneco um pouco menor que a escala dele: o braço curto do boneco chega ao guarda-mão */
+const LONG_GUN_SCALE = 0.86;
+/** sniper (coronha e cano compridos): um pouco menor ainda, senão a mão de apoio ficava perto do punho no quadril */
+const SNIPER_SCALE = 0.78;
+function gunScale(id: GunId): number {
+  const c = GUNS[id].cls;
+  return DOLL_SCALE * (c === 'pistol' || c === 'knife' ? 1 : c === 'sniper' ? SNIPER_SCALE : LONG_GUN_SCALE);
+}
 const G_AN = new THREE.Vector3();
 /** sobe no começo, fica, e desce no fim (0–1) */
 const hump01 = (u: number) => ease(Math.min(1, u / 0.15)) * (1 - ease(Math.max(0, (u - 0.85) / 0.15)));
@@ -1162,6 +1252,8 @@ export interface GunHold {
   alive: boolean;
   act?: GunAct;
   an?: number;
+  /** acabou de nascer (protegido): o boneco fica meio transparente */
+  prot?: boolean;
 }
 
 function aim(a: THREE.Object3D, b: THREE.Object3D, dir: THREE.Vector3) {

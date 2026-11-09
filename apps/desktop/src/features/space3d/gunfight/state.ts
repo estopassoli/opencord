@@ -42,6 +42,8 @@ export interface GunHudState {
   scopeAt: number;
   /** dispersão atual em pixels (o tamanho da mira) */
   spreadPx: number;
+  /** a luneta sobe com o tranco do tiro (px para cima) */
+  scopeKick: number;
   sprint: boolean;
   /** quando apareceu o último marcador de acerto (e se matou / foi na cabeça) */
   hitAt: number;
@@ -52,9 +54,19 @@ export interface GunHudState {
   feed: KillFeedItem[];
   scores: ScoreRow[];
   dead: boolean;
-  /** morto: quem matou e quando renasce */
+  /** morto: quem matou, com que arma, se foi na cabeça e quando renasce */
   killedBy: string | null;
+  killedW: GunId | null;
+  killedHead: boolean;
   respawnAt: number;
+  /** a partida: alvo de abates e quando acaba no tempo (Date.now) */
+  target: number;
+  endsAt: number;
+  /** trocou de arma: quando (a lista 1·2·3 aparece um instante) e o espaço na mão */
+  slotsAt: number;
+  slot: GunSlot;
+  /** acabou de nascer: protegido (não leva dano até atirar) */
+  shielded: boolean;
   /** partida terminada: quem ganhou e quando (Date.now) */
   winner: string | null;
   winnerAt: number;
@@ -112,6 +124,7 @@ export const useGunHud = create<GunHudState>()((set) => ({
   scoped: false,
   scopeAt: 0,
   spreadPx: 20,
+  scopeKick: 0,
   sprint: false,
   hitAt: 0,
   hitKill: false,
@@ -121,7 +134,14 @@ export const useGunHud = create<GunHudState>()((set) => ({
   scores: [],
   dead: false,
   killedBy: null,
+  killedW: null,
+  killedHead: false,
   respawnAt: 0,
+  target: 15,
+  endsAt: 0,
+  slotsAt: 0,
+  slot: 'primary',
+  shielded: false,
   winner: null,
   winnerAt: 0,
   firstPerson: true,

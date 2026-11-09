@@ -2,7 +2,8 @@
  * Efeitos do tiro no mundo (gunfight): traçantes e clarões da boca da arma, em pools fixos (nada de geometria nova por
  * bala). O traçante é um traço curto, fino e aditivo, virado para a câmera, que anda da boca até o impacto em ~2
  * quadros; o clarão é um sprite aditivo de ~40 ms na boca da arma de quem atirou (bots, os outros e eu em 3ª pessoa —
- * na 1ª pessoa o clarão é o do viewmodel).
+ * na 1ª pessoa o clarão é o do viewmodel). A marca do tiro fica na parede (e no chão) por 8 s: dá para ver onde a
+ * rajada foi e aprender o recuo. Marcas num pool fixo de uma malha só (uma chamada de desenho), a mais velha sai primeiro.
  */
 import * as THREE from 'three';
 import type { V3 } from './weapons';
@@ -15,6 +16,11 @@ const SPEED = 650;
 const LEN = 2.6;
 const MIN_MS = 34;
 const FLASH_MS = 40;
+/** marcas de tiro: quantas, tamanho (m), quanto duram e quanto do fim elas encolhem (ms) */
+export const MARKS = 64;
+const MARK_SIZE = 0.085;
+export const MARK_MS = 8000;
+const MARK_FADE_MS = 1200;
 
 interface TracerSlot {
   mesh: THREE.Mesh;
@@ -38,6 +44,14 @@ const TO_CAM = new THREE.Vector3();
 const AX = new THREE.Vector3();
 const AY = new THREE.Vector3();
 const BASIS = new THREE.Matrix4();
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const M_POS = new THREE.Vector3();
+const M_NRM = new THREE.Vector3();
+const M_Q = new THREE.Quaternion();
+const M_ROLL = new THREE.Quaternion();
+const M_SCALE = new THREE.Vector3();
+const M_MAT = new THREE.Matrix4();
+const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
 export class GunFx {
   private readonly tracers: TracerSlot[] = [];
@@ -54,8 +68,31 @@ export class GunFx {
   private readonly flashMat: THREE.SpriteMaterial;
   private nextTracer = 0;
   private nextFlash = 0;
+  /** marcas: uma malha só; cada marca guarda onde está, o giro e quando nasceu */
+  private readonly markMat = new THREE.MeshBasicMaterial({
+    map: markTexture(),
+    color: 0xffffff,
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  private readonly markGeo = new THREE.PlaneGeometry(MARK_SIZE, MARK_SIZE);
+  private readonly marks: THREE.InstancedMesh;
+  private readonly markAt = new Float64Array(MARKS).fill(-1);
+  private readonly markPos = new Float32Array(MARKS * 3);
+  private readonly markQ = new Float32Array(MARKS * 4);
+  private nextMark = 0;
 
   constructor(private readonly scene: THREE.Scene) {
+    this.marks = new THREE.InstancedMesh(this.markGeo, this.markMat, MARKS);
+    this.marks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    for (let i = 0; i < MARKS; i++) this.marks.setMatrixAt(i, HIDDEN);
+    // o pool espalha pelo mapa todo: a esfera de corte de uma instância não vale para as outras
+    this.marks.frustumCulled = false;
+    this.marks.renderOrder = 1;
+    this.scene.add(this.marks);
     this.flashMat = new THREE.SpriteMaterial({
       map: flashTexture(),
       color: 0xffd8a0,
@@ -106,8 +143,50 @@ export class GunFx {
     s.until = now + FLASH_MS;
   }
 
+  /** marca de tiro em `at` (a face com a normal `n`, unitária); a mais velha dá lugar */
+  mark(at: V3, n: V3, now: number) {
+    const i = this.nextMark;
+    this.nextMark = (i + 1) % MARKS;
+    // 2 mm para fora da face (com o `polygonOffset`, sem brigar com a parede)
+    this.markPos.set([at.x + n.x * 0.002, at.y + n.y * 0.002, at.z + n.z * 0.002], i * 3);
+    M_Q.setFromUnitVectors(Z_AXIS, M_NRM.set(n.x, n.y, n.z));
+    M_Q.multiply(M_ROLL.setFromAxisAngle(Z_AXIS, Math.random() * Math.PI * 2));
+    this.markQ.set([M_Q.x, M_Q.y, M_Q.z, M_Q.w], i * 4);
+    this.markAt[i] = now;
+    this.placeMark(i, 1);
+  }
+
+  /** quantas marcas estão na parede agora (para os testes) */
+  marksAlive(now: number): number {
+    let n = 0;
+    for (let i = 0; i < MARKS; i++) if (this.markAt[i]! >= 0 && now - this.markAt[i]! < MARK_MS) n++;
+    return n;
+  }
+
+  private placeMark(i: number, k: number) {
+    if (k <= 0) {
+      this.marks.setMatrixAt(i, HIDDEN);
+    } else {
+      M_POS.fromArray(this.markPos, i * 3);
+      M_Q.fromArray(this.markQ, i * 4);
+      M_MAT.compose(M_POS, M_Q, M_SCALE.setScalar(k));
+      this.marks.setMatrixAt(i, M_MAT);
+    }
+    this.marks.instanceMatrix.needsUpdate = true;
+  }
+
   /** anda os traçantes (virados para a câmera) e apaga o que acabou */
   update(now: number, cam: THREE.Vector3) {
+    // as marcas encolhem no fim e somem (só mexe nas que estão saindo)
+    for (let i = 0; i < MARKS; i++) {
+      const t = this.markAt[i]!;
+      if (t < 0) continue;
+      const left = MARK_MS - (now - t);
+      if (left <= 0) {
+        this.markAt[i] = -1;
+        this.placeMark(i, 0);
+      } else if (left < MARK_FADE_MS) this.placeMark(i, left / MARK_FADE_MS);
+    }
     for (const s of this.tracers) {
       if (!s.on) continue;
       const u = (now - s.start) / s.ms;
@@ -147,12 +226,43 @@ export class GunFx {
   dispose() {
     for (const s of this.tracers) this.scene.remove(s.mesh);
     for (const f of this.flashes) this.scene.remove(f.sprite);
+    this.scene.remove(this.marks);
+    this.marks.dispose();
+    this.markGeo.dispose();
+    this.markMat.dispose();
     this.tracers.length = 0;
     this.flashes.length = 0;
     this.geo.dispose();
     this.tracerMat.dispose();
     this.flashMat.dispose();
   }
+}
+
+let markTex: THREE.Texture | null = null;
+/**
+ * A marca do tiro: um furo escuro com a borda queimada e um anel claro de poeira em volta (o furo sozinho sumia na
+ * parede escura; o anel faz a rajada se ler de longe). Canvas, sem arquivo.
+ */
+function markTexture(): THREE.Texture | null {
+  if (markTex || typeof document === 'undefined') return markTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const x = c.getContext('2d');
+  if (!x) return null;
+  const grd = x.createRadialGradient(16, 16, 1, 16, 16, 15);
+  grd.addColorStop(0, 'rgba(4,4,4,1)');
+  grd.addColorStop(0.25, 'rgba(10,9,8,0.95)');
+  grd.addColorStop(0.4, 'rgba(22,19,16,0.7)');
+  // a poeira some aos poucos para fora (anel de opacidade igual com borda seca parecia um alvo colado, de perto)
+  grd.addColorStop(0.5, 'rgba(170,160,145,0.42)');
+  grd.addColorStop(0.68, 'rgba(170,160,145,0.22)');
+  grd.addColorStop(1, 'rgba(170,160,145,0)');
+  x.fillStyle = grd;
+  x.fillRect(0, 0, 32, 32);
+  markTex = new THREE.CanvasTexture(c);
+  // as cores do canvas são sRGB (sem isso o furo escuro sai cinza claro)
+  markTex.colorSpace = THREE.SRGBColorSpace;
+  return markTex;
 }
 
 let flashTex: THREE.Texture | null = null;

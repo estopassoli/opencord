@@ -11,7 +11,13 @@ import { BOT_LEVELS, BOT_LEVEL_LABEL, type BotLevel } from '../bots/level';
 import { Binding } from '../GameHud';
 import { useAnnounce } from '../MatchHud';
 import { saveLoadout, useGunHud, type ScoreRow } from './state';
-import { CLASS_LABEL, FFA_TARGET, GUNS, SLOT_GUNS, WINNER_MS, type GunSlot } from './weapons';
+import { CLASS_LABEL, GUNS, SLOT_GUNS, WINNER_MS, type GunSlot } from './weapons';
+
+/** m:ss */
+function clock(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 
 /** relógio da tela (a mira e os marcadores somem com o tempo) */
 function useTick(ms: number) {
@@ -86,8 +92,10 @@ export function GunHud() {
   const now = Date.now();
   const spec = GUNS[h.weapon];
   const knife = spec.cls === 'knife';
-  const showLines = !h.dead && !h.scoped && !knife && h.ads < 0.6 && !h.sprint;
-  const gap = Math.round(h.spreadPx);
+  // na 1ª pessoa, mirando, a mira de ferro faz o papel da cruz; na 3ª não há mira de ferro: a cruz fica (fechada)
+  const thirdAds = !h.firstPerson && h.ads >= 0.6;
+  const showLines = !h.dead && !h.scoped && !knife && (h.ads < 0.6 || thirdAds) && !h.sprint;
+  const gap = Math.round(thirdAds ? Math.min(h.spreadPx, 6) : h.spreadPx);
   const hit = now - h.hitAt < 220;
   const lowHp = h.hp < 55;
   const lowAmmo = !knife && h.mag <= Math.ceil(spec.mag * 0.25);
@@ -95,14 +103,18 @@ export function GunHud() {
     <div className="gf-hud">
       {lowHp && !h.dead && <div className="gf-vignette" style={{ opacity: Math.min(0.85, (55 - h.hp) / 45) }} />}
       {h.scoped && !h.dead && (
-        <div className="gf-scope" aria-hidden="true">
+        <div
+          className="gf-scope"
+          aria-hidden="true"
+          style={h.scopeKick ? { transform: `translateY(${(-h.scopeKick).toFixed(1)}px)` } : undefined}
+        >
           {/* escurecer curto ao encostar o olho na luneta (a arma some no mesmo quadro) */}
           <div key={h.scopeAt} className="gf-scope-fade" />
           <ScopeReticle />
         </div>
       )}
       {!h.dead && (
-        <div className="gf-cross" data-ads={h.ads > 0.6 ? 'true' : undefined} aria-hidden="true">
+        <div className="gf-cross" data-ads={h.ads > 0.6 && !thirdAds ? 'true' : undefined} aria-hidden="true">
           {!h.scoped &&
             showLines &&
             (['t', 'b', 'l', 'r'] as const).map((s) => (
@@ -122,45 +134,56 @@ export function GunHud() {
             style={{ transform: `rotate(${(-d.ang * 180) / Math.PI}deg)`, opacity: 1 - (now - d.at) / 1500 }}
           />
         ))}
-      <div className="gf-health">
-        <Icon name="heart" size={16} />
-        <div
-          className="gf-health-track"
-          role="meter"
-          aria-label="Vida"
-          aria-valuenow={h.hp}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <span className="gf-health-bar" style={{ width: `${h.hp}%` }} data-low={lowHp ? 'true' : undefined} />
-        </div>
-        <strong data-low={lowHp ? 'true' : undefined}>{h.hp}</strong>
-      </div>
-      <div className="gf-ammo">
-        <span className="gf-gun">
-          <Icon name={knife ? 'knife' : 'gun'} size={16} /> {spec.name}
+      <TopScore />
+      {!h.dead && h.slotsAt > 0 && now - h.slotsAt < 1500 && <SlotList key={h.slotsAt} />}
+      {h.shielded && !h.dead && (
+        <span className="gf-shield" aria-hidden="true">
+          Protegido · atire para sair
         </span>
-        {!knife && (
-          <span className="gf-count" data-low={lowAmmo ? 'true' : undefined}>
-            <strong>{h.mag}</strong> / {h.reserve}
+      )}
+      {!h.dead && (
+        <div className="gf-health">
+          <Icon name="heart" size={16} />
+          <div
+            className="gf-health-track"
+            role="meter"
+            aria-label="Vida"
+            aria-valuenow={h.hp}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <span className="gf-health-bar" style={{ width: `${h.hp}%` }} data-low={lowHp ? 'true' : undefined} />
+          </div>
+          <strong data-low={lowHp ? 'true' : undefined}>{h.hp}</strong>
+        </div>
+      )}
+      {!h.dead && (
+        <div className="gf-ammo">
+          <span className="gf-gun">
+            <Icon name={knife ? 'knife' : 'gun'} size={16} /> {spec.name}
           </span>
-        )}
-        {h.reloading ? (
-          <span className="gf-tip">Recarregando…</span>
-        ) : !knife && h.mag === 0 && h.reserve === 0 ? (
-          <span className="gf-tip">
-            Sem munição · <kbd>2</kbd> pistola · <kbd>3</kbd> faca
-          </span>
-        ) : (
-          lowAmmo &&
-          !knife &&
-          h.reserve > 0 && (
-            <span className="gf-tip">
-              <Binding action="rematch" /> recarregar
+          {!knife && (
+            <span className="gf-count" data-low={lowAmmo ? 'true' : undefined}>
+              <strong>{h.mag}</strong> / {h.reserve}
             </span>
-          )
-        )}
-      </div>
+          )}
+          {h.reloading ? (
+            <span className="gf-tip">Recarregando…</span>
+          ) : !knife && h.mag === 0 && h.reserve === 0 ? (
+            <span className="gf-tip">
+              Sem munição · <kbd>2</kbd> pistola · <kbd>3</kbd> faca
+            </span>
+          ) : (
+            lowAmmo &&
+            !knife &&
+            h.reserve > 0 && (
+              <span className="gf-tip">
+                <Binding action="rematch" /> recarregar
+              </span>
+            )
+          )}
+        </div>
+      )}
       <ol className="gf-feed" aria-label="Abates">
         {h.feed
           .filter((f) => now - f.at < 6000)
@@ -179,6 +202,52 @@ export function GunHud() {
   );
 }
 
+/** no alto ao centro, sem segurar o Tab: o meu placar, o do líder, o alvo e o tempo que falta */
+function TopScore() {
+  const rows = useGunHud((s) => s.scores);
+  const target = useGunHud((s) => s.target);
+  const endsAt = useGunHud((s) => s.endsAt);
+  const winner = useGunHud((s) => s.winner);
+  const me = rows.find((r) => r.me);
+  const lead = rows.find((r) => !r.me);
+  const left = endsAt - Date.now();
+  // o leitor de tela recebe o placar pelo Tab e pelos avisos de abate: isto é só para os olhos
+  return (
+    <div className="gf-top" aria-hidden="true">
+      <span data-me="true">
+        Você <b>{me?.kills ?? 0}</b>
+      </span>
+      {lead && (
+        <span>
+          {lead.name} <b>{lead.kills}</b>
+        </span>
+      )}
+      <span>até {target}</span>
+      {!winner && endsAt > 0 && (
+        <span className="gf-clock" data-low={left < 60000 ? 'true' : undefined}>
+          {clock(left)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** trocou de arma: o que há em 1, 2 e 3 (a da mão em destaque), por um instante */
+function SlotList() {
+  const loadout = useGunHud((s) => s.loadout);
+  const slot = useGunHud((s) => s.slot);
+  return (
+    <div className="gf-slots" aria-hidden="true">
+      {(['primary', 'secondary', 'melee'] as const).map((sl, i) => (
+        <span key={sl} data-on={sl === slot ? 'true' : undefined}>
+          <kbd>{i + 1}</kbd>
+          {GUNS[loadout[sl]].name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** o equipamento escolhido, em uma linha */
 function loadoutText(l: { primary: string; secondary: string; melee: string }) {
   return [l.primary, l.secondary, l.melee].map((id) => GUNS[id as keyof typeof GUNS].name).join(' · ');
@@ -189,10 +258,14 @@ function DeadPanel() {
   const h = useGunHud();
   const left = Math.max(0, Math.ceil((h.respawnAt - Date.now()) / 1000));
   const by = h.scores.find((s) => s.id === h.killedBy)?.name ?? 'alguém';
+  const self = !!h.killedBy && by === 'Você';
+  // com que arma e se foi na cabeça (ajuda a entender de onde e como veio)
+  const how = [h.killedW ? GUNS[h.killedW].name : null, h.killedHead ? 'na cabeça' : null].filter(Boolean);
   return (
     <div className="gf-dead">
       <Icon name="skull" size={28} />
-      <strong>{h.killedBy && by === 'Você' ? 'Você caiu' : `Abatido por ${by}`}</strong>
+      <strong>{self ? 'Você caiu' : `Abatido por ${by}`}</strong>
+      {!self && how.length > 0 && <span>{how.join(' · ')}</span>}
       <span aria-hidden="true">Renasce em {left} s</span>
       <span className="gf-note">
         {loadoutText(h.loadout)} · <kbd>Esc</kbd> troca o equipamento
@@ -205,11 +278,12 @@ function DeadPanel() {
 function WinnerPanel() {
   const h = useGunHud();
   const left = Math.max(0, Math.ceil((h.winnerAt + WINNER_MS - Date.now()) / 1000));
+  const top = h.scores[0]?.kills ?? 0;
   return (
     <div className="gf-dead gf-winner">
       <Icon name="trophy" size={30} />
       <strong>{h.winner === 'Você' ? 'Você venceu!' : `${h.winner} venceu`}</strong>
-      <span>Primeiro a {FFA_TARGET} abates.</span>
+      <span>{top >= h.target ? `Primeiro a ${h.target} abates.` : 'Mais abates quando o tempo acabou.'}</span>
       <ScoreTable rows={h.scores.slice(0, 5)} />
       <span className="gf-tip">
         <Binding action="rematch" /> jogar de novo · recomeça sozinho em <span aria-hidden="true">{left} s</span>
@@ -248,9 +322,13 @@ function ScoreTable({ rows }: { rows: ScoreRow[] }) {
 /** placar segurando Tab */
 export function GunScoreboard() {
   const rows = useGunHud((s) => s.scores);
+  const target = useGunHud((s) => s.target);
+  const endsAt = useGunHud((s) => s.endsAt);
   return (
     <div className="gf-board" role="dialog" aria-label="Placar">
-      <h3>Todos contra todos · até {FFA_TARGET}</h3>
+      <h3>
+        Todos contra todos · até {target} · {clock(endsAt - Date.now())}
+      </h3>
       <ScoreTable rows={rows} />
     </div>
   );
@@ -308,13 +386,15 @@ export function GunMatchPanel({
   const count = useGunHud((s) => s.botCount);
   const fp = useGunHud((s) => s.firstPerson);
   const canRestart = useGunHud((s) => s.canRestart);
+  const target = useGunHud((s) => s.target);
   const blocked = others > 0;
   return (
     <div className="gf-panel">
       <header className="gm-head">
         <h2>Esta partida</h2>
         <p>
-          <strong>Gunfight</strong> · todos contra todos. Vence quem fizer {FFA_TARGET} abates primeiro.
+          <strong>Gunfight</strong> · todos contra todos. Vence quem chegar a {target} abates primeiro, ou quem tiver
+          mais quando os 8 minutos acabarem. Com mais gente, o alvo sobe (até 25).
         </p>
       </header>
       <section>

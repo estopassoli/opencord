@@ -9,10 +9,11 @@
  * "Reduzir movimento": passo, balanço, inclinações e o giro do saque ficam em ~30%.
  */
 import * as THREE from 'three';
-import { FIST_HOLE, makeHand, type Hand } from '../hand';
+import { makeHand, type Hand } from '../hand';
 import { flashTexture } from './fx';
-import { leftGrip, rightGrip, type Grip } from './grips';
+import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
 import { disposeGun, movePart, partBox, partCenter, type GunModel, type Part } from './models';
+import { kickSpring, spring, stepSpring } from './spring';
 import type { GunSpec } from './weapons';
 
 /** `reloadClip`: recarga por pente-lâmina (Kar98k); `heavy`: golpe pesado da faca (antecipa e estoca) */
@@ -48,6 +49,12 @@ const LOOK_MAX = 0.05;
 const SWAY_MAX = 0.12;
 /** ombros (fixos no espaço da câmera), braço e antebraço (m) e o z mais perto da câmera que a manga pode chegar */
 const SHOULDER = { x: 0.2, y: -0.35, z: 0.1 };
+/**
+ * O ombro esquerdo fica para a frente e para fora (postura de lado, a coronha no ombro direito): o braço de apoio
+ * alcança o guarda-mão sem esticar e o antebraço entra pelo canto de baixo à esquerda, em vez de um tubo atravessando
+ * o meio da tela.
+ */
+const SHOULDER_L = { x: 0.26, y: -0.32, z: -0.08 };
 const UPPER = 0.34;
 const FORE = 0.28;
 const ELBOW_MAX_Z = -0.08;
@@ -64,17 +71,55 @@ const ROT = new THREE.Euler(0, 0, 0, 'YXZ');
 const HIP_KNIFE = new THREE.Vector3(0.17, -0.16, -0.42);
 // baioneta: o pulso fica 7 cm abaixo do cabo (pegada de martelo); sobe para a mão aparecer na tela
 const HIP_BAYONET = new THREE.Vector3(0.16, -0.13, -0.42);
-const HIP_PISTOL = new THREE.Vector3(0.11, -0.105, -0.31);
-const HIP_LONG = new THREE.Vector3(0.14, -0.17, -0.46);
+const HIP_PISTOL = new THREE.Vector3(0.09, -0.085, -0.33);
+/** arma longa no quadril: perto do corpo (mais longe, o braço de apoio não alcança o guarda-mão e a arma "voa" ao mirar) */
+const HIP_LONG = new THREE.Vector3(0.13, -0.15, -0.38);
 const GRIP_R = new THREE.Vector3();
 const LEFT = new THREE.Vector3();
 const MAG = new THREE.Vector3();
 const HANDLE = new THREE.Vector3();
 /** corrida tática: a mão esquerda solta a arma e desce para fora da tela (espaço da câmera) */
 const LEFT_OFF = new THREE.Vector3(-0.22, -0.6, -0.2);
-/** pegando a alavanca por cima: palma para baixo, dedos para a frente (o vão da mão fechada atravessa a alavanca) */
-const OVER_Q = new THREE.Quaternion();
-const OVER_AT = FIST_HOLE.clone().negate();
+/** a mão esquerda pela lateral esquerda da arma: palma para a arma, dedos para a frente, indicador em cima */
+const SIDE_Q = new THREE.Quaternion().setFromRotationMatrix(
+  new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1)),
+);
+/** pegando a alavanca do ferrolho em pinça (dedos, polegar, indicador) */
+const PINCH: [number, number, number] = [0.9, 0.6, 0.7];
+/** o coice nunca traz a arma para mais perto da câmera que isto (z no espaço da câmera do viewmodel) */
+const KICK_Z_MAX = -0.12;
+/** meia espessura da palma (hand.ts) */
+const PALM_HALF = 0.017;
+/**
+ * Recarga vazia, por arma, sem o braço esquerdo passar por cima da arma (cobria 1/3 da tela): tapa no retém do
+ * ferrolho pela esquerda (M4, MP7), alavanca da direita puxada por baixo (AK), alavanca da frente puxada pela esquerda
+ * (MP5), o polegar direito solta o ferrolho da pistola, a mão direita trabalha o ferrolho da sniper.
+ */
+type EmptyKind = 'slap' | 'under' | 'front' | 'pistol' | 'bolt';
+const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
+  m4: 'slap',
+  mp7: 'slap',
+  ak47: 'under',
+  mp5: 'front',
+  l115: 'bolt',
+  m200: 'bolt',
+  m9: 'pistol',
+  deagle: 'pistol',
+};
+/** o gesto da recarga vazia neste quadro (preenchido pelo `emptyGesture`; peças, mãos e o giro da esquerda) */
+const EG = {
+  bolt: 0,
+  charge: 0,
+  boltRot: 0,
+  rightK: 0,
+  thumbR: 0,
+  alt: 0,
+  altQ: SIDE_Q,
+  out: 0,
+  curl: 0.8,
+  thumb: 0.5,
+  at: new THREE.Vector3(),
+};
 /** na recarga, o pulso esquerdo em relação ao fundo do pente: a palma (para cima) encosta embaixo dele (ver grips) */
 const UNDER_MAG = new THREE.Vector3(-0.046, -0.04, 0);
 const LEFT_Q = new THREE.Quaternion();
@@ -91,19 +136,28 @@ export class Viewmodel {
   /** onde ficam as mãos no espaço da arma quando seguram (a animação sai e volta para cá) */
   private readonly rightAt = new THREE.Vector3();
   private readonly leftAt = new THREE.Vector3();
-  private rightCurl: [number, number] = [0.88, 0.5];
-  private leftCurl: [number, number] = [0.75, 0.85];
+  private rightCurl: [number, number, number] = [0.9, 0.5, 0.42];
+  private leftCurl: [number, number, number] = [0.8, 0.8, 0.8];
   /** onde fica o pente parado (espaço da arma), para a mão ir buscar, e o fundo dele (onde a palma encosta) */
   private readonly magHome = new THREE.Vector3();
   private readonly magBottom = new THREE.Vector3();
   /** a alavanca que se vê, parada (espaço da arma): a mão vai até ela na recarga vazia */
   private chargeHome: THREE.Vector3 | null = null;
+  /** o retém do ferrolho (esquerda do receptor, acima do pente): o pulso para o tapa da recarga vazia */
+  private readonly slapAt = new THREE.Vector3();
   private readonly leftQ = new THREE.Quaternion();
   private gun: GunModel | null = null;
   private spec: GunSpec | null = null;
   private action: { kind: VmAction; t: number; ms: number; side: number } | null = null;
-  private kick = 0;
-  private kickV = 0;
+  /** coice da arma (molas da arma): para trás (m), subida do cano, rolagem e lado (rad) */
+  private readonly kBack = spring();
+  private readonly kRise = spring();
+  private readonly kRoll = spring();
+  private readonly kSide = spring();
+  /** a mira do último quadro (o coice mirando é menor) */
+  private adsNow = 0;
+  /** o pente na mão (a mão esquerda segue a peça de verdade) e o meio do fundo dele em relação ao osso */
+  private readonly magFoot = new THREE.Vector3();
   /** tranco curto (mola): pente encaixando, ferrolho fechando, fim do saque, fim do corte */
   private jolt = 0;
   private joltV = 0;
@@ -115,6 +169,8 @@ export class Viewmodel {
   private tacK = 0;
   private slideK = 0;
   private airK = 0;
+  /** a mão esquerda fora da arma (corrida tática): sai junto com a tática e volta mais rápido que a arma */
+  private leftOffK = 0;
   private meleeSide = 1;
   private readonly flash: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly flashLight: THREE.PointLight;
@@ -170,10 +226,10 @@ export class Viewmodel {
     const knife = spec.cls === 'knife';
     this.armL.visible = !knife;
     this.handL.root.visible = !knife;
-    applyGrip(this.handR, rightGrip(spec.cls, g.id, g.handle));
+    applyGrip(this.handR, rightGrip(g, spec.cls));
     this.rightAt.copy(this.handR.root.position);
     this.rightCurl = curlOf(this.handR);
-    applyGrip(this.handL, leftGrip(spec.cls, g.support));
+    applyGrip(this.handL, leftGrip(g, spec.cls));
     this.leftAt.copy(this.handL.root.position);
     this.leftQ.copy(this.handL.root.quaternion);
     this.leftCurl = curlOf(this.handL);
@@ -187,8 +243,13 @@ export class Viewmodel {
     const box = mag ? partBox(g, mag) : null;
     if (box) this.magBottom.set((box.min.x + box.max.x) / 2, box.min.y, (box.min.z + box.max.z) / 2);
     else this.magBottom.copy(this.magHome).add(V.set(0, -0.08, 0));
+    this.magFoot.copy(this.magBottom).sub(this.magHome);
     const handle = g.parts.charge ?? g.parts.slide ?? g.parts.bolt;
     this.chargeHome = handle ? partCenter(g, handle) : null;
+    // o retém fica do lado esquerdo do receptor, logo acima e atrás do poço do pente: a palma encosta nele
+    const top = box ? box.max.y : this.magHome.y;
+    const bz = box ? box.max.z : this.magHome.z;
+    this.slapAt.set(-0.025 - PALM_HALF, top - 0.04, bz + 0.046 - 0.01);
     this.play('draw', knife ? 380 : spec.cls === 'pistol' ? 420 : 600);
   }
 
@@ -198,11 +259,32 @@ export class Viewmodel {
     this.action = { kind, t: 0, ms: Math.max(1, ms), side: this.meleeSide };
     this.joltDone.clear();
     if (kind === 'fire') {
-      this.kickV += this.spec?.cls === 'sniper' ? 2.6 : this.spec?.cls === 'pistol' ? 1.8 : 1.2;
       this.flashUntil = this.now + 45;
       this.flash.rotation.z = Math.random() * Math.PI;
       this.flash.scale.setScalar(this.spec?.cls === 'sniper' ? 1.8 : this.spec?.cls === 'smg' ? 0.9 : 1.2);
     }
+  }
+
+  /**
+   * Tiro: o coice da arma pelas molas dela (`recoil.vm`), a rolagem e o lado no sentido do recuo (`side` ±1); mirando,
+   * menor (a mira de ferro não sai do centro), e o primeiro tiro com `first` do coice.
+   */
+  fire(side: number, first = 1) {
+    const sp = this.spec;
+    if (!sp) return;
+    this.play('fire', 120);
+    const v = sp.recoil.vm;
+    const a = this.adsNow;
+    const k = first;
+    kickSpring(this.kBack, v.k, v.c, v.back * (1 - 0.4 * a) * k);
+    kickSpring(this.kRise, v.k, v.c, v.rise * (1 - 0.65 * a) * k);
+    kickSpring(this.kRoll, v.k, v.c, -v.roll * (1 - 0.6 * a) * side * k);
+    kickSpring(this.kSide, v.k, v.c, -v.side * (1 - 0.6 * a) * side * k);
+  }
+
+  /** o coice de agora (para trás em m e a subida em rad), para as medidas */
+  get kickNow(): { back: number; rise: number; roll: number } {
+    return { back: this.kBack.x, rise: this.kRise.x, roll: this.kRoll.x };
   }
 
   get busy(): VmAction | null {
@@ -226,6 +308,8 @@ export class Viewmodel {
     this.tacK += ((inp.tactical && !inp.slide ? 1 : 0) - this.tacK) * k(10);
     this.slideK += ((inp.slide ? 1 : 0) - this.slideK) * k(12);
     this.airK += ((inp.airborne ? 1 : 0) - this.airK) * k(8);
+    const leftOffTo = inp.tactical && !inp.slide ? 1 : 0;
+    this.leftOffK += (leftOffTo - this.leftOffK) * k(leftOffTo > this.leftOffK ? 10 : 20);
     // balanço: a arma fica para trás do mouse e volta (menos mirando); um tranco de mouse (ou a câmera virando de uma
     // vez) não joga a arma de lado
     const swayK = (1 - inp.ads * 0.85) * mo;
@@ -236,9 +320,10 @@ export class Viewmodel {
     // passo: um oito, mais largo correndo
     const pace = inp.sprint ? (inp.tactical ? 15 : 12) : 8;
     if (inp.moving > 0.05 && !inp.airborne && !inp.slide) this.bob += dt * pace;
-    // coice: mola (sobe e volta)
-    this.kickV += (-this.kick * 170 - this.kickV * 18) * dt;
-    this.kick += this.kickV * dt;
+    // coice: as molas da arma, em passos pequenos (o mesmo pico a 30 e a 144 qps)
+    this.adsNow = inp.ads;
+    const vk = spec.recoil.vm;
+    for (const s of [this.kBack, this.kRise, this.kRoll, this.kSide]) stepSpring(s, vk.k, vk.c, dt);
     this.joltV += (-this.jolt * 260 - this.joltV * 16) * dt;
     this.jolt += this.joltV * dt;
 
@@ -247,14 +332,14 @@ export class Viewmodel {
     const ads = knife ? 0 : ease(inp.ads);
     const hip = knife ? (g.id === 'bayonet' ? HIP_BAYONET : HIP_KNIFE) : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
     // mirando: a linha de mira passa pelo centro da tela, um pouco à frente do olho (na luneta, o olho na ocular)
-    const eyeZ = spec.cls === 'pistol' ? -0.34 : spec.scope ? -0.07 : -0.2;
+    const eyeZ = spec.cls === 'pistol' ? -0.34 : spec.scope ? -0.07 : spec.cls === 'smg' ? -0.25 : -0.2;
     AIM.set(-g.sight.x, -g.sight.y, eyeZ - g.sight.z);
     const pos = POS.copy(hip).lerp(AIM, ads);
     const rot = ROT.set(0, 0, 0, 'YXZ');
     // no quadril, o cano aponta um pouco para o centro da tela (e a faca com a ponta para cima)
     rot.y += (knife ? 0.35 : 0.06) * (1 - ads);
     rot.z += knife ? 0 : -0.08 * (1 - ads);
-    rot.x += knife ? 0.35 : 0;
+    rot.x += knife ? 0.35 : spec.cls === 'pistol' ? 0.05 * (1 - ads) : 0;
     // karambit: a ponta vira para dentro e o pulso gira para a face da lâmina aparecer (de fio, ela some)
     if (g.id === 'karambit') {
       rot.z -= 0.3 * (1 - ads);
@@ -288,25 +373,41 @@ export class Viewmodel {
     // tranco dos encaixes
     rot.x += this.jolt * 0.035 * mo;
     pos.y += this.jolt * 0.004;
-    // coice
-    pos.z += this.kick * (spec.cls === 'sniper' ? 0.06 : 0.04);
-    rot.x += this.kick * (spec.cls === 'sniper' ? 0.22 : 0.1);
-    // peças: ferrolho (e o da pistola) indo e voltando, pente, alavanca, lâmina
+    // coice: para trás (sem chegar na câmera), o cano sobe, rola e vai para o lado
+    pos.z = Math.min(pos.z + this.kBack.x, Math.max(pos.z, KICK_Z_MAX));
+    rot.x += this.kRise.x;
+    rot.z += this.kRoll.x;
+    rot.y += this.kSide.x;
+    // peças: ferrolho (e o da pistola) indo e voltando, pente, alavanca, lâmina, gatilho
     let boltBack = 0;
     let boltRot = 0;
     let chargeBack = 0;
     let bladeRot = 0;
+    let trig = 0;
     /** deslocamento do pente (espaço da arma) */
     MAG.set(0, 0, 0);
     // mãos: onde seguram (a animação puxa para outro ponto e devolve)
     GRIP_R.copy(this.rightAt);
+    /** a mão direita vai até a alavanca do ferrolho (0 no punho, 1 na alavanca) e, na Kar98k, até o pente-lâmina */
     let rightK = 0;
+    let clipK = 0;
+    let clipPress = 0;
     let rightCurl = this.rightCurl[0];
+    let rightThumb = this.rightCurl[1];
+    // o indicador fica no gatilho; correndo, na tática, recarregando ou inspecionando, esticado sobre a armação
+    const offTrigger = Math.max(this.sprintK, this.tacK);
+    let rightIndex = lerp(this.rightCurl[2], TRIGGER_OFF, knife ? 0 : offTrigger);
     LEFT.copy(this.leftAt);
     let leftCurl = this.leftCurl[0];
     let leftThumb = this.leftCurl[1];
-    /** a mão esquerda vira para pegar a alavanca por cima (0 no apoio, 1 na alavanca) */
-    let leftOver = 0;
+    /** a mão esquerda segura o pente (segue a peça de verdade, depois de mexer nela) */
+    let magHold = 0;
+    /** a mão esquerda vira para outro giro (`altQ`: pela lateral ou por cima) e o ombro abre para fora */
+    let leftAlt = 0;
+    let altQ: THREE.Quaternion = SIDE_Q;
+    let shoulderOut = 0;
+    /** a mão esquerda solta a arma e desce para fora da tela (0–1): corrida tática e inspeção da pistola */
+    let leftAway = ease(this.leftOffK);
 
     const a = this.action;
     if (a) {
@@ -318,6 +419,8 @@ export class Viewmodel {
           this.joltV += v;
         }
       };
+      if (a.kind !== 'fire' && a.kind !== 'draw' && !knife)
+        rightIndex = lerp(rightIndex, TRIGGER_OFF, hump(u, 0, 0.1, 0.9, 1));
       switch (a.kind) {
         case 'draw': {
           // vem de baixo, girando, passa um pouco do ponto e assenta (tranco no fim)
@@ -330,14 +433,17 @@ export class Viewmodel {
         }
         case 'fire':
           if (spec.cls !== 'sniper') boltBack = Math.sin(Math.min(1, u * 1.2) * Math.PI) * 0.035;
+          // o indicador aperta e o gatilho vai para trás (~60 ms)
+          trig = hump(u, 0, 0.12, 0.4, 0.6);
+          rightIndex = lerp(rightIndex, this.rightCurl[2] + TRIGGER_SQUEEZE, trig);
           break;
         case 'reload':
         case 'reloadEmpty': {
           const empty = a.kind === 'reloadEmpty';
           const pistol = spec.cls === 'pistol';
           // inclina a arma; a mão de apoio vai ao fundo do pente, ele sai na mão, ela leva embora e traz o novo, encaixa
-          // com um tapa; (vazio) a mão puxa a alavanca; volta para o apoio. A arma sobe e inclina para o pente e a mão
-          // ficarem na tela (a pistola, que fica baixa, sobe mais)
+          // com um tapa; (vazio) o ferrolho estava aberto e fecha com o gesto da arma; volta para o apoio. A arma sobe e
+          // inclina para o pente e a mão ficarem na tela (a pistola, que fica baixa, sobe mais)
           const tilt = hump(u, 0, 0.15, 0.85, 1);
           rot.z -= tilt * 0.55 * mo;
           rot.x += tilt * (pistol ? 0.45 : 0.3);
@@ -345,44 +451,22 @@ export class Viewmodel {
           pos.x -= tilt * 0.03;
           joltAt('out', 0.2, -1.2);
           joltAt('seat', 0.62, 2.4);
-          if (empty) joltAt('release', 0.84, 2);
           // a mão chega ao pente (0,08–0,18) e fica com ele até encaixar (0,62); o pente desce na mão (0,18–0,32), vai
           // embora com ela e volta (0,32–0,55) e encaixa (0,55–0,62)
           const reachK = pistol ? 0.05 : 0.12;
           const drop = ease(seg(u, 0.18, 0.32)) * (1 - ease(seg(u, 0.55, 0.62))) * reachK;
           const away = hump(u, 0.32, 0.43, 0.44, 0.55);
           MAG.set(-0.06 * away, -drop - (pistol ? 0.05 : 0.1) * away, 0.04 * away);
-          const toMag = hump(u, 0.08, 0.18, 0.62, 0.74);
-          if (pistol)
-            V.copy(this.magHome)
-              .add(MAG)
-              .add(W1.set(-0.03, -0.075, 0.02));
-          else V.copy(this.magBottom).add(MAG).add(UNDER_MAG);
-          LEFT.lerp(V, toMag);
-          leftCurl = lerp(leftCurl, 0.75, toMag);
-          leftThumb = lerp(leftThumb, 0.6, toMag);
-          if (empty) {
-            // a mão esquerda vai até a alavanca, puxa e solta
-            const reach = hump(u, 0.64, 0.7, 0.82, 0.9);
-            const pull = hump(u, 0.7, 0.75, 0.77, 0.82);
-            chargeBack = pull * 0.07;
-            boltBack = Math.max(boltBack, pull * 0.05);
-            rot.x += pull * 0.06;
-            // a alavanca que se vê (não a origem do osso): a mão vem por cima, fecha nela e puxa para trás
-            if (this.chargeHome) {
-              HANDLE.copy(this.chargeHome);
-              HANDLE.z += Math.max(chargeBack, boltBack);
-              LEFT.lerp(HANDLE.add(OVER_AT), reach);
-              leftCurl = lerp(leftCurl, 0.8, reach);
-              leftThumb = lerp(leftThumb, 0.7, reach);
-              leftOver = reach;
-            }
-          }
+          magHold = hump(u, 0.08, 0.18, 0.62, 0.74);
+          leftCurl = lerp(leftCurl, 0.85, magHold);
+          leftThumb = lerp(leftThumb, 0.6, magHold);
+          if (empty) this.emptyGesture(u, joltAt);
           break;
         }
         case 'reloadClip': {
-          // pente-lâmina (Kar98k): a mão direita abre o ferrolho (gira e puxa), o polegar esquerdo empurra as balas duas
-          // vezes por cima do receptor, o ferrolho fecha e a mão direita volta ao punho
+          // pente-lâmina (Kar98k), tudo com a mão direita (a esquerda fica no guarda-mão, o braço não cruza a tela): abre
+          // o ferrolho (gira e puxa), vai ao pente por cima da janela e o polegar empurra as balas duas vezes, volta à
+          // alavanca, fecha o ferrolho e volta ao delgado
           const tilt = hump(u, 0, 0.12, 0.85, 1);
           rot.z -= tilt * 0.3 * mo;
           rot.x += tilt * 0.15;
@@ -390,28 +474,21 @@ export class Viewmodel {
           boltRot = hump(u, 0.08, 0.18, 0.74, 0.82) * 1.2;
           boltBack = hump(u, 0.18, 0.3, 0.66, 0.74) * 0.09;
           rightK = hump(u, 0.0, 0.08, 0.84, 0.94);
-          rightCurl = lerp(rightCurl, 0.6, rightK);
+          clipK = hump(u, 0.3, 0.38, 0.6, 0.68);
+          clipPress = hump(u, 0.4, 0.44, 0.46, 0.5) + hump(u, 0.5, 0.54, 0.56, 0.6);
+          rightCurl = lerp(rightCurl, PINCH[0], rightK);
+          rightThumb = lerp(rightThumb, PINCH[1], rightK);
+          rightIndex = lerp(rightIndex, PINCH[2], rightK);
+          rightThumb = lerp(rightThumb, 0.15 + clipPress * 0.5, clipK);
           joltAt('open', 0.3, -1);
           joltAt('press1', 0.46, 1.2);
-          joltAt('press2', 0.58, 1.2);
+          joltAt('press2', 0.56, 1.2);
           joltAt('close', 0.8, 1.8);
-          if (this.chargeHome) {
-            // a mão esquerda por cima do receptor (na frente do ferrolho aberto), o polegar empurra para baixo duas vezes
-            const over = hump(u, 0.26, 0.36, 0.62, 0.7);
-            const press = hump(u, 0.4, 0.44, 0.46, 0.5) + hump(u, 0.52, 0.56, 0.58, 0.62);
-            HANDLE.copy(this.chargeHome).add(OVER_AT);
-            HANDLE.y += 0.03 - press * 0.025;
-            HANDLE.z -= 0.04;
-            LEFT.lerp(HANDLE, over);
-            leftCurl = lerp(leftCurl, 0.5, over);
-            leftThumb = lerp(leftThumb, 0.2 + press * 0.6, over);
-            leftOver = over;
-          }
           break;
         }
         case 'bolt': {
-          // sniper: abaixa um pouco; a mão direita sai do punho, pega a alavanca, gira, puxa, empurra, gira de volta
-          // e volta para o punho
+          // sniper: abaixa um pouco; a mão direita sai do punho, pega a alavanca em pinça, gira, puxa, empurra, gira de
+          // volta e volta para o punho
           const w = hump(u, 0, 0.12, 0.85, 1);
           pos.y -= w * 0.02;
           rot.z -= w * 0.15 * mo;
@@ -420,7 +497,9 @@ export class Viewmodel {
           joltAt('back', 0.45, -1);
           joltAt('close', 0.8, 1.8);
           rightK = hump(u, 0.02, 0.12, 0.8, 0.95);
-          rightCurl = lerp(rightCurl, 0.6, rightK);
+          rightCurl = lerp(rightCurl, PINCH[0], rightK);
+          rightThumb = lerp(rightThumb, PINCH[1], rightK);
+          rightIndex = lerp(rightIndex, PINCH[2], rightK);
           break;
         }
         case 'melee': {
@@ -471,6 +550,12 @@ export class Viewmodel {
           rot.z += w * 0.5;
           pos.x -= w * 0.08;
           pos.y += w * 0.04;
+          // pistola: inspeciona com uma mão só (a de apoio não tem onde segurar com a arma virada), um pouco mais longe
+          if (spec.cls === 'pistol') {
+            leftAway = Math.max(leftAway, w);
+            pos.z -= 0.06 * w;
+            pos.x += 0.04 * w;
+          }
           if (g.id === 'bayonet') {
             rot.y += w * lerp(0.9, -0.9, ease(seg(u, 0.4, 0.6)));
             rot.x -= w * 0.3;
@@ -480,51 +565,144 @@ export class Viewmodel {
       }
       if (u >= 1) this.action = null;
     }
-    // pegando a alavanca por cima: a arma vai para a frente e para a esquerda e inclina, a alavanca vem para a mão (o
-    // antebraço esquerdo não passa na frente da câmera)
-    if (leftOver > 0) {
-      pos.z -= 0.1 * leftOver;
-      pos.x -= 0.05 * leftOver;
-      pos.y -= 0.02 * leftOver;
-      rot.z += 0.25 * leftOver;
+    // gesto da recarga vazia (calculado no `emptyGesture`)
+    if (a?.kind === 'reloadEmpty' && a.t < a.ms) {
+      boltBack = Math.max(boltBack, EG.bolt);
+      chargeBack = EG.charge;
+      rightK = Math.max(rightK, EG.rightK);
+      boltRot = Math.max(boltRot, EG.boltRot);
+      if (EG.rightK > 0) {
+        rightCurl = lerp(rightCurl, PINCH[0], EG.rightK);
+        rightThumb = lerp(rightThumb, PINCH[1], EG.rightK);
+        rightIndex = lerp(rightIndex, PINCH[2], EG.rightK);
+      }
+      rightThumb = lerp(rightThumb, 0.05, EG.thumbR);
+      leftAlt = EG.alt;
+      altQ = EG.altQ;
+      shoulderOut = EG.alt * EG.out;
+      leftCurl = lerp(leftCurl, EG.curl, EG.alt);
+      leftThumb = lerp(leftThumb, EG.thumb, EG.alt);
     }
 
     this.sway.position.set(0, 0, 0);
     this.holder.position.copy(pos);
     this.holder.rotation.copy(rot);
     movePart(g.parts.mag, MAG);
+    // os cartuchos só aparecem com o pente fora do lugar (o modelo é oco: no lugar, eles vazavam pela culatra)
+    if (g.rounds) g.rounds.visible = MAG.lengthSq() > 1e-6;
     movePart(g.parts.bolt, V.set(0, 0, boltBack), 0);
     movePart(g.parts.slide, V.set(0, 0, boltBack));
     movePart(g.parts.charge, V.set(0, 0, chargeBack));
     movePart(g.parts.boltRot, V.set(0, 0, boltBack), boltRot);
+    movePart(g.parts.trigger, V.set(0, 0, 0.004 * trig));
     if (g.parts.blade) g.parts.blade.obj.rotation.z = bladeRot;
     this.holder.updateMatrixWorld(true);
-    // ferrolho: a mão direita segue a alavanca (que já está no lugar deste quadro)
+    // recarga: a mão esquerda segue o fundo do pente de verdade (já no lugar deste quadro), a palma por baixo dele
+    if (magHold > 0) {
+      if (g.parts.mag) partNow(g.parts.mag, this.holder, V).add(this.magFoot);
+      else V.copy(this.magBottom).add(MAG);
+      if (spec.cls === 'pistol') V.add(W1.set(-0.03, -0.035, 0.02));
+      else V.add(UNDER_MAG);
+      LEFT.lerp(V, magHold);
+    }
+    // gesto da recarga vazia: a mão esquerda vai pela lateral (ou por baixo) até a peça
+    if (leftAlt > 0) LEFT.lerp(EG.at, leftAlt);
+    // ferrolho: a mão direita segue a alavanca (que já está no lugar deste quadro); na Kar98k, vai ao pente-lâmina
     if (rightK > 0) {
       const handle = g.parts.charge ?? g.parts.boltRot ?? g.parts.bolt;
       if (handle) {
         partNow(handle, this.holder, HANDLE);
-        GRIP_R.lerp(HANDLE.add(V.set(0.03, -0.025, 0.06)), rightK);
+        HANDLE.add(V.set(0.034, -0.03, 0.062));
+        if (clipK > 0 && this.chargeHome) {
+          // pente-lâmina: o polegar em cima da janela do ferrolho aberto, empurrando para baixo
+          W1.copy(this.chargeHome).add(V.set(0.03, 0.035 - clipPress * 0.02, 0.0));
+          HANDLE.lerp(W1, clipK);
+        }
+        GRIP_R.lerp(HANDLE, rightK);
       }
     }
     this.handR.root.position.copy(GRIP_R);
-    this.handR.setCurl(rightCurl, this.rightCurl[1]);
-    // corrida tática: a mão esquerda solta e desce para fora da tela (o braço não estica até a arma)
-    if (this.tacK > 0.01) LEFT.lerp(this.holder.worldToLocal(V.copy(LEFT_OFF)), this.tacK);
+    this.handR.setCurl(rightCurl, rightThumb, rightIndex);
+    // a mão esquerda solta e desce para fora da tela (o braço não estica até a arma). A conta é no espaço da câmera:
+    // no da arma, que gira ~0,9 rad saindo da tática, a mão passava pelo meio da tela, aberta e solta
+    if (leftAway > 1e-3) {
+      this.holder.localToWorld(LEFT).lerp(LEFT_OFF, leftAway);
+      this.holder.worldToLocal(LEFT);
+    }
     this.handL.root.position.copy(LEFT);
-    this.handL.root.quaternion.copy(LEFT_Q.copy(this.leftQ).slerp(OVER_Q, leftOver));
+    this.handL.root.quaternion.copy(LEFT_Q.copy(this.leftQ).slerp(altQ, leftAlt));
     this.handL.setCurl(leftCurl, leftThumb);
     this.handR.root.updateMatrixWorld(true);
     this.handL.root.updateMatrixWorld(true);
     // braços: do ombro (fixo na câmera) até o pulso de cada mão
     placeArm(this.armR, this.handR.root.getWorldPosition(W1), 1);
-    if (this.armL.visible) placeArm(this.armL, this.handL.root.getWorldPosition(W1), -1, leftOver);
+    if (this.armL.visible) placeArm(this.armL, this.handL.root.getWorldPosition(W1), -1, shoulderOut);
     // clarão da boca
     const on = now < this.flashUntil;
     this.flash.visible = on;
     this.flash.position.copy(g.muzzle).add(V.set(0, 0, -0.03));
     this.flashLight.position.copy(this.flash.position);
     this.flashLight.intensity = on ? 3 : 0;
+  }
+
+  /** o gesto da recarga vazia no momento `u` (0–1): preenche `EG` (ver `EMPTY_GESTURE`) */
+  private emptyGesture(u: number, joltAt: (key: string, at: number, v: number) => void) {
+    EG.bolt = EG.charge = EG.boltRot = EG.rightK = EG.thumbR = EG.alt = EG.out = 0;
+    EG.altQ = SIDE_Q;
+    const kind = this.gun ? EMPTY_GESTURE[this.gun.id] : undefined;
+    const ch = this.chargeHome;
+    switch (kind) {
+      case 'slap': {
+        // o ferrolho ficou aberto: a palma bate no retém pela esquerda e ele fecha
+        EG.bolt = u < 0.76 ? 0.05 : 0;
+        EG.alt = hump(u, 0.64, 0.72, 0.8, 0.9);
+        EG.at.copy(this.slapAt).add(V.set(-0.012 * (1 - ease(seg(u, 0.7, 0.76))), 0, 0));
+        EG.curl = 0.25;
+        EG.thumb = 0.25;
+        EG.out = 0.3;
+        joltAt('release', 0.76, 2);
+        break;
+      }
+      case 'under': {
+        // a mão passa por baixo do receptor, palma para cima, os dedos puxam a alavanca da direita e soltam
+        if (!ch) break;
+        const pull = hump(u, 0.7, 0.75, 0.77, 0.82);
+        EG.charge = EG.bolt = pull * 0.07;
+        EG.alt = hump(u, 0.64, 0.7, 0.82, 0.9);
+        EG.altQ = this.leftQ;
+        EG.at.copy(ch).add(V.set(-0.075, -0.05, 0.01 + EG.charge));
+        EG.curl = 0.92;
+        EG.thumb = 0.8;
+        joltAt('release', 0.82, 2);
+        break;
+      }
+      case 'front': {
+        // alavanca da frente, à esquerda do tubo: a mão vai pela lateral, puxa para trás e solta com um tapa
+        if (!ch) break;
+        const pull = hump(u, 0.7, 0.74, 0.76, 0.8);
+        EG.charge = EG.bolt = pull * 0.06;
+        EG.alt = hump(u, 0.64, 0.7, 0.82, 0.9);
+        EG.at.copy(ch).add(V.set(-0.02 - PALM_HALF, -0.01, 0.046 + EG.charge));
+        EG.curl = 0.85;
+        EG.thumb = 0.7;
+        EG.out = 0.4;
+        joltAt('release', 0.8, 2);
+        break;
+      }
+      case 'pistol':
+        // o ferrolho ficou aberto: o polegar direito aperta o retém e ele fecha (a mão esquerda não sai do apoio)
+        EG.bolt = u < 0.8 ? 0.035 : 0;
+        EG.thumbR = hump(u, 0.72, 0.77, 0.8, 0.86);
+        joltAt('release', 0.8, 2);
+        break;
+      case 'bolt':
+        // sniper: depois do pente, a mão direita trabalha o ferrolho
+        EG.rightK = hump(u, 0.64, 0.7, 0.9, 0.97);
+        EG.boltRot = hump(u, 0.7, 0.75, 0.84, 0.88) * 1.2;
+        EG.bolt = hump(u, 0.75, 0.79, 0.8, 0.84) * 0.09;
+        joltAt('release', 0.86, 1.8);
+        break;
+    }
   }
 
   /** desenha por cima do que já está na tela */
@@ -568,28 +746,33 @@ function partHome(p: Part, holder: THREE.Object3D, out: THREE.Vector3) {
   return partNow(p, holder, out);
 }
 
-function curlOf(h: Hand): [number, number] {
-  return (h.root.userData.curl as [number, number] | undefined) ?? [0.8, 0.6];
+function curlOf(h: Hand): [number, number, number] {
+  return (h.root.userData.curl as [number, number, number] | undefined) ?? [0.8, 0.6, 0.8];
 }
-function setGrip(h: Hand, c: number, t: number) {
-  h.root.userData.curl = [c, t];
-  h.setCurl(c, t);
+function setGrip(h: Hand, c: number, t: number, i: number) {
+  h.root.userData.curl = [c, t, i];
+  h.setCurl(c, t, i);
 }
 
 /** manga do braço (do ombro ao cotovelo) e do antebraço (do cotovelo ao pulso); a mão é a `Hand`, presa à arma */
 function arm(): THREE.Group {
   const g = new THREE.Group();
   const cloth = new THREE.MeshStandardMaterial({ color: 0x3b4436, roughness: 0.9 });
-  const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, FORE, 4, 10), cloth);
+  // antebraço afinando do cotovelo (0,034) ao pulso (0,026), com o punho da manga na ponta (sem ponta redonda): mais
+  // grosso, o antebraço de apoio virava o maior objeto da tela no quadril
+  const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.034, FORE + 0.072, 12), cloth);
   fore.name = 'fore';
   const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, UPPER, 4, 10), cloth.clone());
   upper.name = 'upper';
   const cuff = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.04, 0.04, 0.05, 12),
+    new THREE.CylinderGeometry(0.029, 0.03, 0.045, 12),
     new THREE.MeshStandardMaterial({ color: 0x2a3026, roughness: 0.9 }),
   );
   cuff.name = 'cuff';
-  g.add(fore, upper, cuff);
+  // cotovelo redondo (a ponta do antebraço afinado é reta)
+  const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.036, 12, 8), cloth);
+  elbow.name = 'elbow';
+  g.add(fore, upper, cuff, elbow);
   return g;
 }
 
@@ -603,7 +786,9 @@ const POLE = new THREE.Vector3();
  * braço chega à alavanca vindo do lado, sem atravessar a tela na frente da arma.
  */
 function shoulderAt(side: number, over: number, out: THREE.Vector3) {
-  return out.set(SHOULDER.x * side * (1 + 0.7 * over), SHOULDER.y + 0.05 * over, SHOULDER.z - 0.1 * over);
+  // o ombro esquerdo um pouco mais aberto: o antebraço de apoio entra pela diagonal do canto de baixo à esquerda
+  const s = side < 0 ? SHOULDER_L : SHOULDER;
+  return out.set(s.x * side * (1 + 0.7 * over), s.y + 0.05 * over, s.z - 0.1 * over);
 }
 
 /**
@@ -630,13 +815,15 @@ function placeArm(g: THREE.Group, at: THREE.Vector3, side: number, over = 0) {
   const upper = g.getObjectByName('upper')!;
   const cuff = g.getObjectByName('cuff')!;
   solveElbow(at, side, ELBOW, over);
+  g.getObjectByName('elbow')!.position.copy(ELBOW);
   // antebraço: do cotovelo ao pulso (estica a cápsula se o cotovelo foi empurrado)
   DIRV.copy(at).sub(ELBOW);
   const fl = DIRV.length();
   DIRV.divideScalar(fl || 1);
-  // nunca estica a manga além do tamanho (vira um tubo atravessando a tela): presa no pulso; se a mão não alcança, o
-  // vão fica no cotovelo
-  const k = Math.min(1, fl / (FORE + 0.072));
+  // presa no pulso e indo até o cotovelo: com a mão longe (apoio no guarda-mão no quadril), o braço fica esticado e a
+  // manga estica junto — se parasse no tamanho, a ponta reta do antebraço aparecia no meio de baixo da tela, solta do
+  // cotovelo (fuzis no quadril). Teto de 2× para um pulso fora do lugar não virar um tubo atravessando a tela
+  const k = Math.min(2, fl / (FORE + 0.072));
   fore.position.copy(at).addScaledVector(DIRV, (-(FORE + 0.072) * k) / 2);
   fore.quaternion.setFromUnitVectors(UP, DIRV);
   fore.scale.set(1, k, 1);
@@ -656,5 +843,5 @@ function placeArm(g: THREE.Group, at: THREE.Vector3, side: number, over = 0) {
 function applyGrip(h: Hand, g: Grip) {
   h.root.position.copy(g.pos);
   h.root.quaternion.copy(g.quat);
-  setGrip(h, g.curl[0], g.curl[1]);
+  setGrip(h, g.curl[0], g.curl[1], g.curl[2]);
 }

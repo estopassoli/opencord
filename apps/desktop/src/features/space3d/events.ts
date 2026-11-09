@@ -56,7 +56,7 @@ export type GameEvent = Base &
     // gunfight (2026-11-09)
     | { kind: 'gunshot'; by: string; w: GunId }
     | { kind: 'impact'; flesh: boolean; head: boolean }
-    | { kind: 'gunfx'; what: GunFx; w: GunId }
+    | { kind: 'gunfx'; what: GunFx; w: GunId; by?: string }
   );
 
 /** sons curtos da arma e do jogador no gunfight */
@@ -67,6 +67,8 @@ export type GunFx =
   | 'charge'
   | 'boltOpen'
   | 'boltClose'
+  /** o ferrolho puxado para trás (entre abrir e fechar) */
+  | 'boltPull'
   | 'dry'
   | 'hitmarker'
   | 'headshot'
@@ -75,6 +77,8 @@ export type GunFx =
   | 'slide'
   | 'land'
   | 'swing'
+  /** um passo (meu, de outra pessoa ou de um bot; `by` = de quem) */
+  | 'step'
   /** ligou a corrida tática (dois toques no correr): sem som, serve ao tutorial */
   | 'tactical';
 

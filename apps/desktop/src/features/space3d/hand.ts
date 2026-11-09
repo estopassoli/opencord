@@ -25,7 +25,7 @@ const THUMB = [0.036, 0.03];
 const R = 0.0085;
 /** passo do cache de poses (curl e polegar arredondados) e quantas poses guardar no máximo */
 const STEP = 0.05;
-const CACHE_MAX = 96;
+const CACHE_MAX = 160;
 
 /**
  * Centro do vão dos dedos fechados (onde passa um cabo), no espaço da mão, com os dedos em ~0,95. Medido na malha da
@@ -37,8 +37,11 @@ export const FIST_CURL = 0.95;
 
 export interface Hand {
   root: THREE.Group;
-  /** fecha os dedos (0–1); o polegar fecha junto, um pouco menos */
-  setCurl(c: number, thumb?: number): void;
+  /**
+   * fecha os dedos (0–1); o polegar fecha junto, um pouco menos. `index` é o indicador à parte (no gatilho, ~0,4; na
+   * argola da karambit, fechado); sem ele, o indicador fecha como os outros
+   */
+  setCurl(c: number, thumb?: number, index?: number): void;
   dispose(): void;
 }
 
@@ -131,11 +134,28 @@ function buildRig(side: 1 | -1): Rig {
   return { root, joints, thumbBase, thumb, pieces };
 }
 
-/** põe as juntas na pose (`c` dedos, `t` polegar) */
-export function poseRig(rig: Rig, side: 1 | -1, c: number, t: number) {
+/** quanto cada junta dobra com o dedo fechado (base, meio e ponta, rad por unidade de `curl`) */
+const BEND = [1.35, 1.55, 1.1] as const;
+/**
+ * Indicador separado dos outros (no gatilho): a base quase reta, ao longo da armação, e o meio dobrado para a polpa
+ * da ponta encostar na lâmina (dedo de gatilho de verdade, que não enrola no punho); a base abre para o lado do
+ * polegar, o que leva o dedo para cima do guarda-mato no punho inclinado. Medido com a ponta na lâmina
+ * (`grips.ts`, `TRIGGER_CURL`).
+ */
+const TRIGGER_BEND = [0.3, 2.2, 1.1] as const;
+const TRIGGER_SPLAY = 0.8;
+
+/** põe as juntas na pose (`c` dedos, `t` polegar, `ix` indicador) */
+export function poseRig(rig: Rig, side: 1 | -1, c: number, t: number, ix = c) {
+  // o indicador vira "dedo de gatilho" quando fica mais aberto que os outros (0,05 já basta: o aperto não desmonta)
+  const split = Math.max(0, Math.min(1, (c - ix) / 0.05));
   // dobra para o lado da palma (−y): girar em −x leva o −z para −y
-  for (const chain of rig.joints)
-    chain.forEach((j, i) => (j.rotation.x = -c * (i === 0 ? 1.35 : i === 1 ? 1.55 : 1.1)));
+  rig.joints.forEach((chain, f) => {
+    const cf = f === 0 ? ix : c;
+    const sp = f === 0 ? split : 0;
+    chain.forEach((j, i) => (j.rotation.x = -cf * (BEND[i]! * (1 - sp) + TRIGGER_BEND[i]! * sp)));
+    chain[0]!.rotation.y = sp * TRIGGER_SPLAY * side;
+  });
   // oposição (gira no próprio eixo para a polpa olhar os dedos), aponta para dentro e desce para a palma ao fechar
   // aberta, o polegar abre para fora do indicador (~30°); fechando, cruza por cima dos dedos
   rig.thumbBase.rotation.set(-t * 0.5, 0.55 * side, 0.8 * side, 'XYZ');
@@ -148,8 +168,8 @@ const cache = new Map<string, { geo: THREE.BufferGeometry; refs: number }>();
 const M = new THREE.Matrix4();
 
 /** a geometria juntada da mão nesta pose (do cache, ou montada agora) */
-function handGeometry(side: 1 | -1, c: number, t: number): { key: string; geo: THREE.BufferGeometry } {
-  const key = `${side}:${c.toFixed(2)}:${t.toFixed(2)}`;
+function handGeometry(side: 1 | -1, c: number, t: number, ix: number): { key: string; geo: THREE.BufferGeometry } {
+  const key = `${side}:${c.toFixed(2)}:${t.toFixed(2)}:${ix.toFixed(2)}`;
   const hit = cache.get(key);
   if (hit) {
     // a mais usada por último vai para o fim (a primeira do mapa é a mais antiga)
@@ -159,7 +179,7 @@ function handGeometry(side: 1 | -1, c: number, t: number): { key: string; geo: T
   }
   let rig = rigs.get(side);
   if (!rig) rigs.set(side, (rig = buildRig(side)));
-  poseRig(rig, side, c, t);
+  poseRig(rig, side, c, t, ix);
   rig.root.updateMatrixWorld(true);
   const parts = rig.pieces.map((p) => p.geo.clone().applyMatrix4(M.copy(p.at.matrixWorld)));
   const geo = mergeGeometries(parts, false) ?? new THREE.BufferGeometry();
@@ -188,8 +208,8 @@ export function makeHand(color: THREE.ColorRepresentation, side: 1 | -1): Hand {
   let key: string | null = null;
   const hand: Hand = {
     root,
-    setCurl(c, t = c * 0.8) {
-      const g = handGeometry(side, q(c), q(t));
+    setCurl(c, t = c * 0.8, ix = c) {
+      const g = handGeometry(side, q(c), q(t), q(ix));
       if (g.key === key) return;
       if (key) {
         const old = cache.get(key);

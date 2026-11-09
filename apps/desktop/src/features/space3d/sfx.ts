@@ -17,6 +17,7 @@ import {
   sfxFor,
   sfxMix,
   sfxPan,
+  SFX_FAR_M,
   SUPERSEDE_MS,
   SUPERSEDES,
   type Listener,
@@ -111,6 +112,7 @@ export const RECIPES: Record<SfxName, Part[]> = {
   charge: [noise('bandpass', 2200, 0.05, 0.7, { q: 3 }), noise('bandpass', 1600, 0.05, 0.8, { q: 3, t: 0.12 })],
   boltOpen: [noise('bandpass', 1800, 0.06, 0.7, { q: 4 }), tone(700, 0.04, 0.4, { f2: 900, t: 0.04 })],
   boltClose: [tone(900, 0.04, 0.4, { f2: 600 }), noise('bandpass', 1400, 0.05, 0.8, { q: 4, t: 0.03 })],
+  boltPull: [noise('bandpass', 1100, 0.09, 0.6, { q: 2, f2: 800 })],
   dryFire: [tone(1500, 0.015, 0.5, { type: 'square' })],
   hitmarker: [tone(2600, 0.03, 0.5, { type: 'triangle' }), noise('highpass', 5000, 0.02, 0.3)],
   headshot: [tone(3100, 0.05, 0.6, { type: 'triangle' }), tone(4200, 0.08, 0.3, { t: 0.02 })],
@@ -121,6 +123,10 @@ export const RECIPES: Record<SfxName, Part[]> = {
   impactWall: [noise('bandpass', 2500, 0.04, 0.6, { q: 2 }), tone(1200, 0.03, 0.2, { f2: 700 })],
   impactFlesh: [noise('lowpass', 700, 0.06, 0.7), tone(140, 0.05, 0.4, { f2: 90 })],
   drawGun: [noise('bandpass', 1400, 0.08, 0.4, { q: 2, f2: 2200 }), tone(800, 0.03, 0.3, { type: 'square', t: 0.08 })],
+  // passo no asfalto: um baque abafado curto
+  step: [noise('lowpass', 900, 0.05, 0.35), tone(70, 0.04, 0.3)],
+  // tiro de longe: sem o estalo, só o estrondo grave que chega abafado
+  shotFar: [noise('lowpass', 900, 0.3, 0.6, { f2: 300 }), tone(60, 0.15, 0.6, { f2: 35 })],
   // bola de borracha: "tum" grave caindo e um estalo curto
   bounce: [tone(180, 0.07, 1, { f2: 70 }), noise('lowpass', 1200, 0.012, 0.4)],
   // bolinha na mesa: "tic" agudo e seco
@@ -388,7 +394,11 @@ export class Sfx {
   }
 
   cue(c: SfxCue, o: PlayOpts = {}): boolean {
-    return this.play(c.name, { ...o, gain: c.gain, pitch: c.pitch ?? o.pitch, info: c.info ?? o.info });
+    let name = c.name;
+    if (c.far && o.at && Math.hypot(o.at.x - this.listener.x, o.at.z - this.listener.z) > SFX_FAR_M) name = c.far;
+    let pitch = c.pitch ?? o.pitch;
+    if (c.jitter) pitch = (pitch ?? 1) * (1 + c.jitter * (2 * Math.random() - 1));
+    return this.play(name, { ...o, gain: c.gain, pitch, info: c.info ?? o.info });
   }
 
   /** som da interface (menu, contagem): sem distância nem zona */

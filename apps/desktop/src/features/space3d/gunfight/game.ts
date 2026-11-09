@@ -22,12 +22,12 @@ import { GunFx } from './fx';
 import { GUN_BOXES, pickSpawn } from './map';
 import { loadGuns, makeGun } from './models';
 import { MOVE, newMove, pressCrouch, pressJump, pressRun, sliding, stepMove, type MoveState } from './movement';
+import { kickSpring, spring, stepSpring } from './spring';
 import { useGunHud, type KillFeedItem, type ScoreRow } from './state';
 import { Viewmodel } from './viewmodel';
 import {
   BASH,
   EYE,
-  FFA_TARGET,
   GUNS,
   HEAVY,
   MAX_HP,
@@ -36,17 +36,26 @@ import {
   REGEN_PER_S,
   RESPAWN_MS,
   WINNER_MS,
+  MATCH_MS,
   aimDir,
+  ffaTarget,
+  burstNow,
   castShot,
+  firstShotK,
   damageAt,
   lineOfSight,
   lookAt,
   maxDamage,
+  recoilKick,
+  recoilMul,
+  shotIndex,
   shotInterval,
-  spreadNow,
+  shotSpread,
   type GunClass,
   type GunSlot,
   type Loadout,
+  type RecoilSpec,
+  type ShotState,
   type Target,
   type V3,
 } from './weapons';
@@ -67,6 +76,11 @@ export interface GunPlayer {
   d?: number;
   /** a arma na mão (da pose; ausente em app antigo) */
   w?: GunId;
+  /** acabou de nascer e está protegido (não leva dano) */
+  prot?: boolean;
+  /** o alvo de abates e quantos segundos faltam na partida dele (para todos usarem o mesmo relógio) */
+  ft?: number;
+  fl?: number;
 }
 
 /** o boneco de um bot (a cena cria e desenha) */
@@ -111,6 +125,8 @@ export interface GunHost {
   paused?(): boolean;
   /** acertei este boneco: brilho e tranco no corpo dele */
   hitFx?(id: string): void;
+  /** altura da área 3D na tela (px): a mira em pixels sai dela (a área pode ser menor que a janela) */
+  viewHeight?(): number;
   /** um boneco para os bots (a cena cria e desenha) */
   spawnAvatar(id: string, name: string): BotAvatar;
 }
@@ -121,7 +137,16 @@ export interface BotPose {
   z: number;
   ry: number;
   a: number;
-  gun: { w: GunId; pitch: number; crouch: boolean; ads: boolean; alive: boolean; act?: GunAct; an?: number };
+  gun: {
+    w: GunId;
+    pitch: number;
+    crouch: boolean;
+    ads: boolean;
+    alive: boolean;
+    act?: GunAct;
+    an?: number;
+    prot?: boolean;
+  };
 }
 
 /** pose da arma que vai para a rede e para o meu boneco */
@@ -136,6 +161,11 @@ export interface GunPose {
   /** a última ação, com um contador (a mesma ação de novo troca o número e toca de novo) */
   act?: GunAct;
   an?: number;
+  /** acabou de nascer: não leva dano (o boneco fica meio transparente para os outros) */
+  prot?: boolean;
+  /** o alvo de abates da partida e os segundos que faltam */
+  ft: number;
+  fl: number;
 }
 
 interface Ammo {
@@ -156,8 +186,6 @@ export const SPRINT_OUT_MS: Record<GunClass, number> = { ar: 180, smg: 140, pist
 const TACTICAL_OUT_K = 1.25;
 /** um clique guardado vale por tanto tempo (ms): sai assim que a arma puder atirar */
 const FIRE_BUFFER_MS = 320;
-/** parte do recuo que fica (sobe a mira de vez); o resto é o tranco visual que volta */
-const RECOIL_KEEP: Record<GunClass, number> = { ar: 0.7, smg: 0.75, pistol: 0.6, sniper: 0.3, knife: 0 };
 /** com quantas pessoas de verdade na arena os bots saem (conferido a cada tanto) */
 const BOT_CHECK_MS = 500;
 /**
@@ -170,9 +198,17 @@ const HIT_BUNCH_MS = 500;
 const SWAP_GRACE_MS = 1000;
 /** folga do alcance do golpe (m): a posição desenhada anda atrás da de verdade */
 const MELEE_SLACK = 1.5;
-/** mola do tranco do recuo: passo máximo (s), limite (rad) */
-const PUNCH_STEP = 1 / 120;
+/** limite do tranco da vista (rad) */
 const PUNCH_MAX = 0.15;
+/** tiros que podem sair num quadro só (quadro lento: a cadência não cai com o fps) */
+const MAX_SHOTS_PER_FRAME = 3;
+/** proteção ao nascer (ms): não leva dano até lá, ou até o primeiro tiro */
+export const SPAWN_PROT_MS = 1500;
+/** passada (m) andando e correndo: um som de passo a cada uma */
+export const STEP_WALK = 0.55;
+export const STEP_RUN = 0.8;
+/** relógio da partida: o de outra pessoa só vale se estiver tanto à frente do meu (ms) */
+const CLOCK_SLACK_MS = 3000;
 /** terceira pessoa parado: o corpo só gira para a mira depois desta diferença (rad) e no máximo nesta velocidade */
 const TURN_DEADZONE = 0.87;
 const TURN_RATE = 10;
@@ -217,11 +253,26 @@ export class GunGame {
   private readyAt = 0;
   private wasSprint = false;
   private wasTactical = false;
-  private shotsInBurst = 0;
+  /**
+   * tiros da rajada (fração: esfria aos poucos sem atirar, ver `burstNow`) e a hora do último tiro — a hora em que ele
+   * devia sair pela cadência, não a do quadro (senão, a 30 qps, a mira começava a voltar no meio da rajada)
+   */
+  private burstN = 0;
+  private lastShotAt = -1e9;
+  /**
+   * O que o recuo subiu (rad, para cima) e virou (yaw) e ainda vai voltar sozinho, e a volta da arma que atirou (trocar
+   * de arma não perde a volta). Puxar o mouse contra o recuo paga essa conta (a volta nunca passa do ponto em que a
+   * pessoa mirou).
+   */
+  private readonly debt = { pitch: 0, yaw: 0 };
+  private debtRc: RecoilSpec['recover'] = GUNS.m4.recoil.recover;
+  /** a mira depois do último giro feito aqui (o que mudar além disso foi o mouse) */
+  private aimMark = { yaw: 0, pitch: 0 };
   private eyeY: number = EYE.stand;
-  /** tranco visual do recuo (rad, para cima) e a mola que o traz de volta */
-  private punch = 0;
-  private punchV = 0;
+  /** tranco só da vista (rad): para cima, para o lado e rolagem; a mola é a da arma */
+  private readonly punch = spring();
+  private readonly punchYaw = spring();
+  private readonly punchRoll = spring();
   private readonly fx: GunFx;
   private readonly jobs: Job[] = [];
   /** placar: eu, os bots e (até a pose deles chegar) os outros */
@@ -254,6 +305,18 @@ export class GunGame {
   private readonly spawnedAt = new Map<string, number>();
   /** a arma que cada pessoa mostra na pose, a de antes e quando trocou (para conferir o acerto) */
   private readonly armed = new Map<string, { w: GunId; prev: GunId | null; at: number }>();
+  /** proteção ao nascer até tal hora */
+  private protUntil = 0;
+  /** a partida: alvo de abates, quando acaba (no tempo), quando começou e os abates do vencedor ao vencer */
+  private target: number;
+  private endsAt: number;
+  private matchAt: number;
+  private winK = 0;
+  /** quem me matou e quando (a câmera da morte olha para ele) */
+  private killer: string | null = null;
+  private diedAt = 0;
+  /** passos: o que cada um andou desde o último passo e onde estava (eu, os outros e os bots) */
+  private readonly strides = new Map<string, { x: number; z: number; acc: number }>();
   private disposed = false;
 
   constructor(private readonly host: GunHost) {
@@ -261,6 +324,10 @@ export class GunGame {
     this.fx = new GunFx(host.scene);
     this.seed = gunSeed(host.selfId, Date.now());
     this.loadout = { ...useGunHud.getState().loadout };
+    const t0 = performance.now();
+    this.target = ffaTarget(1 + host.players().length);
+    this.matchAt = t0;
+    this.endsAt = t0 + MATCH_MS;
     for (const id of Object.keys(GUNS) as GunId[]) this.ammo.set(id, { mag: GUNS[id].mag, reserve: GUNS[id].reserve });
     useGunHud.getState().set({
       active: true,
@@ -272,6 +339,8 @@ export class GunGame {
       // a luneta e as setas de dano de uma vez anterior não voltam com o jogo novo
       scoped: false,
       hurts: [],
+      target: this.target,
+      endsAt: Date.now() + MATCH_MS,
     });
     void loadGuns().then(() => {
       if (this.disposed) return;
@@ -316,9 +385,28 @@ export class GunGame {
     return this.winner !== null;
   }
 
-  /** tranco visual do recuo (rad para cima): a cena soma na câmera; a mira de verdade não muda */
+  /** tranco da vista (rad para cima): a cena soma na câmera, e o tiro sai do centro da tela que se vê */
   get viewPunch(): number {
-    return this.punch * (this.host.reducedMotion ? 0.35 : 1);
+    return this.punch.x * this.motionK;
+  }
+
+  /** tranco da vista para o lado (rad, no sentido do yaw) */
+  get viewPunchYaw(): number {
+    return this.punchYaw.x * this.motionK;
+  }
+
+  /** rolagem da vista (rad) */
+  get viewRoll(): number {
+    return this.punchRoll.x * this.motionK;
+  }
+
+  /** o que o recuo ainda vai devolver (rad para cima), para os testes */
+  get recoilDebt(): number {
+    return this.debt.pitch;
+  }
+
+  private get motionK() {
+    return this.host.reducedMotion ? 0.35 : 1;
   }
 
   /** a pose da arma para a rede e o meu boneco (com o meu placar) */
@@ -333,7 +421,32 @@ export class GunGame {
       k: me?.kills ?? 0,
       d: me?.deaths ?? 0,
       ...(this.act ? { act: this.act, an: this.actN } : {}),
+      ...(this.shielded ? { prot: true } : {}),
+      ft: this.target,
+      fl: Math.max(0, Math.min(600, Math.ceil((this.endsAt - performance.now()) / 1000))),
     };
+  }
+
+  /** acabou de nascer e ainda não atirou: não leva dano */
+  get shielded(): boolean {
+    return this.alive && performance.now() < this.protUntil;
+  }
+
+  /** o alvo de abates desta partida */
+  get killTarget(): number {
+    return this.target;
+  }
+
+  /** morto: de onde veio o tiro (a posição de quem matou, se ainda está na arena) e há quanto tempo (ms) */
+  deathView(now = performance.now()): { killer: V3 | null; since: number } | null {
+    if (this.alive) return null;
+    const id = this.killer;
+    let killer: V3 | null = null;
+    if (id && id !== this.host.selfId) {
+      const p = this.host.players().find((x) => x.id === id) ?? this.bots?.targets().find((t) => t.id === id);
+      if (p) killer = { x: p.x, y: p.y + EYE.stand, z: p.z };
+    }
+    return { killer, since: now - this.diedAt };
   }
 
   private markAct(a: GunAct) {
@@ -390,14 +503,15 @@ export class GunGame {
     this.loadout = { ...useGunHud.getState().loadout };
     const enemies = [...this.host.players().filter((p) => p.alive), ...(this.bots?.alivePositions() ?? [])];
     const sp = pickSpawn(enemies, this.rand());
+    this.protUntil = now + SPAWN_PROT_MS;
+    this.killer = null;
     this.x = sp.x;
     this.z = sp.z;
     this.ry = sp.ry;
     this.host.turn(sp.ry + Math.PI - this.host.yaw(), -this.host.pitch());
     // a câmera virou de uma vez: o balanço da arma não pode ler isso como um movimento do mouse
     this.lookPrev = { yaw: this.host.yaw(), pitch: this.host.pitch() };
-    this.punch = 0;
-    this.punchV = 0;
+    this.resetRecoil();
     this.move = newMove();
     this.hp = MAX_HP;
     this.alive = true;
@@ -407,7 +521,7 @@ export class GunGame {
       this.ammo.set(id, { mag: GUNS[id].mag, reserve: GUNS[id].reserve });
     this.equip(now);
     this.host.send({ kind: 'spawn', w: this.weapon });
-    useGunHud.getState().set({ dead: false, killedBy: null, hp: this.hp });
+    useGunHud.getState().set({ dead: false, killedBy: null, killedW: null, killedHead: false, hp: this.hp });
   }
 
   private die(by: string, w: GunId, head: boolean, now: number) {
@@ -415,15 +529,20 @@ export class GunGame {
     this.alive = false;
     this.hp = 0;
     this.respawnAt = now + RESPAWN_MS;
+    this.killer = by;
+    this.diedAt = now;
     this.reloadUntil = 0;
     this.ads = 0;
     this.cancel();
     this.cancelJobs();
+    this.debt.pitch = this.debt.yaw = 0;
     // morte por bot não tem matador na rede (o id do bot não é de ninguém): vai sem `by`
     const fromBot = !!this.bots?.has(by);
     this.host.send({ kind: 'die', w, head, ...(fromBot || by === this.host.selfId ? {} : { by }) });
     this.onKill(by, this.host.selfId, w, head);
-    useGunHud.getState().set({ dead: true, killedBy: by, respawnAt: Date.now() + RESPAWN_MS });
+    useGunHud
+      .getState()
+      .set({ dead: true, killedBy: by, killedW: w, killedHead: head, respawnAt: Date.now() + RESPAWN_MS });
   }
 
   private statOf(id: string) {
@@ -494,11 +613,7 @@ export class GunGame {
     }
     const rows = this.scores();
     const top = rows[0];
-    if (top && top.kills >= FFA_TARGET) {
-      this.winner = top.id;
-      this.winnerAt = now;
-      this.cancel();
-    }
+    if (top && top.kills >= this.target) this.win(top, now);
     useGunHud.getState().set({
       scores: rows,
       feed: this.feed,
@@ -507,13 +622,51 @@ export class GunGame {
     });
   }
 
-  /** o vencedor (outra pessoa) publica abates abaixo do alvo, num placar que não é o velho do recomeço */
+  private win(top: ScoreRow, now: number) {
+    this.winner = top.id;
+    this.winK = top.kills;
+    this.winnerAt = now;
+    this.cancel();
+  }
+
+  /**
+   * Acabou o tempo: vence quem tem mais abates (empate: menos mortes, a ordem do placar). Sem nenhum abate, a partida
+   * só recomeça.
+   */
+  private timeUp(now: number) {
+    const rows = this.scores();
+    const top = rows[0];
+    if (!top || top.kills === 0) {
+      this.restart(now, false);
+      return;
+    }
+    this.win(top, now);
+    useGunHud.getState().set({ scores: rows, feed: this.feed, winner: this.nameOf(top.id), winnerAt: Date.now() });
+  }
+
+  /** o vencedor (outra pessoa) publica menos abates do que tinha ao vencer, num placar que não é o velho do recomeço */
   private winnerRestarted(): boolean {
     const id = this.winner;
     if (!id || id === this.host.selfId || this.bots?.has(id)) return false;
     const p = this.host.players().find((x) => x.id === id);
     if (p?.k === undefined || p.d === undefined) return false;
-    return p.k < FFA_TARGET && this.staleScore.get(id) !== `${p.k}:${p.d}`;
+    return p.k < this.winK && this.staleScore.get(id) !== `${p.k}:${p.d}`;
+  }
+
+  /**
+   * O relógio e o alvo da partida de quem começou antes: todos terminam juntos (quem entra no meio pega o relógio de
+   * quem já está jogando). Logo depois de um recomeço, a pose velha dos outros não conta.
+   */
+  private syncClock(now: number) {
+    if (this.over || now - this.matchAt < 2500) return;
+    for (const p of this.host.players()) {
+      if (p.ft === undefined || p.fl === undefined || this.staleScore.has(p.id)) continue;
+      const ends = now + p.fl * 1000;
+      if (ends < this.endsAt - CLOCK_SLACK_MS) {
+        this.endsAt = ends;
+        this.target = p.ft;
+      }
+    }
   }
 
   /** começa de novo (placar zerado, todos renascem); `broadcast` avisa os outros da arena */
@@ -525,6 +678,11 @@ export class GunGame {
     for (const p of this.host.players())
       if (p.k !== undefined && p.d !== undefined) this.staleScore.set(p.id, `${p.k}:${p.d}`);
     this.hitBudget.clear();
+    // o alvo pelo tamanho da partida agora (eu, quem está na arena e os bots) e o relógio do zero
+    this.target = ffaTarget(1 + this.host.players().length + (this.bots?.ids().length ?? 0));
+    this.matchAt = now;
+    this.endsAt = now + MATCH_MS;
+    this.winK = 0;
     this.bots?.resetAll(now);
     if (broadcast) this.host.send({ kind: 'restart', w: this.weapon });
     this.respawn(now);
@@ -533,10 +691,36 @@ export class GunGame {
 
   // ------------------------------------------------------------ armas
 
+  /** o recuo começa do zero (renascer, trocar de arma, morrer): nada volta sozinho, nada treme */
+  private resetRecoil() {
+    this.burstN = 0;
+    this.lastShotAt = -1e9;
+    this.debt.pitch = this.debt.yaw = 0;
+    for (const s of [this.punch, this.punchYaw, this.punchRoll]) s.x = s.v = 0;
+    this.markAim();
+  }
+
+  private markAim() {
+    this.aimMark = { yaw: this.host.yaw(), pitch: this.host.pitch() };
+  }
+
+  /** gira a mira (recuo e a volta dele) sem que isso conte como o mouse; devolve o quanto girou de verdade */
+  private turnAim(dYaw: number, dPitch: number): { yaw: number; pitch: number } {
+    const y0 = this.host.yaw();
+    const p0 = this.host.pitch();
+    this.host.turn(dYaw, dPitch);
+    const d = { yaw: this.host.yaw() - y0, pitch: this.host.pitch() - p0 };
+    this.aimMark.yaw += d.yaw;
+    this.aimMark.pitch += d.pitch;
+    return d;
+  }
+
   private equip(now: number) {
     const id = this.weapon;
     const m = makeGun(id);
     if (!m) return;
+    this.burstN = 0;
+    // a volta do recuo continua (com a da arma que atirou): trocar logo depois da rajada não deixa a mira lá em cima
     // a arma de antes não tem mais o que fazer (som da recarga, ferrolho, golpe no ar)
     this.cancelJobs('reload', 'bolt', 'melee');
     this.vm.setGun(m, GUNS[id]);
@@ -559,6 +743,8 @@ export class GunGame {
     this.slot = slot;
     this.fireBufferUntil = 0;
     this.equip(now);
+    // a lista do equipamento aparece um instante (o que há em 1, 2 e 3)
+    useGunHud.getState().set({ slotsAt: Date.now(), slot });
   }
 
   cycle(dir: number, now = performance.now()) {
@@ -590,7 +776,11 @@ export class GunGame {
         this.bash(now);
         break;
       case 'inspect':
-        if (!this.vm.busy && now > this.reloadUntil) this.vm.play('inspect', this.spec.cls === 'knife' ? 2000 : 2400);
+        if (!this.vm.busy && now > this.reloadUntil) {
+          this.vm.play('inspect', this.spec.cls === 'knife' ? 2000 : 2400);
+          // quem vê também percebe (o boneco gira a arma)
+          this.markAct('inspect');
+        }
         break;
       case 'crouch': {
         const r = pressCrouch(this.move, now);
@@ -609,10 +799,10 @@ export class GunGame {
   }
 
   release(a: GunAction) {
+    // a rajada não zera ao soltar: clicando rápido, cada tiro não vale como o primeiro (ver `burstNow`)
     if (a === 'fire') {
       this.triggerDown = false;
       this.semiReady = true;
-      this.shotsInBurst = 0;
     }
   }
 
@@ -620,7 +810,6 @@ export class GunGame {
   cancel() {
     this.triggerDown = false;
     this.semiReady = true;
-    this.shotsInBurst = 0;
     this.fireBufferUntil = 0;
   }
 
@@ -683,13 +872,15 @@ export class GunGame {
     if (!sp.melee || now < this.meleeUntil || now < this.drawUntil) return;
     const ms = sp.melee.ms * (heavy ? HEAVY.ms : 1);
     this.meleeUntil = now + ms;
+    this.protUntil = 0;
     // o pesado antecipa mais e estoca: o golpe chega no fim da estocada
     this.vm.play(heavy ? 'heavy' : 'melee', ms);
     this.markAct('melee');
     this.host.emit({ kind: 'gunfx', what: 'swing', w: this.weapon, power: heavy ? 0.8 : 0.6, zone: 8, at: this.eye });
-    const { dmg, range } = sp.melee;
+    // o rápido precisa de dois golpes; o pesado (mais lento e mais longe) derruba de uma vez
+    const { dmg, heavy: heavyDmg, range } = sp.melee;
     this.later('melee', now + ms * (heavy ? 0.45 : 0.3), () =>
-      this.meleeHit(sp.id, dmg, range * (heavy ? HEAVY.range : 1)),
+      this.meleeHit(sp.id, heavy ? heavyDmg : dmg, range * (heavy ? HEAVY.range : 1)),
     );
   }
 
@@ -697,6 +888,7 @@ export class GunGame {
     if (this.spec.cls === 'knife') return this.knife(now, false);
     if (now < this.meleeUntil || now < this.drawUntil) return;
     this.meleeUntil = now + BASH.ms;
+    this.protUntil = 0;
     this.reloadUntil = 0;
     this.cancelJobs('reload');
     this.vm.play('melee', BASH.ms);
@@ -744,10 +936,11 @@ export class GunGame {
     );
   }
 
-  private tryFire(now: number) {
-    if (this.spec.cls === 'knife' || !this.canFire(now)) return;
+  private tryFire(now: number): 'shot' | 'dry' | 'blocked' {
+    if (this.spec.cls === 'knife' || !this.canFire(now)) return 'blocked';
     const r = this.fire(now);
     if (r !== 'blocked') this.fireBufferUntil = 0;
+    return r;
   }
 
   /** dispara a arma (cadência, munição, recuo, dispersão, acerto) */
@@ -773,17 +966,21 @@ export class GunGame {
       return 'dry';
     }
     am.mag--;
-    this.nextShot = now + shotInterval(sp);
-    this.shotsInBurst++;
+    // atirar tira a proteção de quem acabou de nascer
+    this.protUntil = 0;
+    // cadência contada do tiro anterior (não do quadro): segurando o gatilho, o atraso do quadro não se perde
+    const iv = shotInterval(sp);
+    const late = now - this.nextShot;
+    const shotAt = late >= 0 && late < iv ? this.nextShot : now;
+    this.nextShot = shotAt + iv;
+    this.burstN = burstNow(sp, this.burstN, shotAt - this.lastShotAt) + 1;
+    const n = Math.floor(this.burstN);
+    this.lastShotAt = shotAt;
     this.move.sprint = false;
     this.move.tactical = false;
-    this.vm.play('fire', 120);
     const moving = Math.min(1, Math.hypot(this.move.vx, this.move.vz) / MOVE.walk);
-    let spread = spreadNow(sp, this.ads, moving, this.move.crouch);
-    if (!this.move.grounded) spread *= 2;
-    if (sliding(this.move, now)) spread *= 1.4;
-    // a primeira bala de uma rajada vai mais certa
-    if (this.shotsInBurst === 1) spread *= 0.6;
+    // a dispersão abre com a rajada (os tiros de antes); o primeiro tiro vai mais certo (parado)
+    const spread = shotSpread(sp, this.shotState(n, moving, now));
     const o = this.eye;
     const targets = this.targets();
     const aim = this.aimAngles(o, targets);
@@ -798,14 +995,11 @@ export class GunGame {
     this.host.shotFx?.(this.host.selfId);
     this.host.send({ kind: 'fire', w: this.weapon, from: v3(muzzle), to: v3(to) });
     if (hit.target) this.dealDamage(hit.target, damageAt(sp, hit.dist, hit.head), hit.head, to);
-    else this.host.emit({ kind: 'impact', flesh: false, head: false, power: 0.5, zone: 8, at: to });
-    // recuo: para cima e um pouco para o lado (mais com o tempo de rajada, menos mirando e agachado). Uma parte sobe
-    // a mira de vez; o resto é um tranco da câmera que volta sozinho (a sniper não perde o alvo da luneta)
-    const k = (1 - this.ads * 0.35) * (this.move.crouch ? 0.8 : 1) * (1 + Math.min(this.shotsInBurst, 12) * 0.03);
-    const keep = RECOIL_KEEP[sp.cls];
-    const side = (this.rand() - 0.42) * 2 * sp.recoil.side;
-    this.host.turn(side * k * keep, -sp.recoil.up * k * keep);
-    this.punchV += sp.recoil.up * k * (1 - keep) * 60;
+    else {
+      this.host.emit({ kind: 'impact', flesh: false, head: false, power: 0.5, zone: 8, at: to });
+      if (hit.normal) this.fx.mark(to, hit.normal, now);
+    }
+    this.kick(n);
     if (sp.boltMs) {
       // ferrolho: a animação começa logo depois do tiro
       this.needBolt.add(sp.id);
@@ -817,6 +1011,73 @@ export class GunGame {
     return 'shot';
   }
 
+  /** o estado para a dispersão do tiro `n` (o tiro e a mira desenhada usam o mesmo) */
+  private shotState(n: number, moving: number, now: number): ShotState {
+    return {
+      ads: this.ads,
+      moving,
+      crouch: this.move.crouch,
+      grounded: this.move.grounded,
+      sliding: sliding(this.move, now),
+      scoped: this.scoped,
+      n,
+    };
+  }
+
+  /**
+   * Recuo do tiro `n`: a mira sobe e vai para o lado pelo padrão da arma (menos mirando e agachado), e uma parte disso
+   * volta sozinha depois (`stepRecoil`). Por cima, o tranco só da vista e o coice da arma na mão.
+   */
+  private kick(n: number) {
+    const sp = this.spec;
+    const rc = sp.recoil;
+    const k = recoilKick(sp, n, this.rand(), this.rand());
+    const mul = recoilMul(this.ads, this.move.crouch);
+    const up = k.up * mul.up;
+    const side = k.side * mul.side;
+    // o lado do tiro (para a rolagem e o coice da arma): o do padrão; reto, alterna
+    const sgn = side > 1e-6 ? 1 : side < -1e-6 ? -1 : n % 2 ? 1 : -1;
+    // a conta da volta é o quanto a mira andou (olhando para o alto, ela para no limite e não pode voltar além dele)
+    const moved = this.turnAim(-side, -up);
+    this.debtRc = rc.recover;
+    this.debt.pitch += -moved.pitch * rc.recover.frac;
+    this.debt.yaw += moved.yaw * rc.recover.frac;
+    // tranco da vista: menor mirando (a mira de ferro e a luneta não saem do lugar de vez)
+    const first = firstShotK(sp, n);
+    const pk = (1 - 0.3 * this.ads) * mul.up * first;
+    const { k: sk, c: sc } = rc.punch;
+    kickSpring(this.punch, sk, sc, rc.punch.up * pk);
+    kickSpring(this.punchYaw, sk, sc, -side * 0.3);
+    kickSpring(this.punchRoll, sk, sc, rc.punch.roll * pk * sgn);
+    this.vm.fire(sgn, first);
+  }
+
+  /**
+   * A volta do recuo e o mouse: o que a pessoa puxou contra o recuo desconta da conta; depois de um tempo sem atirar, o
+   * resto volta sozinho (exponencial). Roda no começo do quadro, antes do tiro.
+   */
+  private stepRecoil(dt: number, now: number) {
+    const dP = this.host.pitch() - this.aimMark.pitch;
+    const dY = this.host.yaw() - this.aimMark.yaw;
+    // mouse para baixo (pitch cresce) paga a subida; mouse contra o lado paga o lado
+    if (dP > 0) this.debt.pitch = Math.max(0, this.debt.pitch - dP);
+    if (dY * this.debt.yaw < 0)
+      this.debt.yaw = Math.sign(this.debt.yaw) * Math.max(0, Math.abs(this.debt.yaw) - Math.abs(dY));
+    const rc = this.debtRc;
+    // segurando o gatilho de uma automática com bala, a mira não volta (nem com o quadro atrasado passando do `delay`)
+    const am = this.ammo.get(this.weapon);
+    const holding = this.triggerDown && this.spec.auto && !!am && am.mag > 0;
+    if (!holding && now - this.lastShotAt > rc.delay && (this.debt.pitch > 1e-7 || Math.abs(this.debt.yaw) > 1e-7)) {
+      const r = 1 - Math.exp(-Math.max(0, dt) / rc.tau);
+      const p = this.debt.pitch * r;
+      const y = this.debt.yaw * r;
+      this.debt.pitch -= p;
+      this.debt.yaw -= y;
+      this.turnAim(-y, p);
+    }
+    this.markAim();
+  }
+
   /** o ferrolho: abre (com a mão), fecha e a arma fica pronta */
   private scheduleBolt(at: number, id: GunId, boltMs: number) {
     const ms = Math.max(200, boltMs - 120);
@@ -824,7 +1085,14 @@ export class GunGame {
       if (this.weapon !== id || !this.alive) return;
       this.vm.play('bolt', ms);
       this.markAct('bolt');
-      this.host.emit({ kind: 'gunfx', what: 'boltOpen', w: id, power: 0.6, zone: 8, at: this.eye });
+      // o som segue a mão: a alavanca sobe (u ~0,15), o ferrolho vem para trás (~0,45) e fecha (~0,62)
+      const fx = (what: 'boltOpen' | 'boltPull', k: number) =>
+        this.later('bolt', t + ms * k, () => {
+          if (this.weapon === id && this.alive)
+            this.host.emit({ kind: 'gunfx', what, w: id, power: 0.6, zone: 8, at: this.eye });
+        });
+      fx('boltOpen', 0.15);
+      fx('boltPull', 0.45);
       this.later('bolt', t + ms * 0.62, () =>
         this.host.emit({ kind: 'gunfx', what: 'boltClose', w: id, power: 0.6, zone: 8, at: this.eye }),
       );
@@ -838,8 +1106,10 @@ export class GunGame {
    * cairiam sempre ~0,45 m à esquerda da mira.
    */
   private aimAngles(eye: V3, targets: Target[]): { yaw: number; pitch: number } {
-    const yaw = this.host.yaw();
-    const pitch = this.host.pitch();
+    // o centro da tela com o tranco da vista: a bala vai onde a mira está desenhada. O tranco entra inteiro mesmo com
+    // "reduzir movimento" (que só diminui o que a câmera mostra): a opção de acessibilidade não pode virar vantagem
+    const yaw = this.host.yaw() + this.punchYaw.x;
+    const pitch = this.host.pitch() - this.punch.x;
     if (this.firstPerson) return { yaw, pitch };
     const cam = this.host.camera.position;
     const cd = aimDir(yaw, pitch, 0, 0, 0);
@@ -870,6 +1140,12 @@ export class GunGame {
 
   /** acertei alguém: bot leva aqui; gente de verdade leva pela rede */
   private dealDamage(id: string, dmg: number, head: boolean, at: V3) {
+    // acabou de nascer: o tiro bate, mas não conta (sem marcador de acerto)
+    const shielded = this.bots?.has(id) ? this.bots.shielded(id) : !!this.host.players().find((p) => p.id === id)?.prot;
+    if (shielded) {
+      this.host.emit({ kind: 'impact', flesh: true, head, power: 0.4, zone: 8, at });
+      return;
+    }
     const kill = this.bots?.has(id)
       ? this.bots.hurt(id, dmg, this.host.selfId, this.weapon, head)
       : (this.host.send({ kind: 'hit', w: this.weapon, target: id, dmg, head }), false);
@@ -895,7 +1171,7 @@ export class GunGame {
     from: { x: number; z: number } | null,
     now = performance.now(),
   ) {
-    if (!this.alive || this.over) return;
+    if (!this.alive || this.over || now < this.protUntil) return;
     this.hp -= dmg;
     this.lastHurt = now;
     this.host.emit({ kind: 'gunfx', what: 'hurt', w, power: 0.7, zone: 8, at: this.eye });
@@ -978,6 +1254,7 @@ export class GunGame {
           this.fx.flash(a, now, GUNS[g.w].cls === 'sniper' ? 0.42 : 0.3);
           this.host.emit({ kind: 'gunshot', by: g.sender, w: g.w, power: 1, zone: 8, at: a });
           this.host.emit({ kind: 'impact', flesh: false, head: false, power: 0.4, zone: 8, at: b });
+          this.markWall({ x: g.from[0], y: g.from[1], z: g.from[2] }, b, now);
         }
         break;
       case 'hit':
@@ -1008,6 +1285,20 @@ export class GunGame {
     }
   }
 
+  /** marca na parede no fim de um tiro que veio da rede (de onde ele saiu até onde parou) */
+  private markWall(from: V3, to: V3, now: number) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dz = to.z - from.z;
+    const len = Math.hypot(dx, dy, dz);
+    if (len < 0.1) return;
+    const d = { x: dx / len, y: dy / len, z: dz / len };
+    const h = castShot(from, d, [], GUN_BOXES, len + 0.2);
+    // só se o fim do tiro é mesmo uma parede (senão ele parou num corpo)
+    if (h.normal && Math.abs(h.dist - len) < 0.25)
+      this.fx.mark({ x: from.x + d.x * h.dist, y: from.y + d.y * h.dist, z: from.z + d.z * h.dist }, h.normal, now);
+  }
+
   // ------------------------------------------------------------ bots
 
   setBots(level: BotLevel | null, count: number) {
@@ -1022,6 +1313,7 @@ export class GunGame {
           me: () =>
             this.alive ? { id: this.host.selfId, x: this.x, y: this.move.y, z: this.z, crouch: this.crouching } : null,
           shoot: (s) => this.botShot(s),
+          shielded: () => this.shielded,
           killed: (by, target, w, head) => this.onKill(by, target, w, head),
         },
         this.rand() * 2147483646,
@@ -1056,6 +1348,7 @@ export class GunGame {
     this.host.shotFx?.(s.by);
     if (!hit.target) {
       this.host.emit({ kind: 'impact', flesh: false, head: false, power: 0.4, zone: 8, at: to });
+      if (hit.normal) this.fx.mark(to, hit.normal, now);
       return;
     }
     const dmg = damageAt(GUNS[s.w], hit.dist, hit.head);
@@ -1077,11 +1370,16 @@ export class GunGame {
     // o botão não está mais apertado (soltou fora da janela, sem o evento chegar): solta o gatilho
     if (this.triggerDown && !this.host.held('fire')) this.release('fire');
     this.stepPunch(dt);
+    this.stepRecoil(dt, now);
     // fim de partida: o vencedor fica na tela e a partida recomeça sozinha depois de um tempo
     if (this.over && now - this.winnerAt > WINNER_MS) this.restart(now, false);
+    // acabou o tempo da partida
+    if (!this.over && now >= this.endsAt) this.timeUp(now);
+    this.stepStrides(dt);
     // morto: espera e renasce
     if (!this.alive) {
       if (this.respawnAt && now >= this.respawnAt && !this.over) this.respawn(now);
+      this.strides.delete(this.host.selfId);
       this.stepBots(dt, now);
       this.fx.update(now, this.host.camera.position);
       this.hud(now);
@@ -1143,11 +1441,18 @@ export class GunGame {
       this.finishReload();
     }
     // gatilho: automática enquanto segura; semi e ferrolho uma vez por clique (o clique fica guardado um instante)
-    if ((this.triggerDown || now < this.fireBufferUntil) && (sp.auto || this.semiReady)) this.tryFire(now);
+    for (let i = 0; i < MAX_SHOTS_PER_FRAME; i++) {
+      if (!((this.triggerDown || now < this.fireBufferUntil) && (sp.auto || this.semiReady))) break;
+      if (this.tryFire(now) !== 'shot') break;
+    }
     // vida volta sozinha
     if (this.hp < MAX_HP && now - this.lastHurt > REGEN_DELAY_MS)
       this.hp = Math.min(MAX_HP, this.hp + REGEN_PER_S * dt);
     this.host.place({ x: this.x, y: this.move.y, z: this.z, ry: this.ry });
+    // os meus passos (agachado e deslizando, sem som; no ar, também não)
+    if (this.move.grounded && !this.move.crouch && !sliding(this.move, now))
+      this.stride(this.host.selfId, this.x, this.z, this.move.sprint, this.move.tactical, 0.25);
+    else this.strides.delete(this.host.selfId);
     // primeira pessoa: a arma balança com o mouse, o passo e o movimento
     const look = { yaw: this.host.yaw(), pitch: this.host.pitch() };
     this.vm.update(dt, now, {
@@ -1167,26 +1472,72 @@ export class GunGame {
     this.hud(now);
   }
 
+  /**
+   * Um passo a cada passada (0,55 m andando, 0,8 m correndo): o som de passo vai para quem ouve (o som pela distância
+   * e pelo lado). `gain` é o meu (baixo) ou o dos outros (mais alto: é informação).
+   */
+  private stride(id: string, x: number, z: number, run: boolean, tactical: boolean, gain: number) {
+    const s = this.strides.get(id);
+    if (!s) {
+      this.strides.set(id, { x, z, acc: 0 });
+      return;
+    }
+    const d = Math.hypot(x - s.x, z - s.z);
+    s.x = x;
+    s.z = z;
+    // pulo de posição (renasceu, a pose chegou de longe): não é passo
+    if (d > 2) {
+      s.acc = 0;
+      return;
+    }
+    s.acc += d;
+    const len = run ? STEP_RUN : STEP_WALK;
+    if (s.acc < len) return;
+    s.acc -= len;
+    this.host.emit({
+      kind: 'gunfx',
+      what: 'step',
+      w: this.weapon,
+      by: id,
+      power: Math.min(1, gain * (tactical ? 1.2 : 1)),
+      zone: 8,
+      at: { x, y: 0, z },
+    });
+  }
+
+  /** os passos dos outros e dos bots, pelo quanto o boneco andou neste quadro (agachado, sem som) */
+  private stepStrides(dt: number) {
+    const seen = new Set<string>([this.host.selfId]);
+    const others: { id: string; x: number; z: number; crouch: boolean }[] = [
+      ...this.host.players().filter((p) => p.alive),
+      ...(this.bots?.targets() ?? []),
+    ];
+    for (const p of others) {
+      seen.add(p.id);
+      const s = this.strides.get(p.id);
+      const sp = s && dt > 0 ? Math.hypot(p.x - s.x, p.z - s.z) / dt : 0;
+      if (p.crouch) {
+        this.strides.delete(p.id);
+        continue;
+      }
+      this.stride(p.id, p.x, p.z, sp > 3.6, sp > 5.6, 0.55);
+    }
+    for (const id of this.strides.keys()) if (!seen.has(id)) this.strides.delete(id);
+  }
+
   /** os bots andam e atiram (não com a partida acabada nem com o menu aberto: é treino, ninguém mais joga) */
   private stepBots(dt: number, now: number) {
     if (!this.bots || this.over || this.host.paused?.()) return;
     this.bots.update(dt, now);
   }
 
-  /**
-   * Tranco do recuo: mola amortecida que volta em ~150 ms. Em passos de no máximo 1/120 s (Euler com passo grande
-   * explode: com 50 ms por quadro o tranco crescia sem parar), com limite e sem NaN.
-   */
+  /** tranco da vista: a mola da arma (a sniper sobe muito e desce devagar; o fuzil é curto), com limite */
   private stepPunch(dt: number) {
-    let left = Math.max(0, Math.min(0.25, dt));
-    while (left > 1e-6) {
-      const h = Math.min(PUNCH_STEP, left);
-      this.punchV += (-this.punch * 400 - this.punchV * 40) * h;
-      this.punch += this.punchV * h;
-      left -= h;
+    const { k, c } = this.spec.recoil.punch;
+    for (const s of [this.punch, this.punchYaw, this.punchRoll]) {
+      stepSpring(s, k, c, dt);
+      s.x = Math.max(-PUNCH_MAX, Math.min(PUNCH_MAX, s.x));
     }
-    if (!Number.isFinite(this.punch) || !Number.isFinite(this.punchV)) this.punch = this.punchV = 0;
-    this.punch = Math.max(-PUNCH_MAX, Math.min(PUNCH_MAX, this.punch));
   }
 
   /** a câmera: onde fica o olho (primeira pessoa) e o zoom da mira */
@@ -1218,15 +1569,24 @@ export class GunGame {
     const am = this.ammo.get(this.weapon);
     const sp = this.spec;
     const moving = Math.min(1, Math.hypot(this.move.vx, this.move.vz) / MOVE.walk);
-    const spread = spreadNow(sp, this.ads, moving, this.move.crouch) * (this.move.grounded ? 1 : 2);
+    // a mesma conta do próximo tiro: abre com a rajada e fecha quando ela esfria
+    const n = shotIndex(burstNow(sp, this.burstN, now - this.lastShotAt));
+    const spread = shotSpread(sp, this.shotState(n, moving, now));
     const fovRad = (this.host.camera.fov * Math.PI) / 180;
-    const px = (Math.tan(spread) / Math.tan(fovRad / 2)) * (window.innerHeight / 2);
+    // a altura da área 3D (o Espaço pode ser menor que a janela)
+    const pxPerRad = (this.host.viewHeight?.() || window.innerHeight) / 2 / Math.tan(fovRad / 2);
+    const px = Math.tan(spread) * pxPerRad;
     // o placar dos outros chega pela pose deles: confere de vez em quando
     if (now - this.lastScores > 500) {
       this.lastScores = now;
+      this.syncClock(now);
       this.pushScores(now);
       // o botão de recomeçar do menu segue a mesma regra do recomeço (`canRestart`)
-      useGunHud.getState().set({ canRestart: this.canRestart });
+      useGunHud.getState().set({
+        canRestart: this.canRestart,
+        target: this.target,
+        endsAt: Date.now() + Math.max(0, this.endsAt - now),
+      });
     }
     useGunHud.getState().set({
       hp: Math.max(0, Math.round(this.hp)),
@@ -1236,7 +1596,10 @@ export class GunGame {
       reloading: this.reloadUntil > 0,
       ads: this.ads,
       spreadPx: Math.max(6, Math.min(120, px)),
+      // a luneta pula um pouco com o tranco (o retículo continua no centro da arma)
+      scopeKick: scoped ? Math.tan(this.viewPunch) * pxPerRad * 0.4 : 0,
       sprint: this.move.sprint,
+      shielded: this.shielded,
     });
   }
 

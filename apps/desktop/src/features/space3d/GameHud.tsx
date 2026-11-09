@@ -135,6 +135,7 @@ const GUN: Row[] = [
   { input: { acts: ['crouch'] }, label: 'Agachar · correndo: deslizar' },
   { input: { acts: ['jump'] }, label: 'Pular · no pouso: bunny hop' },
   { input: { acts: ['interact'] }, label: 'Coronhada (com a faca: golpe)' },
+  { input: { acts: ['secondary'] }, label: 'Com a faca: golpe pesado (mais lento, derruba de uma vez)' },
   { input: { acts: ['wave'] }, label: 'Inspecionar a arma' },
   { input: { acts: ['view'] }, label: 'Primeira ou terceira pessoa' },
 ];
@@ -280,7 +281,7 @@ const GAMES: { zone: number; icon: IconName; title: string; text: string; hue: s
     zone: 8,
     icon: 'gun',
     title: 'Gunfight',
-    text: 'Todos contra todos, em primeira ou terceira pessoa. Primeiro a 30 abates.',
+    text: 'Todos contra todos, em primeira ou terceira pessoa. Partidas de até 8 minutos.',
     hue: '#c8503c',
   },
 ];

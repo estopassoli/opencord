@@ -88,7 +88,11 @@ describe('Espaço 3D: tutorial de primeira vez (dados)', () => {
         // tecla nunca escrita à mão: sai sempre do <Binding>
         expect(s.text).not.toMatch(/\([A-Z]\)|\bclique\b/i);
       }
-      for (const h of t.hints) expect(ACTIONS).toContain(h.action);
+      // dica com tecla: a configurável (`action`) ou uma fixa (`keys`, como o 2 da pistola), nunca as duas faltando
+      for (const h of t.hints) {
+        if (h.action) expect(ACTIONS).toContain(h.action);
+        else expect(h.keys).toBeTruthy();
+      }
     }
     expect(TUTORIALS['0'].steps.length).toBeGreaterThanOrEqual(2);
   });

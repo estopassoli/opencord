@@ -1910,6 +1910,8 @@
 .gf-hud {
   position: absolute;
   inset: 0;
+  /* a luneta mede pela área 3D (o Espaço pode ser menor que a janela) */
+  container-type: size;
   pointer-events: none;
   z-index: 3;
   color: #fff;
@@ -1922,10 +1924,12 @@
 }
 .gf-scope {
   position: absolute;
-  inset: 0;
+  /* sobra embaixo e em cima: a luneta pula com o tranco sem mostrar a borda */
+  inset: -12cqh 0;
+  transition: transform 50ms linear;
   display: grid;
   place-items: center;
-  background: radial-gradient(circle at center, transparent 0 min(42vh, 42vw), #000 calc(min(42vh, 42vw) + 1px));
+  background: radial-gradient(circle at center, transparent 0 min(42cqh, 42cqw), #000 calc(min(42cqh, 42cqw) + 1px));
 }
 .gf-scope-fade {
   position: absolute;
@@ -1960,8 +1964,8 @@
   color: #ffe08a;
 }
 .gf-scope svg {
-  width: min(84vh, 84vw);
-  height: min(84vh, 84vw);
+  width: min(84cqh, 84cqw);
+  height: min(84cqh, 84cqw);
 }
 .gf-cross {
   position: absolute;
@@ -1976,6 +1980,8 @@
   height: 4px;
   border-radius: 50%;
   background: #fff;
+  /* contorno escuro: o ponto se lê também na parede clara e na escura */
+  outline: 1px solid rgb(0 0 0 / 0.75);
   box-shadow: 0 0 2px #000;
 }
 .gf-line {
@@ -1996,17 +2002,22 @@
   width: 10px;
   height: 2px;
 }
+/* o vão vai no transform (a transição só anda no transform, não no top/left) */
 .gf-line-t {
-  top: calc(-10px - var(--gap));
+  top: -10px;
+  transform: translateY(calc(-1 * var(--gap)));
 }
 .gf-line-b {
-  top: var(--gap);
+  top: 0;
+  transform: translateY(var(--gap));
 }
 .gf-line-l {
-  left: calc(-10px - var(--gap));
+  left: -10px;
+  transform: translateX(calc(-1 * var(--gap)));
 }
 .gf-line-r {
-  left: var(--gap);
+  left: 0;
+  transform: translateX(var(--gap));
 }
 .gf-hit i {
   position: absolute;
@@ -2259,4 +2270,81 @@
   .gf-health-bar {
     transition: none;
   }
+}
+
+/* placar curto no alto ao centro (sem segurar o Tab): eu, o líder, o alvo e o relógio */
+.gf-top {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.45);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.gf-top b {
+  font-weight: 700;
+}
+.gf-top [data-me='true'] {
+  color: #ffd66b;
+}
+.gf-top .gf-clock[data-low='true'] {
+  color: #ff7a6b;
+}
+/* trocou de arma: a lista do equipamento aparece um instante */
+.gf-slots {
+  position: absolute;
+  right: 22px;
+  /* acima da munição (que fica a 84 px do fundo e ocupa ~70 px) */
+  bottom: 164px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  font-size: 13px;
+  animation: gf-slots-out 1.5s ease-in forwards;
+}
+.gf-slots span {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.4);
+  opacity: 0.7;
+}
+.gf-slots span[data-on='true'] {
+  opacity: 1;
+  background: rgb(0 0 0 / 0.65);
+  box-shadow: inset 2px 0 0 #ffd66b;
+}
+.gf-slots kbd {
+  margin-right: 6px;
+}
+@keyframes gf-slots-out {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gf-slots {
+    animation: none;
+  }
+}
+/* acabou de nascer: protegido até atirar (em cima da barra de vida, longe da mira para não cobrir o alvo) */
+.gf-shield {
+  position: absolute;
+  left: 20px;
+  bottom: 112px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.45);
+  font-size: 12px;
+  color: #bfe3ff;
 }

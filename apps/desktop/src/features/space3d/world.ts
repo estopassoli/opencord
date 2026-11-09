@@ -175,9 +175,16 @@ function surroundings(g: THREE.Group, l: SpaceLayout) {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    g.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.6, sizeAttenuation: true })));
+    const stars = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({ color: 0xffffff, size: 0.6, sizeAttenuation: true }),
+    );
+    stars.name = 'stars';
+    g.add(stars);
     // disco quase de perfil para quem está na estação: aponta para o centro e inclina um pouco
     const hole = blackHole(4.6);
+    // o gunfight esconde o céu da estação pelo nome (brigava com as silhuetas)
+    hole.name = 'blackhole';
     hole.position.set(-60, 32, -90);
     hole.lookAt(0, 2, 0);
     hole.rotateX(0.13);
