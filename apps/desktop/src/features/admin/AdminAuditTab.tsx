@@ -12,6 +12,7 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.user.promote': 'Tornou super admin',
   'admin.user.demote': 'Tirou super admin',
   'admin.instance.update': 'Mudou a instância',
+  'admin.changelog.hide': 'Apagou uma novidade',
   'server.verified': 'Selo de verificado',
   'member.join': 'Entrou no servidor',
   'member.kick': 'Expulsou membro',
@@ -39,6 +40,7 @@ export function detailOf(e: AdminAuditEntry): string {
   if (e.action === 'admin.user.suspend' && typeof m.reason === 'string') return `Motivo: ${m.reason}`;
   if (e.action === 'server.verified') return m.verified ? 'marcou' : 'tirou';
   if (e.action === 'member.join' && m.via === 'instance-admin') return 'como super admin';
+  if (e.action === 'admin.changelog.hide' && typeof m.key === 'string') return m.key;
   if (e.action === 'admin.instance.update') {
     const parts: string[] = [];
     if ('registrationOpen' in m) parts.push(m.registrationOpen ? 'abriu cadastros' : 'fechou cadastros');

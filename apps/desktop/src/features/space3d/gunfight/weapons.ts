@@ -957,10 +957,13 @@ export const FIRST_SHOT = 0.6;
 export const BLOOM_SHOTS = 10;
 /** a rajada esfria em ~`BURST_COOL`× o tempo da volta da mira (mais devagar que a mira, para clicar rápido pesar) */
 const BURST_COOL = 1.5;
-/** dispersão a mais no ar (rad, no quadril; mirando, metade): pular atirando nunca é preciso, nem com a luneta */
-const AIR_SPREAD: Record<GunClass, number> = { ar: 0.05, smg: 0.04, pistol: 0.04, sniper: 0.1, knife: 0 };
-/** dispersão a mais deslizando (rad) */
-const SLIDE_SPREAD = 0.02;
+/**
+ * Dispersão a mais no ar (rad, no quadril). Mirando ela some junto com a mira (como no CoD: pulando com a mira em cima,
+ * a bala vai para o centro dela; pular atirando do quadril é que espalha)
+ */
+export const AIR_SPREAD: Record<GunClass, number> = { ar: 0.05, smg: 0.04, pistol: 0.04, sniper: 0.1, knife: 0 };
+/** dispersão a mais deslizando (rad, no quadril; mirando, some como a do ar) */
+export const SLIDE_SPREAD = 0.02;
 
 /**
  * O recuo do tiro `n` da rajada (de 1 em diante), no quadril, em rad: `up` para cima e `side` para a direita. O padrão
@@ -1040,19 +1043,23 @@ export interface ShotState {
 }
 
 /**
- * A dispersão do tiro (rad, meio ângulo); a mira desenhada usa a mesma conta. O bônus do primeiro tiro só reduz a
- * parte parada (base e mira); andar, pular e deslizar somam por cima e nunca ficam perfeitos, nem mirando. A sniper não
+ * A dispersão do tiro (rad, meio ângulo); a mira desenhada usa a mesma conta. Como no CoD (MW 2019/2023): com a mira em
+ * cima, o tiro vai para o centro dela — parado, andando, no ar ou deslizando; o primeiro tiro mirando é exato e a
+ * rajada abre só o pouco da mira (`spread.ads` e o `bloom` mirando). Andar, pular e deslizar pesam no quadril e somem
+ * junto com a transição da mira (na luneta, de vez). O bônus do primeiro tiro só reduz a parte parada. A sniper não
  * tem bônus de primeiro tiro (com o ferrolho, todo tiro seria o primeiro): sem a luneta ela abre com a dispersão do
  * quadril, que cai com a mira; só na luneta é precisa.
  */
 export function shotSpread(spec: GunSpec, s: ShotState): number {
   const sniper = spec.cls === 'sniper';
   let still = sniper && s.scoped ? spec.spread.ads : spreadNow(spec, s.ads, 0, s.crouch);
-  if (!sniper && s.n <= 1) still *= FIRST_SHOT * (1 - 0.5 * s.ads);
+  if (!sniper && s.n <= 1) still *= FIRST_SHOT * (1 - s.ads);
   still += bloomNow(spec, s.n - 1, s.ads);
-  const move = spec.spread.move * s.moving * (1 - s.ads * 0.7);
-  const air = s.grounded ? 0 : AIR_SPREAD[spec.cls] * (1 - 0.5 * s.ads);
-  return still + move + air + (s.sliding ? SLIDE_SPREAD : 0);
+  // o quanto ainda é tiro do quadril (0 com a mira em cima; na luneta, 0)
+  const hip = s.scoped ? 0 : Math.max(0, Math.min(1, 1 - s.ads));
+  const move = spec.spread.move * s.moving * hip;
+  const air = s.grounded ? 0 : AIR_SPREAD[spec.cls] * hip;
+  return still + (move + air + (s.sliding ? SLIDE_SPREAD : 0) * hip);
 }
 
 // ---------------------------------------------------------------- acerto

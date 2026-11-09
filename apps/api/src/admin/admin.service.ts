@@ -486,6 +486,20 @@ export class AdminService {
     return this.instanceConfig(actorId);
   }
 
+  async hideChangelogEntry(actorId: string, key: string): Promise<void> {
+    await this.requireAdmin(actorId);
+    const row = await this.instance.row();
+    if (row?.hiddenChangelog.includes(key)) return;
+    await this.prisma.instanceConfig.upsert({
+      where: { id: 1 },
+      create: { id: 1, hiddenChangelog: [key], updatedById: actorId },
+      update: { hiddenChangelog: { push: key }, updatedById: actorId },
+    });
+    this.instance.invalidate();
+    await this.audit.log(actorId, null, 'admin.changelog.hide', null, { key });
+    this.realtime.emitAll('instance:updated', await this.instance.info());
+  }
+
   // ---------- Auditoria global ----------
   async auditLog(
     actorId: string,

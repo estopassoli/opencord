@@ -109,6 +109,8 @@ export const InstanceInfo = z.object({
     .default(null),
   /** a instância envia e-mail (SMTP configurado): confirmar e-mail e 2FA por e-mail (ADR-0047) */
   email: z.boolean().default(false),
+  /** novidades apagadas pelo super admin (chave de changelogKey no app): a tela Novidades não mostra */
+  hiddenChangelog: z.array(z.string()).default([]),
   /** catálogo de insígnias (ADR-0043), na ordem de exibição */
   badges: z.array(Badge).default([]),
 });
@@ -2162,6 +2164,10 @@ export const SetInstanceAdminRequest = z.object({ admin: z.boolean() });
 export const SetUserVerifiedRequest = z.object({ verified: z.boolean() });
 
 /** Só o que veio; `announcement: null` tira o aviso, `uploadMaxBytes: null` volta ao limite do ambiente. */
+/** Apagar uma novidade da tela Novidades (super admin): chave "data hora título" da entrada. */
+export const HideChangelogEntryRequest = z.object({ key: z.string().trim().min(1).max(300) });
+export type HideChangelogEntryRequest = z.infer<typeof HideChangelogEntryRequest>;
+
 export const UpdateInstanceConfigRequest = z
   .object({
     registrationOpen: z.boolean(),

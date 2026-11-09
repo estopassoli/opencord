@@ -19,6 +19,7 @@ import {
   AdminSystemMessagesQuery,
   AdminUsersQuery,
   CreateBadgeRequest,
+  HideChangelogEntryRequest,
   SetUserBadgesRequest,
   UpdateBadgeRequest,
   SetInstanceAdminRequest,
@@ -159,6 +160,16 @@ export class AdminController {
     @Body(zodPipe(UpdateInstanceConfigRequest)) body: z.infer<typeof UpdateInstanceConfigRequest>,
   ) {
     return this.admin.updateInstance(u.userId, body);
+  }
+
+  /** Apaga uma novidade da tela Novidades para todo mundo (as entradas vêm do app; aqui só a lista das ocultas). */
+  @Post('changelog/hidden')
+  @HttpCode(204)
+  async hideChangelog(
+    @CurrentUser() u: AuthUser,
+    @Body(zodPipe(HideChangelogEntryRequest)) body: z.infer<typeof HideChangelogEntryRequest>,
+  ) {
+    await this.admin.hideChangelogEntry(u.userId, body.key);
   }
 
   @Get('audit')

@@ -1,10 +1,33 @@
 import { Icon } from '@opencord/ui';
 import { useEffect, useState } from 'react';
+import { askConfirm } from '../../components/AskDialog';
 import { MobileNavButton } from '../../components/MobileNavButton';
+import { Tooltip } from '../../components/Tooltip';
 import { bridge } from '../../lib/bridge';
-import type { ChangeEntry, ChangeKind } from './changelog';
+import { useData } from '../../store/data';
+import { api, describeError } from '../../store/session';
+import { useUi } from '../../store/ui';
+import { changelogKey, type ChangeEntry, type ChangeKind } from './changelog';
 
 const KIND_LABEL: Record<ChangeKind, string> = { novo: 'Novo', melhoria: 'Melhoria', correção: 'Correção' };
+
+/** Super admin: apaga a novidade para todo mundo (a API guarda a chave e avisa os apps via instance:updated). */
+async function removeEntry(e: ChangeEntry) {
+  if (
+    !(await askConfirm('Ela some da tela Novidades de todo mundo.', {
+      title: `Apagar “${e.title}”`,
+      confirmLabel: 'Apagar',
+      danger: true,
+    }))
+  )
+    return;
+  try {
+    await api().request('POST', '/admin/changelog/hidden', { key: changelogKey(e) });
+    useUi.getState().toast('success', 'Novidade apagada.');
+  } catch (err) {
+    useUi.getState().toast('error', describeError(err));
+  }
+}
 
 const dayLabel = (date: string) =>
   new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -12,6 +35,8 @@ const dayLabel = (date: string) =>
 /** Tela inicial "Novidades": linha do tempo do que entrou no OpenCord (dados em changelog.ts). */
 export function NewsView() {
   const [version, setVersion] = useState<string | null>(null);
+  const isAdmin = useData((s) => Boolean(s.me?.isInstanceAdmin));
+  const hidden = useData((s) => s.instance?.hiddenChangelog);
   // a linha do tempo é grande e só serve aqui: carregada sob demanda, fora do bundle principal
   const [changelog, setChangelog] = useState<ChangeEntry[]>([]);
   useEffect(() => {
@@ -32,7 +57,8 @@ export function NewsView() {
   }, []);
 
   const days = new Map<string, ChangeEntry[]>();
-  for (const e of changelog) days.set(e.date, [...(days.get(e.date) ?? []), e]);
+  const hiddenSet = new Set(hidden ?? []);
+  for (const e of changelog) if (!hiddenSet.has(changelogKey(e))) days.set(e.date, [...(days.get(e.date) ?? []), e]);
 
   return (
     <section className="home news" aria-labelledby="news-title">
@@ -61,6 +87,18 @@ export function NewsView() {
                       <span className="timeline-version muted small">
                         {e.version ? `versão ${e.version}` : 'próxima versão'}
                       </span>
+                      {isAdmin && (
+                        <Tooltip label="Apagar novidade">
+                          <button
+                            type="button"
+                            className="timeline-delete"
+                            aria-label={`Apagar novidade “${e.title}”`}
+                            onClick={() => void removeEntry(e)}
+                          >
+                            <Icon name="trash" size={14} />
+                          </button>
+                        </Tooltip>
+                      )}
                     </div>
                     <h4>{e.title}</h4>
                     <p>{e.body}</p>

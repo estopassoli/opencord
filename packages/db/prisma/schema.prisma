@@ -659,6 +659,8 @@ model InstanceConfig {
   aiAutoBlockDevice Boolean @default(false)
   /// canal de contato para pedidos sobre dados pessoais (LGPD, ADR-0039); aparece na política dentro do app
   privacyContact   String?
+  /// novidades (changelog.ts do app) apagadas pelo super admin: chave "data hora título" de cada uma
+  hiddenChangelog  String[] @default([])
   updatedAt        DateTime @default(now()) @updatedAt @db.Timestamptz(3)
   updatedById      String?  @db.Uuid
 }

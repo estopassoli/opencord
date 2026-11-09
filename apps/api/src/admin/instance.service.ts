@@ -82,6 +82,7 @@ export class InstanceService {
       privacyContact: row?.privacyContact ?? null,
       badges: this.badges.list(),
       email: this.mail.enabled,
+      hiddenChangelog: row?.hiddenChangelog ?? [],
       gifs: this.cfg.KLIPY_APP_KEY
         ? { provider: 'klipy', appKey: this.cfg.KLIPY_APP_KEY, apiUrl: this.cfg.KLIPY_API_URL }
         : null,

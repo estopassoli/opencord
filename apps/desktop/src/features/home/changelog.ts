@@ -19,6 +19,9 @@ export interface ChangeEntry {
   body: string;
 }
 
+/** Identifica a entrada para o super admin apagá-la (InstanceInfo.hiddenChangelog). */
+export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) => `${e.date} ${e.time ?? ''} ${e.title}`;
+
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-09',
