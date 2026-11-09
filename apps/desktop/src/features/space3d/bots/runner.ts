@@ -43,6 +43,8 @@ export interface BotHost {
 
 const WALK = 3.2;
 const RUN = 6.2;
+/** futebol: velocidade com a bola no pé (a mesma regra de quem joga: 10% mais lento) */
+const BALL_CARRY_SPEED = 0.9;
 const GRAVITY = 15;
 const JUMP_V = 5.2;
 
@@ -254,8 +256,13 @@ export class BotRunner {
       moving,
       running,
       aim: p.ry,
-      speed: this.dash ? this.dash.speed : moving ? (running ? RUN : WALK) * this.skill.speed : 0,
+      speed: this.dash ? this.dash.speed : moving ? (running ? RUN : WALK) * this.skill.speed * this.carry() : 0,
     };
+  }
+
+  /** futebol com a bola no pé: anda mais devagar */
+  private carry(): number {
+    return this.zone === 2 && this.host.sport()?.holder === this.id ? BALL_CARRY_SPEED : 1;
   }
 
   /** anda até `cmd.to` (ou segue o carrinho/elástico); devolve se andou */
@@ -273,7 +280,7 @@ export class BotRunner {
     const dz = cmd.to.z - this.pose.z;
     const d = Math.hypot(dx, dz);
     if (d < 0.12) return false;
-    const step = Math.min(d, (cmd.run ? RUN : WALK) * this.skill.speed * dt);
+    const step = Math.min(d, (cmd.run ? RUN : WALK) * this.skill.speed * this.carry() * dt);
     this.place(this.pose.x + (dx / d) * step, this.pose.z + (dz / d) * step);
     this.pose.ry = Math.atan2(dx, dz);
     return true;

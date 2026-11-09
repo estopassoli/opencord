@@ -115,6 +115,8 @@ export type ScreenSource = { kind: 'video'; el: HTMLVideoElement } | { kind: 'ht
 
 const WALK = 3.2;
 const RUN = 6.2;
+/** futebol: velocidade com a bola no pé (fração da normal) */
+const BALL_CARRY_SPEED = 0.9;
 const JUMP_V = 5.2;
 /** giro da câmera pelo teclado (rad/s) */
 const TURN_SPEED = 2.4;
@@ -1671,7 +1673,9 @@ export class SpaceScene {
       const rz = -Math.sin(this.yaw);
       const dx = sx * fz + rx * fx;
       const dz = sz * fz + rz * fx;
-      const sp = (run ? RUN : WALK) * dt;
+      // futebol: com a bola no pé, 10% mais lento (quem marca alcança; correr sem ela é mais rápido)
+      const carry = this.zone === 2 && this.sport?.holding ? BALL_CARRY_SPEED : 1;
+      const sp = (run ? RUN : WALK) * carry * dt;
       const nx = this.pose.x + dx * sp;
       const nz = this.pose.z + dz * sp;
       let p = this.obstacles ? resolve(this.obstacles, nx, nz) : { x: nx, z: nz };
@@ -1704,7 +1708,11 @@ export class SpaceScene {
           moving: moving || !!dash,
           running: run,
           aim: Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw)),
-          speed: dash ? dash.speed : moving ? (run ? RUN : WALK) : 0,
+          speed: dash
+            ? dash.speed
+            : moving
+              ? (run ? RUN : WALK) * (this.zone === 2 && this.sport.holding ? BALL_CARRY_SPEED : 1)
+              : 0,
         });
         const holding = this.sport.holding;
         if (holding && !this.wasHolding) this.inputs.emit({ kind: 'grab' });
@@ -2024,7 +2032,6 @@ export class SpaceScene {
       scene: this.scene,
       camera: this.camera,
       obstacles: this.obstacles ?? gunObstacles(),
-      skin: new THREE.Color(this.me.color).getHex(),
       reducedMotion: this.reducedMotion,
       yaw: () => this.yaw,
       pitch: () => this.pitch,
