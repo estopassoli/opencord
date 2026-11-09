@@ -32,6 +32,7 @@ import { SpaceScene, type ScreenSource } from './scene';
 import { setSfxDeafened } from './sfx';
 import { DuelHud, rematchDuel, useDuelScene } from './DuelHud';
 import { GunHud, GunMatchPanel, GunScoreboard } from './gunfight/GunHud';
+import { useGunHud } from './gunfight/state';
 import { Binding, ControlsPanel, GameMenu, LockHint, LockStrip, type MenuTab } from './GameHud';
 import {
   BigCountdown,
@@ -129,6 +130,11 @@ function rematchKey(meId: string | undefined, scene: SpaceScene | null) {
     const race = st.session?.race;
     const stale = race ? Date.now() - race.startAt > RACE_STALE_MS : true;
     if (!racingNow(meId) && (!race || race.closed || stale)) playZone(7, scene);
+    return;
+  }
+  if (zone === 8) {
+    // gunfight: o R só recomeça depois do vencedor (no meio da partida ele recarrega, na cena)
+    if (useGunHud.getState().winner) playZone(8, scene);
     return;
   }
   if (isMatchZone(zone)) playZone(zone, scene);
@@ -309,7 +315,13 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
       sendPool: (m) => useSession.getState().realtime?.sendVolatile('space:pool', { channelId, ...m }),
       onRace: setRace,
       onRaceFinish: (ms) => void useSpace.getState().finishRace(ms),
-      sendGun: (g) => useSession.getState().realtime?.sendVolatile('space:gun', { channelId, ...g }),
+      // só o tiro (efeito) pode se perder; acerto, morte, renascer e recomeço mudam o placar
+      sendGun: (g) => {
+        const rt = useSession.getState().realtime;
+        if (g.kind === 'fire') rt?.sendVolatile('space:gun', { channelId, ...g });
+        // morte e recomeço esperam a conexão voltar (o abate de quem matou só conta pelo `die`)
+        else rt?.send('space:gun', { channelId, ...g }, { buffer: g.kind === 'die' || g.kind === 'restart' });
+      },
       sendBall: (z, b) => useSession.getState().realtime?.sendVolatile('space:ball', { channelId, zone: z, ...b }),
       onScore: (z, side, points, by, teams) => useSpace.getState().score(z, side, points, by, teams),
       onPunch: (strong) => {
@@ -390,6 +402,12 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
     const b = useBotPlay.getState().bot;
     if (b && b.zone !== zone) useBotPlay.getState().stop();
   }, [zone]);
+  const gunNotice = useGunHud((s) => s.notice);
+  useEffect(() => {
+    if (!gunNotice) return;
+    useUi.getState().toast('info', gunNotice);
+    useGunHud.getState().set({ notice: null });
+  }, [gunNotice]);
   const botNotice = useBotPlay((s) => s.notice);
   useEffect(() => {
     if (!botNotice) return;
@@ -532,7 +550,7 @@ export function SpaceView({ channelId, serverId }: { channelId: string; serverId
           onToggle={() => useTutorial.getState().togglePanel()}
         />
       )}
-      {!editing && aimLocked && <LockHint fighting={fighting} />}
+      {!editing && aimLocked && zone !== 8 && <LockHint fighting={fighting} />}
       {strip && <LockStrip />}
       {cursorFree && !aimLocked && !editing && !menuOpen && <LockStrip free />}
       {menuOpen && (

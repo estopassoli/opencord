@@ -9,9 +9,9 @@ import type { Action } from './bindings';
 import type { GameEvent } from './events';
 import type { InputEvent } from './input';
 
-/** o jogo do tutorial: a zona (0 sala, 1–7) ou o x1 */
-export type TutorialKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | 'duel';
-export const TUTORIAL_KEYS: readonly TutorialKey[] = ['0', '1', '2', '3', '4', '5', '6', '7', 'duel'];
+/** o jogo do tutorial: a zona (0 sala, 1–8) ou o x1 */
+export type TutorialKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | 'duel';
+export const TUTORIAL_KEYS: readonly TutorialKey[] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', 'duel'];
 
 /** o que o marcador do mundo aponta (anel e seta na cena) */
 export type TutorialTarget = 'bola' | 'cesta' | 'gol' | 'rede' | 'branca' | 'checkpoint';
@@ -280,6 +280,41 @@ export const TUTORIALS: Record<TutorialKey, Tutorial> = {
       },
     ],
   },
+  '8': {
+    key: '8',
+    title: 'Gunfight',
+    objective: 'Todos contra todos: quem fizer 30 abates primeiro vence.',
+    steps: [
+      { text: 'Atire', action: 'primary', mouse: true, conclui: (e, c) => e.kind === 'gunshot' && e.by === c.me },
+      { text: 'Segure para mirar', action: 'secondary', hold: true, conclui: pressed('secondary') },
+      { text: 'Recarregue', action: 'rematch', conclui: (e) => e.kind === 'gunfx' && e.what === 'magOut' },
+      {
+        text: 'Corra e agache: você desliza',
+        action: 'run',
+        also: ['crouch'],
+        conclui: (e) => e.kind === 'gunfx' && e.what === 'slide',
+      },
+    ],
+    hints: [
+      {
+        id: 'gun-swap',
+        text: 'Sem bala? Troque para a pistola (2) ou gire a roda do mouse',
+        action: 'rematch',
+        vezes: 2,
+        // o clique seco só sai sem munição nenhuma (com reserva, a recarga começa sozinha): some ao trocar de arma
+        quando: (e) => e.kind === 'gunfx' && e.what === 'dry',
+        feito: (e) => e.kind === 'gunfx' && e.what === 'draw',
+      },
+      {
+        id: 'gun-tactical',
+        text: 'Toque duas vezes no correr: corrida tática, mais rápida',
+        action: 'run',
+        vezes: 3,
+        quando: (e) => e.kind === 'gunfx' && e.what === 'slide',
+        feito: (e) => e.kind === 'gunfx' && e.what === 'tactical',
+      },
+    ],
+  },
   duel: {
     key: 'duel',
     title: 'x1',
@@ -314,7 +349,7 @@ export const TUTORIALS: Record<TutorialKey, Tutorial> = {
 /** o tutorial de agora: x1 quando estou lutando, senão o da zona */
 export function tutorialKey(zone: number, fighting: boolean): TutorialKey {
   if (fighting) return 'duel';
-  return (zone >= 0 && zone <= 7 ? String(Math.trunc(zone)) : '0') as TutorialKey;
+  return (zone >= 0 && zone <= 8 ? String(Math.trunc(zone)) : '0') as TutorialKey;
 }
 
 /** a zona em que os eventos do tutorial acontecem (x1 é na sala) */

@@ -4,7 +4,7 @@
  * rajadas, andam de lado no combate, recarregam e renascem. Brigam também entre si (todos contra todos).
  */
 import type { GunId } from '@opencord/contracts';
-import { BOT_LEVEL_LABEL, BOT_SKILL, type BotLevel } from '../bots/level';
+import { BOT_SKILL, type BotLevel } from '../bots/level';
 import { resolve } from '../physics';
 import type { BotPose, GunHost } from './game';
 import { GUN_BOXES, GUN_HALF, blockedAt, pickSpawn } from './map';
@@ -17,6 +17,7 @@ import {
   aimDir,
   headY,
   lineOfSight,
+  lookAt,
   shotInterval,
   type Target,
   type V3,
@@ -57,9 +58,17 @@ interface Bot {
   path: { x: number; z: number }[];
   target: string | null;
   reactAt: number;
+  /** levou tiro: reage até esta hora (mais cedo que o tempo de reação normal); 0 = nada pendente */
+  alertAt: number;
+  /** a ação que o boneco mostra (recarga) e o contador (muda = toca de novo), como a pose de quem joga */
+  act: 'reload' | undefined;
+  an: number;
   lastSeen: { x: number; z: number; at: number } | null;
   errYaw: number;
   errPitch: number;
+  /** o erro que sobra mesmo mirando há tempo (o "tremido" do nível), sorteado a cada pensada */
+  floorYaw: number;
+  floorPitch: number;
   strafe: number;
   strafeUntil: number;
   crouch: boolean;
@@ -123,32 +132,37 @@ export function findPath(a: { x: number; z: number }, b: { x: number; z: number 
   return out.reverse();
 }
 
-/** ângulos (yaw, pitch) da câmera para olhar de `a` para `b` (mesma convenção do jogador) */
-export function lookAt(a: V3, b: V3): { yaw: number; pitch: number } {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const dz = b.z - a.z;
-  const h = Math.hypot(dx, dz);
-  return { yaw: Math.atan2(-dx, -dz), pitch: -Math.atan2(dy, h) };
-}
-
+/** distância mínima entre o bot e outro corpo (m) */
+const BODY_GAP = 0.7;
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+/** erro mínimo da mira por nível (rad): o fácil nunca fica certeiro, o difícil quase */
+export const AIM_FLOOR: Record<BotLevel, number> = { facil: 0.05, medio: 0.02, dificil: 0.006 };
+/** rajadas por nível (tiros de uma automática antes da pausa) e o acréscimo da pausa (ms) */
+const BURST: Record<BotLevel, { min: number; extra: number; pause: number }> = {
+  facil: { min: 2, extra: 3, pause: 450 },
+  medio: { min: 3, extra: 5, pause: 150 },
+  dificil: { min: 3, extra: 6, pause: 0 },
+};
 
 export class GunBots {
   private readonly list: Bot[] = [];
-  private seed = 7;
+  private seed: number;
   private readonly skill;
 
   constructor(
     readonly level: BotLevel,
     count: number,
     private readonly ctx: Ctx,
+    seed = 7,
   ) {
+    this.seed = Math.max(1, Math.floor(seed) % 2147483646);
     this.skill = BOT_SKILL[level];
     const guns = SLOT_GUNS.primary.filter((g) => level !== 'facil' || GUNS[g].cls !== 'sniper');
     for (let i = 0; i < count; i++) {
       const id = `bot:${i + 1}`;
-      const name = `Bot ${i + 1} · ${BOT_LEVEL_LABEL[level]}`;
+      // o nível aparece na etiqueta do placar (não repete no nome)
+      const name = `Bot ${i + 1}`;
       const w = guns[Math.floor(this.rand() * guns.length)]!;
       const b: Bot = {
         id,
@@ -170,9 +184,14 @@ export class GunBots {
         path: [],
         target: null,
         reactAt: 0,
+        alertAt: 0,
+        act: undefined,
+        an: 0,
         lastSeen: null,
         errYaw: 0,
         errPitch: 0,
+        floorYaw: 0,
+        floorPitch: 0,
         strafe: 1,
         strafeUntil: 0,
         crouch: false,
@@ -229,6 +248,7 @@ export class GunBots {
     b.target = null;
     b.path = [];
     b.reloadUntil = 0;
+    b.alertAt = 0;
     b.nextShot = now + 400;
   }
 
@@ -240,7 +260,10 @@ export class GunBots {
     // quem atirou vira o alvo (vira para ele)
     if (by !== b.id) {
       b.target = by;
-      b.reactAt = Math.min(b.reactAt, performance.now() + this.skill.reaction * 500);
+      // a próxima pensada sorteia o tempo de reação de novo: o alerta guarda o "mais cedo" para ela respeitar
+      const soon = performance.now() + this.skill.reaction * 500;
+      b.alertAt = b.alertAt ? Math.min(b.alertAt, soon) : soon;
+      b.reactAt = Math.min(b.reactAt, soon);
     }
     if (b.hp > 0) return false;
     b.alive = false;
@@ -293,6 +316,9 @@ export class GunBots {
 
   private think(b: Bot, now: number) {
     b.thinkAt = now + 120 + this.rand() * 80;
+    const fl = AIM_FLOOR[this.level];
+    b.floorYaw = (this.rand() * 2 - 1) * fl;
+    b.floorPitch = (this.rand() * 2 - 1) * fl * 0.6;
     const seen = this.look(b);
     if (seen) {
       if (b.target !== seen.id || !b.lastSeen || now - b.lastSeen.at > 1500) {
@@ -300,6 +326,11 @@ export class GunBots {
         b.reactAt = now + this.skill.reaction * 1000 * (0.7 + this.rand() * 0.6);
         b.errYaw = (this.rand() - 0.5) * this.skill.error * 0.5;
         b.errPitch = (this.rand() - 0.5) * this.skill.error * 0.3;
+      }
+      // levou tiro antes de ver: reage mais cedo (o tiro já avisou)
+      if (b.alertAt) {
+        b.reactAt = Math.min(b.reactAt, b.alertAt);
+        b.alertAt = 0;
       }
       b.target = seen.id;
       b.lastSeen = { x: seen.x, z: seen.z, at: now };
@@ -332,8 +363,10 @@ export class GunBots {
       // combate: mira no peito (no difícil, às vezes na cabeça), com o erro diminuindo enquanto mira
       const aimY = t.y + (sk.smart > 0.8 && this.rand() < 0.02 ? headY(t.crouch) : headY(t.crouch) - 0.35);
       const want = lookAt(eye, { x: t.x, y: aimY, z: t.z });
-      b.errYaw *= Math.exp(-dt * (1.5 + (1 - sk.error) * 3));
-      b.errPitch *= Math.exp(-dt * (1.5 + (1 - sk.error) * 3));
+      // o erro cai enquanto mira, mas só até o piso do nível (que fica tremendo em volta do alvo)
+      const settle = 1 - Math.exp(-dt * (1.5 + (1 - sk.error) * 3));
+      b.errYaw += (b.floorYaw - b.errYaw) * settle;
+      b.errPitch += (b.floorPitch - b.errPitch) * settle;
       const turn = (2.5 + (1 - sk.error) * 8) * dt;
       const dy = wrap(want.yaw + b.errYaw - b.yaw);
       const dp = want.pitch + b.errPitch - b.pitch;
@@ -374,7 +407,21 @@ export class GunBots {
       b.mag = spec.mag;
     }
     if (b.crouch) speed = 1.8;
-    const p = resolve(this.ctx.host.obstacles, b.x + mx * speed * dt, b.z + mz * speed * dt);
+    let nx = b.x + mx * speed * dt;
+    let nz = b.z + mz * speed * dt;
+    // não atravessa ninguém: fica a um corpo de distância de mim e dos outros bots (senão entra na câmera)
+    const me = this.ctx.me();
+    const others: { x: number; z: number }[] = me ? [me] : [];
+    for (const o of this.list) if (o !== b && o.alive) others.push(o);
+    for (const o of others) {
+      const ox = nx - o.x;
+      const oz = nz - o.z;
+      const d = Math.hypot(ox, oz);
+      if (d >= BODY_GAP || d < 1e-4) continue;
+      nx = o.x + (ox / d) * BODY_GAP;
+      nz = o.z + (oz / d) * BODY_GAP;
+    }
+    const p = resolve(this.ctx.host.obstacles, nx, nz);
     b.moving = Math.hypot(p.x - b.x, p.z - b.z) / Math.max(dt, 1e-3);
     b.x = p.x;
     b.z = p.z;
@@ -385,28 +432,28 @@ export class GunBots {
     if (b.reloadUntil || now < b.nextShot || now < b.pauseUntil) return;
     if (b.mag <= 0) {
       b.reloadUntil = now + spec.emptyReloadMs;
+      // o boneco mostra a recarga
+      b.act = 'reload';
+      b.an = (b.an + 1) % 1000;
       return;
     }
     // rajadas: atira um tanto e para um pouco (o fácil para mais)
+    const burst = BURST[this.level];
     if (b.burstLeft <= 0) {
-      b.burstLeft = spec.auto ? 3 + Math.floor(this.rand() * 6) : 1;
+      b.burstLeft = spec.auto ? burst.min + Math.floor(this.rand() * (burst.extra + 1)) : 1;
     }
     b.mag--;
     b.burstLeft--;
     b.nextShot = now + shotInterval(spec) * (spec.auto ? 1 : 1.3 + this.skill.error);
-    if (b.burstLeft <= 0) b.pauseUntil = now + (200 + this.rand() * 500) * (1 + this.skill.error * 2);
+    if (b.burstLeft <= 0) b.pauseUntil = now + (200 + this.rand() * 500) * (1 + this.skill.error * 2) + burst.pause;
     const eye = { x: b.x, y: b.crouch ? EYE.crouch : EYE.stand, z: b.z };
     const spread = (this.skill.smart > 0.8 ? spec.spread.ads + 0.006 : spec.spread.hip * 0.6) + this.skill.error * 0.03;
     const dir = aimDir(b.yaw, b.pitch, spread, this.rand(), this.rand());
     const fx = -Math.sin(b.yaw);
     const fz = -Math.cos(b.yaw);
-    this.ctx.shoot({
-      by: b.id,
-      w: b.w,
-      from: eye,
-      muzzle: { x: b.x + fx * 0.55 - fz * 0.1, y: eye.y - 0.2, z: b.z + fz * 0.55 + fx * 0.1 },
-      dir,
-    });
+    // a boca da arma do boneco (se ele já tem a arma na mão); senão um ponto à frente e à direita do peito
+    const muzzle = b.av.muzzle?.() ?? { x: b.x + fx * 0.55 - fz * 0.1, y: eye.y - 0.2, z: b.z + fz * 0.55 + fx * 0.1 };
+    this.ctx.shoot({ by: b.id, w: b.w, from: eye, muzzle, dir });
   }
 
   private place(b: Bot) {
@@ -416,7 +463,14 @@ export class GunBots {
       z: b.z,
       ry: Math.atan2(-Math.sin(b.yaw), -Math.cos(b.yaw)),
       a: !b.alive ? 9 : b.moving > 3.5 ? 2 : b.moving > 0.3 ? 1 : 0,
-      gun: { w: b.w, pitch: b.pitch, crouch: b.crouch, ads: !!b.target, alive: b.alive },
+      gun: {
+        w: b.w,
+        pitch: b.pitch,
+        crouch: b.crouch,
+        ads: !!b.target,
+        alive: b.alive,
+        ...(b.act ? { act: b.act, an: b.an } : {}),
+      },
     };
     b.av.place(pose);
   }

@@ -59,6 +59,12 @@ const PLAYTHROUGH: Record<TutorialKey, TutorialInput[]> = {
     ev(7, { kind: 'item' }),
     ev(7, { kind: 'boost', source: 'item' }),
   ],
+  '8': [
+    ev(8, { kind: 'gunshot', by: 'me', w: 'm4' }),
+    { kind: 'press', action: 'secondary' },
+    ev(8, { kind: 'gunfx', what: 'magOut', w: 'm4' }),
+    ev(8, { kind: 'gunfx', what: 'slide', w: 'm4' }),
+  ],
   duel: [
     ev(0, { kind: 'punch', by: 'me', strong: false, landed: false }),
     ev(0, { kind: 'punch', by: 'me', strong: true, landed: false }),
@@ -67,8 +73,8 @@ const PLAYTHROUGH: Record<TutorialKey, TutorialInput[]> = {
 };
 
 describe('Espaço 3D: tutorial de primeira vez (dados)', () => {
-  it('cada zona de 1 a 7 e o x1 têm objetivo e de 2 a 4 passos, cada um com uma ação dos atalhos', () => {
-    for (const key of ['1', '2', '3', '4', '5', '6', '7', 'duel'] as const) {
+  it('cada zona de 1 a 8 e o x1 têm objetivo e de 2 a 4 passos, cada um com uma ação dos atalhos', () => {
+    for (const key of ['1', '2', '3', '4', '5', '6', '7', '8', 'duel'] as const) {
       const t = TUTORIALS[key];
       expect(t.key).toBe(key);
       expect(t.objective.length).toBeGreaterThan(10);
@@ -131,6 +137,7 @@ describe('Espaço 3D: tutorial de primeira vez (dados)', () => {
     expect(tutorialKey(0, true)).toBe('duel');
     expect(tutorialKey(0, false)).toBe('0');
     expect(tutorialKey(6, false)).toBe('6');
+    expect(tutorialKey(8, false)).toBe('8');
     expect(tutorialKey(42, false)).toBe('0');
   });
 });

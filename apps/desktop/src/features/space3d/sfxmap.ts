@@ -183,9 +183,11 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
   // drible: o vento do corpo passando (a bicicleta ainda tem o chute forte, pelo evento do chute)
   trick: (e) => [{ name: 'swing', gain: e.trick === 'bicicleta' ? 0.9 : 0.6, pitch: e.trick === 'elastico' ? 1.2 : 1 }],
   // falta: apito; desarme limpo: o choque na bola
-  gunshot: (e) => [{ name: SHOT_SOUND[e.w], gain: e.by === 'me' ? 1 : 0.9 }],
+  gunshot: (e, ctx) => [{ name: SHOT_SOUND[e.w], gain: e.by === ctx.me ? 1 : 0.9 }],
   impact: (e) => [e.flesh ? { name: 'impactFlesh', gain: 0.6 } : { name: 'impactWall', gain: 0.45 }],
   gunfx: (e) => {
+    // a corrida tática não tem som próprio (o passo já muda)
+    if (e.what === 'tactical') return [];
     const g: Record<string, [SfxName, number]> = {
       draw: ['drawGun', 0.5],
       magOut: ['magOut', 0.6],

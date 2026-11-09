@@ -100,6 +100,46 @@ Gate da Rita feito (relatório em `context/rodada-2026-11-09.md`): checks verdes
 respondido ao digitar no chat; R/"Correr de novo" largando corrida por cima de quem corre; som de fim para quem chega
 depois). Todo o teste manual está PENDENTE. Falta: `docs/IMPLEMENTATION_PLAN.md` e Novidades (diretora/mantenedor).
 
+- **Gunfight (zona 8, rodada 1 de correções em 2026-11-09):** `gunfight/` — `weapons.ts` (armas e balística puras,
+  `lookAt`, `maxDamage`, `BASH`), `movement.ts` (tática recarrega aos poucos, deslize com teto 7,8 m/s e recarga de
+  600 ms, bhop com teto × arma), `game.ts` (`GunGame`: fila de tarefas no `step` no lugar de `setTimeout`, clique
+  guardado 320 ms, saída da corrida por classe, recuo = parte fixa + tranco visual `viewPunch`, mira convergente na 3ª
+  pessoa, bots saem quando alguém entra), `fx.ts` (traçantes e clarões em pool), `grips.ts` (pegadas das mãos usadas
+  pela 1ª pessoa e pelo boneco), `viewmodel.ts` (ombro fixo + cotovelo resolvido, mãos animadas no ferrolho/recarga).
+  `hand.ts` junta a mão numa malha por pose (cache compartilhado). Rede: `space:gun` com `restart`; só `fire` é
+  volátil (cliente `realtime.send` e servidor `emit`); placar = cada um publica `k`/`d` na `SpaceGunPose`. Teste
+  manual com 2 pessoas PENDENTE. Recomeço ignora o `k`/`d` velho da pose até a pessoa publicar outro (`staleScore`).
+  **Rodada 2 integrada (Caio, 2026-11-09):** acertos por balde por remetente (cabe 2 + 0,5 s da arma juntos);
+  `restart`/`die`/`spawn` só de quem está na arena, `restart` da rede só com a partida acabada ou sem abate
+  (`canRestart`; o botão "Recomeçar para todos" só aparece depois de um vencedor); `die`/`restart` vão com buffer
+  (`realtime.send(..., { buffer })`). Mola do recuo em subpassos de 1/120 s, limite 0,15 rad. Sem mira na recarga; sem
+  visão livre na zona 8. 3ª pessoa: `gunfight/camera.ts` `shoulderCam` (puro, testado contra `GUN_BOXES`; o boneco some
+  com a câmera < 0,9 m); corpo gira para a mira (`bodyYaw`, ~50° de folga parado). Pose leva `act`/`an` (recarga,
+  golpe, ferrolho, sacar) e o boneco anima; `gunKick` no tiro (meu, de outro e de bot); clarão remoto sai da arma do
+  boneco (`muzzleOf`). Treino: bots esperam com o mouse solto (`paused`). Mapa: materiais do módulo + `mergeGeometries`
+  (21 malhas, 24–32 chamadas sem bots). `skeleton.dispose()` em `disposeGun`/`Avatar.dispose`. Mão de apoio por arma
+  (`SUPPORT_AT`), baioneta pelo centro do cabo (`FIST_HOLE`), Kar98k com pegada de coronha reta, tática solta a mão
+  esquerda, alavanca pela malha (`partCenter`). SMG: MP7 26, MP5 27 a 860 rpm (de perto mais rápidas que o M4).
+  **Teste r2 (Rita, 2026-11-09):** checks verdes (desktop 69/477, contracts 37, `space.int` 11, api tsc). Nome do boneco some
+  perto da câmera (`avatar.ts`). Ainda aberto: arma na 3ª pessoa parece pistola de pé (cano para longe da câmera, mão
+  esquerda solta), braços dos bots com SMG não conferidos de perto.
+  Teste manual com 2 pessoas PENDENTE.
+  **Revisão r3 (Rita, 2026-11-09):** checks verdes (69/477). Quebrar passou (munição, recarga+troca, morrer recarregando,
+  Esc, vencedor e R). Abertos: preso agachado depois do slide (`movement.ts`), slide depende do FPS, `gunPoseKey` sem
+  `act`/`an`, sem aviso com 0/0 (dica `gun-swap` gasta à toa), arma na 3ª pessoa. Relatório em
+  `context/reviews/2026-11-09-gunfight-r3-rita.md`.
+  **Revisão r3 (Téo, 2026-11-09):** checks verdes (69/477). Achados altos: na 3ª pessoa o sinal do ângulo do cano
+  está invertido (`holdGun`: rotação x positiva levanta a boca; quadril 8–24° para cima, coice abaixa, sacar vem de
+  cima) e a mão esquerda não alcança o apoio (braço 0,38 m, apoio a 0,57–0,65 m do ombro). Médios: o pente não vai à
+  mão na recarga, o antebraço cobre a tela na recarga vazia, a Kar98k usa a recarga de pente, o pente da pistola fica
+  fora da tela, a inspeção da baioneta não muda nada e o golpe pesado é igual ao leve. Lista em
+  `context/reviews/2026-11-09-gunfight-r3-teo.md`.
+  **Teste r3 (Rita, 2026-11-09):** checks verdes (desktop 69/490, `space.int` 11). Visto nos quadros: recargas,
+  luneta, quick scope, ferrolho, inspeção, faca e 3ª pessoa ok. Corrigido: golpe pesado escondia a lâmina atrás da mão
+  (`viewmodel.ts`), bots atravessavam a pessoa (`BODY_GAP` em `bots.ts`, com teste), nome do bot gigante colado na
+  câmera (some a 1,6 m). Abertos: mãos juntas no punho na 3ª pessoa, antebraço na recarga vazia e na Kar98k, dedos
+  abertos no karambit no golpe pesado. Teste manual com 2 pessoas PENDENTE.
+
 ## Decisões registradas
 
 - ADR-0055 (e adendos) e `docs/DECISIONS.md`. Arquitetura nova exige ADR + linha em DECISIONS.

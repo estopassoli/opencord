@@ -125,6 +125,16 @@ export class RealtimeClient {
     if (s?.connected) s.volatile.emit(name, payload);
   }
 
+  /**
+   * Espaço 3D: evento sem ACK, mas com fila (não some se a conexão estiver ocupada): acerto e morte do gunfight.
+   * Com `buffer`, vai mesmo sem conexão: o Socket.IO guarda e manda ao reconectar (um abate não pode se perder numa
+   * queda curta). Sem ele, desconectado, some (um acerto velho não serve mais).
+   */
+  send(name: 'space:gun', payload: unknown, opts: { buffer?: boolean } = {}) {
+    const s = this.socket;
+    if (s && (s.connected || opts.buffer)) s.emit(name, payload);
+  }
+
   get connected() {
     return this.socket?.connected ?? false;
   }

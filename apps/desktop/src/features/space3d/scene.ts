@@ -28,10 +28,10 @@ import { attackHoop, clampToHalf, GOOD_BAND, netSideOf, type PoolSeat } from './
 import { sfx } from './sfx';
 import { chargeStep } from './sfxmap';
 import { SLIDE_MS, SportPlay, type FootMove, type RemoteBall } from './sportplay';
-import { GunGame, type GunAction, type GunHost } from './gunfight/game';
+import { GunGame, type GunAction, type GunHost, type GunPlayer } from './gunfight/game';
+import { shoulderCam } from './gunfight/camera';
 import { GUN_BOXES, gunObstacles } from './gunfight/map';
 import { buildGunMap } from './gunfight/mapmesh';
-import { rayBox } from './gunfight/weapons';
 import { floorLayout } from './sports';
 import type { SpaceGun } from '@opencord/contracts';
 import type { BotLevel } from './bots/level';
@@ -460,6 +460,9 @@ export class SpaceScene {
       this.gun = new GunGame(this.gunHost());
       this.yaw = 0;
       this.pitch = 0.05;
+      // a visão livre não vale aqui (a câmera é a mira): nada sobra de antes
+      this.freeYaw = 0;
+      this.freePitch = 0;
     }
     if (z === 6 || z === 7) {
       const a = ARENAS[z];
@@ -1171,7 +1174,8 @@ export class SpaceScene {
 
   /** Q/E (configuráveis) giram a câmera pelo teclado, como em todo jogo em 3ª pessoa; na moto a câmera segue a pista */
   private turnCamera(dt: number) {
-    if (this.mode !== 'play' || this.bike) return;
+    // no gunfight a câmera é a mira: só o mouse gira (Q/E girando em primeira pessoa desorienta)
+    if (this.mode !== 'play' || this.bike || this.gun) return;
     const t = (this.held('turnLeft') ? 1 : 0) - (this.held('turnRight') ? 1 : 0);
     if (t) this.yaw += t * TURN_SPEED * dt;
   }
@@ -1387,9 +1391,9 @@ export class SpaceScene {
     this.pitch = Math.max(-0.15, Math.min(1.35, this.pitch + dy * 0.004));
   };
 
-  /** Alt (configurável) segurado jogando: visão livre */
+  /** Alt (configurável) segurado jogando: visão livre (não no gunfight: lá a câmera é a mira e o tiro sai dela) */
   private get freeLooking() {
-    return this.mode === 'play' && this.held('freeLook');
+    return this.mode === 'play' && !this.gun && this.held('freeLook');
   }
 
   private lookAround(dx: number, dy: number) {
@@ -1456,7 +1460,7 @@ export class SpaceScene {
   private cancelHeld() {
     this.leftHeld = false;
     this.showScoreboard(false);
-    cancelHeld(this.keys, [this.sport, this.pool]);
+    cancelHeld(this.keys, [this.sport, this.pool, this.gun]);
     if (this.lastCharge !== null) {
       this.lastCharge = null;
       this.hooks.onCharge?.(null);
@@ -1949,7 +1953,10 @@ export class SpaceScene {
   private lastGunKey = '';
   private gunPoseKey() {
     const g = this.gun?.pose();
-    return g ? `${g.w}:${g.pitch.toFixed(2)}:${g.crouch}:${g.ads}:${g.alive}` : '';
+    // a ação (recarga, golpe, ferrolho) entra na chave: parado, ela sai no quadro seguinte (não no envio de 1 s)
+    return g
+      ? `${g.w}:${g.pitch.toFixed(2)}:${g.crouch}:${g.ads}:${g.alive}:${g.k}:${g.d}:${g.act ?? ''}:${g.an ?? ''}`
+      : '';
   }
 
   /** a ação do atalho no gunfight (devolve se tratou) */
@@ -1967,6 +1974,11 @@ export class SpaceScene {
       run: 'run',
       view: 'view',
     };
+    // partida acabou: o R (revanche) recomeça para todos, como diz a tela do vencedor
+    if (a === 'rematch' && g.over) {
+      this.restartGun();
+      return true;
+    }
     const ga = map[a];
     if (!ga) return false;
     g.press(ga, now);
@@ -1981,6 +1993,7 @@ export class SpaceScene {
       camera: this.camera,
       obstacles: this.obstacles ?? gunObstacles(),
       skin: new THREE.Color(this.me.color).getHex(),
+      reducedMotion: this.reducedMotion,
       yaw: () => this.yaw,
       pitch: () => this.pitch,
       turn: (dy, dp) => {
@@ -1995,18 +2008,22 @@ export class SpaceScene {
       players: () => {
         const now = performance.now();
         const inCall = new Set(this.participants.map((p) => p.identity));
-        const out = [];
+        const out: GunPlayer[] = [];
         for (const [id, p] of peers) {
           if (id === this.selfId || p.zone !== 8 || !inCall.has(id) || now - p.at > PEER_TIMEOUT_MS) continue;
+          // o acerto é onde o boneco aparece na tela (ele anda suavizado atrás da pose crua): o que se vê é o que acerta
+          const drawn = this.others.get(id)?.root.position;
           out.push({
             id,
             name: this.nameOf(id),
-            x: p.x,
-            y: p.y,
-            z: p.z,
+            x: drawn?.x ?? p.x,
+            y: drawn?.y ?? p.y,
+            z: drawn?.z ?? p.z,
             ry: p.ry,
             crouch: p.gun?.crouch ?? false,
             alive: p.gun?.alive ?? true,
+            ...(p.gun ? { w: p.gun.w } : {}),
+            ...(p.gun?.k !== undefined && p.gun.d !== undefined ? { k: p.gun.k, d: p.gun.d } : {}),
           });
         }
         return out;
@@ -2019,6 +2036,16 @@ export class SpaceScene {
         this.pose.y = p.y;
         this.pose.z = p.z;
         this.pose.ry = p.ry;
+      },
+      muzzle: () => this.me.muzzleWorld(),
+      muzzleOf: (id) => this.others.get(id)?.muzzleWorld() ?? null,
+      shotFx: (id) => (id === this.selfId ? this.me : (this.others.get(id) ?? this.botAvs.get(id)))?.gunKick(),
+      paused: () => !this.aimLocked && !this.noLock,
+      hitFx: (id) => {
+        const av = this.others.get(id) ?? this.botAvs.get(id);
+        if (!av) return;
+        this.juice.flash(av.material, 80);
+        av.flinch();
       },
       spawnAvatar: (id, name) => {
         const av = new Avatar(id, name);
@@ -2033,6 +2060,7 @@ export class SpaceScene {
             av.setGun(bp.gun.w);
             av.setGunPose(bp.gun);
           },
+          muzzle: () => av.muzzleWorld(),
           dispose: () => {
             this.scene.remove(av.root);
             av.dispose();
@@ -2057,9 +2085,9 @@ export class SpaceScene {
     this.gun?.setBots(level, count);
   }
 
-  /** gunfight: placar zerado, todos renascem */
+  /** gunfight: placar zerado, todos renascem (só quando dá: no meio de uma partida com abates, não) */
   restartGun() {
-    this.gun?.restart();
+    if (this.gun?.canRestart) this.gun.restart();
   }
 
   /** gunfight: primeira pessoa (V) */
@@ -2070,8 +2098,10 @@ export class SpaceScene {
   /** gunfight: primeira pessoa (no olho) ou terceira (sobre o ombro direito); a mira muda o zoom */
   private placeGunCamera(g: GunGame) {
     const e = g.eye;
-    const yaw = this.yaw + this.freeYaw;
-    const pitch = this.pitch + this.freePitch;
+    // a câmera é a mira: sem visão livre (o tiro sai de `this.yaw`/`this.pitch`)
+    const yaw = this.yaw;
+    // o tranco do recuo é só da câmera (volta sozinho); a mira de verdade fica em `this.pitch`
+    const pitch = this.pitch - g.viewPunch;
     const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     const fov = g.fov(70);
     if (Math.abs(this.camera.fov - fov) > 0.01) {
@@ -2079,23 +2109,22 @@ export class SpaceScene {
       this.camera.updateProjectionMatrix();
     }
     const fp = g.firstPerson && g.isAlive;
+    let hideSelf = fp;
     if (fp) {
       this.camera.position.set(e.x, e.y, e.z);
     } else {
-      // por cima do ombro direito; morto, a câmera se afasta um pouco
-      const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-      const target = new THREE.Vector3(e.x, e.y + 0.15, e.z).addScaledVector(right, 0.45);
-      let d = g.isAlive ? 2.3 - g.aiming * 0.9 : 3.5;
-      const back = dir.clone().negate();
-      for (const b of GUN_BOXES) {
-        const t = rayBox(target, back, b);
-        if (t < d) d = Math.max(0.4, t - 0.2);
-      }
-      this.camera.position.copy(target).addScaledVector(back, d);
+      // por cima do ombro direito, sem entrar nas caixas; morto, a câmera se afasta um pouco
+      const c = shoulderCam(e, yaw, pitch, { aiming: g.aiming, alive: g.isAlive }, GUN_BOXES);
+      this.camera.position.set(c.pos.x, c.pos.y, c.pos.z);
+      hideSelf = c.hideSelf;
     }
     this.camera.lookAt(this.camera.position.clone().add(dir));
     if (this.juice.shake.amplitude > 0) this.camera.position.add(this.juice.shakeOffset(this.shakeOff));
-    this.me.root.visible = !fp;
+    // primeira pessoa, ou a câmera encostada na cabeça (parede atrás): o meu boneco some para não tampar a tela
+    this.me.root.visible = !hideSelf;
+    // 3ª pessoa: quem passa entre a câmera e o meu boneco (a menos de 0,8 m da câmera) some para não tampar a tela
+    for (const av of this.others.values()) av.root.visible = fp || !nearCamera(av.root.position, this.camera.position);
+    for (const av of this.botAvs.values()) av.root.visible = fp || !nearCamera(av.root.position, this.camera.position);
     g.vm.setAspect(this.camera.aspect);
   }
 
@@ -2162,6 +2191,9 @@ export class SpaceScene {
     this.botRun = null;
     this.sport?.dispose();
     this.pool?.dispose();
+    // o gunfight solta a interface dele (luneta, bots, ativo) e os efeitos
+    this.gun?.dispose();
+    this.gun = null;
     this.events.clear();
     this.inputs.clear();
     this.setTutorialTarget(null);
@@ -2265,4 +2297,10 @@ function ringMesh(): THREE.Group {
 /** raquete de cada esporte */
 function racketOf(zone: number): 'tennis' | 'pingpong' | null {
   return zone === 3 ? 'tennis' : zone === 5 ? 'pingpong' : null;
+}
+
+/** o corpo de um boneco (do joelho à cabeça, em `at`) está a menos de 0,8 m da câmera (`cam`)? */
+export function nearCamera(at: { x: number; y: number; z: number }, cam: { x: number; y: number; z: number }) {
+  const y = Math.max(at.y + 0.2, Math.min(at.y + 1.25, cam.y));
+  return Math.hypot(cam.x - at.x, cam.y - y, cam.z - at.z) < 0.8;
 }

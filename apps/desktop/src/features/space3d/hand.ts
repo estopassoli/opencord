@@ -4,18 +4,36 @@
  * ou do guarda-mão. Medidas de mão adulta (m); o boneco usa a mesma mão em escala.
  *
  * Espaço da mão: o pulso na origem, a palma e os dedos para −z, a palma virada para −y, o dorso para +y. Na mão
- * direita (`side` 1) o polegar fica em −x; na esquerda, em +x.
+ * direita (`side` 1) o indicador e o polegar ficam em −x (o mindinho em +x); na esquerda, espelhado. O polegar sai da
+ * lateral da palma do lado do indicador, apontando para a frente e para dentro, com a polpa virada para os dedos
+ * (oposição): fechando, ele vem por cima dos dedos.
+ *
+ * Desempenho: as 18 peças são juntadas numa geometria só por pose de dedos (uma chamada de desenho por mão, sem sombra).
+ * As poses ficam num cache compartilhado por todas as mãos (os bonecos seguram as armas com as mesmas poses).
  */
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const FINGERS = [
-  // x na palma, comprimentos das 3 falanges
+  // x na palma (do indicador ao mindinho), comprimentos das 3 falanges
   { x: 0.027, len: [0.042, 0.026, 0.022] },
   { x: 0.009, len: [0.046, 0.029, 0.023] },
   { x: -0.009, len: [0.043, 0.027, 0.022] },
   { x: -0.026, len: [0.034, 0.021, 0.019] },
 ];
+const THUMB = [0.036, 0.03];
 const R = 0.0085;
+/** passo do cache de poses (curl e polegar arredondados) e quantas poses guardar no máximo */
+const STEP = 0.05;
+const CACHE_MAX = 96;
+
+/**
+ * Centro do vão dos dedos fechados (onde passa um cabo), no espaço da mão, com os dedos em ~0,95. Medido na malha da
+ * mão: o ponto do plano y–z mais longe de qualquer vértice, cercado por cima, por baixo, pela frente e por trás
+ * (cabe um cabo de ~1,2 cm de raio). As pegadas de faca encaixam o centro do cabo aqui.
+ */
+export const FIST_HOLE = new THREE.Vector3(0, -0.029, -0.046);
+export const FIST_CURL = 0.95;
 
 export interface Hand {
   root: THREE.Group;
@@ -24,75 +42,169 @@ export interface Hand {
   dispose(): void;
 }
 
-export function makeHand(color: THREE.ColorRepresentation, side: 1 | -1): Hand {
+/** o esqueleto da mão (só juntas, sem malha) e onde vai cada peça */
+interface Rig {
+  root: THREE.Group;
+  joints: THREE.Object3D[][];
+  thumbBase: THREE.Object3D;
+  thumb: THREE.Object3D[];
+  /** peça → geometria base (compartilhada) */
+  pieces: { at: THREE.Object3D; geo: THREE.BufferGeometry }[];
+}
+
+let shared: {
+  palm: THREE.BufferGeometry;
+  wrist: THREE.BufferGeometry;
+  caps: Map<string, THREE.BufferGeometry>;
+} | null = null;
+function geos() {
+  shared ??= {
+    palm: new THREE.SphereGeometry(1, 16, 12),
+    wrist: new THREE.SphereGeometry(1, 12, 10),
+    caps: new Map(),
+  };
+  return shared;
+}
+function capsule(r: number, len: number): THREE.BufferGeometry {
+  const g = geos();
+  const key = `${r.toFixed(5)}:${len.toFixed(5)}`;
+  let c = g.caps.get(key);
+  if (!c) {
+    c = new THREE.CapsuleGeometry(r, len, 3, 8).rotateX(Math.PI / 2);
+    g.caps.set(key, c);
+  }
+  return c;
+}
+
+function buildRig(side: 1 | -1): Rig {
   const root = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.75 });
-  const geos: THREE.BufferGeometry[] = [];
-  const geo = (g: THREE.BufferGeometry) => (geos.push(g), g);
+  const g = geos();
+  const pieces: Rig['pieces'] = [];
   // palma arredondada (uma esfera achatada) e o volume do pulso
-  const palm = new THREE.Mesh(geo(new THREE.SphereGeometry(1, 16, 12)), mat);
+  const palm = new THREE.Object3D();
   palm.scale.set(0.043, 0.017, 0.05);
   palm.position.set(0, 0, -0.046);
   root.add(palm);
-  const wrist = new THREE.Mesh(geo(new THREE.SphereGeometry(1, 12, 10)), mat);
+  pieces.push({ at: palm, geo: g.palm });
+  const wrist = new THREE.Object3D();
   wrist.scale.set(0.03, 0.02, 0.03);
   wrist.position.set(0, 0, -0.008);
   root.add(wrist);
+  pieces.push({ at: wrist, geo: g.wrist });
   // cada dedo: uma corrente de juntas; a falange vai de 0 até −len no z da junta
   const joints: THREE.Object3D[][] = [];
-  const mirror = side === 1 ? 1 : -1;
+  const mirror = side;
   for (const f of FINGERS) {
     const chain: THREE.Object3D[] = [];
     let parent: THREE.Object3D = root;
-    let z = -0.088;
     for (let i = 0; i < 3; i++) {
       const j = new THREE.Group();
-      j.position.set(i === 0 ? f.x * -mirror : 0, i === 0 ? 0.002 : 0, i === 0 ? z : -f.len[i - 1]!);
-      const ph = new THREE.Mesh(
-        geo(new THREE.CapsuleGeometry(R * (1 - i * 0.08), f.len[i]! - R * 1.4, 3, 8).rotateX(Math.PI / 2)),
-        mat,
-      );
+      // direita: indicador em −x
+      j.position.set(i === 0 ? f.x * -mirror : 0, i === 0 ? 0.002 : 0, i === 0 ? -0.088 : -f.len[i - 1]!);
+      const ph = new THREE.Object3D();
       ph.position.z = -f.len[i]! / 2;
       j.add(ph);
+      pieces.push({ at: ph, geo: capsule(R * (1 - i * 0.08), f.len[i]! - R * 1.4) });
       parent.add(j);
       chain.push(j);
       parent = j;
-      z = 0;
     }
     joints.push(chain);
   }
-  // polegar: sai da lateral da palma, perto do pulso, apontando para a frente e para dentro
+  // polegar: do lado do indicador, perto do pulso, apontando para a frente e para dentro, polpa para os dedos
   const thumbBase = new THREE.Group();
-  thumbBase.position.set(0.036 * -mirror * -1, -0.008, -0.03);
-  thumbBase.rotation.set(0, 0.7 * -mirror * -1, 0);
+  thumbBase.position.set(0.036 * -mirror, -0.008, -0.03);
   root.add(thumbBase);
   const thumb: THREE.Object3D[] = [];
   let tp: THREE.Object3D = thumbBase;
-  for (const [i, len] of [0.036, 0.03].entries()) {
+  for (const [i, len] of THUMB.entries()) {
     const j = new THREE.Group();
-    if (i > 0) j.position.z = -0.036;
-    const ph = new THREE.Mesh(geo(new THREE.CapsuleGeometry(R * 1.15, len - R * 1.4, 3, 8).rotateX(Math.PI / 2)), mat);
+    if (i > 0) j.position.z = -THUMB[0]!;
+    const ph = new THREE.Object3D();
     ph.position.z = -len / 2;
     j.add(ph);
+    pieces.push({ at: ph, geo: capsule(R * 1.15, len - R * 1.4) });
     tp.add(j);
     thumb.push(j);
     tp = j;
   }
-  root.traverse((o) => {
-    if (o instanceof THREE.Mesh) o.castShadow = true;
-  });
+  return { root, joints, thumbBase, thumb, pieces };
+}
+
+/** põe as juntas na pose (`c` dedos, `t` polegar) */
+export function poseRig(rig: Rig, side: 1 | -1, c: number, t: number) {
+  // dobra para o lado da palma (−y): girar em −x leva o −z para −y
+  for (const chain of rig.joints)
+    chain.forEach((j, i) => (j.rotation.x = -c * (i === 0 ? 1.35 : i === 1 ? 1.55 : 1.1)));
+  // oposição (gira no próprio eixo para a polpa olhar os dedos), aponta para dentro e desce para a palma ao fechar
+  // aberta, o polegar abre para fora do indicador (~30°); fechando, cruza por cima dos dedos
+  rig.thumbBase.rotation.set(-t * 0.5, 0.55 * side, 0.8 * side, 'XYZ');
+  rig.thumb[0]!.rotation.y = -t * 1.3 * side;
+  rig.thumb[1]!.rotation.x = -t * 0.9;
+}
+
+const rigs = new Map<number, Rig>();
+const cache = new Map<string, { geo: THREE.BufferGeometry; refs: number }>();
+const M = new THREE.Matrix4();
+
+/** a geometria juntada da mão nesta pose (do cache, ou montada agora) */
+function handGeometry(side: 1 | -1, c: number, t: number): { key: string; geo: THREE.BufferGeometry } {
+  const key = `${side}:${c.toFixed(2)}:${t.toFixed(2)}`;
+  const hit = cache.get(key);
+  if (hit) {
+    // a mais usada por último vai para o fim (a primeira do mapa é a mais antiga)
+    cache.delete(key);
+    cache.set(key, hit);
+    return { key, geo: hit.geo };
+  }
+  let rig = rigs.get(side);
+  if (!rig) rigs.set(side, (rig = buildRig(side)));
+  poseRig(rig, side, c, t);
+  rig.root.updateMatrixWorld(true);
+  const parts = rig.pieces.map((p) => p.geo.clone().applyMatrix4(M.copy(p.at.matrixWorld)));
+  const geo = mergeGeometries(parts, false) ?? new THREE.BufferGeometry();
+  for (const p of parts) p.dispose();
+  geo.computeBoundingSphere();
+  cache.set(key, { geo, refs: 0 });
+  // poda: sai a mais antiga que ninguém usa
+  if (cache.size > CACHE_MAX)
+    for (const [k, v] of cache) {
+      if (v.refs > 0 || k === key) continue;
+      v.geo.dispose();
+      cache.delete(k);
+      if (cache.size <= CACHE_MAX) break;
+    }
+  return { key, geo };
+}
+
+const q = (v: number) => Math.round(Math.max(0, Math.min(1, v)) / STEP) * STEP;
+
+export function makeHand(color: THREE.ColorRepresentation, side: 1 | -1): Hand {
+  const root = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.75 });
+  const mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+  mesh.castShadow = false;
+  root.add(mesh);
+  let key: string | null = null;
   const hand: Hand = {
     root,
     setCurl(c, t = c * 0.8) {
-      // dobra para o lado da palma (−y): girar em +x leva o −z para −y
-      for (const chain of joints)
-        chain.forEach((j, i) => (j.rotation.x = -c * (i === 0 ? 1.35 : i === 1 ? 1.55 : 1.1)));
-      thumbBase.rotation.x = -t * 0.5;
-      thumb[0]!.rotation.y = t * 0.6 * mirror;
-      thumb[1]!.rotation.x = -t * 0.9;
+      const g = handGeometry(side, q(c), q(t));
+      if (g.key === key) return;
+      if (key) {
+        const old = cache.get(key);
+        if (old) old.refs--;
+      } else mesh.geometry.dispose();
+      key = g.key;
+      cache.get(key)!.refs++;
+      mesh.geometry = g.geo;
     },
     dispose() {
-      for (const g of geos) g.dispose();
+      if (key) {
+        const old = cache.get(key);
+        if (old) old.refs--;
+        key = null;
+      }
       mat.dispose();
     },
   };

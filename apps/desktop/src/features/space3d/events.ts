@@ -74,7 +74,9 @@ export type GunFx =
   | 'hurt'
   | 'slide'
   | 'land'
-  | 'swing';
+  | 'swing'
+  /** ligou a corrida tática (dois toques no correr): sem som, serve ao tutorial */
+  | 'tactical';
 
 /** dribles e lances de efeito do futebol */
 export type Trick = 'carretilha' | 'elastico' | 'bicicleta';

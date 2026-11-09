@@ -620,8 +620,11 @@ export class Juice {
       }
       case 'impact':
         // tiro na parede: faísca e poeira; no corpo: um borrifo escuro (sem sangue vermelho)
-        if (e.flesh) p.burst(at, { ...FX.puff, count: e.head ? 9 : 6, color: 0x4a2a2a }, k);
-        else {
+        if (e.flesh) {
+          // um borrifo escuro e um brilho curto (o acerto se lê de longe; o corpo pisca e dá um tranco pela cena)
+          p.burst(at, { ...FX.puff, count: e.head ? 9 : 6, color: 0x4a2a2a }, k);
+          p.burst(at, { ...FX.spark, count: e.head ? 6 : 4, color: 0xffe2b8 }, k * 0.6);
+        } else {
           p.burst(at, { ...FX.spark, count: 6 }, k * 0.7);
           p.burst(at, FX.puff, k * 0.5);
         }

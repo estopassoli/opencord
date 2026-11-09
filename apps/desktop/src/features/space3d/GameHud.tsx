@@ -125,6 +125,28 @@ const SPORT: Record<SportZone, Row[]> = {
   ],
 };
 
+/** gunfight (zona 8): os comandos têm outro sentido (o R recarrega, o F dá coronhada, o G inspeciona) */
+const GUN: Row[] = [
+  { input: { acts: ['primary'] }, label: 'Atirar' },
+  { input: { acts: ['secondary'], hold: true }, label: 'Mirar · sniper: luneta' },
+  { input: { acts: ['rematch'] }, label: 'Recarregar' },
+  { input: { text: '1 · 2 · 3' }, label: 'Principal, pistola, faca (ou a roda do mouse)' },
+  { input: { acts: ['run'], hold: true }, label: 'Correr · 2 toques: corrida tática' },
+  { input: { acts: ['crouch'] }, label: 'Agachar · correndo: deslizar' },
+  { input: { acts: ['jump'] }, label: 'Pular · no pouso: bunny hop' },
+  { input: { acts: ['interact'] }, label: 'Coronhada (com a faca: golpe)' },
+  { input: { acts: ['wave'] }, label: 'Inspecionar a arma' },
+  { input: { acts: ['view'] }, label: 'Primeira ou terceira pessoa' },
+];
+
+/** os comandos de cada lugar (sala, x1, arena ou gunfight) */
+export function controlRows(zone: number, fighting: boolean): Row[] {
+  if (fighting) return FIGHT;
+  if (!zone) return ROOM;
+  if (zone === 8) return GUN;
+  return SPORT[zone as SportZone] ?? [];
+}
+
 /** o atalho escolhido para uma ação: tecla desenhada ou mouse com o botão em destaque */
 export function Binding({ action, hold }: { action: Action; hold?: boolean }) {
   const code = useBindings((b) => b.map[action]);
@@ -159,7 +181,7 @@ export function ControlsPanel({
   open: boolean;
   onToggle: () => void;
 }) {
-  const rows = fighting ? FIGHT : zone ? SPORT[zone as SportZone] : ROOM;
+  const rows = controlRows(zone, fighting);
   const extra: Row[] = zone
     ? [
         { input: { acts: MOVE }, label: 'Andar' },

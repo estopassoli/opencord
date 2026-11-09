@@ -310,11 +310,14 @@ export class SpaceService implements OnModuleDestroy {
     this.realtime.emitVolatile(peers.map(rooms.user), 'space:ball', { ...b, by: userId });
   }
 
-  /** gunfight: tiro, acerto, morte e renascer, repassados só para quem está na chamada */
+  /** gunfight: tiro, acerto, morte e renascer, repassados só para quem está na chamada. Só o tiro (efeito) é volátil:
+   * acerto, morte, renascer e recomeço mudam o placar e não podem se perder num tiroteio. */
   async gun(userId: string, g: SpaceGun) {
     const peers = await this.peers(userId, g.channelId);
     if (!peers?.length) return;
-    this.realtime.emitVolatile(peers.map(rooms.user), 'space:gun', { ...g, sender: userId });
+    const to = peers.map(rooms.user);
+    if (g.kind === 'fire') this.realtime.emitVolatile(to, 'space:gun', { ...g, sender: userId });
+    else this.realtime.emit(to, 'space:gun', { ...g, sender: userId });
   }
 
   /** sinuca: bolas e vez, repassadas só para quem está na chamada */

@@ -246,8 +246,15 @@ export const SpaceGunPose = z.object({
   crouch: z.boolean(),
   ads: z.boolean(),
   alive: z.boolean(),
+  /** abates e mortes desta partida: cada um publica os próprios (o placar de todos sai daqui) */
+  k: z.number().int().min(0).max(999).optional(),
+  d: z.number().int().min(0).max(999).optional(),
+  /** a última ação da mão (os outros veem no boneco) e um contador: a mesma ação de novo troca o número */
+  act: z.enum(['reload', 'melee', 'bolt', 'draw']).optional(),
+  an: z.number().int().min(0).max(999).optional(),
 });
 export type SpaceGunPose = z.infer<typeof SpaceGunPose>;
+export type GunAct = NonNullable<SpaceGunPose['act']>;
 
 const Vec3 = z.tuple([
   z.number().finite().min(-200).max(200),
@@ -257,11 +264,12 @@ const Vec3 = z.tuple([
 /**
  * Gunfight (zona 8, todos contra todos): o que cada um avisa aos outros. Quem atira confere o acerto no próprio app e
  * avisa quem levou (`hit`); quem levou desconta a vida e, se morreu, avisa todos (`die`). `fire` é só o efeito (tiro,
- * traçante e som) e `spawn` é o renascer.
+ * traçante e som, pode se perder), `spawn` é o renascer e `restart` zera a partida de todos. Só `fire` é volátil: o
+ * resto muda o placar e vai com entrega garantida. `die` sem `by` = morreu sem matador da rede (bot, queda).
  */
 export const SpaceGun = z.object({
   channelId: Id,
-  kind: z.enum(['fire', 'hit', 'die', 'spawn']),
+  kind: z.enum(['fire', 'hit', 'die', 'spawn', 'restart']),
   w: GunId,
   /** fire: de onde e até onde foi o tiro (traçante) */
   from: Vec3.optional(),

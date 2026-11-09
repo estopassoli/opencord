@@ -3,6 +3,9 @@
  * agachar, deslizar (agachar correndo), cancelar o deslize (agachar de novo ou pular: levanta na hora e a corrida
  * tática volta cheia), pulo e bunny hop (pular no instante em que toca o chão mantém a velocidade, com um pouco de
  * controle no ar). A velocidade de cada arma e a mira mudam o ritmo.
+ *
+ * Limites (para nada virar velocidade infinita): o deslize tem teto (`slideMax`) e recarga (`slideCooldownMs`), a
+ * tática recarrega aos poucos depois de acabar (por qualquer motivo) e o bunny hop não passa de `bhopMax` × arma.
  */
 export const MOVE = {
   walk: 3.4,
@@ -16,15 +19,22 @@ export const MOVE = {
   gravity: 15,
   jumpV: 5,
   slideMin: 7.4,
+  /** teto do deslize (m/s) e o tempo mínimo entre um deslize e o próximo (ms, a contar do começo) */
+  slideMax: 7.8,
+  slideCooldownMs: 600,
   slideMs: 750,
   slideEnd: 2.4,
   tacMs: 3000,
+  /** tempo para encher a tática do zero (depois de `tacDelayMs` sem usar) */
   tacRechargeMs: 4000,
+  tacDelayMs: 800,
   /** janela para o segundo toque do correr (ms) e para guardar o pulo antes de tocar o chão */
   doubleTapMs: 320,
   jumpBufferMs: 140,
-  bhopMax: 8.6,
-  bhopGain: 1.03,
+  /** teto do bunny hop (m/s, vezes a velocidade da arma): um pouco acima da tática */
+  bhopMax: 7.1,
+  bhopGain: 1.02,
+  bhopLoss: 0.94,
 } as const;
 
 export interface MoveState {
@@ -36,8 +46,11 @@ export interface MoveState {
   crouch: boolean;
   sprint: boolean;
   tactical: boolean;
-  /** deslizando até (ms) */
+  /** deslizando até (ms) e quando começou o último deslize */
   slideUntil: number;
+  slideAt: number;
+  /** velocidade no começo do deslize (a queda é em linha a partir dela, igual em qualquer FPS) */
+  slideV0: number;
   /** corrida tática: quanto resta (ms) e quando acabou (para recarregar) */
   tacLeft: number;
   tacEmptyAt: number;
@@ -57,6 +70,8 @@ export function newMove(): MoveState {
     sprint: false,
     tactical: false,
     slideUntil: 0,
+    slideAt: -1e9,
+    slideV0: 0,
     tacLeft: MOVE.tacMs,
     tacEmptyAt: 0,
     runTapAt: -1e9,
@@ -80,11 +95,24 @@ export interface MoveInput {
 
 export const sliding = (s: MoveState, now: number) => now < s.slideUntil;
 
-/** apertou correr (dois toques rápidos = corrida tática) */
-export function pressRun(s: MoveState, now: number) {
+/**
+ * Apertou correr: corre (agachado no chão, levanta); dois toques seguidos (com fôlego) ligam a corrida tática. Segurar
+ * já corre sozinho no `stepMove`. Devolve se a tática ligou agora
+ */
+export function pressRun(s: MoveState, now: number): boolean {
+  const was = s.tactical;
+  if (s.crouch && s.grounded && !sliding(s, now)) s.crouch = false;
   if (now - s.runTapAt < MOVE.doubleTapMs && s.tacLeft > 300) s.tactical = true;
   s.runTapAt = now;
   s.sprint = true;
+  return s.tactical && !was;
+}
+
+/** a corrida tática acabou (soltou, parou, atirou, deslizou ou esvaziou): a recarga conta daqui */
+function endTactical(s: MoveState, now: number) {
+  if (!s.tactical) return;
+  s.tactical = false;
+  s.tacEmptyAt = now;
 }
 
 /** apertou agachar: correndo no chão desliza; deslizando, cancela; senão alterna agachado */
@@ -94,14 +122,16 @@ export function pressCrouch(s: MoveState, now: number): 'slide' | 'cancel' | 'cr
     cancelSlide(s, now);
     return 'cancel';
   }
-  if (s.grounded && s.sprint && speed > MOVE.walk) {
-    const k = Math.max(MOVE.slideMin, speed + 1.2) / (speed || 1);
+  if (s.grounded && s.sprint && speed > MOVE.walk && now - s.slideAt >= MOVE.slideCooldownMs) {
+    const k = Math.min(MOVE.slideMax, Math.max(MOVE.slideMin, speed + 1.2)) / (speed || 1);
     s.vx *= k;
     s.vz *= k;
+    s.slideV0 = Math.hypot(s.vx, s.vz);
     s.slideUntil = now + MOVE.slideMs;
+    s.slideAt = now;
     s.crouch = true;
     s.sprint = false;
-    s.tactical = false;
+    endTactical(s, now);
     return 'slide';
   }
   s.crouch = !s.crouch;
@@ -134,29 +164,34 @@ function doJump(s: MoveState) {
 
 /** um passo: devolve o deslocamento (dx, dz) e se aterrissou neste quadro (e se foi bunny hop) */
 export function stepMove(s: MoveState, inp: MoveInput, dt: number, now: number) {
+  // o deslize acabou sozinho: segurando o correr, levanta e volta a correr; senão fica agachado
+  if (s.slideUntil && now >= s.slideUntil) {
+    s.slideUntil = 0;
+    if (inp.runHeld) s.crouch = false;
+  }
   const slide = sliding(s, now);
   const wl = Math.hypot(inp.wx, inp.wz);
-  // correr só andando para a frente, sem mirar nem atirar; a tática gasta e recarrega
-  if (!inp.runHeld || !inp.forward || inp.ads || inp.firing || s.crouch) {
-    if (!slide) s.sprint = s.sprint && inp.runHeld && inp.forward && !inp.ads && !inp.firing && !s.crouch;
-  }
-  if (!s.sprint) s.tactical = false;
+  // correr só andando para a frente, sem mirar nem atirar; segurar o correr liga (inclusive depois de atirar ou
+  // mirar, ou apertando o correr antes do W); a tática gasta e recarrega
+  const canRun = inp.runHeld && inp.forward && !inp.ads && !inp.firing && !s.crouch;
+  if (!slide) s.sprint = canRun && (s.sprint || s.grounded);
+  if (!s.sprint) endTactical(s, now);
   if (s.tactical) {
     s.tacLeft -= dt * 1000;
     if (s.tacLeft <= 0) {
-      s.tactical = false;
-      s.tacEmptyAt = now;
       s.tacLeft = 0;
+      endTactical(s, now);
     }
-  } else if (s.tacLeft < MOVE.tacMs && now - s.tacEmptyAt > MOVE.tacRechargeMs) s.tacLeft = MOVE.tacMs;
+  } else if (s.tacLeft < MOVE.tacMs && now - s.tacEmptyAt > MOVE.tacDelayMs)
+    s.tacLeft = Math.min(MOVE.tacMs, s.tacLeft + (dt * 1000 * MOVE.tacMs) / MOVE.tacRechargeMs);
 
   let landed = false;
   let bhop = false;
   if (slide) {
-    // deslizando: perde velocidade em linha até o fim; dá para virar pouco
+    // deslizando: perde velocidade em linha (da velocidade do começo até o fim, sem depender do FPS)
     const sp = Math.hypot(s.vx, s.vz);
     const left = (s.slideUntil - now) / MOVE.slideMs;
-    const want = MOVE.slideEnd + (sp - MOVE.slideEnd) * Math.max(0, left);
+    const want = MOVE.slideEnd + (s.slideV0 - MOVE.slideEnd) * Math.max(0, left);
     const k = sp > 0 ? Math.max(0, Math.min(sp, want)) / sp : 0;
     s.vx *= k;
     s.vz *= k;
@@ -171,13 +206,15 @@ export function stepMove(s: MoveState, inp: MoveInput, dt: number, now: number) 
     s.vx += (tx - s.vx) * a;
     s.vz += (tz - s.vz) * a;
   } else if (wl > 0) {
-    // no ar: um pouco de controle, sem frear
+    // no ar: um pouco de controle, sem frear (e sem passar do teto, que acompanha o peso da arma)
+    const before = Math.hypot(s.vx, s.vz);
     s.vx += (inp.wx / wl) * MOVE.airAccel * dt;
     s.vz += (inp.wz / wl) * MOVE.airAccel * dt;
     const sp = Math.hypot(s.vx, s.vz);
-    if (sp > MOVE.bhopMax) {
-      s.vx *= MOVE.bhopMax / sp;
-      s.vz *= MOVE.bhopMax / sp;
+    const cap = Math.max(before, MOVE.bhopMax * inp.gunK);
+    if (sp > cap) {
+      s.vx *= cap / sp;
+      s.vz *= cap / sp;
     }
   }
   if (!s.grounded) {
@@ -191,7 +228,9 @@ export function stepMove(s: MoveState, inp: MoveInput, dt: number, now: number) 
       // pulo guardado: sai de novo na hora, sem perder (e ganhando um pouco de) velocidade
       if (now - s.jumpAt < MOVE.jumpBufferMs) {
         const sp = Math.hypot(s.vx, s.vz);
-        const k = sp > 0 ? Math.min(MOVE.bhopMax, sp * MOVE.bhopGain) / sp : 1;
+        // abaixo do teto ganha um pouco; acima (vindo de um deslize) perde a cada pulo
+        const cap = MOVE.bhopMax * inp.gunK;
+        const k = sp <= 0 ? 1 : sp > cap ? MOVE.bhopLoss : Math.min(cap, sp * MOVE.bhopGain) / sp;
         s.vx *= k;
         s.vz *= k;
         doJump(s);

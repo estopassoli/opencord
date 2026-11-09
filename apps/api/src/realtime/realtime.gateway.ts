@@ -164,12 +164,15 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       const b = SpaceBall.safeParse(payload);
       if (b.success) void this.space.ball(socket.data.userId, b.data).catch(() => undefined);
     });
-    // gunfight: tiros (até ~15/s numa arma automática), acertos e mortes
-    const guns = new Bucket(40, 40);
+    // gunfight: tiros (efeito, até ~16/s na MP7) num balde; acertos, mortes, renascer e recomeço (placar) em outro,
+    // para uma rajada de tiros nunca derrubar um acerto ou uma morte
+    const shots = new Bucket(40, 40);
+    const gunEvents = new Bucket(40, 30);
     socket.on('space:gun', (payload: unknown) => {
-      if (!guns.take()) return;
       const g = SpaceGun.safeParse(payload);
-      if (g.success) void this.space.gun(socket.data.userId, g.data).catch(() => undefined);
+      if (!g.success) return;
+      if (!(g.data.kind === 'fire' ? shots : gunEvents).take()) return;
+      void this.space.gun(socket.data.userId, g.data).catch(() => undefined);
     });
     const pools = new Bucket(20, 20);
     socket.on('space:pool', (payload: unknown) => {

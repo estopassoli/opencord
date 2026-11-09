@@ -302,6 +302,8 @@ export interface PlayOpts {
   gain?: number;
   pitch?: number;
   info?: boolean;
+  /** de quem é o som (o intervalo anti-rajada vale por nome e por quem: dois atirando juntos tocam os dois) */
+  by?: string;
 }
 
 interface Voice {
@@ -333,7 +335,7 @@ export class Sfx {
   private listener: Listener = { x: 0, z: 0, yaw: 0, zone: 0 };
   private ducked = false;
   private unlocked = false;
-  private readonly last = new Map<SfxName, number>();
+  private readonly last = new Map<string, number>();
   private voices: Voice[] = [];
   private readonly engines = new Map<string, EngineVoice>();
   private noiseBuf: AudioBuffer | null = null;
@@ -381,7 +383,8 @@ export class Sfx {
 
   /** sons de um evento do jogo (filtra pela zona) */
   event(e: GameEvent, ctx: SfxCtx) {
-    for (const c of sfxFor(e, ctx)) this.cue(c, { at: e.at, zone: e.zone });
+    const by = 'by' in e && typeof e.by === 'string' ? e.by : undefined;
+    for (const c of sfxFor(e, ctx)) this.cue(c, { at: e.at, zone: e.zone, ...(by ? { by } : {}) });
   }
 
   cue(c: SfxCue, o: PlayOpts = {}): boolean {
@@ -399,7 +402,8 @@ export class Sfx {
     if (!(vol > 0)) return false;
     if (o.zone !== undefined && o.zone !== this.listener.zone) return false;
     const now = this.now();
-    if (now - (this.last.get(name) ?? -Infinity) < SFX_BURST_MS) return false;
+    const burstKey = o.by ? `${name}:${o.by}` : name;
+    if (now - (this.last.get(burstKey) ?? -Infinity) < SFX_BURST_MS) return false;
     this.voices = this.voices.filter((v) => v.end > now);
     // um som mais forte que acabou de sair corta este (e este corta os mais fracos)
     for (const v of this.voices)
@@ -424,7 +428,7 @@ export class Sfx {
       this.voices[low]!.stop?.();
       this.voices.splice(low, 1);
     }
-    this.last.set(name, now);
+    this.last.set(burstKey, now);
     this.log.push(name);
     if (this.log.length > LOG_MAX) this.log.shift();
     this.lastGain = gain;

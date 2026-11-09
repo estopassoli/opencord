@@ -113,6 +113,7 @@ import {
   Billiard01Icon,
   Motorbike01Icon,
   BoxingGloveIcon,
+  FavouriteIcon,
 } from '@hugeicons/core-free-icons';
 
 /**
@@ -166,6 +167,7 @@ const ICONS = {
   gun: GunIcon,
   knife: KnifeIcon,
   skull: SkullIcon,
+  heart: FavouriteIcon,
   'cloud-upload': CloudUploadIcon,
   kanban: KanbanIcon,
   bug: Bug01Icon,

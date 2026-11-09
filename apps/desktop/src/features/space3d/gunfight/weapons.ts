@@ -1,8 +1,10 @@
 /**
  * Gunfight do Espaço 3D (zona 8, todos contra todos): as armas e as contas do tiro. Sem three.js aqui: tudo puro e
  * testado (dano pela distância, cadência, recuo, dispersão, acerto do raio na cabeça e no corpo).
- * Os números são nossos, pensados para partidas curtas entre amigos: fuzil mata com 4–5 tiros no corpo, submetralhadora
- * com 5–7 de perto, sniper com 1 no peito, pistola com 4–6, faca com 1.
+ * Os números são nossos, pensados para partidas curtas entre amigos: fuzil mata com 3–5 tiros no corpo (a AK bate mais
+ * forte e sobe mais; o M4 é mais rápido e controlável), submetralhadora com 4 de perto (de perto ela mata mais rápido
+ * que o M4; de longe cai muito), L115 e M200 com 1 no peito
+ * (a Kar98k só na cabeça, em troca do ferrolho e da mira rápidos), pistola com 2–6, faca com 1.
  */
 import type { GunId } from '@opencord/contracts';
 
@@ -75,7 +77,7 @@ export const GUNS: Record<GunId, GunSpec> = {
     slot: 'primary',
     rpm: 600,
     auto: true,
-    dmg: [33, 24],
+    dmg: [34, 25],
     range: [24, 48],
     head: 1.5,
     mag: 30,
@@ -96,7 +98,7 @@ export const GUNS: Record<GunId, GunSpec> = {
     slot: 'primary',
     rpm: 950,
     auto: true,
-    dmg: [22, 14],
+    dmg: [26, 14],
     range: [12, 26],
     head: 1.35,
     mag: 40,
@@ -115,9 +117,9 @@ export const GUNS: Record<GunId, GunSpec> = {
     name: 'MP5',
     cls: 'smg',
     slot: 'primary',
-    rpm: 800,
+    rpm: 860,
     auto: true,
-    dmg: [25, 16],
+    dmg: [27, 16],
     range: [14, 28],
     head: 1.4,
     mag: 30,
@@ -145,7 +147,8 @@ export const GUNS: Record<GunId, GunSpec> = {
     reserve: 25,
     reloadMs: 3200,
     emptyReloadMs: 3600,
-    adsMs: 420,
+    // a L115 é a sniper ágil (mira mais rápida); a M200 tem pente maior e mais zoom, mas é mais lenta
+    adsMs: 360,
     zoom: 4,
     scope: true,
     recoil: { up: 0.06, side: 0.01 },
@@ -182,7 +185,7 @@ export const GUNS: Record<GunId, GunSpec> = {
     slot: 'primary',
     rpm: 60,
     auto: false,
-    dmg: [110, 95],
+    dmg: [90, 80],
     range: [45, 90],
     head: 2.5,
     mag: 5,
@@ -202,7 +205,7 @@ export const GUNS: Record<GunId, GunSpec> = {
     name: 'M9 Beretta',
     cls: 'pistol',
     slot: 'secondary',
-    rpm: 420,
+    rpm: 520,
     auto: false,
     dmg: [30, 20],
     range: [10, 25],
@@ -286,11 +289,11 @@ export const GUNS: Record<GunId, GunSpec> = {
 };
 
 export const CLASS_LABEL: Record<GunClass, string> = {
-  ar: 'Fuzis',
-  smg: 'Submetralhadoras',
-  sniper: 'Snipers',
-  pistol: 'Pistolas',
-  knife: 'Facas',
+  ar: 'Fuzil',
+  smg: 'Submetralhadora',
+  sniper: 'Sniper',
+  pistol: 'Pistola',
+  knife: 'Faca',
 };
 
 /** armas de cada espaço do equipamento, na ordem do menu */
@@ -313,8 +316,10 @@ export const REGEN_DELAY_MS = 4500;
 export const REGEN_PER_S = 40;
 /** renascer depois de morrer (ms) */
 export const RESPAWN_MS = 3000;
-/** partida: quem chegar primeiro a tantas mortes ganha */
+/** partida: quem chegar primeiro a tantos abates ganha */
 export const FFA_TARGET = 30;
+/** quanto tempo a tela do vencedor fica antes de a partida recomeçar sozinha (ms) */
+export const WINNER_MS = 12000;
 
 /** dano de um tiro a `dist` metros: cheio até range[0], cai em linha até range[1], mínimo depois */
 export function damageAt(spec: GunSpec, dist: number, head: boolean): number {
@@ -455,6 +460,27 @@ export function lineOfSight(a: V3, b: V3, boxes: Box[]): boolean {
   for (const box of boxes) if (rayBox(a, d, box) < len) return false;
   return true;
 }
+
+/** ângulos (yaw, pitch) da câmera para olhar de `a` para `b` (a convenção de `aimDir`) */
+export function lookAt(a: V3, b: V3): { yaw: number; pitch: number } {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dz = b.z - a.z;
+  const h = Math.hypot(dx, dz);
+  return { yaw: Math.atan2(-dx, -dz), pitch: -Math.atan2(dy, h) };
+}
+
+/** o dano mais alto que um golpe desta arma pode dar (tiro na cabeça de perto, faca ou coronhada) */
+export function maxDamage(spec: GunSpec): number {
+  return Math.max(Math.round(spec.dmg[0] * spec.head), spec.melee?.dmg ?? 0, BASH.dmg);
+}
+
+/** coronhada com a arma na mão (F) */
+export const BASH = { dmg: 55, range: 1.7, ms: 500 } as const;
+/** golpe pesado da faca (botão direito): mais lento e mais longe */
+export const HEAVY = { ms: 1.5, range: 1.3 } as const;
+/** golpe só vale com o alvo nesta diferença de altura (m) */
+export const MELEE_DY = 1.2;
 
 /** direção da mira (yaw, pitch) desviada pela dispersão: `u1`,`u2` em [0,1) (sorteio de quem chama) */
 export function aimDir(yaw: number, pitch: number, spread: number, u1: number, u2: number): V3 {
