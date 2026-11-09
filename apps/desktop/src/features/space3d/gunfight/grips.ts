@@ -120,6 +120,8 @@ const PISTOL_GRIP_AT = new THREE.Vector3(0, -0.014, 0.05);
 const DELGADO_AT = new THREE.Vector3(0, 0.01, 0.05);
 /** karambit: o centro da argola (o indicador passa nele) */
 const KARAMBIT_RING_Y = 0.056;
+/** apoio com empunhadura angulada: quanto a mão vai para trás do apoio (a rampa começa 1,2 cm à frente dele) */
+const AGRIP_BACK = 0.03;
 /** meia espessura da palma (hand.ts): a palma encosta na arma a essa distância do centro dela */
 const PALM_HALF = 0.017;
 
@@ -186,8 +188,11 @@ export function leftGrip(
   }
   const w = g.supportW ?? 0.03;
   const c = Math.max(0.8, Math.min(1, 0.9 + 5 * (0.03 - w)));
+  // empunhadura angulada: a palma vai para trás até o lado do indicador encostar na rampa dela (no apoio de sempre,
+  // a palma, larga ao longo do guarda-mão, ficava por dentro da rampa)
+  const back = g.foregrip?.kind === 'angled' ? AGRIP_BACK : 0;
   return {
-    pos: g.support.clone().add(new THREE.Vector3(-0.046 - hf.clamp, -PALM_HALF - 0.002, 0)),
+    pos: g.support.clone().add(new THREE.Vector3(-0.046 - hf.clamp, -PALM_HALF - 0.002, back)),
     quat: C_CLAMP.clone(),
     curl: [c, 0.8, c],
   };

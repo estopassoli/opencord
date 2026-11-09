@@ -286,8 +286,12 @@ describe('armeiro: acessórios no modelo 3D', () => {
     const b = leftGrip(g, 'ar');
     expect(b.pos.y).toBeLessThan(a.pos.y - 0.02);
     expect(b.quat.angleTo(a.quat)).toBeGreaterThan(0.5);
-    // a angulada fica à frente da mão: a pegada não muda
-    expect(leftGrip(makeBuiltGun('m4', { under: 'agrip' })!, 'ar').pos.toArray()).toEqual(a.pos.toArray());
+    // a angulada fica à frente da mão: o mesmo "C", só 3 cm para trás (o lado do indicador encosta na rampa)
+    const c = leftGrip(makeBuiltGun('m4', { under: 'agrip' })!, 'ar');
+    expect(c.pos.x).toBeCloseTo(a.pos.x, 6);
+    expect(c.pos.y).toBeCloseTo(a.pos.y, 6);
+    expect(c.pos.z - a.pos.z).toBeCloseTo(0.03, 6);
+    expect(c.quat.angleTo(a.quat)).toBeLessThan(1e-6);
   });
 
   it('carregador estendido: preso ao pente (sai junto na recarga) e conta na caixa dele', () => {

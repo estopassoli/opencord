@@ -28,7 +28,7 @@ export function loadArms(): Promise<void> {
 
 /** cores da manga, da luva sem dedos e da pele que aparece nas pontas dos dedos */
 const SLEEVE = 0x3b4436;
-const GLOVE = 0x3a3b38;
+const GLOVE = 0x6e6250;
 const SKIN = 0xc39274;
 
 /** a mão de um lado, como o viewmodel usa: a âncora no espaço da mão e o fechamento dos dedos */
