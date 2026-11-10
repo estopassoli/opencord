@@ -50,6 +50,7 @@ import {
 } from './reload';
 import { kickSpring, spring, stepSpring } from './spring';
 import { AuthoredArms, hasAuthored } from './fpanim';
+import { M200_BASH, M200_BOLT, M200_INSPECT, m200Pose } from './m200';
 import type { GunSpec } from './weapons';
 import type { GunId } from '@opencord/contracts';
 
@@ -148,6 +149,19 @@ const SIDE_Q = new THREE.Quaternion().setFromRotationMatrix(
 );
 /** pegando a alavanca do ferrolho em pinça (dedos, polegar, indicador) */
 const PINCH: readonly [number, number, number] = PINCH_CURL;
+/**
+ * Ferrolho trabalhado em pinça na bola da alavanca (SV-98: a bola fica a ~2 cm da coronha, sem lugar para a mão
+ * fechar em volta dela): a bola parada (espaço da arma) e quanto do giro da alavanca o pulso acompanha. Preso por
+ * inteiro, ele virava ~70° junto com ela e a mão ficava de dorso para cima, os dedos pendurados por cima da caixa.
+ */
+const BOLT_HAND: Partial<Record<string, { knob: THREE.Vector3; roll: number }>> = {
+  // M200: a mão fechada na bola, girando 40% do giro dela (girando tudo, o dorso virava para cima e o braço vinha do
+  // alto da tela, com o cotovelo levantado)
+  m200: { knob: new THREE.Vector3(0.0649, 0.0225, -0.0049), roll: 0.4 },
+};
+const KNOB_NOW = new THREE.Vector3();
+const KNOB_Q = new THREE.Quaternion();
+const LEVER_Q = new THREE.Quaternion();
 /** o coice nunca traz a arma para mais perto da câmera que isto (z no espaço da câmera do viewmodel) */
 const KICK_Z_MAX = -0.12;
 /** meia espessura da palma (palpite para os gestos da recarga; o encaixe medido corrige) */
@@ -178,6 +192,10 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   ballista: 'bolt',
   sv98: 'bolt',
   automag3: 'pistol',
+};
+/** polegar da direita por arma: [fechamento, abertura para o lado da palma] (dá a volta por trás do punho) */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  m200: [0.46, 0.7],
 };
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
@@ -895,7 +913,9 @@ export class Viewmodel {
           MAG.copy(magPull).multiplyScalar(rp.out);
           magPouch = rp.pouch;
           magHold = rp.hold;
-          handOut = rp.handOut;
+          // M200 vazia: depois que o pente velho cai, a mão sobe junto com o novo até o poço (ficava 12 cm embaixo,
+          // aberta, e o pente encaixava sozinho)
+          handOut = g.id === 'm200' && empty && u >= MAG_OUT_AT ? rp.out : rp.handOut;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
           // o pente velho cai (cópia sem cartuchos, do lugar dele): o da arma já está no colete, fora da tela
@@ -910,6 +930,9 @@ export class Viewmodel {
             }
           }
           if (empty) this.emptyGesture(u, joltAt);
+          // M200 vazia: no ferrolho do fim, a arma deita para a esquerda como no ferrolho do tiro (a alavanca fica à
+          // vista, em vez de escondida pela inclinação da recarga)
+          if (empty && g.id === 'm200') m200Pose(M200_BOLT, seg(u, 0.62, 0.98), mo, pos, rot);
           break;
         }
         case 'reloadClip': {
@@ -951,9 +974,12 @@ export class Viewmodel {
         case 'bolt': {
           // sniper: abaixa um pouco; a mão direita sai do punho, pega a alavanca, gira, puxa (o estojo sai), empurra,
           // gira de volta e volta para o punho
-          const w = hump(u, 0, 0.12, 0.85, 1);
-          pos.y -= w * 0.02;
-          rot.z -= w * 0.15 * mo;
+          if (g.id === 'm200') m200Pose(M200_BOLT, u, mo, pos, rot);
+          else {
+            const w = hump(u, 0, 0.12, 0.85, 1);
+            pos.y -= w * 0.02;
+            rot.z -= w * 0.15 * mo;
+          }
           boltRot = hump(u, 0.12, 0.28, 0.66, 0.8) * 1.2;
           boltBack = hump(u, 0.28, 0.45, 0.48, 0.66) * 0.09;
           joltAt('back', 0.45, -1);
@@ -971,6 +997,9 @@ export class Viewmodel {
         case 'melee': {
           if (knife) {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
+          } else if (g.id === 'm200') {
+            m200Pose(M200_BASH, u, mo, pos, rot);
+            joltAt('hit', 0.32, 1.6);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             const w = hump(u, 0, 0.25, 0.5, 1);
@@ -987,6 +1016,11 @@ export class Viewmodel {
         case 'inspect': {
           if (knife) {
             this.knifeInspect(u, mo, pos, rot, joltAt);
+            break;
+          }
+          if (g.id === 'm200') {
+            m200Pose(M200_INSPECT, u, mo, pos, rot);
+            joltAt('turn', 0.6, 0.6);
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -1164,7 +1198,18 @@ export class Viewmodel {
     const pinch = this.holds?.pinch ?? null;
     const lever = g.parts.boltRot ?? (g.id === 'kar98k' ? g.parts.charge : undefined);
     let pinchQ = 0;
-    if (rightK > 0 && pinch && lever) {
+    const boltHand = BOLT_HAND[g.id];
+    if (rightK > 0 && pinch && lever && boltHand) {
+      // a pinça segue a bola da alavanca, mas o pulso gira só uma parte do giro dela, em volta da bola
+      holderSpace(lever.obj, this.holder, M2).multiply(this.handleRestInv);
+      M2.decompose(W1, LEVER_Q, S1);
+      KNOB_NOW.copy(boltHand.knob).applyMatrix4(M2);
+      LEVER_Q.slerp(KNOB_Q.identity(), 1 - boltHand.roll);
+      HANDLE.copy(pinch.pos).sub(boltHand.knob).applyQuaternion(LEVER_Q).add(KNOB_NOW);
+      RIGHT_Q.copy(LEVER_Q).multiply(pinch.quat);
+      GRIP_R.lerp(HANDLE, rightK);
+      pinchQ = rightK;
+    } else if (rightK > 0 && pinch && lever) {
       M1.compose(pinch.pos, pinch.quat, S1.set(1, 1, 1));
       M1.premultiply(holderSpace(lever.obj, this.holder, M2).multiply(this.handleRestInv));
       M1.decompose(HANDLE, RIGHT_Q, S1);
@@ -1658,9 +1703,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
