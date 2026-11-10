@@ -24,8 +24,10 @@ import {
   MAG_OUT_AT,
   MAG_SEAT_AT,
   clipPose,
+  leftFree,
   reloadPose,
   reloadStyle,
+  type LeftWhere,
 } from '../src/features/space3d/gunfight/reload';
 
 function casing(over: Partial<Casing> = {}): Casing {
@@ -188,6 +190,36 @@ describe('recarga', () => {
       expect(reloadPose(s, 0.3).palm).toBe(0);
       expect(reloadPose(s, MAG_SEAT_AT).palm).toBeGreaterThan(0.9);
       expect(reloadPose(s, 0.8).palm).toBe(0);
+    }
+  });
+
+  it('a mão esquerda só deixa de estar no ar quando segura alguma coisa', () => {
+    const at = (o: Partial<LeftWhere>) => leftFree({ hold: 0, with: 1, alt: 0, away: 0, cradle: -1, carry: 0, ...o });
+    // no apoio, no pente, na peça do gesto e com o carregador rápido: segurando
+    expect(at({})).toBe(0);
+    expect(at({ hold: 1 })).toBe(0);
+    expect(at({ alt: 1 })).toBe(0);
+    expect(at({ cradle: 1 })).toBe(0);
+    expect(at({ cradle: 1, away: 1, carry: 1 })).toBe(0);
+    // no meio do caminho (apoio ↔ pente, apoio ↔ peça, saindo da tela, voltando do tambor): no ar
+    for (const v of [0.3, 0.5, 0.7]) {
+      expect(at({ hold: v })).toBe(1);
+      expect(at({ alt: v })).toBe(1);
+      expect(at({ cradle: v })).toBe(1);
+    }
+    expect(at({ away: 0.2 })).toBe(1);
+    // no `drop`, a mão que vai ao colete antes de o pente velho cair não segura nada, mesmo chegando lá
+    for (const u of us) {
+      const r = reloadPose('drop', u);
+      const free = at({
+        hold: r.hold,
+        with: 1 - Math.min(1, 4 * (Math.abs(r.handOut - r.out) + Math.abs(r.handPouch - r.pouch))),
+      });
+      if (u > 0.16 && u < MAG_OUT_AT) expect(free).toBeGreaterThan(0.99);
+      // com o pente novo, até o encaixe: segurando
+      if (u > 0.32 && u <= MAG_SEAT_AT) expect(free).toBeLessThan(0.01);
+      // voltando ao apoio depois do encaixe: no ar
+      if (u > 0.66 && u < 0.7) expect(free).toBeGreaterThan(0.99);
     }
   });
 

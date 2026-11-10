@@ -100,6 +100,7 @@ import {
   blankPose,
   clipPose,
   cylinderPose,
+  leftFree,
   reloadPose,
   reloadStyle,
 } from './reload';
@@ -435,8 +436,12 @@ const CY = blankCylinder();
 const POUCH_L = new THREE.Vector3(-0.32, -0.5, -0.3);
 /** indo e voltando do pente, a mão passa por fora (−x) e por baixo da arma, em arco (espaço da arma) */
 const ARC_OUT = new THREE.Vector3(-0.045, -0.035, 0);
-/** a mão esquerda no meio desse caminho: dedos e polegar meio fechados (fechamento) */
-const LEFT_TRANSIT: readonly [number, number] = [0.7, 0.45];
+/**
+ * a mão esquerda no ar, sem segurar nada (`leftFree`): dedos fechados num punho solto (1,3; o cerrado é ~1,6) e o
+ * polegar meio fechado. Com 0,7 (antes) ela ficava em concha e, vista de frente, os dedos pareciam garras abertas
+ */
+const LEFT_TRANSIT: readonly [number, number] = [1.3, 0.6];
+
 /** o pente e a mão indo para o colete: por fora e pela frente (atrás ficam o punho e a mão direita) */
 const ARC_POUCH = new THREE.Vector3(-0.08, -0.02, -0.06);
 const POUCH_R = new THREE.Vector3(0.3, -0.55, -0.1);
@@ -1277,10 +1282,13 @@ export class Viewmodel {
     let shoulderOut = 0;
     /** a mão esquerda solta a arma e desce para fora da tela (0–1): corrida tática e inspeção da pistola */
     let leftAway = ease(this.leftOffK);
-    /** a mão esquerda no ar entre o apoio e o pente (0–1, o pico do arco) */
-    let leftTransit = 0;
     /** quanto os dedos já têm a forma da pegada do pente (atrasado em relação a `magHold`) */
     let magFit = 0;
+    /**
+     * recarga: a mão está mesmo com o pente (1) ou só indo para onde ele vai estar (0): no `drop` ela vai ao colete
+     * antes de o pente velho cair; no revólver, ao cinto enquanto o tambor fica aberto
+     */
+    let magWith = 1;
     /** revólver: a fração da recarga (para o carregador rápido e os cartuchos do tambor); −1 fora dela */
     let cylU = -1;
     /** BFR: a fração da recarga (−1 fora dela) e o gesto do polegar no cão feito pela ação deste quadro */
@@ -1331,8 +1339,7 @@ export class Viewmodel {
           if (spec.cls !== 'pistol' || LATE_SUPPORT.has(g.id)) {
             const arrive = ease(seg(u, 0.3, 0.62));
             leftAway = Math.max(leftAway, 1 - arrive);
-            leftCurl = lerp(0.2, leftCurl, ease(seg(u, 0.6, 0.78)));
-            leftThumb = lerp(0.2, leftThumb, ease(seg(u, 0.6, 0.78)));
+            // os dedos ficam meio fechados no caminho e só fecham na pegada quando a mão chega (`leftFree`)
             joltAt('slap', 0.62, 1.1);
           }
           joltAt('end', 0.8, 1.6);
@@ -1426,6 +1433,8 @@ export class Viewmodel {
             magHold = cp.hold;
             handOut = cp.out;
             handPouch = cp.pouch;
+            // no cinto a mão está longe do tambor
+            magWith = 1 - Math.min(1, 4 * cp.pouch);
             // Rhino: os dedos ficam no carregador rápido (`rhinoLoader`); aberta, a mão abanava embaixo da arma
             magPalm = g.id === 'rhino' ? 0 : cp.palm;
             break;
@@ -1469,6 +1478,7 @@ export class Viewmodel {
           handOut = rp.handOut;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
+          magWith = 1 - Math.min(1, 4 * (Math.abs(handOut - rp.out) + Math.abs(handPouch - rp.pouch)));
           if (g.id === 'm9') {
             // M9: o polegar da direita aperta o retém do pente, atrás do guarda-mato, logo antes de ele cair
             rightThumb += 0.3 * hump(u, 0.08, 0.13, 0.19, 0.26);
@@ -2097,13 +2107,7 @@ export class Viewmodel {
       // Eagle: o apoio fica logo acima do pente, um arco curto e a mão meio fechada bastam)
       const arc = 4 * magHold * (1 - magHold) * (g.id === 'deagle' ? 0.35 : 1);
       LEFT.addScaledVector(ARC_OUT, arc);
-      // no ar, meio fechada e solta (`LEFT_TRANSIT`): os acertos dos dedos de cada pegada somem no caminho. Antes ela
-      // abria de todo (0,15) para os dedos não atravessarem o guarda-mão ao sair, e ficava 2–3 quadros espalmada no ar;
-      // o arco já a leva para fora da arma antes de fechar
-      leftCurl = lerp(leftCurl, LEFT_TRANSIT[0], arc);
-      leftThumb = lerp(leftThumb, LEFT_TRANSIT[1], arc);
-      leftTransit = arc;
-      // a forma da pegada do pente (em geral aberta, pela lateral) só na segunda metade do caminho, chegando nele
+      // no ar ela fica meio fechada (`leftFree`, mais abaixo); a forma da pegada do pente (em geral aberta, pela lateral) só na segunda metade do caminho, chegando nele
       magFit = mh ? ease(seg(magHold, 0.5, 1)) : magHold;
       if (mh) {
         leftCurl = lerp(leftCurl, mh.curl[0], magFit);
@@ -2235,11 +2239,31 @@ export class Viewmodel {
     }
     // Rhino: com o carregador rápido, os dedos fecham menos (só em volta dele, sem passar por cima do tambor)
     if (g.id === 'rhino') leftCurl = lerp(leftCurl, 0.3, this.rhinoLoader(cylU));
+    // no ar (sem segurar nada), a mão fica meio fechada, dedos juntos (`LEFT_TRANSIT`), e só toma a forma de cada
+    // pegada ao encostar
+    let free = 0;
+    if (!knife && this.holds) {
+      free = leftFree({
+        hold: magHold,
+        with: magWith,
+        alt: leftAlt,
+        away: leftAway,
+        cradle: bfrRl >= 0 ? BR.cradle : -1,
+        carry:
+          bfrRl >= 0
+            ? hump(bfrRl, 0.36, 0.39, 0.62, 0.68)
+            : g.id === 'rhino' && this.loader?.visible && cylU >= 0
+              ? 1
+              : 0,
+      });
+      leftCurl = lerp(leftCurl, LEFT_TRANSIT[0], free);
+      leftThumb = lerp(leftThumb, LEFT_TRANSIT[1], free);
+    }
     this.handL.setCurl(
       leftCurl,
       leftThumb,
       leftCurl,
-      this.leftOffsets(leftFit, leftAlt, magPalm, Math.max(leftAway, leftTransit)),
+      this.leftOffsets(leftFit, leftAlt, magPalm, Math.max(leftAway, free)),
     );
     if (kp) this.knifeGuard(now, inp, mo);
     this.handR.root.updateMatrixWorld(true);
