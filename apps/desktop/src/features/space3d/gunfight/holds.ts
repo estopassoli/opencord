@@ -135,13 +135,12 @@ function measure(g: GunModel, cls: GunClass): Holds {
         : rg.quat.clone().premultiply(Y_TURN.setFromAxisAngle(Y_AXIS, fix.yaw ?? 0));
     right = fitRight(g, new THREE.Vector3(...fix.pos), quat, qc(rg.curl), pistol, true);
   } else {
-    if (fix?.kind === 'nudge') {
+    if (fix?.kind === 'nudge' || fix?.kind === 'hole') {
       // a mão anda e fica mais em pé em volta do vão dela (o meio do punho), não do pulso
-      const hole = ARM_HAND_FIT.grip
-        .clone()
-        .applyQuaternion(rg.quat)
-        .add(rg.pos)
-        .add(new THREE.Vector3(...fix.at));
+      const hole =
+        fix.kind === 'hole'
+          ? new THREE.Vector3(...fix.at)
+          : ARM_HAND_FIT.grip.clone().applyQuaternion(rg.quat).add(rg.pos).add(new THREE.Vector3(...fix.at));
       rg.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), fix.upright));
       rg.pos.copy(hole).sub(ARM_HAND_FIT.grip.clone().applyQuaternion(rg.quat));
     }
@@ -212,6 +211,9 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
  *   e estreito (2,8 cm); a busca deixava os dedos em volta do ar, na frente dele, embaixo do guarda-mato. Virada, a
  *   mão fecha na frente do punho com as pontas na lateral esquerda (medido no harness: médio 0,99, anelar 0,84,
  *   palma encostada sem entrar).
+ * - `hole`: como o `nudge`, mas o vão da mão vai a um ponto do punho (espaço da arma). Rhino: o punho fica ~1 cm mais
+ *   para trás do gatilho e ~10° mais inclinado que o das outras pistolas; na pegada de sempre os dedos fechavam no ar
+ *   na frente dele e a mão ficava baixa, com o alto do punho à mostra atrás dela (o vão 4 mm para fora do meio).
  * - `hold`: a pegada inteira medida no harness com a mão dos braços (pulso e giro no espaço da arma, fechamentos e
  *   acertos). AK-47: o gatilho fica ~8 cm à frente das costas do punho e o punho é estreito (2,4 cm); o encaixe punha
  *   o médio em cima da barra do guarda-mato, os dedos davam a volta 3–5 cm à frente do punho, soltos, e o polegar
@@ -221,7 +223,7 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
  *   punho e deita na lateral esquerda, no alto (`RIGHT_THUMB` do viewmodel).
  */
 type RightFix =
-  | { kind: 'nudge'; at: THREE.Vector3Tuple; upright: number }
+  | { kind: 'nudge' | 'hole'; at: THREE.Vector3Tuple; upright: number }
   | { kind: 'wrist'; pos: THREE.Vector3Tuple; incl?: number; yaw?: number }
   | {
       kind: 'hold';
@@ -232,6 +234,7 @@ type RightFix =
     };
 const RIGHT_FIX: Partial<Record<GunId, RightFix>> = {
   msmc: { kind: 'nudge', at: [-0.02, -0.01, -0.03], upright: 0.3 },
+  rhino: { kind: 'hole', at: [0.004, -0.008, 0.054], upright: -0.15 },
   deagle: { kind: 'wrist', pos: [0.042, -0.036, 0.068], incl: -0.16 },
   l115: { kind: 'wrist', pos: [0.0488, 0.0021, 0.092], yaw: 0.15 },
   ak47: {
@@ -613,7 +616,9 @@ function pistolSupport(g: GunModel): {
  * 0,4 rad. Desert Eagle: com a direita mais baixa no punho fundo, o apoio comum deixava o indicador da esquerda ~4 cm
  * abaixo do guarda-mato e o polegar dela atravessando a armação; aqui a palma sobe e cobre os dedos da direita, o
  * indicador logo abaixo do guarda-mato, e o polegar vai esticado para a frente na lateral esquerda, embaixo do da
- * direita (os dedos descem 0,45 rad; `thumbUp`: quanto o polegar abre para o lado do dorso).
+ * direita (os dedos descem 0,45 rad; `thumbUp`: quanto o polegar abre para o lado do dorso). Rhino: o apoio de sempre
+ * (`APOIO_LADO`) com a palma no punho (no revólver o "pente" é o tambor, lá na frente: a palma ficava 4,5 cm à frente
+ * do punho, fechada no ar na frente do guarda-mato).
  */
 const PISTOL_SUPPORT: Partial<
   Record<
@@ -636,6 +641,7 @@ const PISTOL_SUPPORT: Partial<
     curl: [0.8, 0.4, 0.8],
     thumbUp: -0.4,
   },
+  rhino: { palm: [-0.034, -0.027, 0.03], fingers: [0, -0.6, -0.8], back: [-1, 0, 0], curl: [0.7, 0.15, 0.7], thumbUp: -0.2 },
 };
 /** palma para +x, dedos para a frente e para baixo (0, −0,6, −0,8), indicador para cima */
 const APOIO_LADO = basis([0, 0.8, -0.6], [-1, 0, 0], [0, 0.6, 0.8]);

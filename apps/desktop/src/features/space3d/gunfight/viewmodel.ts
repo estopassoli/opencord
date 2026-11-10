@@ -287,6 +287,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   l115: [0.58, 0.9],
   bfr: [0.3, 0.6],
   ak47: [0.35, 0.5],
+  rhino: [0.5, 0.6],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
@@ -451,6 +452,19 @@ const BFR_LQ = new THREE.Quaternion().setFromRotationMatrix(
 const BFR_LQ_INV = BFR_LQ.clone().invert();
 const BFR_IN_HAND = new THREE.Vector3(0, -0.03, -0.06);
 const BFR_Q = new THREE.Quaternion();
+/**
+ * Rhino: o carregador rápido não sai da mão — ela o leva até atrás do tambor, empurra, gira o botão, puxa o carregador
+ * vazio para trás e para fora e solta (ele cai); quanto ela puxa (espaço da arma) e quando solta (fração da recarga)
+ */
+const RHINO_PULL = new THREE.Vector3(-0.025, -0.015, 0.05);
+const RHINO_LOADER_TOSS = 0.69;
+/**
+ * a mão com o carregador rápido pela esquerda dele: palma para a arma, dedos para cima dando a volta nele, o pulso
+ * embaixo (por trás do tambor, o antebraço tapava o tambor e o carregador na visão do jogador)
+ */
+const RHINO_LOADER_Q = new THREE.Quaternion().setFromRotationMatrix(
+  new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, -1, 0)),
+);
 /** acertos dos dedos (misturados por quadro, sem alocar) */
 const OFF_R: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
 const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
@@ -1071,6 +1085,9 @@ export class Viewmodel {
     let bfrRl = -1;
     let bfrGesture = false;
     let bfrCockSpin = false;
+    /** Rhino: a mão esquerda bate na vareta do extrator (0–1) e, na inspeção, dá o peteleco no tambor (0–1) */
+    let rhinoRod = 0;
+    let rhinoFlick = 0;
 
     // o deslocamento desta ação é medido em volta do switch (para o `carry` de uma ação cortada)
     const p0x = pos.x;
@@ -1189,13 +1206,26 @@ export class Viewmodel {
               this.dumpAfter = true;
             }
             cylU = u;
+            if (g.id === 'rhino') {
+              // Rhino: a boca sobe quando a mão bate na vareta (os estojos caem) e desce para o carregador rápido entrar
+              // de cima, com os furos do tambor virados para a câmera
+              const flip = hump(u, 0.17, 0.23, 0.28, 0.36);
+              const down = hump(u, 0.3, 0.44, 0.72, 0.84);
+              rot.x += (0.3 * flip - 0.6 * down) * mo;
+              rot.y += 0.4 * down * mo;
+              pos.y -= 0.03 * down;
+              pos.z -= 0.03 * down;
+              rhinoRod = hump(u, 0.21, 0.245, 0.26, 0.3);
+              joltAt('rod', 0.245, -0.8);
+            }
             magPull = CYL_OUT;
             MAG.copy(CYL_OUT).multiplyScalar(cp.out);
             cylSpin = cp.spin;
             magHold = cp.hold;
             handOut = cp.out;
             handPouch = cp.pouch;
-            magPalm = cp.palm;
+            // Rhino: os dedos ficam no carregador rápido (`rhinoLoader`); aberta, a mão abanava embaixo da arma
+            magPalm = g.id === 'rhino' ? 0 : cp.palm;
             break;
           }
           // a MP7 e a MSMC têm o pente no punho, como a pistola: ele cai e o novo entra por baixo
@@ -1461,6 +1491,20 @@ export class Viewmodel {
             joltAt('hit', 0.32, 2.4);
           } else if (g.id === 'ak47') {
             this.akMelee(u, mo, pos, rot, joltAt);
+          } else if (g.id === 'rhino') {
+            // Rhino: coronhada de revólver com uma mão só (a esquerda solta antes): antecipação puxando a arma para trás
+            // e para a direita com a boca para cima, o golpe rápido para a frente, para a esquerda e para baixo com a
+            // armação na frente, um tranco no impacto e a volta devagar
+            const wind = hump(u, 0, 0.18, 0.2, 0.32);
+            const hit = hump(u, 0.18, 0.32, 0.45, 0.95);
+            pos.x += 0.03 * wind - 0.08 * hit;
+            pos.y += 0.02 * wind - 0.03 * hit;
+            pos.z += 0.04 * wind - 0.14 * hit;
+            rot.x += (0.35 * wind - 0.3 * hit) * mo;
+            rot.y += (0.3 * hit - 0.15 * wind) * mo;
+            rot.z += (0.4 * hit - 0.2 * wind) * mo;
+            leftAway = Math.max(leftAway, hump(u, 0.02, 0.15, 0.6, 0.9));
+            joltAt('hit', 0.32, 1.5);
           } else {
             // MP5: estocada inclinada para a esquerda, a coronha comprida fora da tela (`mp5.ts`)
             if (g.id === 'mp5') {
@@ -1572,6 +1616,32 @@ export class Viewmodel {
             rightIndex = lerp(rightIndex, PINCH[2], rightK);
             joltAt('check', 0.31, -0.5);
             joltAt('shut', 0.41, 0.8);
+            break;
+          }
+          if (g.id === 'rhino') {
+            // Rhino: a arma deita e vira como na recarga (o tambor para a câmera); a esquerda abre o tambor segurando por
+            // baixo, os dedos dão um peteleco e ele gira sozinho, perdendo a força; a mão o fecha com um tranco, solta, e
+            // a arma rola para mostrar o lado direito e o topo antes de voltar, passando um pouco do ponto
+            const a = hump(u, 0.04, 0.18, 0.6, 0.72);
+            const pre = hump(u, 0, 0.05, 0.06, 0.14);
+            const side2 = hump(u, 0.64, 0.74, 0.84, 0.94);
+            const settle = Math.sin(seg(u, 0.92, 1) * Math.PI) * (1 - seg(u, 0.92, 1));
+            rot.y += (0.08 * pre + 0.4 * a - 0.25 * side2) * mo;
+            rot.z -= (0.5 * a + 0.45 * side2) * mo;
+            rot.x += (-0.1 * a + 0.3 * side2 - 0.04 * settle) * mo;
+            pos.x += 0.02 * side2 - 0.03 * a;
+            pos.y += 0.06 * a + 0.015 * side2;
+            pos.z -= 0.03 * a + 0.03 * side2;
+            const open = ease(seg(u, 0.16, 0.24)) * (1 - ease(seg(u, 0.54, 0.6)));
+            magPull = CYL_OUT;
+            MAG.copy(CYL_OUT).multiplyScalar(open);
+            handOut = open;
+            magHold = ease(seg(u, 0.06, 0.18)) * (1 - ease(seg(u, 0.6, 0.68)));
+            rhinoFlick = hump(u, 0.26, 0.29, 0.3, 0.35);
+            cylSpin = 7 * expOut(seg(u, 0.28, 0.54));
+            joltAt('out', 0.24, -0.8);
+            joltAt('close', 0.6, 1.6);
+            leftAway = Math.max(leftAway, hump(u, 0.62, 0.72, 0.86, 0.96));
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -1836,6 +1906,15 @@ export class Viewmodel {
       leftCurl = lerp(leftCurl, 0.8, hold);
       leftThumb = lerp(leftThumb, 0.5, hold);
     }
+    // Rhino: a mão que segura o tambor bate na vareta do extrator, para trás ao longo do eixo (o polegar estica)
+    if (rhinoRod > 0) {
+      LEFT.z += 0.016 * rhinoRod;
+      leftThumb = lerp(leftThumb, 0.05, rhinoRod);
+    }
+    if (rhinoFlick > 0) {
+      LEFT.y += 0.025 * rhinoFlick;
+      leftCurl = lerp(leftCurl, 0.2, rhinoFlick);
+    }
     // gesto da recarga vazia: a mão esquerda vai pela lateral (ou por baixo) até a peça
     if (leftAlt > 0) LEFT.lerp(EG.at, leftAlt).addScaledVector(EG.arc, 4 * leftAlt * (1 - leftAlt));
     // ferrolho: a mão direita anda junto com a alavanca (já no lugar deste quadro: sobe girando com o ferrolho e vem
@@ -1926,6 +2005,8 @@ export class Viewmodel {
       leftFit = BR.cradle * (1 - Math.max(BR.belt, BR.loader));
       leftAway = Math.max(leftAway, BR.belt, BR.loader);
     }
+    // Rhino: com o carregador rápido, os dedos fecham menos (só em volta dele, sem passar por cima do tambor)
+    if (g.id === 'rhino') leftCurl = lerp(leftCurl, 0.3, this.rhinoLoader(cylU));
     this.handL.setCurl(leftCurl, leftThumb, leftCurl, this.leftOffsets(leftFit, leftAlt, magPalm, leftAway));
     if (kp) this.knifeGuard(now, inp, mo);
     this.handR.root.updateMatrixWorld(true);
@@ -2554,7 +2635,7 @@ export class Viewmodel {
    */
   private placeLoader(u: number) {
     const ld = this.loader;
-    if (!ld) return;
+    if (!ld || this.gun?.id === 'rhino') return;
     ld.visible = u >= LOADER_SHOW && u < LOADER_GONE;
     if (!ld.visible) return;
     const seat = ease(seg(u, LOADER_SHOW + 0.06, LOADER_SHOW + 0.14));
@@ -2599,6 +2680,46 @@ export class Viewmodel {
       ld.updateMatrixWorld(true);
       this.toss(body, ld.matrixWorld, V.set(-0.35, -0.3, 0.25), W1.set(2.5, 1, 4));
     }
+  }
+
+  /**
+   * Rhino: o carregador rápido fica na mão do cinto até cair. A mão (com ele nos dedos) vai para trás do tambor aberto,
+   * alinha, empurra os cartuchos (no som deles), gira o botão, puxa o carregador vazio para trás e para fora e solta;
+   * depois volta para baixo do tambor e o fecha. `u` é a fração da recarga (−1 fora dela).
+   */
+  private rhinoLoader(u: number): number {
+    const ld = this.loader;
+    if (!ld) return 0;
+    if (u >= RHINO_LOADER_TOSS && !this.joltDone.has('loader')) {
+      this.joltDone.add('loader');
+      const empty = ld.clone();
+      empty.children.forEach((c, i) => (c.visible = i < 2));
+      this.toss(empty, ld.matrixWorld, V.set(-0.5, -0.4, 0.15), W1.set(3, 1.5, 5));
+    }
+    ld.visible = u >= LOADER_SHOW && u < RHINO_LOADER_TOSS;
+    if (!ld.visible) return 0;
+    const hand = this.handL.root;
+    // volta do cinto já virando a mão para pegar o carregador pela esquerda
+    const side = ease(seg(u, 0.44, 0.54)) * (1 - ease(seg(u, RHINO_LOADER_TOSS, 0.76)));
+    hand.quaternion.slerp(RHINO_LOADER_Q, side);
+    // nos dedos, à frente da palma
+    W1.copy(LOADER_IN_HAND).applyQuaternion(hand.quaternion).add(hand.position);
+    // a mão anda até o carregador ficar alinhado atrás dos furos do tambor (que está fora, deslocado por `MAG`) e
+    // empurra; puxa de volta o vazio e volta para baixo do tambor
+    const align = ease(seg(u, 0.5, 0.57)) * (1 - ease(seg(u, RHINO_LOADER_TOSS, 0.76)));
+    const push = ease(seg(u, 0.57, MAG_SEAT_AT));
+    V.copy(this.loaderSeat)
+      .add(MAG)
+      .add(W2.set(0, 0, 0.03 * (1 - push)))
+      .sub(W1)
+      .multiplyScalar(align)
+      .addScaledVector(RHINO_PULL, hump(u, 0.61, 0.66, RHINO_LOADER_TOSS, 0.76));
+    hand.position.add(V);
+    ld.position.copy(W1).add(V);
+    // o polegar gira o botão e solta os cartuchos, que ficam no tambor
+    ld.quaternion.setFromAxisAngle(Z_AXIS, 0.6 * ease(seg(u, MAG_SEAT_AT, 0.62)));
+    for (let i = 2; i < ld.children.length; i++) ld.children[i]!.visible = u < MAG_SEAT_AT;
+    return side;
   }
 
   /** solta o que a arma anterior deixou (pente que caía, pente-lâmina) */
