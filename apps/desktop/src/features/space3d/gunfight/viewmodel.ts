@@ -337,7 +337,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   rs9: [0.63, 1.1],
   mcx: [0.45, 0.8],
   m4: [0.5, 0.85],
-  automag3: [0.2, 0.8],
+  automag3: [0.6, 0.3], // por trás do punho abaixo do ferrolho, deitado para a frente na armação (fora do recuo)
   sv98: [0.45, 0.85],
   scarl: [0.5, 0.5],
   aks74u: [0.45, 0.7],
@@ -347,12 +347,18 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   mp5: [0.25, 0.8],
   ballista: [0.42, 0.65],
   mpx: [0.6, 0.9],
-  deagle: [0.3, 0.2],
+  deagle: [0.4, 0.3],
   l115: [0.58, 0.9],
   bfr: [0.3, 0.6],
   ak47: [0.35, 0.5],
   rhino: [0.5, 0.6],
 };
+/**
+ * O indicador fora do gatilho mais baixo, por arma (rad, a base gira para o lado do mindinho): Desert Eagle: a mão fica
+ * baixa no punho fundo e inclinada, e o dedo reto subia ~40° até encostar no ferrolho; aqui ele vai reto ao longo da
+ * armação, por fora do guarda-mato.
+ */
+const INDEX_DROP: Partial<Record<string, number>> = { deagle: 0.35 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
 /** inspeção da MPX: giro (rad) e deslocamento (m) de cada lado (`mpxInspect`) */
@@ -484,6 +490,17 @@ const SLIDE_LOCK: ReadonlySet<string> = new Set(['automag3', 'm9', 'deagle']);
 const SLIDE_LOCK_BACK = 0.035;
 /** pistolas em que a esquerda chega depois no saque (a direita traz a arma sozinha e a esquerda fecha por fora dela) */
 const LATE_SUPPORT: ReadonlySet<string> = new Set(['m9', 'deagle']);
+/**
+ * Médio, anelar e mindinho da direita quando a esquerda sai da arma (recarga, corrida tática, saque): o fechamento de
+ * cada um. M9: o punho tem 2,4 cm de largura e, no encaixe medido com o apoio (a palma esquerda cobre as pontas), as
+ * pontas passavam ~1,5 cm da lateral esquerda, em leque; fechados mais, elas encostam nela.
+ */
+const RIGHT_CLOSE: Partial<Record<string, readonly [number, number, number]>> = { m9: [1, 0.95, 0.55] };
+/**
+ * Saque com a esquerda chegando depois: de onde ela sobe à vista até o punho (m, espaço da arma). M9: vinda direto de
+ * fora da tela, ela aparecia e fechava num quadro só (~17 ms); daqui ela sobe à vista ~100 ms antes do tranco.
+ */
+const LATE_RISE: Partial<Record<string, THREE.Vector3>> = { m9: new THREE.Vector3(-0.03, -0.08, 0.02) };
 /** no tiro, quando o ferrolho chega lá atrás (fração do `fire`): dali em diante, travado, ele não volta */
 const SLIDE_LOCK_AT = 0.42;
 /** quantos estojos esperando o `game.ts` levar para o mundo, no máximo */
@@ -512,6 +529,13 @@ const BFR_LQ = new THREE.Quaternion().setFromRotationMatrix(
 );
 const BFR_LQ_INV = BFR_LQ.clone().invert();
 const BFR_IN_HAND = new THREE.Vector3(0, -0.03, -0.06);
+/**
+ * BFR: quanto os cartuchos descem nos furos depois de soltos (da traseira do miolo do ejetor até a face de trás do
+ * tambor, m) e quanto o aro deles fica para fora da face. Sem isso eles sobravam ~1,8 cm para trás e atravessavam a
+ * armação quando o tambor fechava.
+ */
+const BFR_SINK = 0.018;
+const BFR_RIM = 0.0015;
 const BFR_Q = new THREE.Quaternion();
 /**
  * Rhino: o carregador rápido não sai da mão — ela o leva até atrás do tambor, empurra, gira o botão, puxa o carregador
@@ -520,14 +544,29 @@ const BFR_Q = new THREE.Quaternion();
 const RHINO_PULL = new THREE.Vector3(-0.025, -0.015, 0.05);
 const RHINO_LOADER_TOSS = 0.69;
 /**
- * a mão com o carregador rápido pela esquerda dele: palma para a arma, dedos para cima dando a volta nele, o pulso
- * embaixo (por trás do tambor, o antebraço tapava o tambor e o carregador na visão do jogador)
+ * Rhino, no carregamento: a arma vira `yaw` rad, o carregador para `hover` m mais atrás dos furos e chega inclinado
+ * `tilt` rad, endireitando antes de empurrar (a mão em C tapava o tambor inteiro e os cartuchos entrando nunca
+ * apareciam; assim o carregador, o tambor aberto e as pontas dos cartuchos aparecem por uns quadros); fechando o tambor,
+ * a boca desce `level` rad (ela subia ~40°).
  */
-const RHINO_LOADER_Q = new THREE.Quaternion().setFromRotationMatrix(
-  new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, -1, 0)),
-);
+const RHINO_SHOW = { yaw: -0.5, hover: 0.025, tilt: -0.9, level: 0.45 };
+/**
+ * a mão com o carregador rápido pela esquerda dele, virada 1,2 rad para baixo dele: palma para a arma, dedos dando a
+ * volta nele, o pulso embaixo (por trás do tambor, o antebraço tapava o tambor e o carregador na visão do jogador)
+ */
+const RHINO_LOADER_Q = new THREE.Quaternion()
+  .setFromAxisAngle(new THREE.Vector3(0, 0, 1), 1.2)
+  .multiply(
+    new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(-1, 0, 0),
+        new THREE.Vector3(0, -1, 0),
+      ),
+    ),
+  );
 /** acertos dos dedos (misturados por quadro, sem alocar) */
-const OFF_R: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+const OFF_R: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
 const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
 const NO_OFF: FingerOffsets = [0, 0, 0, 0, 0];
 const M1 = new THREE.Matrix4();
@@ -647,6 +686,7 @@ const KQ2 = new THREE.Quaternion();
 const KE = new THREE.Euler(0, 0, 0, 'ZYX');
 const TWIST_Q = new THREE.Quaternion();
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const GL = new THREE.Vector3();
 const GUARD_ELBOW = new THREE.Vector3();
 const GUARD_FORE = new THREE.Vector3();
@@ -1282,8 +1322,13 @@ export class Viewmodel {
           // M9 e Desert Eagle: a direita saca sozinha e a esquerda vem de baixo e fecha por fora dela, com o tranco do
           // encaixe
           if (spec.cls !== 'pistol' || LATE_SUPPORT.has(g.id)) {
-            const arrive = ease(seg(u, 0.3, 0.62));
-            leftAway = Math.max(leftAway, 1 - arrive);
+            const rise = LATE_RISE[g.id];
+            if (rise) {
+              // M9: a esquerda vem de fora da tela até logo abaixo do punho e sobe à vista, acelerando até o tranco
+              leftAway = Math.max(leftAway, 1 - ease(seg(u, 0.2, 0.36)));
+              const r = seg(u, 0.32, 0.62);
+              LEFT.addScaledVector(rise, 1 - r * r);
+            } else leftAway = Math.max(leftAway, 1 - ease(seg(u, 0.3, 0.62)));
             leftCurl = lerp(0.2, leftCurl, ease(seg(u, 0.6, 0.78)));
             leftThumb = lerp(0.2, leftThumb, ease(seg(u, 0.6, 0.78)));
             joltAt('slap', 0.62, 1.1);
@@ -1371,6 +1416,9 @@ export class Viewmodel {
               pos.y -= 0.03 * down;
               pos.z -= 0.03 * down;
               rhinoRod = hump(u, 0.21, 0.245, 0.26, 0.3);
+              // no carregamento a arma vira para o carregador aparecer; fechando o tambor, fica quase nivelada
+              rot.y += RHINO_SHOW.yaw * hump(u, 0.46, 0.53, 0.64, 0.71) * mo;
+              rot.x -= RHINO_SHOW.level * hump(u, 0.72, 0.8, 0.86, 0.96) * mo;
               joltAt('rod', 0.245, -0.8);
             }
             magPull = CYL_OUT;
@@ -1994,7 +2042,11 @@ export class Viewmodel {
     // os cartuchos só aparecem com o pente fora do lugar (o modelo é oco: no lugar, eles vazavam pela culatra); o pente
     // que sai e o novo estão com bala (o vazio que cai é uma cópia sem eles)
     // revólver: depois que os estojos vazios caem, o tambor fica vazio até o carregador rápido empurrar os cartuchos
-    if (g.rounds) g.rounds.visible = MAG.lengthSq() > 1e-6 && !(cylU >= CYL_DUMP_AT && cylU < MAG_SEAT_AT);
+    // BFR: os do modelo são os estojos vazios (e passam ~1–1,5 cm da face de trás do tambor); depois da vareta, os
+    // cartuchos são os do carregador rápido, assentados nos furos
+    if (g.rounds)
+      g.rounds.visible =
+        MAG.lengthSq() > 1e-6 && !(cylU >= CYL_DUMP_AT && cylU < MAG_SEAT_AT) && !(bfrRl >= BFR_DUMP_AT);
     // pente vazio: o ferrolho fica lá atrás (no tiro, só depois de chegar lá)
     if (this.slideHeld && !(a?.kind === 'fire' && a.t < a.ms * SLIDE_LOCK_AT))
       boltBack = Math.max(boltBack, SLIDE_LOCK_BACK);
@@ -2162,6 +2214,12 @@ export class Viewmodel {
     const span = this.rightCurl[2] - trigOff;
     const onTrigger = Math.abs(span) > 1e-3 ? Math.max(0, Math.min(1, (rightIndex - trigOff) / span)) : 1;
     const offR = this.rightOffsets(rightK, onTrigger, clipK, kar || g.id === 'bayonet' || g.flip ? open : 0);
+    // M9: sem a esquerda na arma, médio, anelar e mindinho fecham mais, com as pontas encostando na lateral esquerda
+    const close = RIGHT_CLOSE[g.id];
+    if (close && offR === OFF_R) {
+      const w = Math.max(leftAway, magHold);
+      for (let i = 1; i < 4; i++) OFF_R[i] = lerp(OFF_R[i]!, close[i - 1]! - rightCurl, w);
+    }
     // BFR: o polegar estica por cima da armação até a espora do cão e anda com ela
     if (bfrReach > 0 && offR === OFF_R) {
       OFF_R[4] = lerp(OFF_R[4], lerp(COCK_THUMB_DOWN[0], COCK_THUMB_UP[0], bfrHamNow) - rightThumb, bfrReach);
@@ -2809,6 +2867,7 @@ export class Viewmodel {
     if (!h && open <= 0) return this.knifeOff;
     if (!h) {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
+      OFF_R[6] = 0;
       return OFF_R;
     }
     const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
@@ -2819,6 +2878,8 @@ export class Viewmodel {
       if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
+    const drop = this.gun ? (INDEX_DROP[this.gun.id] ?? 0) : 0;
+    OFF_R[6] = drop * (1 - onTrigger) * (1 - toLever) * (1 - clip);
     // Kar98k, no pente-lâmina: o polegar aberto para o lado, deitado de través em cima das balas
     if (clip > 0) OFF_R[5] += CLIP_THUMB_AB * clip;
     return OFF_R;
@@ -2948,7 +3009,10 @@ export class Viewmodel {
       ld.position.copy(BFR_IN_HAND).applyQuaternion(this.handL.root.quaternion).add(this.handL.root.position);
       ld.quaternion.copy(this.handL.root.quaternion).multiply(BFR_LQ_INV).multiply(BFR_Q);
     } else {
+      // soltos, os cartuchos caem nos furos até o fundo: só o aro passa da face de trás do tambor (a caixa do tambor
+      // termina no miolo do ejetor, 1,8 cm atrás da face)
       ld.position.copy(this.loaderSeat).add(MAG);
+      ld.position.z += BFR_RIM - BFR_SINK * ease(seg(u, BFR_LOADER_DROP, BFR_LOADER_DROP + 0.05));
       ld.quaternion.copy(BFR_Q);
     }
     // os dois primeiros filhos são o disco e o botão (o corpo); os outros, os cartuchos
@@ -2989,9 +3053,11 @@ export class Viewmodel {
     // empurra; puxa de volta o vazio e volta para baixo do tambor
     const align = ease(seg(u, 0.5, 0.57)) * (1 - ease(seg(u, RHINO_LOADER_TOSS, 0.76)));
     const push = ease(seg(u, 0.57, MAG_SEAT_AT));
+    // para atrás dos furos, com as pontas dos cartuchos à vista, e só então empurra
+    const hover = RHINO_SHOW.hover * (1 - ease(seg(u, 0.54, 0.58)));
     V.copy(this.loaderSeat)
       .add(MAG)
-      .add(W2.set(0, 0, 0.03 * (1 - push)))
+      .add(W2.set(0, 0, (0.03 + hover) * (1 - push)))
       .sub(W1)
       .multiplyScalar(align)
       .addScaledVector(RHINO_PULL, hump(u, 0.61, 0.66, RHINO_LOADER_TOSS, 0.76));
@@ -2999,6 +3065,9 @@ export class Viewmodel {
     ld.position.copy(W1).add(V);
     // o polegar gira o botão e solta os cartuchos, que ficam no tambor
     ld.quaternion.setFromAxisAngle(Z_AXIS, 0.6 * ease(seg(u, MAG_SEAT_AT, 0.62)));
+    // chega inclinado (as pontas dos cartuchos à vista) e endireita atrás dos furos
+    const tilt = RHINO_SHOW.tilt * (1 - ease(seg(u, 0.54, 0.585)));
+    if (tilt !== 0) ld.quaternion.premultiply(Q1.setFromAxisAngle(Y_AXIS, tilt));
     for (let i = 2; i < ld.children.length; i++) ld.children[i]!.visible = u < MAG_SEAT_AT;
     return side;
   }
@@ -3093,9 +3162,9 @@ export class Viewmodel {
     const axis = new THREE.Vector3(0, 0, -1).applyQuaternion(Q1);
     const kind: EjectKind = g.id === 'bfr' ? 'rifle' : 'pistol';
     const n = Math.min(this.spec.mag, EJECT_MAX - this.ejects.length);
-    // BFR: saem dos furos (no raio deles), pela face de trás do tambor
-    const ring = g.id === 'bfr' ? this.bfrRing : 0.012;
-    const back = g.id === 'bfr' ? 0.045 : 0;
+    // BFR e Rhino: saem dos furos (no raio deles), pela face de trás do tambor (a origem dele fica no meio do eixo)
+    const ring = g.id === 'bfr' || g.id === 'rhino' ? this.bfrRing : 0.012;
+    const back = g.id === 'bfr' ? 0.045 : g.id === 'rhino' ? 0.022 : 0;
     for (let i = 0; i < n; i++) {
       const a = (i / Math.max(1, n)) * Math.PI * 2;
       const at = new THREE.Vector3(Math.cos(a) * ring, Math.sin(a) * ring, back).applyQuaternion(Q1).add(c);
