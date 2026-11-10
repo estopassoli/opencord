@@ -540,6 +540,13 @@ const BFR_LQ = new THREE.Quaternion().setFromRotationMatrix(
 );
 const BFR_LQ_INV = BFR_LQ.clone().invert();
 const BFR_IN_HAND = new THREE.Vector3(0, -0.03, -0.06);
+/**
+ * BFR: quanto os cartuchos descem nos furos depois de soltos (da traseira do miolo do ejetor até a face de trás do
+ * tambor, m) e quanto o aro deles fica para fora da face. Sem isso eles sobravam ~1,8 cm para trás e atravessavam a
+ * armação quando o tambor fechava.
+ */
+const BFR_SINK = 0.018;
+const BFR_RIM = 0.0015;
 const BFR_Q = new THREE.Quaternion();
 /**
  * Rhino: o carregador rápido não sai da mão — ela o leva até atrás do tambor, empurra, gira o botão, puxa o carregador
@@ -2063,7 +2070,11 @@ export class Viewmodel {
     // os cartuchos só aparecem com o pente fora do lugar (o modelo é oco: no lugar, eles vazavam pela culatra); o pente
     // que sai e o novo estão com bala (o vazio que cai é uma cópia sem eles)
     // revólver: depois que os estojos vazios caem, o tambor fica vazio até o carregador rápido empurrar os cartuchos
-    if (g.rounds) g.rounds.visible = MAG.lengthSq() > 1e-6 && !(cylU >= CYL_DUMP_AT && cylU < MAG_SEAT_AT);
+    // BFR: os do modelo são os estojos vazios (e passam ~1–1,5 cm da face de trás do tambor); depois da vareta, os
+    // cartuchos são os do carregador rápido, assentados nos furos
+    if (g.rounds)
+      g.rounds.visible =
+        MAG.lengthSq() > 1e-6 && !(cylU >= CYL_DUMP_AT && cylU < MAG_SEAT_AT) && !(bfrRl >= BFR_DUMP_AT);
     // pente vazio: o ferrolho fica lá atrás (no tiro, só depois de chegar lá)
     if (this.slideHeld && !(a?.kind === 'fire' && a.t < a.ms * SLIDE_LOCK_AT))
       boltBack = Math.max(boltBack, SLIDE_LOCK_BACK);
@@ -3035,7 +3046,10 @@ export class Viewmodel {
       ld.position.copy(BFR_IN_HAND).applyQuaternion(this.handL.root.quaternion).add(this.handL.root.position);
       ld.quaternion.copy(this.handL.root.quaternion).multiply(BFR_LQ_INV).multiply(BFR_Q);
     } else {
+      // soltos, os cartuchos caem nos furos até o fundo: só o aro passa da face de trás do tambor (a caixa do tambor
+      // termina no miolo do ejetor, 1,8 cm atrás da face)
       ld.position.copy(this.loaderSeat).add(MAG);
+      ld.position.z += BFR_RIM - BFR_SINK * ease(seg(u, BFR_LOADER_DROP, BFR_LOADER_DROP + 0.05));
       ld.quaternion.copy(BFR_Q);
     }
     // os dois primeiros filhos são o disco e o botão (o corpo); os outros, os cartuchos

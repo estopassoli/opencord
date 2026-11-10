@@ -638,8 +638,10 @@ function pistolSupport(g: GunModel): {
  * palma vai para trás e vira um pouco para o punho, com a base dela na lateral esquerda por cima das pontas da direita
  * (mais à frente, sobrava uma faixa do punho entre as mãos na primeira pessoa). Rhino: o apoio de sempre (`APOIO_LADO`)
  * com a palma no punho (no revólver o "pente" é o tambor, lá na frente: a palma ficava 4,5 cm à frente do punho,
- * fechada no ar na frente do guarda-mato). BFR: o mesmo do Rhino (a palma ficava ~6 cm à frente do punho, fechada no ar
- * embaixo do tambor), com a palma no meio do punho.
+ * fechada no ar na frente do guarda-mato). BFR: o jeito da M9 (no do Rhino, copiado à mão, a palma ficava ~2 cm fora do
+ * punho, e os dedos abertos e em concha embaixo dele, sem encostar nos da direita); medido com as sondas: a palma na
+ * lateral esquerda do punho por cima das pontas da direita, virada um pouco para as costas dele, e os dedos fechados na
+ * frente, por cima dos da direita.
  */
 const PISTOL_SUPPORT: Partial<
   Record<
@@ -675,11 +677,10 @@ const PISTOL_SUPPORT: Partial<
     thumbUp: -0.2,
   },
   bfr: {
-    palm: [-0.034, -0.035, 0.04],
-    fingers: [0, -0.6, -0.8],
-    back: [-1, 0, 0],
-    curl: [0.7, 0.15, 0.7],
-    thumbUp: -0.2,
+    palm: [-0.03, -0.02, 0.05],
+    fingers: [0, -Math.sin(0.4), -Math.cos(0.4)],
+    back: [-1, 0, 0.3],
+    curl: [0.8, 0.1, 0.8],
   },
 };
 /** palma para +x, dedos para a frente e para baixo (0, −0,6, −0,8), indicador para cima */
