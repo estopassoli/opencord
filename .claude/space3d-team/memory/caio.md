@@ -112,3 +112,6 @@ _Acrescente aprendizados curtos e datados. Não apague o que outros escreveram._
   `LATE_SUPPORT` (esquerda chega depois no saque). `fire(side, first, empty)` não existe mais.
 - 2026-11-10: a checagem de worktree recusa `for`/heredoc/`&` junto com git na mesma linha: scripts em arquivo no
   scratchpad e comandos git sozinhos.
+- 2026-11-10: prova forte de junção sem perda: renderizar as mesmas cenas no bundle da junção e no do branch da arma e
+  comparar por PSNR (`integ/guncmp.sh`, `knifecmp.sh`): 21 armas e 3 facas deram pixel a pixel iguais (só a BFR muda,
+  pela mão de apoio corrigida de propósito).
