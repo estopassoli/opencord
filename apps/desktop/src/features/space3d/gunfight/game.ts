@@ -824,6 +824,7 @@ export class GunGame {
     this.cancelJobs('reload', 'bolt', 'melee');
     const sp = this.specOf(id);
     this.vm.setGun(m, sp);
+    if (this.ammo.get(id)?.mag === 0) this.vm.emptied();
     this.drawUntil = now + (sp.cls === 'knife' ? 380 : sp.cls === 'pistol' ? 420 : 600);
     this.reloadUntil = 0;
     this.boltPending = 0;
@@ -1114,6 +1115,8 @@ export class GunGame {
       if (hit.normal) this.fx.mark(to, hit.normal, now);
     }
     this.kick(n);
+    // o último tiro: o ferrolho da pistola fica aberto (nas que travam; ver `Viewmodel.emptied`)
+    if (am.mag === 0) this.vm.emptied();
     if (sp.boltMs) {
       // ferrolho: a animação começa logo depois do tiro
       this.needBolt.add(sp.id);
