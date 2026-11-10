@@ -26,26 +26,6 @@ export const BAY_POSE = {
   fore: new THREE.Vector3(-0.574, 0.28, -0.77).normalize(),
 };
 
-/**
- * A mão esquerda de guarda (espaço da câmera): baixa à esquerda, o antebraço e a mão na mesma linha (subindo para a
- * frente e para o meio), o dorso para fora e para cima, os dedos fechados frouxos e o polegar por cima do indicador. A
- * guarda comum das facas (dedos em gancho, pulso dobrado para baixo) parecia uma garra.
- */
-export const BAY_GUARD = {
-  at: new THREE.Vector3(-0.17, -0.21, -0.43),
-  quat: (() => {
-    const f = new THREE.Vector3(0.3, 0.5, -0.8).normalize();
-    const back = new THREE.Vector3(-0.6, 0.5, 0.4);
-    back.addScaledVector(f, -back.dot(f)).normalize();
-    const z = f.clone().negate();
-    const x = new THREE.Vector3().crossVectors(back, z);
-    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
-  })(),
-  curl: 0.8,
-  thumb: 0.55,
-  index: 0.7,
-};
-
 /** para onde a faca sai da mão enquanto gira no floreio (espaço da faca: para longe da palma, rente aos dedos abertos) */
 export const BAY_TOSS: readonly [number, number, number] = [-1, 0, 0];
 /** os dedos enquanto a faca gira solta: abertos, o polegar afastado */
@@ -102,7 +82,8 @@ export const BAY_INSPECT: KarTracks = {
 /**
  * Golpe leve (550 ms; o acerto sai em 30%), o primeiro: corte de cima à direita para baixo à esquerda. O punho recua
  * para cima e para a direita com o pulso armado (antecipação, ~100 ms), corta num arco rápido que cruza o meio da tela
- * com o fio na frente, segue desacelerando e volta.
+ * com o fio na frente, segue desacelerando e volta. No seguimento o antebraço vira um pouco (`pro`): o cabo passava
+ * por dentro da manga (0,40–0,63).
  */
 // prettier-ignore
 export const BAY_SLASH_L: KarTracks = {
@@ -112,6 +93,7 @@ export const BAY_SLASH_L: KarTracks = {
   ex: [[0, 0], [0.18, 0.3, 2], [0.2, 0.3, 1], [0.34, -0.15, 1], [0.52, -0.3], [0.88, 0]],
   ey: [[0, 0], [0.18, -0.25, 2], [0.2, -0.25, 1], [0.34, 0.3, 1], [0.52, 0.4], [0.88, 0]],
   ez: [[0, 0], [0.18, -0.4, 2], [0.2, -0.4, 1], [0.34, 0.75, 1], [0.52, 1.0], [0.88, 0]],
+  pro: [[0, 0], [0.34, 0, 1], [0.45, -0.2], [0.7, -0.2], [0.88, 0]],
   lx: [[0, 0], [0.25, -0.05], [0.6, -0.05], [1, 0]],
   ly: [[0, 0], [0.25, -0.07], [0.6, -0.07], [1, 0]],
   lz: [[0, 0], [0.25, 0.05], [0.6, 0.05], [1, 0]],
@@ -120,7 +102,8 @@ export const BAY_SLASH_L: KarTracks = {
 /**
  * Golpe leve, o outro lado (alternando): corte de volta, da esquerda para a direita. O punho cruza para a esquerda e
  * para cima com a lâmina deitada apontando para a esquerda (antecipação), corta para baixo e para a direita passando
- * pelo meio da tela enquanto a ponta varre da esquerda para a frente, segue e volta.
+ * pelo meio da tela enquanto a ponta varre da esquerda para a frente, segue e volta. No corte o pulso rola (`pro`) e a
+ * ponta desce um pouco: o fio vai na frente, para a direita (antes a lâmina ficava em pé e batia de chapa).
  */
 // prettier-ignore
 export const BAY_SLASH_R: KarTracks = {
@@ -129,7 +112,8 @@ export const BAY_SLASH_R: KarTracks = {
   pz: [[0, 0], [0.18, 0.02, 2], [0.2, 0.02, 1], [0.34, -0.08, 1], [0.52, -0.04], [0.88, 0]],
   ex: [[0, 0], [0.18, -0.05, 2], [0.2, -0.05, 1], [0.34, -0.15, 1], [0.52, -0.3], [0.88, 0]],
   ey: [[0, 0], [0.18, 0.25, 2], [0.2, 0.25, 1], [0.34, -0.45, 1], [0.52, -0.75], [0.88, 0]],
-  ez: [[0, 0], [0.18, 0.95, 2], [0.2, 0.95, 1], [0.34, 0.55, 1], [0.52, 0.35], [0.88, 0]],
+  ez: [[0, 0], [0.18, 0.95, 2], [0.2, 0.95, 1], [0.34, 0.8, 1], [0.52, 0.7], [0.88, 0]],
+  pro: [[0, 0], [0.18, 0, 2], [0.2, 0, 1], [0.34, -0.5, 1], [0.52, -0.5], [0.88, 0]],
   lx: [[0, 0], [0.15, -0.05], [0.45, -0.05], [0.8, 0]],
   ly: [[0, 0], [0.15, -0.08], [0.45, -0.07], [0.8, 0]],
   lz: [[0, 0], [0.15, 0.03], [0.45, 0.04], [0.8, 0]],

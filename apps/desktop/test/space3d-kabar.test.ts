@@ -164,4 +164,13 @@ describe('Ka-Bar — animações', () => {
     expect(track(0.31, KB_HEAVY.pz)).toBeGreaterThan(0.05);
     expect(track(0.45, KB_HEAVY.pz)).toBeLessThan(-0.1);
   });
+
+  it('o pesado estoca para o meio da tela e não fica parado no fim (lia como um soco)', () => {
+    // o punho (x ≈ 0,155 na guarda) vai para perto do meio e longe da câmera
+    expect(0.155 + track(0.45, KB_HEAVY.px)).toBeLessThan(0.09);
+    expect(track(0.45, KB_HEAVY.pz)).toBeLessThan(-0.18);
+    // a pausa no fim da estocada: no máximo ~60 ms (0,45 → 0,53 de 720 ms) antes de voltar
+    const hold = KB_HEAVY.pz!.find((k) => k[0] > 0.45)!;
+    expect((hold[0] - 0.45) * 720).toBeLessThan(60);
+  });
 });

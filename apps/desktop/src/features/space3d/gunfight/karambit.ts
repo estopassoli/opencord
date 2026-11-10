@@ -95,7 +95,8 @@ export const KAR_INSPECT: KarTracks = {
 /**
  * Golpe leve, da direita para a esquerda (450 ms; o acerto sai em 30%): o punho recua para a direita e para cima com o
  * pulso armado, a garra apontando para baixo (antecipação, ~80 ms); corta num arco rápido que cruza o meio da tela com
- * a ponta da garra na frente, segue desacelerando e volta.
+ * a ponta da garra na frente, segue desacelerando e volta. A esquerda desce e sai para a esquerda até a volta, para a
+ * garra passar longe dela (com o punho de guarda comum das facas, ela chegava a encostar na volta, ~0,68).
  */
 // prettier-ignore
 export const KAR_SLASH_R: KarTracks = {
@@ -105,24 +106,26 @@ export const KAR_SLASH_R: KarTracks = {
   ex: [[0, 0], [0.18, 0.2, 2], [0.2, 0.2, 1], [0.32, -0.4, 1], [0.5, -0.45], [0.85, 0]],
   ey: [[0, 0], [0.18, -0.2, 2], [0.2, -0.2, 1], [0.32, 0.5, 1], [0.5, 0.6], [0.85, 0]],
   ez: [[0, 0], [0.18, 0.5, 2], [0.2, 0.5, 1], [0.32, -0.45, 1], [0.5, -0.75], [0.85, 0]],
-  lx: [[0, 0], [0.25, -0.05], [0.6, -0.05], [1, 0]],
-  ly: [[0, 0], [0.25, -0.06], [0.6, -0.06], [1, 0]],
+  lx: [[0, 0], [0.25, -0.06], [0.7, -0.06], [1, 0]],
+  ly: [[0, 0], [0.25, -0.1], [0.7, -0.1], [1, 0]],
   lz: [[0, 0], [0.25, 0.05], [0.6, 0.05], [1, 0]],
 };
 
 /**
  * Golpe leve, o outro lado (alternando): o corte puxado. O punho cruza para cima e para a esquerda com a garra
  * apontando para a frente e a face para a câmera (antecipação); puxa forte para baixo e para a direita, o fio da curva
- * arrastando pelo meio da tela, segue e volta. O antebraço quase não gira (girando, ele deitava de lado na tela).
+ * arrastando pelo meio da tela, segue e volta. O antebraço quase não gira (girando, ele deitava de lado na tela). No
+ * seguimento o punho não desce até a borda e o pulso volta a mostrar a face da garra (antes ela ficava escondida
+ * embaixo, parada de 35% a 65%); a volta começa em 42%.
  */
 // prettier-ignore
 export const KAR_SLASH_L: KarTracks = {
-  px: [[0, 0], [0.18, -0.12, 2], [0.2, -0.12, 1], [0.32, 0.02, 1], [0.5, 0.06], [0.85, 0]],
-  py: [[0, 0], [0.18, 0.06, 2], [0.2, 0.06, 1], [0.32, -0.04, 1], [0.5, -0.07], [0.85, 0]],
-  pz: [[0, 0], [0.18, 0.01, 2], [0.2, 0.01, 1], [0.32, -0.06, 1], [0.5, -0.04], [0.85, 0]],
-  ex: [[0, 0], [0.18, -0.2, 2], [0.2, -0.2, 1], [0.32, 0.2, 1], [0.5, 0.25], [0.85, 0]],
-  ey: [[0, 0], [0.18, 0.35, 2], [0.2, 0.35, 1], [0.32, 0.3, 1], [0.5, 0.2], [0.85, 0]],
-  ez: [[0, 0], [0.18, -0.35, 2], [0.2, -0.35, 1], [0.32, 0.2, 1], [0.5, 0.3], [0.85, 0]],
+  px: [[0, 0], [0.18, -0.12, 2], [0.2, -0.12, 1], [0.32, 0.02, 1], [0.42, 0.06], [0.78, 0]],
+  py: [[0, 0], [0.18, 0.06, 2], [0.2, 0.06, 1], [0.32, -0.04, 1], [0.42, -0.03], [0.78, 0]],
+  pz: [[0, 0], [0.18, 0.01, 2], [0.2, 0.01, 1], [0.32, -0.06, 1], [0.42, -0.04], [0.78, 0]],
+  ex: [[0, 0], [0.18, -0.2, 2], [0.2, -0.2, 1], [0.32, 0.2, 1], [0.42, 0.05], [0.78, 0]],
+  ey: [[0, 0], [0.18, 0.35, 2], [0.2, 0.35, 1], [0.32, 0.3, 1], [0.42, 0.2], [0.78, 0]],
+  ez: [[0, 0], [0.18, -0.35, 2], [0.2, -0.35, 1], [0.32, 0.2, 1], [0.42, 0.3], [0.78, 0]],
   lx: [[0, 0], [0.15, -0.04], [0.45, -0.04], [0.8, 0]],
   ly: [[0, 0], [0.15, -0.06], [0.45, -0.05], [0.8, 0]],
   lz: [[0, 0], [0.15, 0.03], [0.45, 0.04], [0.8, 0]],

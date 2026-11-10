@@ -48,12 +48,6 @@ export const KABAR_POSE = {
 };
 
 /**
- * A esquerda de guarda com a Ka-Bar: punho meio fechado, os dedos juntos e o polegar deitado ao lado do indicador (a
- * guarda comum das facas, com os dedos em garra, parecia uma mão pegando algo no ar).
- */
-export const KABAR_GUARD_L = { curl: 1.15, thumb: 0.8, index: 1.05 };
-
-/**
  * Correndo e na corrida tática (somados à guarda, pesados por quanto se está correndo): posição (m) e giro ZYX do braço
  * em volta da faca (rad), no espaço da câmera. Correndo, a faca desce e aponta para a frente e para a esquerda, relaxada;
  * na tática, o braço sobe dobrado para perto do peito, a lâmina em pé. (Antes valia a pose das armas de fogo: correndo, a
@@ -186,18 +180,22 @@ export const KB_SLASH_L_T: readonly TurnKey[] = [
 /**
  * Golpe pesado (720 ms; o acerto sai em 45%): antecipação longa — o punho recua e sobe com a ponta para o alto —,
  * estocada para a frente e para o meio da tela, tranco forte, segura um instante e volta devagar. A esquerda desce.
+ * No acerto a mão vai para baixo do meio da tela e longe da câmera, com a lâmina subindo dela até a mira (a ponta a
+ * ~10 px do centro, ~45° da linha de visada: inteira à vista, indo na frente); antes a faca parava no meio-direita quase
+ * no ângulo da guarda, com o antebraço tomando a diagonal, e lia como um soco. A pausa no fim da estocada caiu de
+ * ~95 ms para ~50 ms.
  */
 // prettier-ignore
 export const KB_HEAVY: KarTracks = {
-  px: [[0, 0], [0.3, 0.02], [0.33, 0.02, 1], [0.45, -0.035, 1], [0.58, -0.04], [1, 0]],
-  py: [[0, 0], [0.3, 0.04], [0.33, 0.04, 1], [0.45, 0.035, 1], [0.58, 0.03], [1, 0]],
-  pz: [[0, 0], [0.3, 0.06], [0.33, 0.06, 1], [0.45, -0.13, 1], [0.58, -0.115], [1, 0]],
+  px: [[0, 0], [0.3, 0.02], [0.33, 0.02, 1], [0.45, -0.08, 1], [0.52, -0.072], [0.62, -0.05], [1, 0]],
+  py: [[0, 0], [0.3, 0.04], [0.33, 0.04, 1], [0.45, -0.03, 1], [0.52, -0.027], [0.62, -0.019], [1, 0]],
+  pz: [[0, 0], [0.3, 0.06], [0.33, 0.06, 1], [0.45, -0.2, 1], [0.52, -0.176], [0.62, -0.12], [1, 0]],
   lx: [[0, 0], [0.35, -0.04], [0.7, -0.05], [1, 0]],
   ly: [[0, 0], [0.35, -0.08], [0.7, -0.08], [1, 0]],
   lz: [[0, 0], [0.5, 0.06], [1, 0]],
 };
 // prettier-ignore
 export const KB_HEAVY_T: readonly TurnKey[] = [
-  [0, 0, 0, 0], [0.3, 0.626, -0.232, -0.13], [0.33, 0.626, -0.232, -0.13, 1], [0.45, -0.065, -0.016, 0.188, 1],
-  [0.58, -0.05, -0.01, 0.17], [1, 0, 0, 0],
+  [0, 0, 0, 0], [0.3, 0.626, -0.232, -0.13], [0.33, 0.626, -0.232, -0.13, 1], [0.45, 0.3, -0.35, 0.1, 1],
+  [0.52, 0.255, -0.2975, 0.085], [0.62, 0.18, -0.21, 0.06], [1, 0, 0, 0],
 ];

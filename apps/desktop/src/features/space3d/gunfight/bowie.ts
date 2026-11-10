@@ -50,16 +50,18 @@ export const BOWIE_INSPECT: KarTracks = {
 /**
  * Golpe leve da direita para a esquerda (560 ms; o acerto sai em 30%): o punho recua para a direita e para cima com o
  * pulso armado, a lâmina para trás (antecipação, ~100 ms); corta num arco largo que cruza o meio da tela com a face à
- * vista, segue desacelerando para a esquerda e embaixo e volta.
+ * vista, segue desacelerando para a esquerda e embaixo e volta. Na antecipação o antebraço vira (`pro`) e o pulso não
+ * dobra para trás: a lâmina fica em pé no alto, com o pomo para baixo e fora da manga (antes ele entrava no antebraço).
  */
 // prettier-ignore
 export const BOWIE_SLASH_R: KarTracks = {
   px: [[0, 0], [0.18, 0.07, 2], [0.2, 0.07, 1], [0.34, -0.14, 1], [0.46, -0.2], [0.82, 0]],
   py: [[0, 0], [0.18, 0.09, 2], [0.2, 0.09, 1], [0.34, 0.05, 1], [0.46, 0.0], [0.82, 0]],
   pz: [[0, 0], [0.18, 0.03, 2], [0.2, 0.03, 1], [0.34, -0.04, 1], [0.46, -0.03], [0.82, 0]],
-  ex: [[0, 0], [0.18, -0.2, 2], [0.2, -0.2, 1], [0.34, 0.15, 1], [0.46, 0.3], [0.82, 0]],
+  ex: [[0, 0], [0.18, 0, 2], [0.2, 0, 1], [0.34, 0.15, 1], [0.46, 0.3], [0.82, 0]],
   ey: [[0, 0], [0.18, -0.35, 2], [0.2, -0.35, 1], [0.34, 0.2, 1], [0.46, 0.3], [0.82, 0]],
   ez: [[0, 0], [0.18, -0.7, 2], [0.2, -0.7, 1], [0.34, 0.6, 1], [0.46, 0.85], [0.82, 0]],
+  pro: [[0, 0], [0.18, 0.8, 2], [0.2, 0.8, 1], [0.34, 0, 1], [0.46, 0], [0.82, 0]],
   lx: [[0, 0], [0.25, -0.05], [0.6, -0.05], [1, 0]],
   ly: [[0, 0], [0.25, -0.06], [0.6, -0.06], [1, 0]],
   lz: [[0, 0], [0.25, 0.05], [0.6, 0.05], [1, 0]],
@@ -68,17 +70,20 @@ export const BOWIE_SLASH_R: KarTracks = {
 /**
  * Golpe leve, o outro lado (alternando): o revés. O punho cruza para a esquerda e para cima com o antebraço virado (a
  * lâmina deitada para a esquerda, a face à vista; antecipação); corta da esquerda para a direita num arco que passa
- * pelo meio da tela, segue para baixo à direita e volta.
+ * pelo meio da tela, segue para baixo à direita e volta. O corte (0,2–0,33) é suave nas duas pontas: com a saída
+ * rápida, um único quadro de 60 Hz ia de 17% a 61% do golpe e nenhum cruzava o meio; assim três quadros passam por
+ * ele, e a lâmina vem de deitada para em pé, a ponta varrendo para a direita junto com o braço (antes ela ficava para
+ * trás). O antebraço vira no seguimento para o pomo não entrar na manga.
  */
 // prettier-ignore
 export const BOWIE_SLASH_L: KarTracks = {
-  px: [[0, 0], [0.18, -0.1, 2], [0.2, -0.1, 1], [0.34, 0.04, 1], [0.46, 0.08], [0.82, 0]],
-  py: [[0, 0], [0.18, 0.06, 2], [0.2, 0.06, 1], [0.34, 0.04, 1], [0.46, 0.01], [0.82, 0]],
-  pz: [[0, 0], [0.18, 0.01, 2], [0.2, 0.01, 1], [0.34, -0.05, 1], [0.46, -0.03], [0.82, 0]],
-  ex: [[0, 0], [0.18, -0.05, 2], [0.2, -0.05, 1], [0.34, 0.1, 1], [0.46, 0.15], [0.82, 0]],
-  ey: [[0, 0], [0.18, 0.35, 2], [0.2, 0.35, 1], [0.34, -0.4, 1], [0.46, -0.55], [0.82, 0]],
-  ez: [[0, 0], [0.18, 0.45, 2], [0.2, 0.45, 1], [0.34, -0.25, 1], [0.46, -0.4], [0.82, 0]],
-  pro: [[0, 0], [0.18, 0.3, 2], [0.2, 0.3, 1], [0.34, -0.1, 1], [0.46, -0.15], [0.82, 0]],
+  px: [[0, 0], [0.18, -0.1, 2], [0.2, -0.1, 0], [0.33, 0.05, 1], [0.46, 0.09], [0.82, 0]],
+  py: [[0, 0], [0.18, 0.06, 2], [0.2, 0.06, 0], [0.33, 0.04, 1], [0.46, 0.01], [0.82, 0]],
+  pz: [[0, 0], [0.18, 0.01, 2], [0.2, 0.01, 0], [0.33, -0.05, 1], [0.46, -0.03], [0.82, 0]],
+  ex: [[0, 0], [0.18, -0.05, 2], [0.2, -0.05, 0], [0.33, 0.1, 1], [0.46, 0.15], [0.82, 0]],
+  ey: [[0, 0], [0.18, 0.35, 2], [0.2, 0.35, 0], [0.33, -0.49, 1], [0.46, -0.65], [0.82, 0]],
+  ez: [[0, 0], [0.18, 0.45, 2], [0.2, 0.45, 0], [0.33, -0.95, 1], [0.46, -1.3], [0.82, 0]],
+  pro: [[0, 0], [0.18, 0.3, 2], [0.2, 0.3, 0], [0.33, -0.1, 1], [0.46, 0.3], [0.82, 0]],
   lx: [[0, 0], [0.15, -0.04], [0.45, -0.04], [0.8, 0]],
   ly: [[0, 0], [0.15, -0.07], [0.45, -0.06], [0.8, 0]],
   lz: [[0, 0], [0.15, 0.03], [0.45, 0.04], [0.8, 0]],
@@ -88,7 +93,7 @@ export const BOWIE_SLASH_L: KarTracks = {
  * Golpe pesado (840 ms; o acerto sai em 45%): antecipação longa e pesada — o braço sobe e recua, a lâmina passa por
  * cima e aponta para trás, segura um instante no alto —, desce num arco forte na diagonal para baixo e para a esquerda,
  * cruzando o meio da tela no acerto, tranco no fim, segue mais um pouco pelo peso e volta devagar. A esquerda sai do
- * caminho.
+ * caminho. O antebraço vira um pouco no começo da subida, para o pomo passar fora da manga.
  */
 // prettier-ignore
 export const BOWIE_HEAVY: KarTracks = {
@@ -98,6 +103,7 @@ export const BOWIE_HEAVY: KarTracks = {
   ex: [[0, 0], [0.3, -0.3, 2], [0.36, -0.33, 1], [0.48, 0.3, 1], [0.62, 0.38], [1, 0]],
   ey: [[0, 0], [0.3, -0.1, 2], [0.36, -0.1, 1], [0.48, 0.3, 1], [0.62, 0.38], [1, 0]],
   ez: [[0, 0], [0.3, -1.15, 2], [0.36, -1.22, 1], [0.48, 0.65, 1], [0.62, 0.85], [1, 0]],
+  pro: [[0, 0], [0.12, 0.3], [0.3, 0, 2], [1, 0]],
   lx: [[0, 0], [0.35, -0.04], [0.7, -0.05], [1, 0]],
   ly: [[0, 0], [0.35, -0.07], [0.7, -0.07], [1, 0]],
   lz: [[0, 0], [0.5, 0.06], [1, 0]],

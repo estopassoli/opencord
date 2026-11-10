@@ -25,30 +25,24 @@ export const BAL_SHUT_Y = -0.0172;
 /** girando, a faca descola da palma (x da faca, m; a palma fica do lado +x) e fica entre a base da palma e o polegar */
 export const BAL_LIFT = -0.014;
 /**
- * Os dedos enquanto a faca gira: meio fechados, sem cruzar o plano dos cabos, o polegar fechado por cima. Quando o cabo
- * de morder passa por baixo do punho, voltando para a mão (`balSpread`), os quatro esticam para ele passar, e fecham
- * de novo antes de ele encostar.
+ * Os dedos enquanto a faca gira: médio, anelar e mindinho meio abertos, fora do plano dos cabos; o polegar fechado por
+ * cima e o indicador dobrado no cabo seguro, logo atrás dos pinos — a pinça da balisong de verdade (com o indicador
+ * aberto como os outros, a faca girava solta na frente da palma). Quando o cabo de morder passa por baixo do punho,
+ * voltando para a mão (`balSpread`), os quatro esticam para ele passar e fecham de novo antes de ele encostar; com ela
+ * aberta, ainda descolada da palma, o indicador fica no fechamento de `landing` (no de pinça ele entrava no cabo de
+ * morder que chegava).
  */
-export const BAL_FLIP_CURL = { fingers: 0.4, thumb: 1.4, index: 0.6 } as const;
+export const BAL_FLIP_CURL = { fingers: 0.4, thumb: 1.4, index: 0.9, landing: 0.6 } as const;
 
 const smooth = (u: number) => u * u * (3 - 2 * u);
 const seg01 = (x: number, a: number, b: number) => Math.max(0, Math.min(1, (x - a) / (b - a)));
 /** quanto os dedos esticam (0–1) com a faca em `shut`: o cabo de morder passando por baixo do punho (shut 0,3–0,12) */
 export const balSpread = (shut: number) => smooth(seg01(shut, 0.4, 0.3)) * (1 - smooth(seg01(shut, 0.12, 0.04)));
 
-/**
- * A esquerda de guarda com a balisong: punho frouxo (os dedos dobrados em cascata, o polegar encostado no indicador),
- * em vez da mão meio aberta das outras facas, que de frente parecia uma garra
- */
-export const BAL_GUARD = {
-  curl: 0.95,
-  index: 0.85,
-  thumb: 0.6,
-  /** o pulso reto: os dedos seguem a linha do antebraço, que sobe do canto de baixo (espaço da câmera) */
-  fwd: [0.25, 0.6, -0.75] as const,
-  /** o dorso para cima, para a esquerda e para a câmera */
-  back: [-0.5, 0.5, 0.7] as const,
-} as const;
+/** o fechamento do indicador enquanto ela gira, para `shut` (ver `BAL_FLIP_CURL`) */
+export const balFlipIndex = (shut: number) =>
+  (BAL_FLIP_CURL.landing + (BAL_FLIP_CURL.index - BAL_FLIP_CURL.landing) * smooth(seg01(shut, 0.03, 0.1))) *
+  (1 - balSpread(shut));
 
 /**
  * De onde os dedos partem no encaixe do `setGun` ([dedos, polegar, indicador]; cada um fecha até encostar). O polegar
@@ -102,7 +96,8 @@ export const BAL_INSPECT: BalTracks = {
 /**
  * Golpe leve da direita para a esquerda (400 ms; o acerto sai em 30%): o punho arma para a direita e para cima com a
  * ponta para trás (antecipação, ~60 ms), corta num arco rápido que cruza o meio da tela com o fio na frente, segue
- * desacelerando e volta.
+ * desacelerando e volta. A esquerda desce e sai para a esquerda o bastante para o punho passar por cima dela com
+ * ~2 cm de folga (antes ele encostava nela, 0,30–0,55).
  */
 // prettier-ignore
 export const BAL_SLASH_R: BalTracks = {
@@ -112,9 +107,9 @@ export const BAL_SLASH_R: BalTracks = {
   ex: [[0, 0], [0.16, 0.3, 2], [0.18, 0.3, 1], [0.3, 0.1, 1], [0.48, 0.33], [0.86, 0]],
   ey: [[0, 0], [0.16, -0.1, 2], [0.18, -0.1, 1], [0.3, -0.25, 1], [0.48, -0.05], [0.86, 0]],
   ez: [[0, 0], [0.16, -1.19, 2], [0.18, -1.19, 1], [0.3, 0.76, 1], [0.48, 1.27], [0.86, 0]],
-  lx: [[0, 0], [0.2, -0.07], [0.6, -0.07], [1, 0]],
-  ly: [[0, 0], [0.2, -0.11], [0.6, -0.11], [1, 0]],
-  lz: [[0, 0], [0.25, 0.05], [0.6, 0.05], [1, 0]],
+  lx: [[0, 0], [0.2, -0.09], [0.6, -0.09], [1, 0]],
+  ly: [[0, 0], [0.2, -0.16], [0.6, -0.16], [1, 0]],
+  lz: [[0, 0], [0.25, 0.06], [0.6, 0.06], [1, 0]],
 };
 
 /**
