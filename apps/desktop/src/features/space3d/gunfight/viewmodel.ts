@@ -363,6 +363,8 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   bfr: [0.3, 0.6],
   ak47: [0.35, 0.5],
   rhino: [0.5, 0.6],
+  // MP7 (de volta ao caminho de código): o encaixe deixava o polegar em pé do lado direito, por cima do punho
+  mp7: [0.5, 0.85],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
@@ -384,13 +386,17 @@ const MPX_INSPECT = {
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /**
- * pente no punho que sobra embaixo dele (MSMC): com bala, a esquerda pega a base, puxa, guarda no colete e volta com um
- * cheio, como nos fuzis (cair, só vazio)
+ * pente no punho que sobra embaixo dele (MSMC, MP7): com bala, a esquerda pega a base, puxa, guarda no colete e volta
+ * com um cheio, como nos fuzis (cair, só vazio)
  */
-const GRIP_MAG_TACTICAL: ReadonlySet<string> = new Set(['msmc']);
-/** quanto a arma sobe a mais na recarga do pente no punho (x, y, z em m, cano para cima em rad, no pico) */
+const GRIP_MAG_TACTICAL: ReadonlySet<string> = new Set(['msmc', 'mp7']);
+/**
+ * quanto a arma sobe a mais na recarga do pente no punho (x, y, z em m, cano para cima em rad, no pico). MP7: como a
+ * MSMC (sem subir, a troca do pente acontecia embaixo da borda da tela)
+ */
 const GRIP_MAG_LIFT: Partial<Record<string, readonly [number, number, number, number]>> = {
   msmc: [-0.04, 0.06, 0.02, 0.15],
+  mp7: [-0.04, 0.06, 0.02, 0.15],
 };
 /**
  * a bola da alavanca do ferrolho (espaço da arma) quando a peça inteira é grande e o meio dela não é onde se pega.
@@ -3625,7 +3631,9 @@ const OLD_INSPECT: ReadonlySet<string> = new Set(['rs9', 'stg44', 'ak47', 'balli
 /**
  * Acerto do arco por arma: `yaw` é o giro do primeiro lado (rad; o comum é 1) e `push` leva a arma para longe (m,
  * negativo) durante toda a inspeção. Snipers compridas (L115, SV-98): virando 1 rad, a coronha enchia a metade esquerda
- * da tela no primeiro lado; giram menos e vão para a frente antes de virar.
+ * da tela no primeiro lado; giram menos e vão para a frente antes de virar. MP7: a coronha esticada é comprida para a
+ * arma, e perto da câmera ela atravessava a metade de baixo à esquerda; vai mais para longe (girando menos ela apontava
+ * a soleira para a câmera).
  */
 interface ArcTune {
   yaw: number;
@@ -3634,6 +3642,7 @@ interface ArcTune {
 const ARC_TUNE: Partial<Record<string, ArcTune>> = {
   l115: { yaw: 0.8, push: -0.15 },
   sv98: { yaw: 0.8, push: -0.15 },
+  mp7: { yaw: 0.9, push: -0.15 },
 };
 
 /**

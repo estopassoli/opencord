@@ -47,8 +47,8 @@ const sum = (o: ReturnType<FpMixer['step']>) =>
   o.loops.idle.w + o.loops.ads.w + o.loops.sprint.w + o.loops.tac.w + (o.one?.w ?? 0);
 
 describe('clipes feitos à mão do MP7', () => {
-  it('só o MP7 usa o caminho novo', () => {
-    expect([...AUTHORED]).toEqual(['mp7']);
+  it('nenhuma arma usa o caminho novo por enquanto (o MP7 voltou ao de código)', () => {
+    expect([...AUTHORED]).toEqual([]);
   });
 
   it('o arquivo tem todos os clipes, com a duração escrita e os ossos que o jogo lê', async () => {
