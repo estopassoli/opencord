@@ -92,6 +92,8 @@ export const SAMPLE_SETS: Partial<Record<SampleKey, SampleSet>> = {
   land: set(['land']),
   slideFx: set(['slide']),
   shellCase: set(['shell-1', 'shell-2', 'shell-3']),
+  // narrador: a voz (ElevenLabs) ainda não foi gravada; até lá toca a receita sintetizada. Cada chamada entra como
+  // `'announcer:double': set(['call-double-kill'])` (a variante é a `StreakCall`), com o arquivo no CREDITS.md
 };
 
 /** o conjunto de um som: primeiro `nome:variante` (exato = gravação daquela variante), depois o do nome */

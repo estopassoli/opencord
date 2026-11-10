@@ -38,6 +38,7 @@ import {
 } from './movement';
 import { kickSpring, spring, stepSpring } from './spring';
 import { useGunHud, type KillFeedItem, type ScoreRow } from './state';
+import { KillStreak } from './streak';
 import { Viewmodel } from './viewmodel';
 import {
   BASH,
@@ -314,6 +315,8 @@ export class GunGame {
   private readonly stats = new Map<string, { kills: number; deaths: number }>();
   private feedSeq = 0;
   private feed: KillFeedItem[] = [];
+  /** o narrador: a minha sequência de abates nesta partida */
+  private readonly streak = new KillStreak();
   private bots: GunBots | null = null;
   private botCheckAt = 0;
   private winner: string | null = null;
@@ -373,6 +376,7 @@ export class GunGame {
       active: true,
       firstPerson: this.firstPerson,
       feed: [],
+      streak: null,
       winner: null,
       dead: false,
       notice: null,
@@ -655,6 +659,7 @@ export class GunGame {
     if (this.over) return;
     if (by !== target) this.statOf(by).kills++;
     this.statOf(target).deaths++;
+    this.narrate(by, target, head);
     this.feed = [
       {
         id: ++this.feedSeq,
@@ -669,6 +674,21 @@ export class GunGame {
       ...this.feed,
     ].slice(0, 6);
     this.pushScores();
+  }
+
+  /** o narrador: a minha sequência (abater, morrer) e o primeiro abate da partida, de quem for */
+  private narrate(by: string, target: string, head: boolean) {
+    const me = this.host.selfId;
+    if (target === me) this.streak.died();
+    if (by === target) return;
+    if (by !== me) {
+      this.streak.otherKill();
+      return;
+    }
+    const call = this.streak.kill(performance.now(), head);
+    if (!call) return;
+    this.host.emit({ kind: 'streak', call, power: 1, zone: 8, at: this.eye });
+    useGunHud.getState().set({ streak: { call, at: Date.now() } });
   }
 
   private nameOf(id: string) {
@@ -772,6 +792,7 @@ export class GunGame {
   restart(now = performance.now(), broadcast = true) {
     this.stats.clear();
     this.feed = [];
+    this.streak.reset();
     this.winner = null;
     this.staleScore.clear();
     for (const p of this.host.players())

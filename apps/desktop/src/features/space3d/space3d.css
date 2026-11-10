@@ -2399,6 +2399,76 @@
     animation: none;
   }
 }
+/* narrador: a faixa da sequência de abates, acima da mira (sem cobrir o alvo); sobe de tom a cada abate seguido */
+.gf-streak {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translateX(-50%);
+  padding: 4px 18px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.45);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 6px rgb(0 0 0 / 0.8);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: gf-streak 2.2s ease-out forwards;
+}
+.gf-streak[data-call='headshot'],
+.gf-streak[data-call='firstKill'] {
+  color: #ffd66b;
+}
+.gf-streak[data-call='double'] {
+  color: #ffb347;
+}
+.gf-streak[data-call='triple'] {
+  color: #ff8a3d;
+  font-size: 30px;
+}
+.gf-streak[data-call='quadra'] {
+  color: #ff5a3c;
+  font-size: 32px;
+}
+.gf-streak[data-call='penta'],
+.gf-streak[data-call='amazing'] {
+  color: #ff3b3b;
+  font-size: 36px;
+}
+@keyframes gf-streak {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1.35);
+  }
+  8% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gf-streak {
+    animation: gf-streak-fade 2.2s linear forwards;
+  }
+}
+@keyframes gf-streak-fade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
 /* acabou de nascer: protegido até atirar (em cima da barra de vida, longe da mira para não cobrir o alvo) */
 .gf-shield {
   position: absolute;

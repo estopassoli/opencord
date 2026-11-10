@@ -82,7 +82,9 @@ export type SfxName =
   | 'drawGun'
   | 'step'
   | 'shotFar'
-  | 'shellCase';
+  | 'shellCase'
+  // o narrador do gunfight (a variante da gravação é a chamada: `announcer:double`)
+  | 'announcer';
 
 /** um som a tocar */
 export interface SfxCue {
@@ -262,6 +264,8 @@ export const SFX_MAP: { [K in GameEventKind]: Mapper<K> | typeof NO_SOUND } = {
       return [cue, { name: 'shellCase', gain: 0.22, jitter: 0.06, delay: 0.25 }];
     return [cue];
   },
+  // o narrador entra logo depois do som do abate (sem pisar no estalo do marcador)
+  streak: (e) => [{ name: 'announcer', gain: 1, info: true, sample: e.call, delay: 0.12 }],
   tackle: (e) =>
     e.foul
       ? [
@@ -399,6 +403,9 @@ export const SUPERSEDES: Partial<Record<SfxName, SfxName[]>> = {
   go: ['count'],
 };
 export const SUPERSEDE_MS = 150;
+
+/** sons que tocam um de cada vez: o novo corta o que ainda está tocando (o narrador não fala por cima de si) */
+export const SOLO: ReadonlySet<SfxName> = new Set<SfxName>(['announcer']);
 
 // ---------- mixagem ----------
 

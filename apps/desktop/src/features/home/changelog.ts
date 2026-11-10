@@ -25,6 +25,14 @@ export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) =>
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-10',
+    time: '10:00',
+    kind: 'novo',
+    icon: 'gamepad',
+    title: 'Sequência de abates no gunfight',
+    body: 'Abates seguidos agora aparecem no meio da tela: First kill no primeiro abate da partida, Headshot no tiro na cabeça e Double, Triple, Quadra e Penta kill para abates em sequência (até 4,5 s entre um e outro), com Amazing do sexto em diante. Morrer zera a sequência.',
+  },
+  {
+    date: '2026-11-10',
     time: '08:00',
     kind: 'melhoria',
     icon: 'gamepad',

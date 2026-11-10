@@ -1,9 +1,9 @@
 /**
  * Interface do gunfight: mira (abre com a dispersão; some mirando; ponto na faca), marcador de acerto (branco; vermelho
  * quando mata; também por cima da luneta), luneta das snipers (com um escurecer curto na entrada), vida (o número ao
- * lado da barra, com a borda vermelha quando está baixa), de onde veio o tiro, munição, lista de abates, placar (Tab),
+ * lado da barra, com a borda vermelha quando está baixa), de onde veio o tiro, munição, lista de abates, faixa do narrador (sequência de abates), placar (Tab),
  * vigor da corrida (barra fina só quando não está cheio), tela de abatido com o renascer, fim da partida com o placar
- * final e o painel do menu (equipamento, sensibilidade do mouse, primeira/terceira pessoa e bots). Abates, a própria morte e o vencedor são lidos pela região viva única (`useAnnounce`).
+ * final e o painel do menu (equipamento, sensibilidade do mouse, primeira/terceira pessoa e bots). Abates, chamadas do narrador, a própria morte e o vencedor são lidos pela região viva única (`useAnnounce`).
  */
 import { Button, Icon, Slider } from '@opencord/ui';
 import { useEffect, useRef, useState } from 'react';
@@ -15,6 +15,7 @@ import { MOVE } from './movement';
 import { LoadoutCards, LoadoutEditor, type LoadoutView } from './Loadout';
 import { releasePreviews } from './preview';
 import { useGunHud, type ScoreRow } from './state';
+import { STREAK_LABEL } from './streak';
 import { GUNS, WINNER_MS, type ScopeStyle } from './weapons';
 
 /** m:ss */
@@ -42,12 +43,30 @@ function useGunAnnouncements() {
     if (!top || top.id === lastFeed.current) return;
     lastFeed.current = top.id;
     const say = useAnnounce.getState().say;
-    if (top.byName === 'Você' && top.targetName !== 'Você') say(`Você abateu ${top.targetName}`);
-    else if (top.targetName === 'Você') say(top.byName === 'Você' ? 'Você caiu' : `Abatido por ${top.byName}`);
+    if (top.byName === 'Você' && top.targetName !== 'Você') {
+      // a chamada do narrador sai no mesmo abate: vai junto na mesma frase (a região viva só lê a última)
+      const st = useGunHud.getState().streak;
+      const call = st && Math.abs(st.at - top.at) < 250 ? ` — ${STREAK_LABEL[st.call]}` : '';
+      say(`Você abateu ${top.targetName}${call}`);
+    } else if (top.targetName === 'Você') say(top.byName === 'Você' ? 'Você caiu' : `Abatido por ${top.byName}`);
   }, [feed]);
   useEffect(() => {
     if (winner) useAnnounce.getState().say(winner === 'Você' ? 'Você venceu a partida' : `${winner} venceu a partida`);
   }, [winner]);
+}
+
+/** quanto tempo a faixa do narrador fica na tela (ms) */
+const STREAK_MS = 2200;
+
+/** a faixa do narrador (Headshot, Double kill…): some sozinha; uma chamada nova troca a anterior */
+function StreakBanner({ now }: { now: number }) {
+  const s = useGunHud((h) => h.streak);
+  if (!s || now - s.at > STREAK_MS) return null;
+  return (
+    <div key={s.at} className="gf-streak" data-call={s.call} aria-hidden="true">
+      {STREAK_LABEL[s.call]}
+    </div>
+  );
 }
 
 function HitMarker({ kill, head }: { kill: boolean; head: boolean }) {
@@ -226,6 +245,7 @@ export function GunHud() {
             style={{ transform: `rotate(${(-d.ang * 180) / Math.PI}deg)`, opacity: 1 - (now - d.at) / 1500 }}
           />
         ))}
+      {!h.dead && <StreakBanner now={now} />}
       <TopScore />
       {!h.dead && h.slotsAt > 0 && now - h.slotsAt < 1500 && <SlotList key={h.slotsAt} />}
       {h.shielded && !h.dead && (

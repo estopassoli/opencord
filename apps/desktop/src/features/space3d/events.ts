@@ -6,6 +6,7 @@
  */
 
 import type { GunId } from '@opencord/contracts';
+import type { StreakCall } from './gunfight/streak';
 
 export interface At {
   x: number;
@@ -57,6 +58,8 @@ export type GameEvent = Base &
     | { kind: 'gunshot'; by: string; w: GunId; quiet?: boolean }
     | { kind: 'impact'; flesh: boolean; head: boolean }
     | { kind: 'gunfx'; what: GunFx; w: GunId; by?: string }
+    // o narrador: a sequência de abates de quem joga aqui (só no cliente dela)
+    | { kind: 'streak'; call: StreakCall }
   );
 
 /** sons curtos da arma e do jogador no gunfight */

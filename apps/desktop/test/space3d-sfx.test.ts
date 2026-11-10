@@ -58,6 +58,7 @@ const SAMPLES: GameEvent[] = [
   { kind: 'gunshot', by: 'eu', w: 'm4', power: 1, zone: 8, at },
   { kind: 'impact', flesh: true, head: false, power: 0.6, zone: 8, at },
   { kind: 'gunfx', what: 'magIn', w: 'm4', power: 0.6, zone: 8, at },
+  { kind: 'streak', call: 'double', power: 1, zone: 8, at },
   { kind: 'trick', by: 'eu', trick: 'bicicleta', power: 1, zone: 2, at },
   { kind: 'tackle', by: 'eu', on: 'ana', foul: true, slide: true, power: 1, zone: 2, at },
 ];

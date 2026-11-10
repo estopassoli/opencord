@@ -22,6 +22,7 @@ import {
   sfxMix,
   sfxPan,
   SFX_FAR_M,
+  SOLO,
   SUPERSEDE_MS,
   SUPERSEDES,
   type Listener,
@@ -133,6 +134,12 @@ export const RECIPES: Record<SfxName, Part[]> = {
   step: [noise('lowpass', 900, 0.05, 0.35), tone(70, 0.04, 0.3)],
   // tiro de longe: sem o estalo, só o estrondo grave que chega abafado
   shotFar: [noise('lowpass', 900, 0.3, 0.6, { f2: 300 }), tone(60, 0.15, 0.6, { f2: 35 })],
+  // narrador sem a gravação (ainda carregando): três notas subindo, curtas
+  announcer: [
+    tone(660, 0.09, 0.45, { type: 'triangle' }),
+    tone(880, 0.09, 0.45, { type: 'triangle', t: 0.08 }),
+    tone(1320, 0.18, 0.5, { type: 'triangle', t: 0.16 }),
+  ],
   // bola de borracha: "tum" grave caindo e um estalo curto
   bounce: [tone(180, 0.07, 1, { f2: 70 }), noise('lowpass', 1200, 0.012, 0.4)],
   // bolinha na mesa: "tic" agudo e seco
@@ -553,6 +560,12 @@ export class Sfx {
           return false;
         }
         return true;
+      });
+    if (SOLO.has(name))
+      this.voices = this.voices.filter((v) => {
+        if (v.name !== name) return true;
+        v.stop?.();
+        return false;
       });
     const d = o.at ? Math.hypot(o.at.x - this.listener.x, o.at.z - this.listener.z) : undefined;
     const gain = sfxMix({ vol, d, ducked: this.ducked, info: o.info, gain: o.gain ?? 1 });

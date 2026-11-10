@@ -6,6 +6,7 @@ import type { GunId } from '@opencord/contracts';
 import { create } from 'zustand';
 import type { BotLevel } from '../bots/level';
 import { loadAim, type AimSettings } from './aim';
+import type { StreakCall } from './streak';
 import { buildKey, validBuild, type Builds } from './attachments';
 import { DEFAULT_LOADOUT, GUNS, SLOT_GUNS, type GunSlot, type Loadout, type ScopeStyle } from './weapons';
 
@@ -62,6 +63,8 @@ export interface GunHudState {
   /** de onde veio cada dano recente (ângulo relativo à câmera, rad) e quando */
   hurts: { ang: number; at: number }[];
   feed: KillFeedItem[];
+  /** a última chamada do narrador (a faixa no meio da tela) e quando saiu (Date.now) */
+  streak: { call: StreakCall; at: number } | null;
   scores: ScoreRow[];
   dead: boolean;
   /** morto: quem matou, com que arma, se foi na cabeça e quando renasce */
@@ -200,6 +203,7 @@ export const useGunHud = create<GunHudState>()((set) => ({
   hitHead: false,
   hurts: [],
   feed: [],
+  streak: null,
   scores: [],
   dead: false,
   killedBy: null,
