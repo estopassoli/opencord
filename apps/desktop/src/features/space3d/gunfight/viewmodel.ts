@@ -253,6 +253,9 @@ const BOLT_HAND: Partial<Record<string, { knob: THREE.Vector3; roll: number }>> 
   ballista: { knob: new THREE.Vector3(0.0558, 0.0607, -0.0143), roll: 0.35 },
   l115: { knob: new THREE.Vector3(0.0438, 0.0433, -0.0256), roll: 0.35 },
   kar98k: { knob: new THREE.Vector3(0.0401, 0.0484, -0.0395), roll: 0.35 },
+  // RS9: a alavanca desce para a direita (a bola fica 6 cm abaixo do eixo); girando junto, a mão ficava de dorso para
+  // cima e os dedos pendurados por cima da caixa
+  rs9: { knob: new THREE.Vector3(0.0429, 0.0211, -0.036), roll: 0.35 },
 };
 /** Kar98k: quanto a alavanca gira por unidade de `boltRot` (1,2 × 1,3 ≈ 90°, como no Mauser) */
 const KAR_LIFT = 1.3;
