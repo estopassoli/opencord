@@ -80,6 +80,7 @@ import {
 } from './updater';
 import { GameDetector } from './games';
 import { logRendererError } from './crash-log';
+import { ShortcutRegistry } from './shortcut-registry';
 import {
   chooseClipsDir,
   clipsDir,
@@ -112,6 +113,13 @@ const ALLOWED_PERMISSIONS = new Set([
 let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
+const shortcuts = new ShortcutRegistry<ShortcutAction>({
+  register: (accel, fire) => globalShortcut.register(accel, fire),
+  unregisterAll: () => globalShortcut.unregisterAll(),
+  fire: (action) => send(IPC.evShortcut, action),
+  // o unregisterAll também tira o atalho de emergência do controle remoto
+  afterReset: () => armPanic(),
+});
 let voice: z.infer<typeof TrayVoiceState> = { inVoice: false, muted: false, deafened: false };
 
 if (!app.requestSingleInstanceLock()) {
@@ -385,20 +393,8 @@ function registerIpc() {
     });
     notification.show();
   });
-  handle(IPC.shortcutsSet, [ShortcutsArgs], (s) => {
-    globalShortcut.unregisterAll();
-    const registered: string[] = [];
-    const failed: string[] = [];
-    for (const [action, accel] of Object.entries(s) as [ShortcutAction, string | null][]) {
-      if (!accel) continue;
-      // registro pode falhar se outro app já usa o atalho
-      const ok = globalShortcut.register(accel, () => send(IPC.evShortcut, action));
-      (ok ? registered : failed).push(accel);
-    }
-    // o unregisterAll acima também tirou o atalho de emergência do controle remoto
-    armPanic();
-    return { registered, failed };
-  });
+  // registro pode falhar se outro app já usa o atalho; os que falharam são tentados de novo até ficarem livres
+  handle(IPC.shortcutsSet, [ShortcutsArgs], (s) => shortcuts.set(s));
   handle(IPC.windowFlash, [], () => {
     if (win && !win.isFocused()) win.flashFrame(true);
   });
@@ -549,7 +545,7 @@ app.on('before-quit', () => {
 app.on('will-quit', () => {
   // atualização pronta: instala em silêncio ao encerrar (a próxima abertura já é a versão nova)
   installOnQuit();
-  globalShortcut.unregisterAll();
+  shortcuts.dispose();
   games.stop();
   stopAllOutputs();
   stopRemoteInput();
