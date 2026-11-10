@@ -491,6 +491,19 @@ const UNDER: ReadonlySet<GunId> = new Set<GunId>([
 ]);
 
 /**
+ * A esquerda pela lateral do pente, por arma (padrão: nós dos dedos 5 cm acima da base, dedos descendo ~20°): `up` é a
+ * altura dos nós dos dedos acima da base e `tilt` o giro em x (positivo, os dedos sobem). MCX: no pente curvo dela, a
+ * frente vai para a frente embaixo e o anelar e o mindinho passavam da base, esticados e soltos; mais alta e com os
+ * dedos subindo um pouco, a fileira dos nós acompanha a curva e os quatro dedos fecham na frente do pente.
+ */
+const MAG_SIDE_AT: Partial<Record<GunId, { up: number; tilt: number }>> = {
+  mcx: { up: 0.09, tilt: 0.5 },
+};
+const magSide = (tilt: number) =>
+  new THREE.Quaternion()
+    .setFromAxisAngle(new THREE.Vector3(1, 0, 0), tilt)
+    .multiply(basis([0, 1, 0], [-1, 0, 0], [0, 0, 1]));
+/**
  * Esquerda no pente. Fuzil: pela lateral esquerda, os nós dos dedos na frente do pente (os dedos dão a volta nela),
  * a palma na metade de baixo dele. Pente curto (pistola, MP7, sniper): palma por baixo da base, os dedos subindo pela
  * lateral direita (o pente parado fica quase todo dentro da arma: pela lateral, a mão entrava no punho).
@@ -527,11 +540,12 @@ function magHold(g: GunModel, cls: GunClass, avoid: Sphere[]): Hold | null {
     return { pos: f.pos, quat, curl, off: f.offsets };
   }
   const curl: [number, number, number] = [0.5, 0.4, 0.5];
-  const quat = MAG_SIDE.clone();
+  const side = MAG_SIDE_AT[g.id];
+  const quat = side ? magSide(side.tilt) : MAG_SIDE.clone();
   void avoid;
   // os nós dos dedos (0,088 do pulso pelos dedos) logo atrás da frente do pente; a palma na metade de baixo
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
-  const knuckle = new THREE.Vector3(box.min.x - 0.02, box.min.y + 0.05, box.min.z + 0.012);
+  const knuckle = new THREE.Vector3(box.min.x - 0.02, box.min.y + (side?.up ?? 0.05), box.min.z + 0.012);
   const pos = knuckle.addScaledVector(fwd, -0.088);
   const f = fitHand(only, -1, pos, quat, curl, {
     palm: true,
