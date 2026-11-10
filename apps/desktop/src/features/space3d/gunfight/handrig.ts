@@ -342,6 +342,21 @@ export const BALISONG_ARM = {
   quat: [0.2915, 0.3664, 0.5862, -0.6611] as [number, number, number, number],
 };
 
+/**
+ * Bowie em martelo nesta mão (espaço da faca: pulso e giro; `curl` = indicador, médio, anelar, mindinho, polegar e o
+ * quanto o polegar abre para o lado da palma). Medida em cima das juntas da mão, não chutada: o cabo (1,6 × 4 cm)
+ * atravessa a mão fechada logo atrás da guarda, a palma encostada na lateral direita, as falanges de baixo passando
+ * por baixo do fio do cabo e as do meio e as pontas encostadas na lateral esquerda; o polegar fecha por cima do
+ * indicador. Cada dedo fechado até encostar no cabo (`contact.ts`), sem entrar; o pulso cai um pouco para o lado do
+ * mindinho, como numa mão de verdade. Com o encaixe genérico (dedos partindo abertos), o primeiro toque parava os dedos
+ * abertos, pendurados ao lado do cabo.
+ */
+export const BOWIE_ARM = {
+  pos: [0.0272, 0.0634, -0.0143] as THREE.Vector3Tuple,
+  quat: [0.4053, 0.4611, 0.5361, -0.5794] as [number, number, number, number],
+  curl: [0.96, 1.13, 1.01, 0.63, 0.6, 0.55] as const,
+};
+
 /** a mão dos braços para as pegadas (`grips.ts`) */
 export const ARM_HAND_FIT = {
   hole: FIST_HOLE,
@@ -353,6 +368,7 @@ export const ARM_HAND_FIT = {
   kukri: KUKRI_ARM,
   bayonet: BAYONET_ARM,
   balisong: BALISONG_ARM,
+  bowie: BOWIE_ARM,
   vgripTilt: 0.5,
   clampYaw: 0.45,
   clampRoll: 0.15,

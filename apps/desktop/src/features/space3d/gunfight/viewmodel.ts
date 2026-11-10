@@ -64,10 +64,11 @@ import {
   type BalTracks,
 } from './balisong';
 import { ARM_RIG } from './armsrig';
+import { BOWIE_DRAW, BOWIE_HEAVY, BOWIE_INSPECT, BOWIE_SLASH_L, BOWIE_SLASH_R } from './bowie';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { fitHand, soupOf } from './contact';
 import { flashTexture } from './fx';
-import { ARM_HAND_FIT, KUKRI_ARM, type FingerOffsets } from './handrig';
+import { ARM_HAND_FIT, BOWIE_ARM, KUKRI_ARM, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
 import { aimReticles } from './attachmodels';
 import { disposeGun, movePart, partBox, partCenter, posePart, setBalisong, type GunModel, type Part } from './models';
@@ -209,6 +210,16 @@ const KNIFE_POSE: Record<
     rot: [0.5252, 0.769, 1.8761],
     fore: new THREE.Vector3(-0.15, 0, -0.99).normalize(),
   },
+};
+/**
+ * Bowie parada, em martelo (`BOWIE_ARM`): o antebraço entra pelo canto de baixo à direita, o pulso caído para o lado do
+ * mindinho, e a lâmina sobe para a frente e um pouco para o meio, o fio para a frente e a face direita à vista (o dorso
+ * da lâmina fica do lado do antebraço, como numa mão de verdade).
+ */
+const BOWIE_POSE = {
+  pos: new THREE.Vector3(0.1635, -0.1327, -0.3264),
+  rot: [0.4363, 1.0472, 1.6232] as THREE.Vector3Tuple,
+  fore: new THREE.Vector3(-0.5, -0.1, -0.86).normalize(),
 };
 const HIP_PISTOL = new THREE.Vector3(0.09, -0.085, -0.33);
 /**
@@ -589,6 +600,19 @@ const BAL_GUARD_Q = (() => {
 const GUARD_CURL = 0.5;
 const GUARD_INDEX = 0.38;
 const GUARD_THUMB = 0.3;
+/**
+ * Bowie: a esquerda de guarda na linha do antebraço (o pulso reto; com a de sempre, o pulso dobrava ~90° para cima e
+ * os dedos caíam, uma garra), a palma para a frente e para a direita, os dedos soltos subindo para a frente.
+ */
+const BOWIE_GUARD_L = new THREE.Vector3(-0.16, -0.19, -0.46);
+const BOWIE_GUARD_Q = (() => {
+  const f = new THREE.Vector3(0.3, 0.6, -0.74).normalize();
+  const back = new THREE.Vector3(-0.85, 0.15, 0.5);
+  back.addScaledVector(f, -back.dot(f)).normalize();
+  const z = f.clone().negate();
+  const x = new THREE.Vector3().crossVectors(back, z);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
+})();
 /** os dedos da mão da faca antes de fechar no cabo (o encaixe fecha cada um até encostar) */
 const KNIFE_OPEN: [number, number, number] = [0.3, 0.2, 0.3];
 /**
@@ -871,6 +895,12 @@ export class Viewmodel {
       this.rightCurl = curlOf(this.handR);
       const c = this.rightCurl[0];
       this.knifeOff = [0, bay.curl[1] - c, bay.curl[2] - c, bay.curl[3] - c, 0, bay.thumbUp];
+    } else if (knife && g.id === 'bowie') {
+      // bowie: os fechamentos medidos de cada dedo (`BOWIE_ARM`, já encostados no cabo)
+      knifeSpinFrame(g, this.spinPivot, this.spinAxis);
+      const c = BOWIE_ARM.curl;
+      this.knifeOff = [0, c[1] - 0.5, c[2] - 0.5, c[3] - 0.5, 0, c[5]];
+      this.rightCurl = curlOf(this.handR);
     } else if (knife) {
       knifeSpinFrame(g, this.spinPivot, this.spinAxis);
       // os dedos partem abertos e fecham até encostar no cabo, um por um. Karambit: o indicador (atravessando a argola)
@@ -1020,7 +1050,9 @@ export class Viewmodel {
         ? KUKRI_POSE
         : g.id === 'bayonet'
           ? BAY_POSE
-          : KNIFE_POSE[g.id === 'karambit' || g.id === 'balisong' ? g.id : 'bayonet']
+          : g.id === 'bowie'
+            ? BOWIE_POSE
+            : KNIFE_POSE[g.id === 'karambit' || g.id === 'balisong' ? g.id : 'bayonet']
       : null;
     const own = HIP_OWN[g.id];
     const hip = kp ? kp.pos : own ? own.pos : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
@@ -1109,7 +1141,21 @@ export class Viewmodel {
         sp * -0.2 + this.tacK * 0.3,
       );
     }
-    if (!kar && !bay && !kuk && !bal) {
+    const bw = g.id === 'bowie';
+    if (bw) {
+      // bowie: correndo, o punho baixa e bombeia com o passo, a lâmina deitada para a frente e para o meio (a face à
+      // vista); na tática, o braço sobe dobrado para perto do peito com a lâmina em pé, e o bombeio fica mais largo
+      const pump = Math.sin(this.bob) * mo;
+      pos.x += sp * -0.01 + this.tacK * -0.03 + pump * 0.012 * this.sprintK;
+      pos.y += sp * -0.02 + this.tacK * 0.04 + Math.abs(Math.cos(this.bob)) * -0.014 * this.sprintK * mo;
+      pos.z += sp * 0.02 + this.tacK * 0.06 - pump * 0.015 * this.sprintK;
+      RUN_E.set(
+        sp * 0.32 + this.tacK * 0.1 + pump * 0.1 * this.sprintK,
+        sp * -0.09 + this.tacK * 0.25,
+        sp * 0.3 + this.tacK * -0.3,
+      );
+    }
+    if (!kar && !bay && !kuk && !bal && !bw) {
       pos.x += sp * -0.03;
       pos.y += sp * -0.05;
       rot.y += sp * 0.65;
@@ -2314,6 +2360,11 @@ export class Viewmodel {
       joltAt('catch', 0.62, 1.4);
       return;
     }
+    if (this.gun?.id === 'bowie') {
+      this.karambitPlay(BOWIE_DRAW, u, full, pos);
+      joltAt('catch', 0.52, 2.2);
+      return;
+    }
     if (kar) {
       this.karambitPlay(KAR_DRAW, u, full, pos);
       joltAt('catch', 0.6, 2.2);
@@ -2392,6 +2443,14 @@ export class Viewmodel {
       }
       return;
     }
+    if (this.gun?.id === 'bowie') {
+      this.karambitPlay(BOWIE_INSPECT, u, full, pos);
+      joltAt('faceA', 0.12, 0.8);
+      joltAt('faceB', 0.44, 0.8);
+      joltAt('catch', 0.72, 0.6);
+      joltAt('settle', 0.95, 1.2);
+      return;
+    }
     if (kar) {
       this.karambitPlay(KAR_INSPECT, u, full, pos);
       joltAt('faceA', 0.2, 0.8);
@@ -2462,6 +2521,11 @@ export class Viewmodel {
     rot: THREE.Euler,
     joltAt: (key: string, at: number, v: number) => void,
   ) {
+    if (this.gun?.id === 'bowie') {
+      this.karambitPlay(s > 0 ? BOWIE_SLASH_R : BOWIE_SLASH_L, u, mo >= 1, pos);
+      joltAt('cut', 0.32, 1.8);
+      return;
+    }
     if (this.gun?.id === 'karambit') {
       this.karambitPlay(s > 0 ? KAR_SLASH_R : KAR_SLASH_L, u, mo >= 1, pos);
       joltAt('cut', 0.3, 1.4);
@@ -2537,6 +2601,11 @@ export class Viewmodel {
     rot: THREE.Euler,
     joltAt: (key: string, at: number, v: number) => void,
   ) {
+    if (this.gun?.id === 'bowie') {
+      this.karambitPlay(BOWIE_HEAVY, u, mo >= 1, pos);
+      joltAt('stab', 0.47, 3.4);
+      return;
+    }
     if (this.gun?.id === 'karambit') {
       this.karambitPlay(KAR_HEAVY, u, mo >= 1, pos);
       joltAt('stab', 0.47, 3);
@@ -2673,24 +2742,28 @@ export class Viewmodel {
   private knifeGuard(now: number, inp: VmInput, mo: number) {
     const bobA = inp.moving * (inp.crouch ? 0.6 : 1) * mo;
     const bay = this.gun?.id === 'bayonet';
-    GL.copy(bay ? BAY_GUARD.at : GUARD_L);
+    const bw = this.gun?.id === 'bowie';
+    GL.copy(bay ? BAY_GUARD.at : bw ? BOWIE_GUARD_L : GUARD_L);
     GL.x += Math.sin(this.bob + 0.6) * 0.01 * bobA + this.swayX * 0.04 + KD.lx;
     GL.y +=
       Math.abs(Math.cos(this.bob + 0.6)) * -0.01 * bobA +
       Math.sin(now / 900 + 0.8) * 0.003 * mo -
       this.swayY * 0.04 -
-      0.08 * this.sprintK +
+      (bw ? 0.12 : 0.08) * this.sprintK +
       KD.ly;
     GL.z += 0.04 * this.sprintK + KD.lz;
     this.handL.root.position.copy(this.holder.worldToLocal(GL));
     this.holder.getWorldQuaternion(HQ);
     const bal = !!this.gun?.flip;
-    this.handL.root.quaternion.copy(HQ.invert().multiply(bay ? BAY_GUARD.quat : bal ? BAL_GUARD_Q : GUARD_Q));
+    this.handL.root.quaternion.copy(
+      HQ.invert().multiply(bay ? BAY_GUARD.quat : bal ? BAL_GUARD_Q : bw ? BOWIE_GUARD_Q : GUARD_Q),
+    );
     // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador
-    // baioneta, balisong e kukri: os dedos da esquerda de cada uma (a kukri num punho solto: aberta em garra, parecia
-    // segurar uma bola invisível)
+    // baioneta, balisong, bowie e kukri: os dedos da esquerda de cada uma (a kukri num punho solto: aberta em garra,
+    // parecia segurar uma bola invisível)
     if (bay) this.handL.setCurl(BAY_GUARD.curl, BAY_GUARD.thumb, BAY_GUARD.index);
     else if (bal) this.handL.setCurl(BAL_GUARD.curl, BAL_GUARD.thumb, BAL_GUARD.index);
+    else if (bw) this.handL.setCurl(0.6, 0.3, 0.48);
     else {
       const gc = this.gun?.id === 'kukri' ? KUK_GUARD_CURL : null;
       this.handL.setCurl(gc?.[0] ?? GUARD_CURL, gc?.[1] ?? GUARD_THUMB, gc?.[2] ?? GUARD_INDEX);
