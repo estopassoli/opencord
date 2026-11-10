@@ -26,26 +26,6 @@ export const BAY_POSE = {
   fore: new THREE.Vector3(-0.574, 0.28, -0.77).normalize(),
 };
 
-/**
- * A mão esquerda de guarda (espaço da câmera): baixa à esquerda, o antebraço e a mão na mesma linha (subindo para a
- * frente e para o meio), o dorso para fora e para cima, os dedos fechados frouxos e o polegar por cima do indicador. A
- * guarda comum das facas (dedos em gancho, pulso dobrado para baixo) parecia uma garra.
- */
-export const BAY_GUARD = {
-  at: new THREE.Vector3(-0.17, -0.21, -0.43),
-  quat: (() => {
-    const f = new THREE.Vector3(0.3, 0.5, -0.8).normalize();
-    const back = new THREE.Vector3(-0.6, 0.5, 0.4);
-    back.addScaledVector(f, -back.dot(f)).normalize();
-    const z = f.clone().negate();
-    const x = new THREE.Vector3().crossVectors(back, z);
-    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
-  })(),
-  curl: 0.8,
-  thumb: 0.55,
-  index: 0.7,
-};
-
 /** para onde a faca sai da mão enquanto gira no floreio (espaço da faca: para longe da palma, rente aos dedos abertos) */
 export const BAY_TOSS: readonly [number, number, number] = [-1, 0, 0];
 /** os dedos enquanto a faca gira solta: abertos, o polegar afastado */

@@ -26,20 +26,9 @@ import {
   track,
   type KarTracks,
 } from './karambit';
-import {
-  KUK_CHOP_L,
-  KUK_CHOP_R,
-  KUK_DRAW,
-  KUK_HEAVY,
-  KUK_GUARD_CURL,
-  KUK_INSPECT,
-  KUKRI_POSE,
-  kukriPlay,
-  kukriRun,
-} from './kukri';
+import { KUK_CHOP_L, KUK_CHOP_R, KUK_DRAW, KUK_HEAVY, KUK_INSPECT, KUKRI_POSE, kukriPlay, kukriRun } from './kukri';
 import {
   BAY_DRAW,
-  BAY_GUARD,
   BAY_HEAVY,
   BAY_INSPECT,
   BAY_OPEN,
@@ -53,7 +42,6 @@ import {
   BAL_DRAW,
   BAL_FIT_START,
   BAL_FLIP_CURL,
-  BAL_GUARD,
   BAL_HEAVY,
   BAL_INSPECT,
   BAL_LIFT,
@@ -65,7 +53,6 @@ import {
 } from './balisong';
 import {
   KABAR_GRIP,
-  KABAR_GUARD_L,
   KABAR_POSE,
   KABAR_RUN,
   KB_DRAW,
@@ -84,6 +71,7 @@ import { ARM_RIG } from './armsrig';
 import { BOWIE_DRAW, BOWIE_HEAVY, BOWIE_INSPECT, BOWIE_SLASH_L, BOWIE_SLASH_R } from './bowie';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { fitHand, soupOf } from './contact';
+import { KNIFE_GUARD, KNIFE_GUARD_AT, knifeGuardQuat } from './knifeguard';
 import { flashTexture } from './fx';
 import { ARM_HAND_FIT, BOWIE_ARM, KUKRI_ARM, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
@@ -591,45 +579,6 @@ const CARRY_MS = 160;
 /** dedos soltos enquanto a faca gira (o indicador da karambit fica na argola) */
 const OPEN_CURL = 0.35;
 const OPEN_THUMB = 0.2;
-/**
- * Mão esquerda de guarda com faca (espaço da câmera): baixa à esquerda, meio fechada, o dorso para cima e para a câmera
- * e os dedos apontando para a frente e para o meio — as duas mãos na frente do corpo, como numa base de luta.
- */
-const GUARD_L = new THREE.Vector3(-0.17, -0.16, -0.42);
-const GUARD_Q = (() => {
-  const f = new THREE.Vector3(0.45, 0.25, -0.86).normalize();
-  const back = new THREE.Vector3(-0.15, 0.75, 0.6);
-  back.addScaledVector(f, -back.dot(f)).normalize();
-  const z = f.clone().negate();
-  const x = new THREE.Vector3().crossVectors(back, z);
-  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
-})();
-/** a guarda da balisong: punho frouxo com o pulso reto (`BAL_GUARD`) */
-const BAL_GUARD_Q = (() => {
-  const f = new THREE.Vector3(...BAL_GUARD.fwd).normalize();
-  const back = new THREE.Vector3(...BAL_GUARD.back);
-  back.addScaledVector(f, -back.dot(f)).normalize();
-  const z = f.clone().negate();
-  const x = new THREE.Vector3().crossVectors(back, z);
-  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
-})();
-/** a guarda relaxada: dedos meio dobrados (o mindinho mais), o indicador um pouco mais aberto e o polegar solto */
-const GUARD_CURL = 0.5;
-const GUARD_INDEX = 0.38;
-const GUARD_THUMB = 0.3;
-/**
- * Bowie: a esquerda de guarda na linha do antebraço (o pulso reto; com a de sempre, o pulso dobrava ~90° para cima e
- * os dedos caíam, uma garra), a palma para a frente e para a direita, os dedos soltos subindo para a frente.
- */
-const BOWIE_GUARD_L = new THREE.Vector3(-0.16, -0.19, -0.46);
-const BOWIE_GUARD_Q = (() => {
-  const f = new THREE.Vector3(0.3, 0.6, -0.74).normalize();
-  const back = new THREE.Vector3(-0.85, 0.15, 0.5);
-  back.addScaledVector(f, -back.dot(f)).normalize();
-  const z = f.clone().negate();
-  const x = new THREE.Vector3().crossVectors(back, z);
-  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
-})();
 /** os dedos da mão da faca antes de fechar no cabo (o encaixe fecha cada um até encostar) */
 const KNIFE_OPEN: [number, number, number] = [0.3, 0.2, 0.3];
 /**
@@ -698,6 +647,9 @@ const KE = new THREE.Euler(0, 0, 0, 'ZYX');
 const TWIST_Q = new THREE.Quaternion();
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const GL = new THREE.Vector3();
+const GUARD_ELBOW = new THREE.Vector3();
+const GUARD_FORE = new THREE.Vector3();
+const GUARD_HQ = new THREE.Quaternion();
 /** karambit correndo: giro do braço no espaço da câmera (somado ao das animações, fora do `carry`) */
 const RUN_E = new THREE.Vector3();
 /** ângulo em (−π, π] (a volta mais curta para casa) */
@@ -2816,7 +2768,7 @@ export class Viewmodel {
     const bobA = inp.moving * (inp.crouch ? 0.6 : 1) * mo;
     const bay = this.gun?.id === 'bayonet';
     const bw = this.gun?.id === 'bowie';
-    GL.copy(bay ? BAY_GUARD.at : bw ? BOWIE_GUARD_L : GUARD_L);
+    GL.copy(KNIFE_GUARD_AT[bay ? 'bayonet' : bw ? 'bowie' : 'other']);
     GL.x += Math.sin(this.bob + 0.6) * 0.01 * bobA + this.swayX * 0.04 + KD.lx;
     GL.y +=
       Math.abs(Math.cos(this.bob + 0.6)) * -0.01 * bobA +
@@ -2825,23 +2777,14 @@ export class Viewmodel {
       (bw ? 0.12 : 0.08) * this.sprintK +
       KD.ly;
     GL.z += 0.04 * this.sprintK + KD.lz;
+    // a mesma mão em todas as facas (`knifeguard.ts`): meio punho relaxado, o pulso na linha do antebraço (o cotovelo
+    // é o mesmo que a IK do `update` vai achar para este pulso)
+    solveElbow(GL, -1, GUARD_ELBOW);
+    GUARD_FORE.copy(GL).sub(GUARD_ELBOW).normalize();
     this.handL.root.position.copy(this.holder.worldToLocal(GL));
     this.holder.getWorldQuaternion(HQ);
-    const bal = !!this.gun?.flip;
-    this.handL.root.quaternion.copy(
-      HQ.invert().multiply(bay ? BAY_GUARD.quat : bal ? BAL_GUARD_Q : bw ? BOWIE_GUARD_Q : GUARD_Q),
-    );
-    // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador
-    // baioneta, balisong, Bowie, Ka-Bar e kukri: os dedos da esquerda de cada uma (a Ka-Bar e a kukri num punho meio
-    // fechado: a garra aberta parecia segurar uma bola invisível)
-    if (bay) this.handL.setCurl(BAY_GUARD.curl, BAY_GUARD.thumb, BAY_GUARD.index);
-    else if (bal) this.handL.setCurl(BAL_GUARD.curl, BAL_GUARD.thumb, BAL_GUARD.index);
-    else if (bw) this.handL.setCurl(0.6, 0.3, 0.48);
-    else if (this.gun?.id === 'kabar') this.handL.setCurl(KABAR_GUARD_L.curl, KABAR_GUARD_L.thumb, KABAR_GUARD_L.index);
-    else {
-      const gc = this.gun?.id === 'kukri' ? KUK_GUARD_CURL : null;
-      this.handL.setCurl(gc?.[0] ?? GUARD_CURL, gc?.[1] ?? GUARD_THUMB, gc?.[2] ?? GUARD_INDEX);
-    }
+    this.handL.root.quaternion.copy(HQ.invert().multiply(knifeGuardQuat(GUARD_FORE, GUARD_HQ)));
+    this.handL.setCurl(KNIFE_GUARD.curl, KNIFE_GUARD.thumb, KNIFE_GUARD.index, KNIFE_GUARD.off);
   }
 
   /** os acertos dos dedos da direita: os da pegada, indo para os da alavanca; soltos no pente-lâmina */

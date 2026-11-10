@@ -37,20 +37,6 @@ const seg01 = (x: number, a: number, b: number) => Math.max(0, Math.min(1, (x - 
 export const balSpread = (shut: number) => smooth(seg01(shut, 0.4, 0.3)) * (1 - smooth(seg01(shut, 0.12, 0.04)));
 
 /**
- * A esquerda de guarda com a balisong: punho frouxo (os dedos dobrados em cascata, o polegar encostado no indicador),
- * em vez da mão meio aberta das outras facas, que de frente parecia uma garra
- */
-export const BAL_GUARD = {
-  curl: 0.95,
-  index: 0.85,
-  thumb: 0.6,
-  /** o pulso reto: os dedos seguem a linha do antebraço, que sobe do canto de baixo (espaço da câmera) */
-  fwd: [0.25, 0.6, -0.75] as const,
-  /** o dorso para cima, para a esquerda e para a câmera */
-  back: [-0.5, 0.5, 0.7] as const,
-} as const;
-
-/**
  * De onde os dedos partem no encaixe do `setGun` ([dedos, polegar, indicador]; cada um fecha até encostar). O polegar
  * parte meio fechado: aberto (0,2, o das outras facas) ele já atravessava o topo dos cabos e o encaixe não o tirava.
  */

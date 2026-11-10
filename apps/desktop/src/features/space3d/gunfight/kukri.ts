@@ -28,9 +28,6 @@ export const KUKRI_POSE = {
   fore: new THREE.Vector3(-0.389, -0.221, -0.894).normalize(),
 };
 
-/** a esquerda de guarda (dedos, polegar, indicador): um punho solto, os dedos em cascata */
-export const KUK_GUARD_CURL = [0.8, 0.5, 0.7] as const;
-
 /** o que uma animação da kukri pede neste quadro além da posição (o `KD` do `viewmodel.ts`) */
 export interface KukOut {
   ex: number;

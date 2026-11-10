@@ -48,12 +48,6 @@ export const KABAR_POSE = {
 };
 
 /**
- * A esquerda de guarda com a Ka-Bar: punho meio fechado, os dedos juntos e o polegar deitado ao lado do indicador (a
- * guarda comum das facas, com os dedos em garra, parecia uma mão pegando algo no ar).
- */
-export const KABAR_GUARD_L = { curl: 1.15, thumb: 0.8, index: 1.05 };
-
-/**
  * Correndo e na corrida tática (somados à guarda, pesados por quanto se está correndo): posição (m) e giro ZYX do braço
  * em volta da faca (rad), no espaço da câmera. Correndo, a faca desce e aponta para a frente e para a esquerda, relaxada;
  * na tática, o braço sobe dobrado para perto do peito, a lâmina em pé. (Antes valia a pose das armas de fogo: correndo, a
