@@ -15,9 +15,11 @@ import { ARM_RIG, type ArmBoneRest, type ArmSideRest } from './armsrig';
 
 /**
  * acerto de cada dedo em cima do fechamento: indicador, médio, anelar, mindinho e polegar; o sexto (opcional) abre o
- * polegar para o lado da palma (`HAND_POSE.thumbAbduct`, 0 a ~1): o polegar sobe pela lateral do guarda-mão no apoio
+ * polegar para o lado da palma (`HAND_POSE.thumbAbduct`, 0 a ~1): o polegar sobe pela lateral do guarda-mão no apoio;
+ * o sétimo (opcional, 0–1) "enrola" os quatro dedos (`HAND_POSE.wrap`): a base dobra menos e o meio e a ponta mais, e
+ * eles ficam juntos — os dedos dão a volta numa peça larga (o guarda-mão no apoio em "C") com as polpas encostadas
  */
-export type FingerOffsets = readonly [number, number, number, number, number, number?];
+export type FingerOffsets = readonly [number, number, number, number, number, number?, number?];
 const NO_OFFSETS: FingerOffsets = [0, 0, 0, 0, 0];
 
 export type ProbePart = 'palm' | 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';
@@ -56,6 +58,16 @@ export interface HandPoseData {
    * baixo do guarda-mão, ele sobe pela lateral esquerda (sem isso ele ficava deitado embaixo, entrando no guarda-mão)
    */
   thumbAbduct: readonly (readonly [number, number, number])[];
+  /**
+   * o enrolar (sétimo acerto, por unidade): quanto a base, o meio e a ponta de cada dedo dobram a mais (fração do
+   * dobrar dela; negativo, a menos), quanto a abertura lateral some e quanto cada dedo vira para o médio (rad, para o
+   * lado do mindinho +): os dedos juntos, sem vão entre eles
+   */
+  wrap: {
+    bend: readonly [number, number, number];
+    together: number;
+    converge: readonly [number, number, number, number];
+  };
 }
 
 export const HAND_POSE: HandPoseData = {
@@ -87,6 +99,7 @@ export const HAND_POSE: HandPoseData = {
     [0, 0, 0],
     [0, 0, 0],
   ],
+  wrap: { bend: [0, 0.1, 0.2], together: 1, converge: [0.25, 0.03, -0.15, -0.35] },
 };
 
 /** o que a pose mexe: um osso por nome, com o giro de descanso */
@@ -128,16 +141,27 @@ export function poseFingers(
   const sp = SPREAD_SIGN[s];
   // o indicador vira "dedo de gatilho" quando fica mais aberto que os outros
   const split = clamp01((c - ix) / 0.05);
+  const w = off[6] ?? 0;
+  const wb = pose.wrap.bend;
   FINGER_NAMES.forEach((f, i) => {
     const raw = Math.max(0, (i === 0 ? ix : c) + off[i]!);
     const cf = Math.min(1.6, raw + pose.lead[i]! * clamp01(raw * 2));
     const b = pose.bend[i]!;
     const tr = i === 0 ? split : 0;
-    const spread = pose.spread[i]! * (1 - 0.6 * clamp01(cf)) - (i === 0 ? pose.triggerSplay * tr : 0);
+    let spread = pose.spread[i]! * (1 - 0.6 * clamp01(cf)) - (i === 0 ? pose.triggerSplay * tr : 0);
+    let b1 = lerp(b[1], pose.trigger[0], tr);
+    let b2 = lerp(b[2], pose.trigger[1], tr);
+    let b3 = lerp(b[3], pose.trigger[2], tr);
+    if (w !== 0) {
+      spread = spread * (1 - pose.wrap.together * w) + pose.wrap.converge[i]! * w;
+      b1 *= 1 + wb[0] * w;
+      b2 *= 1 + wb[1] * w;
+      b3 *= 1 + wb[2] * w;
+    }
     setBone(target, 'palm_' + f, k * b[0] * cf, 0, 0);
-    setBone(target, f + '1', k * cf * lerp(b[1], pose.trigger[0], tr), 0, sp * spread);
-    setBone(target, f + '2', k * cf * lerp(b[2], pose.trigger[1], tr), 0, 0);
-    setBone(target, f + '3', k * cf * lerp(b[3], pose.trigger[2], tr), 0, 0);
+    setBone(target, f + '1', k * cf * b1, 0, sp * spread);
+    setBone(target, f + '2', k * cf * b2, 0, 0);
+    setBone(target, f + '3', k * cf * b3, 0, 0);
   });
   const tt = Math.max(0, Math.min(1.3, t + off[4]));
   const ab = off[5] ?? 0;

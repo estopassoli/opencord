@@ -259,7 +259,14 @@ function inclined(a: number): THREE.Quaternion {
   return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, x.clone().cross(y)));
 }
 
-type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
+type LeftGrip = {
+  pos: THREE.Vector3;
+  quat: THREE.Quaternion;
+  curl: [number, number, number];
+  thumbUp?: number;
+  /** o quanto os dedos enrolam (o sétimo acerto de `FingerOffsets`) */
+  wrap?: number;
+};
 
 /** a esquerda na pegada pedida: a palma encosta e cada dedo fecha até tocar */
 function fitLeft(g: GunModel, lg: LeftGrip, pistol = false, extra: Sphere[] = [], soup?: Soup): Hold {
@@ -270,7 +277,7 @@ function fitLeft(g: GunModel, lg: LeftGrip, pistol = false, extra: Sphere[] = []
     palmOut: pistol ? 0.04 : 0.025,
     fingers: ['index', 'middle', 'ring', 'pinky', 'thumb'],
     extra,
-    base: [0, 0, 0, 0, 0, lg.thumbUp ?? 0],
+    base: [0, 0, 0, 0, 0, lg.thumbUp ?? 0, lg.wrap ?? 0],
   });
   return { pos: lf.pos, quat: lg.quat.clone(), curl: lc, off: lf.offsets };
 }
@@ -304,7 +311,7 @@ function clampHold(g: GunModel, cls: GunClass): Hold {
   let best: { cost: number; hold: Hold } | null = null;
   for (const [clampYaw, clampRoll, clamp, clampThumbUp] of CLAMP_TRY) {
     const lg = leftGrip(g, cls, { ...ARM_HAND_FIT, clampYaw, clampRoll, clamp, clampThumbUp });
-    const hold = fitLeft(g, lg, false, [], soup);
+    const hold = fitLeft(g, { ...lg, wrap: CLAMP_WRAP }, false, [], soup);
     const cost = clampCost(soup, hold, sec);
     if (!best || cost < best.cost) best = { cost, hold };
   }
@@ -319,6 +326,7 @@ function clampHold(g: GunModel, cls: GunClass): Hold {
       h.off[3] + nudge.curl,
       h.off[4],
       h.off[5],
+      h.off[6],
     ];
   }
   return best!.hold;
@@ -333,6 +341,13 @@ function clampHold(g: GunModel, cls: GunClass): Hold {
 const LEFT_NUDGE: Partial<Record<GunId, { at: THREE.Vector3Tuple; curl: number }>> = {
   ballista: { at: [-0.002, 0.012, 0], curl: 0.08 },
 };
+
+/**
+ * os dedos do apoio em "C" enrolam em volta do guarda-mão (`HAND_POSE.wrap`): com a base dobrando tanto quanto o meio
+ * e a ponta, o primeiro toque (o nó do dedo no canto de baixo) parava cada dedo reto, inclinado para fora da lateral, e
+ * os quatro abriam em leque (o indicador e o médio em "V")
+ */
+const CLAMP_WRAP = 1;
 
 /** as variações do apoio em "C": [dedos para a frente (rad), palma para a esquerda (rad), deslocamento (m), polegar] */
 const CLAMP_TRY: readonly (readonly [number, number, number, number])[] = [
@@ -409,7 +424,7 @@ function vgripHold(g: GunModel, cls: GunClass): Hold {
       const at = lg.pos.clone().addScaledVector(down, d);
       const hold = fitLeft(g, { ...lg, pos: at, curl: [lg.curl[0], t, lg.curl[2]], thumbUp: up }, false, [], soup);
       // o fechamento do polegar volta para o da pegada (a primeira pessoa parte dele) e a diferença vai no acerto
-      const off: [number, number, number, number, number, number?] = [...hold.off];
+      const off: [number, number, number, number, number, number?, number?] = [...hold.off];
       off[4] = hold.off[4] + qc([0, t, 0])[1] - q(lg.curl[1]);
       hold.off = off;
       hold.curl = qc(lg.curl);

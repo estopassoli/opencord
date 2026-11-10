@@ -318,6 +318,19 @@ describe('mão dos braços com esqueleto (ADR-0060)', () => {
     expect(mid(l).z).toBeCloseTo(mid(r).z, 2);
   });
 
+  it('enrolar (o sétimo acerto) junta os quatro dedos e não muda nada quando é 0', () => {
+    const tips = (wrap?: number) => {
+      const off = wrap === undefined ? undefined : ([0, 0, 0, 0, 0, 0, wrap] as const);
+      const pr = handProbes(-1, 0.75, 0.3, 0.75, off);
+      return (['index', 'middle', 'ring', 'pinky'] as const).map((f) => pr.filter((p) => p.part === f).at(-1)!.at);
+    };
+    // sem enrolar, igual a sem o acerto
+    expect(tips(0).map((v) => v.toArray())).toEqual(tips().map((v) => v.toArray()));
+    // de lado (o x da mão), as pontas do indicador ao mindinho ficam mais perto: os dedos juntos, sem leque
+    const span = (t: THREE.Vector3[]) => Math.abs(t[0]!.x - t[3]!.x);
+    expect(span(tips(1))).toBeLessThan(span(tips(0)) - 0.005);
+  });
+
   it('o vão do punho fechado fica embaixo da palma e cabe um cabo de ~2,5 cm', () => {
     expect(FIST_HOLE.y).toBeLessThan(-0.02);
     const pr = handProbes(1, 0.95, 0.8, 0.95).filter((p) => p.part === 'middle' || p.part === 'palm');

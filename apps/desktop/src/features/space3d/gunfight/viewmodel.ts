@@ -544,7 +544,7 @@ const RHINO_LOADER_Q = new THREE.Quaternion().setFromRotationMatrix(
 );
 /** acertos dos dedos (misturados por quadro, sem alocar) */
 const OFF_R: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
-const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+const OFF_L: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
 const NO_OFF: FingerOffsets = [0, 0, 0, 0, 0];
 const M1 = new THREE.Matrix4();
 const POUCH = new THREE.Vector3();
@@ -2908,7 +2908,7 @@ export class Viewmodel {
   private leftOffsets(mag: number, gesture: number, palm: number, away: number): FingerOffsets {
     const h = this.holds;
     if (!h) return NO_OFF;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       let o = lerp(h.left.off[i] ?? 0, h.mag?.off[i] ?? 0, mag);
       o = lerp(o, this.egOff[i] ?? 0, gesture);
       OFF_L[i] = o * (1 - palm) * (1 - away);
