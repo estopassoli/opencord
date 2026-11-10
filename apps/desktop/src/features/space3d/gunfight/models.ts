@@ -143,7 +143,8 @@ const SUPPORT_AT: Partial<Record<GunId, number>> = {
   scarl: 0.45,
   mcx: 0.45,
   mpx: 0.62,
-  pdw: 0.6,
+  // no meio do trecho largo do guarda-mão (a 0,6, o indicador e o médio passavam da ponta e ficavam no ar)
+  pdw: 0.5,
   aks74u: 0.55,
   stg44: 0.42,
   msmc: 0.6,
