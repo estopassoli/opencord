@@ -546,6 +546,14 @@ const AXIS = new THREE.Vector3();
 const Z = new THREE.Vector3(0, 0, 1);
 
 /**
+ * Materiais (pelo nome no arquivo) de peças com faces faltando que a câmera vê por trás. SCAR-L: entrando na mira com
+ * a luneta 3x (olho mais alto e mais à frente), entre 60% e 75% da mira a parte de trás da caixa e a coronha (malha
+ * aberta) apareciam como uma placa cinza solta à direita da luneta (e lascas com o ponto vermelho); desenhadas dos dois
+ * lados, elas aparecem fechadas, como peça da arma.
+ */
+const TWO_SIDED: Partial<Record<GunId, readonly string[]>> = { scarl: ['Material.027'] };
+
+/**
  * Arma do arquivo: o cano aponta para +x no arquivo; gira para −z e põe a origem no gatilho. A mira fica no alto da
  * arma acima do gatilho, a mão de apoio a 60% do caminho até o cano, embaixo.
  */
@@ -566,6 +574,12 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   src.traverse((o) => {
     if (o instanceof THREE.Mesh) {
       o.castShadow = true;
+      // peças abertas do modelo que a câmera vê por dentro ao mirar (`TWO_SIDED`): desenhadas dos dois lados
+      const two = TWO_SIDED[id];
+      if (two && !Array.isArray(o.material) && two.includes(o.material.name)) {
+        o.material = own(o.material.clone());
+        o.material.side = THREE.DoubleSide;
+      }
       // cartuchos: cada cópia tem o seu material (escondido; a recarga mostra só nesta arma)
       if (Array.isArray(o.material) && o.material[1]?.name === ROUNDS) {
         rounds = own(o.material[1].clone());
