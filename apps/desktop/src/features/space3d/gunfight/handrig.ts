@@ -314,6 +314,21 @@ export const KUKRI_ARM = {
   thumb: [0.6, 0.45] as const,
 };
 
+/**
+ * Baioneta nesta mão, em martelo (espaço da faca: pulso e giro; `curl` = indicador, médio, anelar, mindinho e polegar).
+ * Medida em cima das juntas da mão (busca no espelho da primeira pessoa, com o encaixe de `contact.ts` fechando cada
+ * dedo até encostar): o cabo atravessa o punho na diagonal da palma, do indicador (encostado atrás da guarda) para o
+ * mindinho, os quatro dedos dão a volta nele, o polegar fecha por cima do indicador e do médio, a palma encosta sem
+ * entrar, o fio para o lado dos nós dos dedos e o dorso (com a argola) para o lado do pulso.
+ */
+export const BAYONET_ARM = {
+  pos: [0.0243, 0.0604, 0.002] as THREE.Vector3Tuple,
+  quat: [-0.3996, -0.4784, -0.54, 0.5656] as [number, number, number, number],
+  curl: [1.01, 1.12, 1.08, 0.84, 0.6] as const,
+  /** o polegar aberto para o lado da palma (fechado reto, ele atravessava o cabo): deita na face de fora, por cima do indicador */
+  thumbUp: 0.45,
+};
+
 /** a mão dos braços para as pegadas (`grips.ts`) */
 export const ARM_HAND_FIT = {
   hole: FIST_HOLE,
@@ -323,6 +338,7 @@ export const ARM_HAND_FIT = {
   ring: { row: 0.022, back: 0.023 },
   karambit: KARAMBIT_ARM,
   kukri: KUKRI_ARM,
+  bayonet: BAYONET_ARM,
   vgripTilt: 0.5,
   clampYaw: 0.45,
   clampRoll: 0.15,
