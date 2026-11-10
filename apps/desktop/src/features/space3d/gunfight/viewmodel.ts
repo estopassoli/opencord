@@ -348,7 +348,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   rs9: [0.63, 1.1],
   mcx: [0.45, 0.8],
   m4: [0.5, 0.85],
-  automag3: [0.2, 0.8],
+  automag3: [0.6, 0.3], // por trás do punho abaixo do ferrolho, deitado para a frente na armação (fora do recuo)
   sv98: [0.45, 0.85],
   scarl: [0.5, 0.5],
   aks74u: [0.45, 0.7],

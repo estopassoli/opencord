@@ -214,7 +214,11 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
  *   esquerda e o pulso sai para a direita). L115: o punho da coronha de buraco é fundo (4,7 cm da frente ao buraco)
  *   e estreito (2,8 cm); a busca deixava os dedos em volta do ar, na frente dele, embaixo do guarda-mato. Virada, a
  *   mão fecha na frente do punho com as pontas na lateral esquerda (medido no harness: médio 0,99, anelar 0,84,
- *   palma encostada sem entrar).
+ *   palma encostada sem entrar). Automag III: a busca deixava a mão ~1 cm para fora do punho (só a base do polegar
+ *   encostava) e o polegar não alcançava a lateral esquerda por baixo do ferrolho: cruzava por trás da traseira dele, e
+ *   o ferrolho entrava no polegar a cada tiro e travado aberto. Com o pulso 1 cm para dentro (a base do polegar encosta
+ *   na cauda da armação, escondida pela mão), o polegar passa por trás do punho abaixo do ferrolho e deita para a
+ *   frente na lateral esquerda da armação (`RIGHT_THUMB` do viewmodel).
  * - `hole`: como o `nudge`, mas o vão da mão vai a um ponto do punho (espaço da arma). Rhino: o punho fica ~1 cm mais
  *   para trás do gatilho e ~10° mais inclinado que o das outras pistolas; na pegada de sempre os dedos fechavam no ar
  *   na frente dele e a mão ficava baixa, com o alto do punho à mostra atrás dela (o vão 4 mm para fora do meio).
@@ -241,6 +245,7 @@ const RIGHT_FIX: Partial<Record<GunId, RightFix>> = {
   rhino: { kind: 'hole', at: [0.004, -0.008, 0.054], upright: -0.15 },
   deagle: { kind: 'wrist', pos: [0.042, -0.036, 0.068], incl: -0.16 },
   l115: { kind: 'wrist', pos: [0.0488, 0.0021, 0.092], yaw: 0.15 },
+  automag3: { kind: 'wrist', pos: [0.036, 0.015, 0.087], yaw: 0 },
   ak47: {
     kind: 'hold',
     pos: [0.0242, -0.0315, 0.099],
