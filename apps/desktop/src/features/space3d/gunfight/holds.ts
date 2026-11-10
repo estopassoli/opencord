@@ -156,7 +156,9 @@ function measure(g: GunModel, cls: GunClass): Holds {
     ? fitLeft(g, pistolSupport(g), true, rightBalls)
     : g.foregrip?.kind === 'vertical'
       ? vgripHold(g, cls)
-      : clampHold(g, cls);
+      : g.foregrip?.kind === 'angled'
+        ? agripHold(g, cls)
+        : clampHold(g, cls);
   const pk = PAD_PINCH[g.id];
   const pinch = pk ? padPinch(g, right, pk) : pinchHold(g, rg.quat);
   return { right, left, mag: magHold(g, cls, rightBalls), pinch, trigOff: TRIG_OFF[g.id] ?? trigOff(g, right) };
@@ -400,6 +402,69 @@ function clampCost(soup: Soup, h: Hold, s: ReturnType<typeof section>): number {
   cost += 300 * Math.max(0, gap.thumb! - 0.003);
   return cost;
 }
+
+/**
+ * Esquerda na empunhadura angulada: a palma por baixo do guarda-mão, logo atrás da rampa, com o pé da mão (o lado do
+ * indicador) encostado na face de trás dela, e os dedos deitados para a frente ao longo da lateral direita, juntos e
+ * baixos (as pontas abaixo de ~60% da altura: no guarda-mão fino, os dedos em pé apareciam ao lado da alça de mira).
+ * Antes era o "C" de sempre empurrado para trás: a mão ficava 3–4 cm atrás da rampa sem tocar nela (AK-47) ou com os
+ * dedos subindo pela lateral até a altura da mira (StG 44, AKS-74U). Tenta os giros e recuos de `AGRIP_TRY` e fica com
+ * o de menor custo: o do "C" (nada entrando, pontas encostadas), mais as pontas baixas e a palma encostada na rampa.
+ */
+function agripHold(g: GunModel, cls: GunClass): Hold {
+  const fg = g.foregrip!;
+  const base = leftGrip({ support: g.support, supportW: g.supportW }, cls, ARM_HAND_FIT);
+  const soup = near(g, base.pos);
+  const sec = section(soup, g.support);
+  // a rampa: o que fica embaixo do guarda-mão na altura dela
+  const list: number[] = [];
+  const T = soup.tris;
+  const top = g.support.y - 0.004;
+  for (let i = 0; i < T.length; i += 9) {
+    const cy = (T[i + 1]! + T[i + 4]! + T[i + 7]!) / 3;
+    const cz = (T[i + 2]! + T[i + 5]! + T[i + 8]!) / 3;
+    if (cy < top && cz > fg.at.z - 0.05 && cz < fg.at.z + 0.04) for (let k = 0; k < 9; k++) list.push(T[i + k]!);
+  }
+  const ramp = list.length ? toSoup(list) : null;
+  let best: { cost: number; hold: Hold } | null = null;
+  const tryAll = (up: number) => {
+    for (const [clampYaw, clampRoll, back] of AGRIP_TRY) {
+      const lg = leftGrip({ support: g.support, supportW: g.supportW }, cls, {
+        ...ARM_HAND_FIT,
+        clampYaw,
+        clampRoll,
+        clampThumbUp: up,
+      });
+      lg.pos.z += back;
+      const hold = fitLeft(g, { ...lg, wrap: CLAMP_WRAP }, false, [], soup);
+      let cost = clampCost(soup, hold, sec);
+      const { tip } = leftContact(soup, hold);
+      for (const f of ['index', 'middle', 'ring', 'pinky'] as const)
+        cost += 4000 * Math.max(0, tip[f]!.y - g.support.y - AGRIP_TIP_UP);
+      if (ramp) {
+        const palm = handProbes(-1, hold.curl[0], hold.curl[1], hold.curl[2], hold.off, 'palm');
+        cost += 300 * Math.max(0, clearance(ramp, [], palm, hold.pos, hold.quat, 0.05) - 0.004);
+      }
+      if (!best || cost < best.cost) best = { cost, hold };
+    }
+  };
+  // o polegar de sempre; se tudo entra na arma (PDW: o polegar na lateral esquerda), outras aberturas dele
+  tryAll(0.6);
+  for (const up of [0.2, 0.9, 1.2]) if (best!.cost >= 100) tryAll(up);
+  return best!.hold;
+}
+
+/**
+ * até quanto acima do fundo do guarda-mão (m) as pontas dos dedos sobem na empunhadura angulada (a fatia do guarda-mão
+ * pega a caixa e o tubo de gás em cima, e a fração da altura deixava os dedos à altura da mira)
+ */
+const AGRIP_TIP_UP = 0.014;
+/** as variações da esquerda na angulada: [dedos para a frente (rad), palma para a esquerda (rad), recuo (m)] */
+const AGRIP_TRY: readonly (readonly [number, number, number])[] = [0.45, 0.7, 0.95, 1.2].flatMap((yaw) =>
+  [0.15, 0.35].flatMap((roll) =>
+    [-0.015, -0.005, 0.005, 0.015, 0.025, 0.035, 0.045].map((back) => [yaw, roll, back] as const),
+  ),
+);
 
 /** o polegar na empunhadura vertical: [fechamento, aberto para o lado da palma] (dando a volta por trás dela, ou
  * deitado na lateral esquerda quando por trás ele entra nela) */

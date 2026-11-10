@@ -32,6 +32,11 @@ interface Mount {
   r: number;
   /** a empunhadura fica tanto à frente (−) ou atrás (+) da mão de apoio de fábrica (m) */
   gripDz?: number;
+  /**
+   * só a angulada, no lugar do `gripDz`: StG 44, o guarda-mão é curto e o poço do pente fica logo atrás do apoio; com a
+   * rampa no apoio não sobrava lugar para a mão entre ela e o pente (a palma entrava num ou noutro)
+   */
+  agripDz?: number;
   /** a peça da boca entra tanto por cima da ponta do cano (cobre o quebra-chamas de fábrica), em m */
   over?: number;
 }
@@ -59,7 +64,7 @@ const MOUNT: Partial<Record<GunId, Mount>> = {
   pdw: { top: [0.099, -0.094], r: 0.009, over: 0.02 },
   msmc: { top: [0.091, -0.003], scope3: [0.091, -0.09], r: 0.008, over: 0.02 },
   aks74u: { top: [0.094, -0.024], scope3: [0.094, -0.09], r: 0.012, over: 0.03 },
-  stg44: { top: [0.084, -0.087], r: 0.009 },
+  stg44: { top: [0.084, -0.087], r: 0.009, agripDz: -0.03 },
   automag3: { top: [0.0607, 0.007], slide: true, r: 0.008 },
   bfr: { top: [0.089, -0.055], r: 0.011 },
   rhino: { top: [0.085, -0.064], r: 0.009 },
@@ -489,7 +494,7 @@ function mountUnder(g: GunModel, m: Mount, id: 'vgrip' | 'agrip') {
   if (g.ownGrip) g.ownGrip.visible = false;
   const group = new THREE.Group();
   const y = g.support.y;
-  const z = g.support.z + (m.gripDz ?? 0);
+  const z = g.support.z + ((id === 'agrip' ? m.agripDz : undefined) ?? m.gripDz ?? 0);
   const k = new Kit();
   if (id === 'vgrip') {
     // vertical: presilha no trilho, o punho um pouco inclinado para a frente, os sulcos dos dedos e a tampa
