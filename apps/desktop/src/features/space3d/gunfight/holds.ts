@@ -432,6 +432,17 @@ function pistolSupport(g: GunModel): {
   curl: [number, number, number];
   thumbUp?: number;
 } {
+  const own = PISTOL_SUPPORT[g.id];
+  if (own) {
+    const z = new THREE.Vector3(...own.fingers).normalize().negate();
+    const y = new THREE.Vector3(...own.back);
+    y.addScaledVector(z, -y.dot(z)).normalize();
+    const quat = new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(y, z), y, z),
+    );
+    const pos = new THREE.Vector3(...own.palm).sub(new THREE.Vector3(0, 0, -0.046).applyQuaternion(quat));
+    return { pos, quat, curl: [...own.curl] };
+  }
   const mag = g.parts.mag ? partBox(g, g.parts.mag) : null;
   const zc = mag ? (mag.min.z + mag.max.z) / 2 : 0.03;
   // o centro da palma ao lado do punho, um pouco abaixo do guarda-mato
@@ -440,6 +451,20 @@ function pistolSupport(g: GunModel): {
   const pos = palm.sub(new THREE.Vector3(0, 0, -0.046).applyQuaternion(quat));
   return { pos, quat, curl: [0.7, 0.15, 0.7] };
 }
+/**
+ * Apoio da pistola medido para uma arma (espaço da arma): o centro da palma, para onde apontam os dedos e o dorso, e os
+ * fechamentos (dedos, polegar, indicador). Automag III: o punho é longo e o apoio de sempre parava a palma ~1,7 cm
+ * fora dele, com os dedos abertos sem encostar em nada; aqui a palma cobre a lateral esquerda do punho, os dedos
+ * descem por cima dos da direita e o polegar fica esticado para a frente embaixo do ferrolho (conferido no harness).
+ */
+const PISTOL_SUPPORT: Partial<
+  Record<
+    GunId,
+    { palm: THREE.Vector3Tuple; fingers: THREE.Vector3Tuple; back: THREE.Vector3Tuple; curl: [number, number, number] }
+  >
+> = {
+  automag3: { palm: [-0.032, -0.005, 0.03], fingers: [0, -0.6, -0.8], back: [-1, 0, 0.1], curl: [0.8, 0, 0.8] },
+};
 /** palma para +x, dedos para a frente e para baixo (0, −0,6, −0,8), indicador para cima */
 const APOIO_LADO = basis([0, 0.8, -0.6], [-1, 0, 0], [0, 0.6, 0.8]);
 
