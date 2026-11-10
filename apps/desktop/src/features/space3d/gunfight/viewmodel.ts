@@ -199,7 +199,7 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   mcx: 'slap',
   mpx: 'slap',
   pdw: 'slap',
-  msmc: 'slap',
+  msmc: 'front',
   aks74u: 'rack',
   stg44: 'front',
   rs9: 'bolt',
@@ -234,11 +234,26 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   scarl: [0.5, 0.5],
   aks74u: [0.45, 0.7],
   m9: [0.4, 0.45], // pistola com as duas mãos: deita na lateral esquerda, para a frente, por cima do polegar de apoio
+  msmc: [0.55, 1.1],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
+/**
+ * pente no punho que sobra embaixo dele (MSMC): com bala, a esquerda pega a base, puxa, guarda no colete e volta com um
+ * cheio, como nos fuzis (cair, só vazio)
+ */
+const GRIP_MAG_TACTICAL: ReadonlySet<string> = new Set(['msmc']);
+/** quanto a arma sobe a mais na recarga do pente no punho (x, y, z em m, cano para cima em rad, no pico) */
+const GRIP_MAG_LIFT: Partial<Record<string, readonly [number, number, number, number]>> = {
+  msmc: [-0.04, 0.06, 0.02, 0.15],
+};
+/**
+ * a bola da alavanca do ferrolho (espaço da arma) quando a peça inteira é grande e o meio dela não é onde se pega.
+ * MSMC: a alavanca fica na frente da caixa, do lado esquerdo, logo acima da empunhadura (a peça vai até o fundo da caixa)
+ */
+const CHARGE_KNOB: Partial<Record<string, THREE.Vector3>> = { msmc: new THREE.Vector3(-0.035, 0.069, -0.16) };
 /** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
 const CYL_OUT = new THREE.Vector3(-0.034, -0.01, 0);
 /** o gesto da recarga vazia neste quadro (preenchido pelo `emptyGesture`; peças, mãos e o giro da esquerda) */
@@ -291,8 +306,15 @@ const DEBRIS_MAX = 4;
  */
 const SLIDE_LOCK: ReadonlySet<string> = new Set(['automag3', 'm9']);
 const SLIDE_LOCK_BACK = 0.035;
-/** pistolas em que a mão de apoio leva o pente novo até encaixar (ver a recarga) */
-const MAG_PUSH: ReadonlySet<string> = new Set(['automag3', 'm9']);
+/**
+ * Armas em que a mão de apoio sobe junto com o pente novo e empurra a base até encaixar (ver a recarga); `drop`: só
+ * quando o velho cai (pistolas; MSMC vazia, pente no punho), `swap`: também na troca com bala.
+ */
+const MAG_PUSH: Partial<Record<string, 'drop' | 'swap'>> = {
+  automag3: 'drop',
+  m9: 'drop',
+  msmc: 'drop',
+};
 /** no tiro, quando o ferrolho chega lá atrás (fração do `fire`): dali em diante, travado, ele não volta */
 const SLIDE_LOCK_AT = 0.42;
 /** quantos estojos esperando o `game.ts` levar para o mundo, no máximo */
@@ -619,6 +641,8 @@ export class Viewmodel {
     else this.magBottom.copy(this.magHome).add(V.set(0, -0.08, 0));
     const handle = g.parts.charge ?? g.parts.slide ?? g.parts.bolt;
     this.chargeHome = handle ? partCenter(g, handle) : null;
+    const knob = CHARGE_KNOB[g.id];
+    if (knob && this.chargeHome) this.chargeHome.copy(knob);
     // o retém fica do lado esquerdo do receptor, logo acima e atrás do poço do pente: a palma encosta nele
     const top = box ? box.max.y : this.magHome.y;
     const bz = box ? box.max.z : this.magHome.z;
@@ -967,11 +991,26 @@ export class Viewmodel {
             break;
           }
           // a MP7 e a MSMC têm o pente no punho, como a pistola: ele cai e o novo entra por baixo
-          const rp = reloadPose(reloadStyle(empty, pistol || GRIP_MAG.has(g.id)), u, RP);
+          const gripMag = GRIP_MAG.has(g.id);
+          const rp = reloadPose(reloadStyle(empty, pistol || (gripMag && !GRIP_MAG_TACTICAL.has(g.id))), u, RP);
           rot.z -= rp.tilt * 0.55 * mo;
           rot.x += rp.tilt * (pistol ? 0.45 : 0.3);
           pos.y += rp.tilt * (pistol ? 0.1 : 0.06);
           pos.x -= rp.tilt * 0.03;
+          // pente no punho (MSMC): o fundo do punho ficava na beirada de baixo da tela e a troca acontecia fora dela; a
+          // arma sobe e vem para o meio, e o pente entrando por baixo aparece. Vazia, ela já volta logo depois do
+          // encaixe (`back`): a alavanca fica na frente, em cima da empunhadura, e com a arma deitada o braço esquerdo
+          // subia esticado atravessando a tela
+          const lift = GRIP_MAG_LIFT[g.id];
+          if (lift) {
+            const back = empty ? rp.tilt * ease(seg(u, 0.57, 0.72)) : 0;
+            const t = rp.tilt - back;
+            rot.z += back * 0.55 * mo;
+            rot.x += t * lift[3] - back * 0.3;
+            pos.x += t * lift[0] + back * 0.03;
+            pos.y += t * lift[1] - back * 0.06;
+            pos.z += t * lift[2];
+          }
           joltAt('out', MAG_OUT_AT + 0.02, -1.2);
           joltAt('seat', MAG_SEAT_AT, 2.4);
           magPull = pistol ? MAG_PULL_PISTOL : MAG_PULL;
@@ -981,7 +1020,8 @@ export class Viewmodel {
           handOut = rp.handOut;
           // a mão sobe junto com o pente novo e a palma empurra a base até o fim (sem isso, no `drop` ela ficava
           // parada embaixo do poço, aberta, e o pente subia sozinho)
-          if (MAG_PUSH.has(g.id) && u >= MAG_OUT_AT) handOut = rp.out;
+          const push = MAG_PUSH[g.id];
+          if (push && u >= MAG_OUT_AT && (push === 'swap' || rp.dropped)) handOut = rp.out;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
           if (g.id === 'm9') {
@@ -1098,6 +1138,20 @@ export class Viewmodel {
             joltAt('hit', 0.32, -1.6);
           } else if (g.id === 'm9') {
             this.pistolBash(u, mo, pos, rot, joltAt);
+          } else if (g.id === 'msmc') {
+            // MSMC: arma o golpe (recua e vai um pouco para a direita, ~80 ms), bate para a frente e para a esquerda
+            // girando (tranco no acerto, em 30%), passa um pouco do ponto e volta devagar (antes ia e ficava parada no
+            // fim, sem antecipação nem acerto)
+            const ant = hump(u, 0, 0.16, 0.16, 0.3);
+            const hit = expOut(seg(u, 0.16, 0.3)) * (1 - ease(seg(u, 0.42, 1)));
+            const over = hump(u, 0.28, 0.36, 0.36, 0.52);
+            pos.z += 0.035 * ant - 0.14 * hit - 0.012 * over;
+            pos.x += 0.02 * ant - 0.05 * hit;
+            pos.y += -0.012 * ant + 0.02 * hit;
+            rot.z += (-0.15 * ant + 0.55 * hit + 0.05 * over) * mo;
+            rot.y += (0.1 * ant - 0.1 * hit) * mo;
+            rot.x += (0.06 * ant - 0.04 * hit) * mo;
+            joltAt('hit', 0.3, 1.8);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             // RS9: antes, recolhe a arma para trás e para a direita (antecipação) e só então empurra

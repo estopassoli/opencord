@@ -118,6 +118,17 @@ function measure(g: GunModel, cls: GunClass): Holds {
   rest(g);
   const pistol = cls === 'pistol';
   const rg = rightGrip(g, cls, ARM_HAND_FIT);
+  const fix = RIGHT_FIX[g.id];
+  if (fix) {
+    // a mão anda e fica mais em pé em volta do vão dela (o meio do punho), não do pulso
+    const hole = ARM_HAND_FIT.grip
+      .clone()
+      .applyQuaternion(rg.quat)
+      .add(rg.pos)
+      .add(new THREE.Vector3(...fix.at));
+    rg.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), fix.upright));
+    rg.pos.copy(hole).sub(ARM_HAND_FIT.grip.clone().applyQuaternion(rg.quat));
+  }
   const right = fitRight(g, rg.pos, rg.quat, qc(rg.curl), pistol);
   // a direita vira obstáculo para a esquerda (na pistola, os dedos da esquerda passam por cima dos dela)
   const rightBalls = balls(right, 1);
@@ -165,6 +176,17 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
   });
   return { pos: f.pos, quat, curl: [...PINCH], off: f.offsets };
 }
+
+/**
+ * Acerto da pegada da direita por arma (só a primeira pessoa): quanto o vão da mão anda (m) e quanto a mão fica mais em
+ * pé (rad, o punho menos inclinado). MSMC: o punho (com o pente dentro) é fino (~2 cm), quase em pé e fica bem à frente
+ * do de um fuzil; na pegada comum a mão ficava ~3 cm atrás e alta, com a base do polegar apoiada na caixa: a palma não
+ * chegava ao punho e anelar e mindinho ficavam abertos para a frente. Agora a palma encosta no punho e os dedos fecham
+ * na frente dele (o polegar é o `RIGHT_THUMB` do viewmodel).
+ */
+const RIGHT_FIX: Partial<Record<GunId, { at: THREE.Vector3Tuple; upright: number }>> = {
+  msmc: { at: [-0.02, -0.01, -0.03], upright: 0.3 },
+};
 
 type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
 
