@@ -179,6 +179,7 @@ const BOLT_HAND: Partial<Record<string, { knob: THREE.Vector3; roll: number }>> 
   m200: { knob: new THREE.Vector3(0.0649, 0.0225, -0.0049), roll: 0.4 },
   // FN Ballista: a bola fica longe da caixa (a mão fecha em volta dela), mas virava ~70° com a alavanca
   ballista: { knob: new THREE.Vector3(0.0558, 0.0607, -0.0143), roll: 0.35 },
+  l115: { knob: new THREE.Vector3(0.0438, 0.0433, -0.0256), roll: 0.35 },
 };
 const KNOB_NOW = new THREE.Vector3();
 const KNOB_Q = new THREE.Quaternion();
@@ -248,6 +249,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   ballista: [0.42, 0.65],
   mpx: [0.6, 0.9],
   deagle: [0.3, 0.2],
+  l115: [0.58, 0.9],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
@@ -1153,6 +1155,13 @@ export class Viewmodel {
             const w = hump(u, 0, 0.12, 0.85, 1);
             pos.y -= w * 0.02;
             rot.z -= w * 0.15 * mo;
+            // L115: a arma vem um pouco para a esquerda e deita mais (com o ferrolho atrás, a mão saía da tela pela
+            // direita)
+            if (g.id === 'l115') {
+              pos.x -= w * 0.035;
+              pos.y -= w * 0.01;
+              rot.z -= w * 0.08 * mo;
+            }
           }
           boltRot = hump(u, 0.12, 0.28, 0.66, 0.8) * 1.2;
           boltBack = hump(u, 0.28, 0.45, 0.48, 0.66) * 0.09;
@@ -1240,6 +1249,17 @@ export class Viewmodel {
             this.mpxMelee(u, mo, pos, rot, joltAt);
           } else if (g.id === 'deagle') {
             leftAway = Math.max(leftAway, this.deagleBash(u, mo, pos, rot, joltAt));
+          } else if (g.id === 'l115') {
+            // L115: antecipação (a arma recua e vira um pouco para fora), a estocada sai rápida para a frente e para o
+            // lado, o tranco do impacto e a volta devagar (o golpe comum ia e voltava em rampa, sem peso)
+            const wind = hump(u, 0, 0.16, 0.18, 0.3);
+            const thrust = expOut(seg(u, 0.18, 0.34)) * (1 - ease(seg(u, 0.5, 1)));
+            pos.z += 0.035 * wind - 0.16 * thrust;
+            pos.x += 0.02 * wind - 0.08 * thrust;
+            pos.y += 0.01 * wind - 0.01 * thrust;
+            rot.z += (-0.12 * wind + 0.6 * thrust) * mo;
+            rot.x += (0.08 * wind - 0.05 * thrust) * mo;
+            joltAt('hit', 0.34, 1.6);
           } else {
             // MP5: estocada inclinada para a esquerda, a coronha comprida fora da tela (`mp5.ts`)
             if (g.id === 'mp5') {

@@ -121,7 +121,12 @@ function measure(g: GunModel, cls: GunClass): Holds {
   const fix = RIGHT_FIX[g.id];
   let right: Hold;
   if (fix?.kind === 'wrist') {
-    right = fitRight(g, new THREE.Vector3(...fix.pos), inclined(fix.incl), qc(rg.curl), pistol, true);
+    // de lado, inclinada `incl`, ou a de sempre girada `yaw` em volta do y da arma
+    const quat =
+      fix.incl !== undefined
+        ? inclined(fix.incl)
+        : rg.quat.clone().premultiply(Y_TURN.setFromAxisAngle(Y_AXIS, fix.yaw ?? 0));
+    right = fitRight(g, new THREE.Vector3(...fix.pos), quat, qc(rg.curl), pistol, true);
   } else {
     if (fix?.kind === 'nudge') {
       // a mão anda e fica mais em pé em volta do vão dela (o meio do punho), não do pulso
@@ -163,6 +168,7 @@ const PAD_PINCH: Partial<
   Record<GunId, { spin: number; from: THREE.Vector3Tuple; to: THREE.Vector3Tuple; fist: number }>
 > = {
   sv98: { spin: -0.3, from: [0.003, 0.012, -0.033], to: [0.03, 0.052, -0.039], fist: 1.5 },
+  l115: { spin: -0.4, from: [-0.0147, -0.0044, -0.0103], to: [0.0538, 0.0353, -0.0406], fist: 1.5 },
 };
 
 function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[GunId]>): Hold {
@@ -194,15 +200,22 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
  *   fileira dos nós dos dedos já desce para trás) o anelar e o mindinho nasciam atrás da frente do punho e ficavam
  *   esticados, e a palma ficava ~1 cm fora (o pé do polegar batia na trava do ferrolho). Aqui a mão vem mais baixa,
  *   inclinada um pouco para a frente: os nós ficam em pé na frente do punho e os dedos dão a volta até a lateral
- *   esquerda.
+ *   esquerda. Ou (`yaw`) a mão de sempre girada em volta do eixo y da arma (rad; positivo, os dedos viram para a
+ *   esquerda e o pulso sai para a direita). L115: o punho da coronha de buraco é fundo (4,7 cm da frente ao buraco)
+ *   e estreito (2,8 cm); a busca deixava os dedos em volta do ar, na frente dele, embaixo do guarda-mato. Virada, a
+ *   mão fecha na frente do punho com as pontas na lateral esquerda (medido no harness: médio 0,99, anelar 0,84,
+ *   palma encostada sem entrar).
  */
 type RightFix =
   | { kind: 'nudge'; at: THREE.Vector3Tuple; upright: number }
-  | { kind: 'wrist'; pos: THREE.Vector3Tuple; incl: number };
+  | { kind: 'wrist'; pos: THREE.Vector3Tuple; incl?: number; yaw?: number };
 const RIGHT_FIX: Partial<Record<GunId, RightFix>> = {
   msmc: { kind: 'nudge', at: [-0.02, -0.01, -0.03], upright: 0.3 },
   deagle: { kind: 'wrist', pos: [0.042, -0.036, 0.068], incl: -0.16 },
+  l115: { kind: 'wrist', pos: [0.0488, 0.0021, 0.092], yaw: 0.15 },
 };
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const Y_TURN = new THREE.Quaternion();
 
 /** mão direita de lado no punho (dorso para a direita, dedos para a frente), a fileira dos dedos inclinada `a` */
 function inclined(a: number): THREE.Quaternion {
@@ -210,6 +223,7 @@ function inclined(a: number): THREE.Quaternion {
   const y = new THREE.Vector3(1, 0, 0);
   return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, x.clone().cross(y)));
 }
+
 
 type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
 
@@ -387,6 +401,7 @@ function fitRight(
   quat: THREE.Quaternion,
   rc: [number, number, number],
   pistol: boolean,
+  /** o pulso já medido (`RIGHT_FIX` `wrist`): sem andar pelo punho, só os dedos se ajustam */
   fixed = false,
 ): Hold {
   const trig = g.parts.trigger;
@@ -438,7 +453,7 @@ function fitRight(
   const thumbProbe = handProbes(1, rc[0], 0.5, rc[2], [0, 0, 0, 0, 0, 0.3], 'thumb');
   let best = { score: Infinity, pos: pos0.clone(), ix: rc[2] };
   const cands: { score: number; pos: THREE.Vector3; ix: number }[] = [];
-  // pegada medida à mão (`RIGHT_FIX`): o pulso fica onde está, só os dedos se ajustam
+  // pegada medida à mão (`RIGHT_FIX` `wrist`): o pulso fica onde está, só os dedos se ajustam
   if (fixed) best = { score: 0, pos: pos0.clone(), ix: index(pos0)[0] };
   for (let dy = -0.03; !fixed && dy <= 0.0181; dy += 0.003)
     for (let dz = -0.01; dz <= 0.0301; dz += 0.005) {
