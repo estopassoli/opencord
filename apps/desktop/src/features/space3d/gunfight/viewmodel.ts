@@ -179,6 +179,14 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   sv98: 'bolt',
   automag3: 'pistol',
 };
+/**
+ * O polegar da direita no punho, por arma (fechamento e abertura para o lado da palma, no lugar do encaixe medido): dá a
+ * volta por trás do punho e deita na lateral esquerda, atrás do gatilho. O encaixe deixava o da StG 44 em pé do lado
+ * direito, encostado na caixa (medido no harness: a ponta passa de x +3,6 cm para −2,6 cm, a ~2 mm da malha).
+ */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = { stg44: [0.5, 0.85] };
+/** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
+const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
@@ -971,6 +979,18 @@ export class Viewmodel {
         case 'melee': {
           if (knife) {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
+          } else if (g.id === 'stg44') {
+            // StG 44: arma recua e cai um pouco para a direita (antecipação), sai rápida para a frente e para a esquerda
+            // rolando a coronha para o alvo (acerto a ~32%, com tranco), segura um instante e volta devagar
+            const pre = hump(u, 0, 0.16, 0.16, 0.3);
+            const hit = ease(seg(u, 0.14, 0.32)) * (1 - ease(seg(u, 0.42, 0.95)));
+            pos.z += 0.03 * pre - 0.17 * hit;
+            pos.x += 0.02 * pre - 0.09 * hit;
+            pos.y += 0.01 * pre - 0.01 * hit;
+            rot.z += (-0.15 * pre + 0.7 * hit) * mo;
+            rot.x += (0.1 * pre - 0.05 * hit) * mo;
+            rot.y += 0.12 * hit * mo;
+            joltAt('hit', 0.32, -1.4);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             const w = hump(u, 0, 0.25, 0.5, 1);
@@ -995,9 +1015,15 @@ export class Viewmodel {
           const pre = hump(u, 0, 0.05, 0.06, 0.14);
           const side2 = hump(u, 0.46, 0.6, 0.74, 0.86);
           const settle = Math.sin(seg(u, 0.86, 1) * Math.PI) * (1 - seg(u, 0.86, 1));
-          rot.y += pre * 0.08 * mo - w * 1.0 * (1 - side2) - side2 * 0.25;
-          rot.z += w * 0.5 * (1 - side2) - side2 * 0.45 * mo;
-          rot.x += side2 * 0.3 * mo - settle * 0.04 * mo;
+          // StG 44: no segundo lado o cano vai para a esquerda e quase não sobe, com a arma mais longe: o lado direito
+          // fica de frente (com o cano para cima, a coronha comprida vinha para a câmera e só se via a soleira)
+          // e do segundo lado ela volta direto para casa (passar de novo pelo primeiro fazia a coronha virar para a câmera)
+          const stg = g.id === 'stg44';
+          const side1 = stg && u > 0.6 ? 0 : 1 - side2;
+          rot.y += pre * 0.08 * mo - w * 1.0 * side1 + side2 * (stg ? S2_STG.yaw : -0.25);
+          rot.z += w * 0.5 * side1 - side2 * (stg ? S2_STG.roll : 0.45) * mo;
+          rot.x += side2 * (stg ? S2_STG.pitch : 0.3) * mo - settle * 0.04 * mo;
+          if (stg) pos.z -= side2 * S2_STG.push;
           pos.x -= w * 0.08 - side2 * 0.02;
           pos.y += w * 0.04 + side2 * 0.015;
           pos.z += w * 0.03;
@@ -1658,9 +1684,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
