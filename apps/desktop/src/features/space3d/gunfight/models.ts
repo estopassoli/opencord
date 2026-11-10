@@ -1164,13 +1164,15 @@ export function setBalisong(g: GunModel, open: number, extraBite = 0, extraBlade
  * com a mesma conta da baioneta (`grips.ts` põe o punho 2,2 cm à frente de `handle`).
  */
 const FIST_BEHIND_GUARD = 0.045 + 0.022;
-/** grossura do cabo da kukri (o do arquivo tem 1 cm: uma tábua dentro da mão fechada) */
-const KUKRI_HANDLE_W = 2.6;
+/** grossura do cabo da kukri (m; o do arquivo tem 1 cm: uma tábua dentro da mão fechada) */
+const KUKRI_HANDLE_W = 0.026;
 
 /**
  * Kukri: o arquivo vem com o fio para cima (+y) e o cabo com 1 cm de grossura. Vira a faca no comprimento (o fio, do lado
  * côncavo da curva, fica para baixo, para o lado dos nós dos dedos, como nas outras facas, nas duas visões) e engrossa só
- * o cabo para ~2,6 cm, o de uma kukri de verdade.
+ * o cabo para ~2,6 cm, o de uma kukri de verdade. O cabo são duas talas, uma de cada lado da espiga: cada uma engrossa
+ * para fora, com a face de dentro parada, encostada na espiga (escalando o cabo inteiro em volta do eixo, as talas se
+ * afastavam da espiga e abria uma fenda vazada de cada lado, de ponta a ponta do cabo).
  */
 function kukriFix(src: THREE.Object3D) {
   src.rotation.z = Math.PI;
@@ -1178,8 +1180,24 @@ function kukriFix(src: THREE.Object3D) {
   const h = src.getObjectByName('Object_6');
   if (!(h instanceof THREE.Mesh)) return;
   const w = h.matrixWorld;
-  const m = new THREE.Matrix4().makeScale(KUKRI_HANDLE_W, 1, 1).multiply(w);
-  h.geometry = h.geometry.clone().applyMatrix4(m.premultiply(w.clone().invert()));
+  const g = h.geometry.clone().applyMatrix4(w);
+  const pos = g.getAttribute('position');
+  // as faces de dentro (encostadas na espiga) e as de fora das talas, no espaço da faca
+  let inner = Infinity;
+  let outer = 0;
+  for (let i = 0; i < pos.count; i++) {
+    const x = Math.abs(pos.getX(i));
+    inner = Math.min(inner, x);
+    outer = Math.max(outer, x);
+  }
+  const k = (KUKRI_HANDLE_W / 2 - inner) / Math.max(1e-4, outer - inner);
+  // o giro das normais é o de uma escala em x; a face de dentro volta para o lugar
+  g.applyMatrix4(new THREE.Matrix4().makeScale(k, 1, 1));
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    pos.setX(i, x - Math.sign(x) * inner * (k - 1));
+  }
+  h.geometry = g.applyMatrix4(w.clone().invert());
   h.userData.own = true;
 }
 

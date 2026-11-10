@@ -59,6 +59,31 @@ describe('kukri — modelo', () => {
     expect(h.max.x - h.min.x).toBeGreaterThan(0.022);
     expect(h.max.x - h.min.x).toBeLessThan(0.03);
   });
+
+  it('o cabo é maciço: as talas encostam na espiga, sem fenda vazada entre elas', () => {
+    g.root.updateMatrixWorld(true);
+    const inv = g.root.matrixWorld.clone().invert();
+    // a meia grossura da espiga e a face de dentro de cada tala, no trecho do cabo
+    const xs = (name: string, f: (v: THREE.Vector3) => boolean) => {
+      const m = g.root.getObjectByName(name) as THREE.Mesh;
+      const mat = inv.clone().multiply(m.matrixWorld);
+      const pos = m.geometry.getAttribute('position');
+      const v = new THREE.Vector3();
+      const out: number[] = [];
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mat);
+        if (f(v)) out.push(v.x);
+      }
+      return out;
+    };
+    const handle = xs('Object_6', () => true);
+    const tang = xs('Object_4', (v) => Math.abs(v.z) < 0.06);
+    const tangHalf = Math.max(...tang.map(Math.abs));
+    const right = Math.min(...handle.filter((x) => x > 0));
+    const left = Math.max(...handle.filter((x) => x < 0));
+    expect(right).toBeLessThanOrEqual(tangHalf + 1e-4);
+    expect(left).toBeGreaterThanOrEqual(-tangHalf - 1e-4);
+  });
 });
 
 describe('kukri — pegada na mão dos braços', () => {
