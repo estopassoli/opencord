@@ -26,6 +26,23 @@ import {
   track,
   type KarTracks,
 } from './karambit';
+import {
+  KABAR_GRIP,
+  KABAR_GUARD_L,
+  KABAR_POSE,
+  KABAR_RUN,
+  KB_DRAW,
+  KB_DRAW_T,
+  KB_HEAVY,
+  KB_HEAVY_T,
+  KB_INSPECT,
+  KB_INSPECT_T,
+  KB_SLASH_L,
+  KB_SLASH_L_T,
+  KB_SLASH_R,
+  KB_SLASH_R_T,
+  turnInto,
+} from './kabar';
 import { ARM_RIG } from './armsrig';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { fitHand, soupOf } from './contact';
@@ -557,7 +574,17 @@ export class Viewmodel {
       // os dedos partem abertos e fecham até encostar no cabo, um por um. Karambit: o indicador (atravessando a argola)
       // e o médio (rente à frente dela) ficam no fechamento medido da pegada; o anelar e o mindinho partem dele
       const kar = g.id === 'karambit';
-      const start: [number, number, number] = kar ? curlOf(this.handR) : [...KNIFE_OPEN];
+      // Ka-Bar: a pegada medida dela (`kabar.ts`) no lugar do martelo genérico
+      if (g.id === 'kabar') {
+        this.handR.root.position.fromArray(KABAR_GRIP.pos);
+        this.handR.root.quaternion.fromArray(KABAR_GRIP.quat);
+        this.rightAt.copy(this.handR.root.position);
+      }
+      const start: [number, number, number] = kar
+        ? curlOf(this.handR)
+        : g.id === 'kabar'
+          ? [...KABAR_GRIP.start]
+          : [...KNIFE_OPEN];
       const f = fitHand(soupOf(g.root), 1, this.handR.root.position, this.handR.root.quaternion, start, {
         fingers: kar ? ['ring', 'pinky', 'thumb'] : ['index', 'middle', 'ring', 'pinky', 'thumb'],
         maxCurl: 1.6,
@@ -669,7 +696,11 @@ export class Viewmodel {
     // faca não mira (o botão direito dela é o golpe pesado)
     const knife = spec.cls === 'knife';
     const ads = knife ? 0 : ease(inp.ads);
-    const kp = knife ? KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet'] : null;
+    const kp = knife
+      ? g.id === 'kabar'
+        ? KABAR_POSE
+        : KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet']
+      : null;
     const hip = kp ? kp.pos : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
     // mirando: a linha de mira passa pelo centro da tela, um pouco à frente do olho (na luneta, o olho na ocular)
     const eyeZ =
@@ -724,7 +755,23 @@ export class Viewmodel {
         sp * -0.25 + this.tacK * 0.35,
       );
     }
-    if (!kar) {
+    // Ka-Bar: correndo, a faca desce e aponta para a frente e para a esquerda, bombeando com o passo; na tática, o braço
+    // sobe dobrado para perto do peito com a lâmina em pé (os giros em `KABAR_RUN`)
+    const kb = g.id === 'kabar';
+    if (kb) {
+      const pump = Math.sin(this.bob) * mo;
+      const R = KABAR_RUN;
+      pos.x += sp * R.sprintPos[0] + this.tacK * R.tacPos[0] + pump * 0.012 * this.sprintK;
+      pos.y +=
+        sp * R.sprintPos[1] + this.tacK * R.tacPos[1] + Math.abs(Math.cos(this.bob)) * -0.012 * this.sprintK * mo;
+      pos.z += sp * R.sprintPos[2] + this.tacK * R.tacPos[2] - pump * 0.015 * this.sprintK;
+      RUN_E.set(
+        sp * R.sprint[0] + this.tacK * R.tac[0] + pump * 0.1 * this.sprintK,
+        sp * R.sprint[1] + this.tacK * R.tac[1],
+        sp * R.sprint[2] + this.tacK * R.tac[2],
+      );
+    }
+    if (!kar && !kb) {
       pos.x += sp * -0.03;
       pos.y += sp * -0.05;
       rot.y += sp * 0.65;
@@ -1387,6 +1434,12 @@ export class Viewmodel {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
     if (this.gun?.flip) return this.balisongDraw(u, full, pos, rot, joltAt);
+    if (this.gun?.id === 'kabar') {
+      this.karambitPlay(KB_DRAW, u, full, pos);
+      turnInto(u, KB_DRAW_T, KD);
+      joltAt('catch', 0.38, 2);
+      return;
+    }
     if (kar) {
       this.karambitPlay(KAR_DRAW, u, full, pos);
       joltAt('catch', 0.6, 2.2);
@@ -1481,6 +1534,14 @@ export class Viewmodel {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
     const bal = !!this.gun?.flip;
+    if (this.gun?.id === 'kabar') {
+      this.karambitPlay(KB_INSPECT, u, full, pos);
+      turnInto(u, KB_INSPECT_T, KD);
+      joltAt('faceA', 0.2, 0.8);
+      joltAt('faceB', 0.55, 0.8);
+      joltAt('catch', 0.9, 1.4);
+      return;
+    }
     if (kar) {
       this.karambitPlay(KAR_INSPECT, u, full, pos);
       joltAt('faceA', 0.2, 0.8);
@@ -1556,6 +1617,12 @@ export class Viewmodel {
       joltAt('cut', 0.3, 1.4);
       return;
     }
+    if (this.gun?.id === 'kabar') {
+      this.karambitPlay(s > 0 ? KB_SLASH_R : KB_SLASH_L, u, mo >= 1, pos);
+      turnInto(u, s > 0 ? KB_SLASH_R_T : KB_SLASH_L_T, KD);
+      joltAt('cut', 0.3, 1.4);
+      return;
+    }
     const w = hump(u, 0, 0.18, 0.7, 1);
     const wind = hump(u, 0, 0.16, 0.18, 0.28);
     pos.z += 0.05 * wind;
@@ -1590,6 +1657,12 @@ export class Viewmodel {
     if (this.gun?.id === 'karambit') {
       this.karambitPlay(KAR_HEAVY, u, mo >= 1, pos);
       joltAt('stab', 0.47, 3);
+      return;
+    }
+    if (this.gun?.id === 'kabar') {
+      this.karambitPlay(KB_HEAVY, u, mo >= 1, pos);
+      turnInto(u, KB_HEAVY_T, KD);
+      joltAt('stab', 0.45, 3);
       return;
     }
     const wind = ease(seg(u, 0, 0.35)) * (1 - expOut(seg(u, 0.35, 0.5)));
@@ -1645,8 +1718,10 @@ export class Viewmodel {
     this.handL.root.position.copy(this.holder.worldToLocal(GL));
     this.holder.getWorldQuaternion(HQ);
     this.handL.root.quaternion.copy(HQ.invert().multiply(GUARD_Q));
-    // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador
-    this.handL.setCurl(GUARD_CURL, GUARD_THUMB, GUARD_INDEX);
+    // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador. Ka-Bar: a
+    // guarda dela (`KABAR_GUARD_L`, punho meio fechado), sem a garra aberta
+    if (this.gun?.id === 'kabar') this.handL.setCurl(KABAR_GUARD_L.curl, KABAR_GUARD_L.thumb, KABAR_GUARD_L.index);
+    else this.handL.setCurl(GUARD_CURL, GUARD_THUMB, GUARD_INDEX);
   }
 
   /** os acertos dos dedos da direita: os da pegada, indo para os da alavanca; soltos no pente-lâmina */
