@@ -302,6 +302,18 @@ export const KARAMBIT_ARM = {
   middle: 0.95,
 };
 
+/**
+ * Kukri nesta mão (espaço da faca: pulso e giro), em martelo, medida com as esferas da mão: o cabo (2,6 cm) cruza a
+ * palma na diagonal (~26°) logo atrás da guarda, a palma encosta na lateral direita, os quatro dedos fecham por baixo
+ * (o lado do fio) até encostar e as pontas deitam na lateral esquerda; o polegar dá a volta por cima e deita sobre o
+ * indicador e o médio (`thumb`: fechamento e quanto ele abre para o lado da palma, para passar por cima dos dedos).
+ */
+export const KUKRI_ARM = {
+  pos: [0.032, 0.0618, 0.0318] as THREE.Vector3Tuple,
+  quat: [0.3758, 0.3758, 0.599, -0.599] as [number, number, number, number],
+  thumb: [0.6, 0.45] as const,
+};
+
 /** a mão dos braços para as pegadas (`grips.ts`) */
 export const ARM_HAND_FIT = {
   hole: FIST_HOLE,
@@ -310,6 +322,7 @@ export const ARM_HAND_FIT = {
   clamp: 0.005,
   ring: { row: 0.022, back: 0.023 },
   karambit: KARAMBIT_ARM,
+  kukri: KUKRI_ARM,
   vgripTilt: 0.5,
   clampYaw: 0.45,
   clampRoll: 0.15,

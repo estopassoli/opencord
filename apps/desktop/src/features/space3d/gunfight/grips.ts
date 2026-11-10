@@ -100,6 +100,8 @@ export interface HandFit {
    * `ring` (mão de cápsulas do boneco)
    */
   karambit?: { pos: THREE.Vector3Tuple; quat: [number, number, number, number]; index: number; middle: number };
+  /** kukri medida para esta mão (pulso e giro no espaço da faca); sem ela, o martelo de sempre */
+  kukri?: { pos: THREE.Vector3Tuple; quat: [number, number, number, number] };
   /**
    * empunhadura vertical: quanto a mão inclina a mais (o pulso desce para trás, na linha do antebraço que vem de baixo;
    * reta, o pulso dobrava em ângulo)
@@ -162,6 +164,8 @@ export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass, hf:
     pos.z = KARAMBIT_RING.z + hf.ring.back - holeIn(hf, PUNHO).z;
     return { pos, quat: PUNHO.clone(), curl: [1, 0.8, 1] };
   }
+  if (g.id === 'kukri' && hf.kukri)
+    return { pos: new THREE.Vector3(...hf.kukri.pos), quat: new THREE.Quaternion(...hf.kukri.quat), curl: [1, 0.6, 1] };
   if (cls === 'knife')
     return {
       pos: handle.clone().add(MARTELO_FWD).sub(holeIn(hf, MARTELO)),

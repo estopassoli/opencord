@@ -26,11 +26,22 @@ import {
   track,
   type KarTracks,
 } from './karambit';
+import {
+  KUK_CHOP_L,
+  KUK_CHOP_R,
+  KUK_DRAW,
+  KUK_HEAVY,
+  KUK_GUARD_CURL,
+  KUK_INSPECT,
+  KUKRI_POSE,
+  kukriPlay,
+  kukriRun,
+} from './kukri';
 import { ARM_RIG } from './armsrig';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { fitHand, soupOf } from './contact';
 import { flashTexture } from './fx';
-import { ARM_HAND_FIT, type FingerOffsets } from './handrig';
+import { ARM_HAND_FIT, KUKRI_ARM, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
 import { aimReticles } from './attachmodels';
 import { disposeGun, movePart, partBox, partCenter, posePart, setBalisong, type GunModel, type Part } from './models';
@@ -817,9 +828,16 @@ export class Viewmodel {
       // e o médio (rente à frente dela) ficam no fechamento medido da pegada; o anelar e o mindinho partem dele
       const kar = g.id === 'karambit';
       const start: [number, number, number] = kar ? curlOf(this.handR) : [...KNIFE_OPEN];
+      // kukri: o polegar fica no fechamento medido, por cima dos dedos (`KUKRI_ARM`), sem encaixe
+      const kuk = g.id === 'kukri';
       const f = fitHand(soupOf(g.root), 1, this.handR.root.position, this.handR.root.quaternion, start, {
-        fingers: kar ? ['ring', 'pinky', 'thumb'] : ['index', 'middle', 'ring', 'pinky', 'thumb'],
+        fingers: kar
+          ? ['ring', 'pinky', 'thumb']
+          : kuk
+            ? ['index', 'middle', 'ring', 'pinky']
+            : ['index', 'middle', 'ring', 'pinky', 'thumb'],
         maxCurl: 1.6,
+        ...(kuk ? { base: [0, 0, 0, 0, KUKRI_ARM.thumb[0] - start[1], KUKRI_ARM.thumb[1]] } : {}),
       });
       this.knifeOff = f.offsets;
       this.rightCurl = start;
@@ -948,7 +966,11 @@ export class Viewmodel {
     // faca não mira (o botão direito dela é o golpe pesado)
     const knife = spec.cls === 'knife';
     const ads = knife ? 0 : ease(inp.ads);
-    const kp = knife ? KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet'] : null;
+    const kp = knife
+      ? g.id === 'kukri'
+        ? KUKRI_POSE
+        : KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet']
+      : null;
     const own = HIP_OWN[g.id];
     const hip = kp ? kp.pos : own ? own.pos : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
     // mirando: a linha de mira passa pelo centro da tela, um pouco à frente do olho (na luneta, o olho na ocular)
@@ -1004,7 +1026,9 @@ export class Viewmodel {
         sp * -0.25 + this.tacK * 0.35,
       );
     }
-    if (!kar) {
+    const kuk = g.id === 'kukri';
+    if (kuk) kukriRun(pos, RUN_E, sp, this.tacK, this.sprintK, this.bob, mo);
+    if (!kar && !kuk) {
       pos.x += sp * -0.03;
       pos.y += sp * -0.05;
       rot.y += sp * 0.65;
@@ -2185,6 +2209,11 @@ export class Viewmodel {
       joltAt('catch', 0.6, 2.2);
       return;
     }
+    if (this.gun?.id === 'kukri') {
+      kukriPlay(KUK_DRAW, u, pos, KD);
+      joltAt('catch', 0.5, 2.4);
+      return;
+    }
     // passa um pouco do ponto ao chegar na guarda e volta
     const settle = hump(u, 0.72, 0.8, 0.84, 1);
     pos.y -= 0.02 * settle;
@@ -2281,6 +2310,13 @@ export class Viewmodel {
       joltAt('catch', 0.86, 1.6);
       return;
     }
+    if (this.gun?.id === 'kukri') {
+      kukriPlay(KUK_INSPECT, u, pos, KD);
+      joltAt('faceA', 0.12, 0.8);
+      joltAt('faceB', 0.42, 0.8);
+      joltAt('cut', 0.78, 1.6);
+      return;
+    }
     const lift = hump(u, 0, 0.1, 0.88, 1);
     pos.x -= 0.06 * lift;
     pos.y += 0.07 * lift;
@@ -2349,6 +2385,11 @@ export class Viewmodel {
       joltAt('cut', 0.3, 1.4);
       return;
     }
+    if (this.gun?.id === 'kukri') {
+      kukriPlay(s > 0 ? KUK_CHOP_R : KUK_CHOP_L, u, pos, KD);
+      joltAt('cut', 0.3, 2);
+      return;
+    }
     const w = hump(u, 0, 0.18, 0.7, 1);
     const wind = hump(u, 0, 0.16, 0.18, 0.28);
     pos.z += 0.05 * wind;
@@ -2407,6 +2448,11 @@ export class Viewmodel {
     if (this.gun?.id === 'karambit') {
       this.karambitPlay(KAR_HEAVY, u, mo >= 1, pos);
       joltAt('stab', 0.47, 3);
+      return;
+    }
+    if (this.gun?.id === 'kukri') {
+      kukriPlay(KUK_HEAVY, u, pos, KD);
+      joltAt('stab', 0.45, 3.4);
       return;
     }
     const wind = ease(seg(u, 0, 0.35)) * (1 - expOut(seg(u, 0.35, 0.5)));
@@ -2518,7 +2564,9 @@ export class Viewmodel {
     this.holder.getWorldQuaternion(HQ);
     this.handL.root.quaternion.copy(HQ.invert().multiply(GUARD_Q));
     // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador
-    this.handL.setCurl(GUARD_CURL, GUARD_THUMB, GUARD_INDEX);
+    // kukri: a esquerda num punho solto (aberta em garra, parecia segurar uma bola invisível)
+    const gc = this.gun?.id === 'kukri' ? KUK_GUARD_CURL : null;
+    this.handL.setCurl(gc?.[0] ?? GUARD_CURL, gc?.[1] ?? GUARD_THUMB, gc?.[2] ?? GUARD_INDEX);
   }
 
   /** os acertos dos dedos da direita: os da pegada, indo para os da alavanca; soltos no pente-lâmina */
