@@ -1288,7 +1288,23 @@ export class Viewmodel {
     this.holder.updateMatrixWorld(true);
     // braços: a mão e o cotovelo do clipe, o braço até o ombro; os dedos do clipe
     if (this.arms.build()) {
-      for (let s = 0; s < 2; s++) {
+      // direita: no punho o tempo todo, na pegada medida na malha (indicador no gatilho, polegar fechado por cima do
+      // punho), presa à arma; no MP7 de verdade ela não sai do punho (pente e alavanca são com a esquerda). A do clipe
+      // vinha da referência com o indicador esticado na armação e, na tática, soltava da arma
+      if (this.holds) {
+        this.handR.root.position.copy(this.holds.right.pos);
+        this.handR.root.quaternion.copy(this.holds.right.quat);
+        this.handR.setCurl(
+          this.rightCurl[0],
+          this.rightCurl[1],
+          this.rightCurl[2] + TRIGGER_SQUEEZE * trig,
+          this.rightOffsets(0, 1, 0),
+        );
+        this.handR.root.updateMatrixWorld(true);
+        elbowHint(this.handR.root.getWorldPosition(W1), 1, ELBOW, 0, 0, FORE_DIR);
+        this.arms.solve(1, shoulderAt(1, 0, SH), ELBOW);
+      }
+      for (let s = this.holds ? 1 : 0; s < 2; s++) {
         const side = s === 0 ? 1 : -1;
         AU_M.multiplyMatrices(AU_ROOT, P.hand[s]!);
         ELBOW.copy(P.elbow[s]!).applyMatrix4(AU_ROOT);
