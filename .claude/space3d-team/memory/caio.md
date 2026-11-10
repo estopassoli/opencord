@@ -120,3 +120,6 @@ _Acrescente aprendizados curtos e datados. Não apague o que outros escreveram._
   código velho — tirar na junção. As 6 iguais pixel a pixel ao branch (karambit igual ao main).
 - 2026-11-10: passada-compartilhada (armas de fogo) entrou sem conflito; conferência: facas = b818326 e as 22 armas = ponta
   da passada, pixel a pixel (`integ/render.sh` + `cmp2.sh`; atenção: o render.sh grava em `harness/<OUT>`).
+- 2026-11-10: conflito semântico que o git não acusa: dois branches criaram o 7º FingerOffsets com sentidos diferentes
+  (enrolar × base do indicador). Ficou enrolar = 7º e INDEX_DROP = 8º (OFF_R com 8; rightOffsets copia até o 7º e
+  escreve o 8º depois). Ao juntar, procurar `[6]`/`off[N]` nos dois lados, não só os conflitos marcados.
