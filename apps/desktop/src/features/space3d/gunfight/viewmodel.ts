@@ -208,7 +208,10 @@ const BOLT_HAND: Partial<Record<string, { knob: THREE.Vector3; roll: number }>> 
   // FN Ballista: a bola fica longe da caixa (a mão fecha em volta dela), mas virava ~70° com a alavanca
   ballista: { knob: new THREE.Vector3(0.0558, 0.0607, -0.0143), roll: 0.35 },
   l115: { knob: new THREE.Vector3(0.0438, 0.0433, -0.0256), roll: 0.35 },
+  kar98k: { knob: new THREE.Vector3(0.0401, 0.0484, -0.0395), roll: 0.35 },
 };
+/** Kar98k: quanto a alavanca gira por unidade de `boltRot` (1,2 × 1,3 ≈ 90°, como no Mauser) */
+const KAR_LIFT = 1.3;
 const KNOB_NOW = new THREE.Vector3();
 const KNOB_Q = new THREE.Quaternion();
 const LEVER_Q = new THREE.Quaternion();
@@ -384,10 +387,24 @@ function akRock(a: number, out: THREE.Matrix4): THREE.Matrix4 {
   out.makeRotationFromQuaternion(AK_Q);
   return out.setPosition(AK_V.copy(AK_PIVOT).sub(W2.copy(AK_PIVOT).applyQuaternion(AK_Q)));
 }
-/** a mão direita em relação ao pente-lâmina (espaço da arma): o polegar em cima dele, o pulso atrás e à direita */
-const CLIP_HAND = new THREE.Vector3(0.035, 0.03, 0.075);
-/** o guia do pente-lâmina em cima da janela da Kar98k (espaço da arma): a lâmina de pé, as balas para a frente */
-const CLIP_GUIDE = new THREE.Vector3(0, 0.104, -0.045);
+/**
+ * a mão direita em relação ao topo do pente-lâmina (espaço da arma), no giro da pegada do delgado: a palma pela direita
+ * da caixa da culatra, a 2 cm dela, os dedos meio fechados encostando na lateral e o polegar deitado de través por cima
+ * das balas, logo à frente da lâmina (antes a mão ficava acima da janela, aberta, com o indicador e o médio entrando na
+ * caixa; conferido no harness, de frente, de baixo e pela direita: nenhum dedo entra na coronha)
+ */
+const CLIP_HAND = new THREE.Vector3(0.075, 0.012, 0.039);
+/** os dedos da direita no pente-lâmina (dedos, polegar, indicador) e o polegar aberto para o lado, como no delgado */
+const CLIP_CURL: readonly [number, number, number] = [0.75, 0.35, 0.75];
+const CLIP_THUMB_AB = 0.5;
+/**
+ * o topo do pente-lâmina encaixado no guia em cima da janela da Kar98k (espaço da arma): a lâmina de pé com o pé no
+ * guia (y 0,09) e as 5 balas para cima, para a frente; o polegar as empurra para o depósito (antes o topo ficava no guia
+ * e a lâmina inteira, com as balas, já começava dentro da caixa)
+ */
+const CLIP_GUIDE = new THREE.Vector3(0, 0.142, -0.045);
+/** a altura de uma bala na lâmina (holds.stripperClip) */
+const CLIP_PITCH = 0.0102;
 /** peças soltas (pente vazio caindo, lâmina vazia voando): quanto tempo ficam na tela (ms) e a gravidade (m/s²) */
 const DEBRIS_MS = 900;
 const DEBRIS_G = 9.8;
@@ -1279,9 +1296,12 @@ export class Viewmodel {
           // cartucheira, volta com o pente-lâmina e encaixa no guia em cima da janela, o polegar empurra as balas duas
           // vezes, volta à alavanca e fecha o ferrolho (que joga a lâmina vazia fora) e volta ao delgado
           const cp = clipPose(u, CP);
+          // a arma deita um pouco para a direita (o topo da janela aberta para o olho) e vem para o meio e mais perto
           rot.z -= cp.tilt * 0.3 * mo;
           rot.x += cp.tilt * 0.15;
           pos.y += cp.tilt * 0.04;
+          pos.x -= cp.tilt * 0.03;
+          pos.z += cp.tilt * 0.03;
           boltRot = cp.lift * 1.2;
           boltBack = cp.back * 0.09;
           rightK = cp.handle;
@@ -1291,11 +1311,11 @@ export class Viewmodel {
           rightCurl = lerp(rightCurl, PINCH[0], rightK);
           rightThumb = lerp(rightThumb, PINCH[1], rightK);
           rightIndex = lerp(rightIndex, PINCH[2], rightK);
-          // no pente-lâmina: dedos soltos, o polegar por cima empurrando
-          // os outros dedos abertos, por cima da caixa da culatra (fechados, eles entravam nela)
-          rightCurl = lerp(rightCurl, 0.15, clipK);
-          rightIndex = lerp(rightIndex, 0.3, clipK);
-          rightThumb = lerp(rightThumb, 0.25 + cp.press * 0.45, clipK);
+          // no pente-lâmina: os dedos meio fechados na lateral da caixa, o polegar por cima das balas, dobrando mais a
+          // cada empurrão
+          rightCurl = lerp(rightCurl, CLIP_CURL[0], clipK);
+          rightIndex = lerp(rightIndex, CLIP_CURL[2], clipK);
+          rightThumb = lerp(rightThumb, CLIP_CURL[1] + cp.press * 0.3, clipK);
           joltAt('open', 0.24, -1);
           joltAt('press1', 0.46, 1.2);
           joltAt('press2', 0.58, 1.2);
@@ -1317,7 +1337,12 @@ export class Viewmodel {
           else {
             const w = hump(u, 0, 0.12, 0.85, 1);
             pos.y -= w * 0.02;
-            rot.z -= w * 0.15 * mo;
+            if (g.id === 'kar98k') {
+              // Kar98k: a arma rola com a direita para cima e vem um pouco para o meio, o ferrolho de frente para o
+              // olho (rolando para o outro lado, a alavanca e a mão sumiam atrás da caixa)
+              rot.z += w * 0.25 * mo;
+              pos.x -= w * 0.02;
+            } else rot.z -= w * 0.15 * mo;
             // L115: a arma vem um pouco para a esquerda e deita mais (com o ferrolho atrás, a mão saía da tela pela
             // direita)
             if (g.id === 'l115') {
@@ -1524,6 +1549,31 @@ export class Viewmodel {
             joltAt('stop2', 0.6, 0.6);
             break;
           }
+          if (g.id === 'kar98k') {
+            // Kar98k (comprida: virando 1 rad de lado, como as outras, a coronha atravessava meia tela perto da
+            // câmera): mostra o ferrolho de perto e a mão confere a câmara (levanta a alavanca, puxa um pouco e fecha),
+            // depois rola para o outro lado e mostra a esquerda; volta passando um pouco do ponto
+            const pre = hump(u, 0, 0.04, 0.05, 0.12);
+            const s1 = hump(u, 0.06, 0.2, 0.46, 0.58);
+            const s2 = hump(u, 0.52, 0.64, 0.78, 0.9);
+            const settle = Math.sin(seg(u, 0.88, 1) * Math.PI) * (1 - seg(u, 0.88, 1));
+            // o primeiro lado: o cano sobe (a coronha desce para fora da tela) e a arma rola com a direita para cima
+            rot.y += pre * 0.06 * mo + s1 * 0.15 * mo + s2 * 0.15 * mo;
+            rot.z += s1 * 0.5 * mo - s2 * 0.55 * mo;
+            rot.x += s1 * 0.25 * mo + s2 * 0.1 * mo - settle * 0.04 * mo;
+            pos.x -= s1 * 0.06 + s2 * 0.03;
+            pos.y += s2 * 0.03;
+            pos.z += s1 * 0.08;
+            rightK = hump(u, 0.16, 0.24, 0.42, 0.5);
+            boltRot = hump(u, 0.24, 0.29, 0.36, 0.41) * 1.2;
+            boltBack = hump(u, 0.28, 0.31, 0.33, 0.36) * 0.035;
+            rightCurl = lerp(rightCurl, PINCH[0], rightK);
+            rightThumb = lerp(rightThumb, PINCH[1], rightK);
+            rightIndex = lerp(rightIndex, PINCH[2], rightK);
+            joltAt('check', 0.31, -0.5);
+            joltAt('shut', 0.41, 0.8);
+            break;
+          }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
           // depois rola e mostra o lado direito e o topo, com a mão de apoio no pente; volta passando um pouco do ponto
           const w = hump(u, 0.04, 0.22, 0.82, 1);
@@ -1716,6 +1766,9 @@ export class Viewmodel {
     movePart(g.parts.slide, V.set(0, 0, boltBack));
     movePart(g.parts.charge, V.set(0, 0, chargeBack), chargeRot);
     movePart(g.parts.boltRot, V.set(0, 0, boltBack), boltRot);
+    // Kar98k: a alavanca (filha do ferrolho, com o pivô no eixo dele) sobe girando antes de o ferrolho vir para trás
+    // (sem isso o ferrolho só deslizava, com a alavanca sempre para baixo)
+    if (g.id === 'kar98k') movePart(g.parts.charge, V.set(0, 0, chargeBack), KAR_LIFT * boltRot);
     movePart(g.parts.trigger, V.set(0, 0, 0.004 * trig));
     // faca: gira em volta do pivô (a argola no indicador, ou o meio do cabo), com a mão parada nela
     if (knife) {
@@ -1822,7 +1875,9 @@ export class Viewmodel {
       GRIP_R.lerp(
         W1.copy(CLIP_GUIDE)
           .add(this.clipHand)
-          .add(V.set(0, -0.012 * cp.press, 0)),
+          // o polegar desce junto com as balas que já foram para o depósito (até a última, que ele empurra para dentro
+          // sem entrar na caixa), e mais um pouco a cada empurrão
+          .add(V.set(0, -0.005 * cp.press - CLIP_PITCH * Math.min(cp.stripped, CLIP_ROUNDS - 1), 0)),
         clipK,
       );
     if (this.clip) {
@@ -1834,12 +1889,14 @@ export class Viewmodel {
         if (seated) c.root.position.copy(CLIP_GUIDE);
         else c.root.position.copy(GRIP_R).sub(this.clipHand);
         c.rounds.forEach((r, i) => {
-          r.position.y = -0.0055 - (i + cp.stripped) * 0.0102;
+          r.position.y = -0.0055 - (i + cp.stripped) * CLIP_PITCH;
           r.visible = i + cp.stripped < CLIP_ROUNDS - 0.5;
         });
       }
     }
     this.handR.root.position.copy(GRIP_R);
+    // no pente-lâmina, a mão volta para o giro da pegada do delgado (a alavanca levantada não a gira)
+    pinchQ *= 1 - clipK;
     if (this.holds) this.handR.root.quaternion.copy(this.holds.right.quat).slerp(RIGHT_Q, pinchQ);
     // quanto o indicador está no gatilho (1) ou fora dele, sobre a armação (0)
     const span = this.rightCurl[2] - trigOff;
@@ -2400,6 +2457,8 @@ export class Viewmodel {
       if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
+    // Kar98k, no pente-lâmina: o polegar aberto para o lado, deitado de través em cima das balas
+    if (clip > 0) OFF_R[5] += CLIP_THUMB_AB * clip;
     return OFF_R;
   }
 
@@ -2452,10 +2511,12 @@ export class Viewmodel {
     if (g.id === 'kar98k') {
       this.clip = stripperClip();
       this.holder.add(this.clip.root);
-      // o polegar em cima do pente-lâmina e a palma por fora da caixa da culatra (sem o acerto, ela entrava ~1,5 cm)
+      // o polegar em cima do pente-lâmina e a palma por fora da caixa da culatra (o acerto só afasta a palma se ela
+      // entrar; os dedos ficam na pose fixa, medida sem entrar na coronha)
       const at = CLIP_GUIDE.clone().add(CLIP_HAND);
       // medido com o ferrolho aberto (para trás, ele fica embaixo da mão)
-      const h = fitAt(g, 1, at, this.handR.root.quaternion.clone(), [0.15, 0.25, 0.3], () => {
+      const q = this.holds?.right.quat ?? this.handR.root.quaternion;
+      const h = fitAt(g, 1, at, q.clone(), [...CLIP_CURL], () => {
         movePart(g.parts.bolt, V.set(0, 0, 0.09), 0);
         movePart(g.parts.charge, V.set(0, 0, 0.09));
       });
