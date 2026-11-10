@@ -179,6 +179,10 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   sv98: 'bolt',
   automag3: 'pistol',
 };
+/** polegar da direita por arma: [fechamento, abertura para o lado da palma] (dá a volta por trás do punho) */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  m4: [0.5, 0.85],
+};
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
@@ -971,6 +975,8 @@ export class Viewmodel {
         case 'melee': {
           if (knife) {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
+          } else if (g.id === 'm4') {
+            m4Bash(u, mo, pos, rot, joltAt);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             const w = hump(u, 0, 0.25, 0.5, 1);
@@ -987,6 +993,10 @@ export class Viewmodel {
         case 'inspect': {
           if (knife) {
             this.knifeInspect(u, mo, pos, rot, joltAt);
+            break;
+          }
+          if (g.id === 'm4') {
+            magHold = Math.max(magHold, m4Inspect(u, mo, pos, rot, MAG, joltAt));
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -1658,9 +1668,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
@@ -2068,6 +2081,72 @@ function elbowHint(
   }
   return out;
 }
+
+/**
+ * Inspeção da M4 no momento `u` (0–1), mexendo na pose (`pos`, `rot`) e no pente (`mag`); devolve o quanto a mão de
+ * apoio está no pente. Um pequeno recuo (antecipação), a arma sobe um pouco para o meio e deita mostrando o lado
+ * esquerdo (retém do ferrolho, do pente e seletor; pausa), rola para mostrar o lado direito e o topo (janela de ejeção)
+ * enquanto a esquerda pega o pente e dá um puxão para conferir que está preso (pausa), e volta direto para o quadril,
+ * passando um pouco do ponto. Os giros ficam pequenos o bastante para a coronha não tomar a tela (na conta das outras
+ * armas longas, a arma virava ~60° e a coronha cobria metade da tela) e a volta não passa de novo pelo primeiro lado.
+ */
+function m4Inspect(
+  u: number,
+  mo: number,
+  pos: THREE.Vector3,
+  rot: THREE.Euler,
+  mag: THREE.Vector3,
+  joltAt: (key: string, at: number, v: number) => void,
+): number {
+  const pre = hump(u, 0, 0.04, 0.05, 0.12);
+  const w = ease(seg(u, 0.05, 0.24)) * (1 - ease(seg(u, 0.78, 0.95)));
+  const b = ease(seg(u, 0.44, 0.6));
+  const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
+  // nas pausas a arma não fica parada: um respiro lento de poucos graus
+  const drift = Math.sin(u * Math.PI * 5) * 0.025 * w;
+  pos.y -= 0.012 * pre;
+  rot.z += 0.06 * pre * mo;
+  rot.y += (lerp(M4_INSPECT_A.ry, M4_INSPECT_B.ry, b) * w + drift) * mo;
+  rot.z += lerp(M4_INSPECT_A.rz, M4_INSPECT_B.rz, b) * w * mo;
+  rot.x += (lerp(M4_INSPECT_A.rx, M4_INSPECT_B.rx, b) * w + drift * 0.5) * mo - settle * 0.05 * mo;
+  pos.x += lerp(M4_INSPECT_A.px, M4_INSPECT_B.px, b) * w;
+  pos.y += lerp(M4_INSPECT_A.py, M4_INSPECT_B.py, b) * w;
+  pos.z += lerp(M4_INSPECT_A.pz, M4_INSPECT_B.pz, b) * w;
+  joltAt('sideA', 0.24, 0.6);
+  joltAt('sideB', 0.6, 0.6);
+  // a esquerda no pente no segundo lado, com um puxão curto para baixo e o empurrão de volta
+  const hold = hump(u, 0.5, 0.6, 0.72, 0.8);
+  mag.y -= 0.004 * hump(u, 0.62, 0.65, 0.66, 0.69);
+  joltAt('grab', 0.6, 0.5);
+  joltAt('tug', 0.68, 0.9);
+  return hold;
+}
+/**
+ * Golpe com a M4 no momento `u` (0–1): arma recua para a direita e engatilha o giro (antecipação), bate para a frente
+ * e para a esquerda girando a coronha para a frente (o cano vai para a esquerda), com tranco no impacto, segura um
+ * instante e volta passando um pouco do ponto. Antes era um empurrão com a arma deitada, parada metade do tempo.
+ */
+function m4Bash(
+  u: number,
+  mo: number,
+  pos: THREE.Vector3,
+  rot: THREE.Euler,
+  joltAt: (key: string, at: number, v: number) => void,
+) {
+  const wind = ease(seg(u, 0, 0.2)) * (1 - ease(seg(u, 0.2, 0.32)));
+  const hit = expOut(seg(u, 0.2, 0.38)) * (1 - ease(seg(u, 0.46, 0.85)));
+  const settle = Math.sin(seg(u, 0.8, 1) * Math.PI) * (1 - seg(u, 0.8, 1));
+  pos.x += 0.03 * wind - 0.08 * hit;
+  pos.y += -0.012 * wind + 0.03 * hit;
+  pos.z += 0.04 * wind - 0.15 * hit;
+  rot.y += (-0.22 * wind + 0.42 * hit) * mo;
+  rot.z += (-0.12 * wind + 0.45 * hit) * mo;
+  rot.x += (0.1 * wind - 0.28 * hit + 0.04 * settle) * mo;
+  joltAt('hit', 0.36, 2);
+}
+/** as duas poses da inspeção da M4 (somadas à do quadril): o lado esquerdo e o lado direito com o topo */
+const M4_INSPECT_A = { rx: 0.12, ry: 0.45, rz: -0.55, px: -0.06, py: 0.035, pz: -0.02 };
+const M4_INSPECT_B = { rx: 0.32, ry: -0.6, rz: 0.4, px: -0.05, py: 0.05, pz: -0.08 };
 
 /** põe a mão na pegada (posição, giro e dedos) e guarda os dedos para a animação voltar a eles */
 function applyGrip(h: ArmHand, g: Grip) {
