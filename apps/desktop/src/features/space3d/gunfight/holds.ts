@@ -153,7 +153,7 @@ function measure(g: GunModel, cls: GunClass): Holds {
         ? agripHold(g, cls)
         : clampHold(g, cls);
   const pk = PAD_PINCH[g.id];
-  const pinch = pk ? padPinch(g, right, pk) : pinchHold(g, rg.quat);
+  const pinch = pk ? padPinch(g, right, pk) : (AUTO_PAD.has(g.id) && autoPad(g, right)) || pinchHold(g, rg.quat);
   return { right, left, mag: magHold(g, cls, rightBalls), pinch, trigOff: TRIG_OFF[g.id] ?? trigOff(g, right) };
 }
 
@@ -176,6 +176,41 @@ const PAD_PINCH: Partial<
   l115: { spin: -0.4, from: [-0.0147, -0.0044, -0.0103], to: [0.0538, 0.0353, -0.0406], fist: 1.5 },
 };
 
+/**
+ * A pinça medida a partir da bola da alavanca, para as armas sem o acerto à mão (RS9, Kar98k, M200): a mão no giro da
+ * pegada do punho virado `AUTO_SPIN` em volta do cano, posta de forma que a bola fique entre a polpa do polegar e a
+ * lateral da ponta do indicador; médio, anelar e mindinho fechados na palma. O indicador e o polegar fecham até
+ * encostar nela. Com a pegada de cabo (`pinchHold`), a bola ficava no vão dos dedos fechados e eles paravam abertos
+ * em volta dela, em garra (Kar98k), ou espalhados embaixo dela (RS9, M200).
+ */
+const AUTO_PAD: ReadonlySet<GunId> = new Set<GunId>(['rs9', 'kar98k', 'm200']);
+const AUTO_SPIN = -0.35;
+/** o fechamento do indicador e do polegar na pinça, antes do encaixe */
+const AUTO_IX = 0.9;
+const AUTO_TH = 0.75;
+function autoPad(g: GunModel, right: Hold): Hold | null {
+  const p = g.parts.boltRot ?? (g.id === 'kar98k' ? g.parts.charge : undefined);
+  const knob = p ? knobOf(g, p) : null;
+  if (!knob) return null;
+  const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), AUTO_SPIN).multiply(right.quat);
+  const fist = 1.5 - PINCH[0];
+  const off: [number, number, number, number, number, number, number] = [
+    AUTO_IX - PINCH[2],
+    fist,
+    fist,
+    fist,
+    AUTO_TH - PINCH[1],
+    0,
+    1,
+  ];
+  const pr = handProbes(1, ...PINCH, off);
+  const tip = (part: 'index' | 'thumb') => pr.filter((q) => q.part === part).at(-1)!.at;
+  const mid = tip('index').add(tip('thumb')).multiplyScalar(0.5);
+  const pos = knob.sub(mid.applyQuaternion(quat));
+  const f = fitHand(near(g, pos), 1, pos, quat, PINCH, { fingers: ['index', 'thumb'], base: off, maxCurl: 1.5 });
+  return { pos: f.pos, quat, curl: [...PINCH], off: f.offsets };
+}
+
 function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[GunId]>): Hold {
   const r = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), k.spin);
   const pos = right.pos
@@ -187,7 +222,8 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
   const fist = k.fist - PINCH[0];
   const f = fitHand(near(g, pos), 1, pos, quat, PINCH, {
     fingers: ['index', 'thumb'],
-    base: [right.curl[2] + right.off[0] - PINCH[2], fist, fist, fist, 0, 0],
+    // médio, anelar e mindinho fechados na palma e enrolados (juntos, sem ponta para fora)
+    base: [right.curl[2] + right.off[0] - PINCH[2], fist, fist, fist, 0, 0, 1],
     maxCurl: 1.5,
   });
   return { pos: f.pos, quat, curl: [...PINCH], off: f.offsets };

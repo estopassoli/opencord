@@ -543,7 +543,7 @@ const RHINO_LOADER_Q = new THREE.Quaternion().setFromRotationMatrix(
   new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, -1, 0)),
 );
 /** acertos dos dedos (misturados por quadro, sem alocar) */
-const OFF_R: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+const OFF_R: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
 const OFF_L: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
 const NO_OFF: FingerOffsets = [0, 0, 0, 0, 0];
 const M1 = new THREE.Matrix4();
@@ -2890,10 +2890,11 @@ export class Viewmodel {
     if (!h && open <= 0) return this.knifeOff;
     if (!h) {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
+      OFF_R[6] = 0;
       return OFF_R;
     }
     const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
       let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
       if (th && i === 4) grip = th[0] - h.right.curl[1];
