@@ -348,8 +348,8 @@ const RACK_AT_OF: Partial<Record<string, THREE.Vector3>> = {
 const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   stg44: [0.5, 0.85],
   rs9: [0.63, 1.1],
-  mcx: [0.45, 0.8],
-  m4: [0.5, 0.85],
+  mcx: [0.6, 0.9],
+  m4: [0.6, 0.9],
   automag3: [0.2, 0.8],
   sv98: [0.45, 0.85],
   scarl: [0.5, 0.5],
@@ -357,7 +357,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   m9: [0.4, 0.45], // pistola com as duas mãos: deita na lateral esquerda, para a frente, por cima do polegar de apoio
   msmc: [0.4, 0.6],
   m200: [0.46, 0.7],
-  mp5: [0.25, 0.8],
+  mp5: [0.58, 0.9],
   ballista: [0.42, 0.65],
   mpx: [0.5, 0.5],
   deagle: [0.3, 0.2],
