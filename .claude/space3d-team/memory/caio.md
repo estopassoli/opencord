@@ -118,3 +118,5 @@ _Acrescente aprendizados curtos e datados. Não apague o que outros escreveram._
 - 2026-11-10: facas juntadas numa cadeia por id (karambit, baioneta, kukri, balisong, Bowie, Ka-Bar) em pose, encaixe,
   corrida, saque/inspeção/golpes e guarda; branches de faca antigos trazem a linha `balisongDraw` e `const bal` do
   código velho — tirar na junção. As 6 iguais pixel a pixel ao branch (karambit igual ao main).
+- 2026-11-10: passada-compartilhada (armas de fogo) entrou sem conflito; conferência: facas = b818326 e as 22 armas = ponta
+  da passada, pixel a pixel (`integ/render.sh` + `cmp2.sh`; atenção: o render.sh grava em `harness/<OUT>`).
