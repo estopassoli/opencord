@@ -119,17 +119,22 @@ function measure(g: GunModel, cls: GunClass): Holds {
   const pistol = cls === 'pistol';
   const rg = rightGrip(g, cls, ARM_HAND_FIT);
   const fix = RIGHT_FIX[g.id];
-  if (fix) {
-    // a mão anda e fica mais em pé em volta do vão dela (o meio do punho), não do pulso
-    const hole = ARM_HAND_FIT.grip
-      .clone()
-      .applyQuaternion(rg.quat)
-      .add(rg.pos)
-      .add(new THREE.Vector3(...fix.at));
-    rg.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), fix.upright));
-    rg.pos.copy(hole).sub(ARM_HAND_FIT.grip.clone().applyQuaternion(rg.quat));
+  let right: Hold;
+  if (fix?.kind === 'wrist') {
+    right = fitRight(g, new THREE.Vector3(...fix.pos), inclined(fix.incl), qc(rg.curl), pistol, true);
+  } else {
+    if (fix?.kind === 'nudge') {
+      // a mão anda e fica mais em pé em volta do vão dela (o meio do punho), não do pulso
+      const hole = ARM_HAND_FIT.grip
+        .clone()
+        .applyQuaternion(rg.quat)
+        .add(rg.pos)
+        .add(new THREE.Vector3(...fix.at));
+      rg.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), fix.upright));
+      rg.pos.copy(hole).sub(ARM_HAND_FIT.grip.clone().applyQuaternion(rg.quat));
+    }
+    right = fitRight(g, rg.pos, rg.quat, qc(rg.curl), pistol);
   }
-  const right = fitRight(g, rg.pos, rg.quat, qc(rg.curl), pistol);
   // a direita vira obstáculo para a esquerda (na pistola, os dedos da esquerda passam por cima dos dela)
   const rightBalls = balls(right, 1);
   const left = pistol
@@ -178,15 +183,33 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
 }
 
 /**
- * Acerto da pegada da direita por arma (só a primeira pessoa): quanto o vão da mão anda (m) e quanto a mão fica mais em
- * pé (rad, o punho menos inclinado). MSMC: o punho (com o pente dentro) é fino (~2 cm), quase em pé e fica bem à frente
- * do de um fuzil; na pegada comum a mão ficava ~3 cm atrás e alta, com a base do polegar apoiada na caixa: a palma não
- * chegava ao punho e anelar e mindinho ficavam abertos para a frente. Agora a palma encosta no punho e os dedos fecham
- * na frente dele (o polegar é o `RIGHT_THUMB` do viewmodel).
+ * A pegada da direita acertada à mão por arma, onde a conta comum não fecha a mão (uma tabela só, um jeito por arma):
+ * - `nudge`: quanto o vão da mão anda (m) e quanto a mão fica mais em pé (rad, o punho menos inclinado); a busca pelo
+ *   punho continua. MSMC: o punho (com o pente dentro) é fino (~2 cm), quase em pé e fica bem à frente do de um fuzil;
+ *   na pegada comum a mão ficava ~3 cm atrás e alta, com a base do polegar apoiada na caixa: a palma não chegava ao
+ *   punho e anelar e mindinho ficavam abertos para a frente. Agora a palma encosta no punho e os dedos fecham na frente
+ *   dele (o polegar é o `RIGHT_THUMB` do viewmodel).
+ * - `wrist`: o pulso medido (espaço da arma) e a inclinação da mão de lado (rad), no lugar da busca. Desert Eagle: o
+ *   punho tem ~6 cm de fundo, a frente quase em pé e o guarda-mato baixo; na pegada comum (mão inclinada ~17°, e a
+ *   fileira dos nós dos dedos já desce para trás) o anelar e o mindinho nasciam atrás da frente do punho e ficavam
+ *   esticados, e a palma ficava ~1 cm fora (o pé do polegar batia na trava do ferrolho). Aqui a mão vem mais baixa,
+ *   inclinada um pouco para a frente: os nós ficam em pé na frente do punho e os dedos dão a volta até a lateral
+ *   esquerda.
  */
-const RIGHT_FIX: Partial<Record<GunId, { at: THREE.Vector3Tuple; upright: number }>> = {
-  msmc: { at: [-0.02, -0.01, -0.03], upright: 0.3 },
+type RightFix =
+  | { kind: 'nudge'; at: THREE.Vector3Tuple; upright: number }
+  | { kind: 'wrist'; pos: THREE.Vector3Tuple; incl: number };
+const RIGHT_FIX: Partial<Record<GunId, RightFix>> = {
+  msmc: { kind: 'nudge', at: [-0.02, -0.01, -0.03], upright: 0.3 },
+  deagle: { kind: 'wrist', pos: [0.042, -0.036, 0.068], incl: -0.16 },
 };
+
+/** mão direita de lado no punho (dorso para a direita, dedos para a frente), a fileira dos dedos inclinada `a` */
+function inclined(a: number): THREE.Quaternion {
+  const x = new THREE.Vector3(0, -Math.cos(a), Math.sin(a));
+  const y = new THREE.Vector3(1, 0, 0);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, x.clone().cross(y)));
+}
 
 type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
 
@@ -364,6 +387,7 @@ function fitRight(
   quat: THREE.Quaternion,
   rc: [number, number, number],
   pistol: boolean,
+  fixed = false,
 ): Hold {
   const trig = g.parts.trigger;
   const soup = soupOf(g.root, { at: pos0, r: 0.18 }, undefined, trig?.obj);
@@ -414,7 +438,9 @@ function fitRight(
   const thumbProbe = handProbes(1, rc[0], 0.5, rc[2], [0, 0, 0, 0, 0, 0.3], 'thumb');
   let best = { score: Infinity, pos: pos0.clone(), ix: rc[2] };
   const cands: { score: number; pos: THREE.Vector3; ix: number }[] = [];
-  for (let dy = -0.03; dy <= 0.0181; dy += 0.003)
+  // pegada medida à mão (`RIGHT_FIX`): o pulso fica onde está, só os dedos se ajustam
+  if (fixed) best = { score: 0, pos: pos0.clone(), ix: index(pos0)[0] };
+  for (let dy = -0.03; !fixed && dy <= 0.0181; dy += 0.003)
     for (let dz = -0.01; dz <= 0.0301; dz += 0.005) {
       const p = pos0.clone().addScaledVector(down, dy).addScaledVector(fwd, dz);
       const f = fitHand(soup, 1, p, quat, rc, { palm: true, fingers: ['middle', 'ring'] });
@@ -523,7 +549,7 @@ function pistolSupport(g: GunModel): {
       new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(y, z), y, z),
     );
     const pos = new THREE.Vector3(...own.palm).sub(new THREE.Vector3(0, 0, -0.046).applyQuaternion(quat));
-    return { pos, quat, curl: [...own.curl] };
+    return { pos, quat, curl: [...own.curl], ...(own.thumbUp ? { thumbUp: own.thumbUp } : {}) };
   }
   const mag = g.parts.mag ? partBox(g, g.parts.mag) : null;
   const zc = mag ? (mag.min.z + mag.max.z) / 2 : 0.03;
@@ -541,16 +567,32 @@ function pistolSupport(g: GunModel): {
  * M9: a palma tapa a lateral esquerda do punho por cima das pontas dos dedos da direita, os dedos dão a volta na frente
  * por cima dos da direita (o indicador logo abaixo do guarda-mato) e o polegar vai esticado para a frente, embaixo do
  * da direita (no apoio de sempre a mão ficava baixa, com os dedos abertos e soltos embaixo do punho); os dedos descem
- * 0,4 rad.
+ * 0,4 rad. Desert Eagle: com a direita mais baixa no punho fundo, o apoio comum deixava o indicador da esquerda ~4 cm
+ * abaixo do guarda-mato e o polegar dela atravessando a armação; aqui a palma sobe e cobre os dedos da direita, o
+ * indicador logo abaixo do guarda-mato, e o polegar vai esticado para a frente na lateral esquerda, embaixo do da
+ * direita (os dedos descem 0,45 rad; `thumbUp`: quanto o polegar abre para o lado do dorso).
  */
 const PISTOL_SUPPORT: Partial<
   Record<
     GunId,
-    { palm: THREE.Vector3Tuple; fingers: THREE.Vector3Tuple; back: THREE.Vector3Tuple; curl: [number, number, number] }
+    {
+      palm: THREE.Vector3Tuple;
+      fingers: THREE.Vector3Tuple;
+      back: THREE.Vector3Tuple;
+      curl: [number, number, number];
+      thumbUp?: number;
+    }
   >
 > = {
   automag3: { palm: [-0.032, -0.005, 0.03], fingers: [0, -0.6, -0.8], back: [-1, 0, 0.1], curl: [0.8, 0, 0.8] },
   m9: { palm: [-0.03, -0.02, 0.025], fingers: [0, -Math.sin(0.4), -Math.cos(0.4)], back: [-1, 0, 0], curl: [0.8, 0.1, 0.8] },
+  deagle: {
+    palm: [-0.04, -0.01, 0.004],
+    fingers: [0, -Math.sin(0.45), -Math.cos(0.45)],
+    back: [-1, 0, 0],
+    curl: [0.8, 0.4, 0.8],
+    thumbUp: -0.4,
+  },
 };
 /** palma para +x, dedos para a frente e para baixo (0, −0,6, −0,8), indicador para cima */
 const APOIO_LADO = basis([0, 0.8, -0.6], [-1, 0, 0], [0, 0.6, 0.8]);

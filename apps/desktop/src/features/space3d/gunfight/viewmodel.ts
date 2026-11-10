@@ -247,6 +247,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   mp5: [0.25, 0.8],
   ballista: [0.42, 0.65],
   mpx: [0.6, 0.9],
+  deagle: [0.3, 0.2],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
@@ -337,13 +338,15 @@ const DEBRIS_MAX = 4;
  * Pistolas em que o ferrolho trava aberto depois do último tiro (o retém segura ele para trás) e só fecha quando o
  * polegar solta o retém na recarga vazia; e quanto ele fica para trás (m, o mesmo do gesto da recarga vazia).
  */
-const SLIDE_LOCK: ReadonlySet<string> = new Set(['automag3', 'm9']);
+const SLIDE_LOCK: ReadonlySet<string> = new Set(['automag3', 'm9', 'deagle']);
 const SLIDE_LOCK_BACK = 0.035;
 /**
  * Armas em que a mão de apoio sobe junto com o pente novo e empurra a base até encaixar, depois que o velho cai (na
  * troca com bala ela já segue o pente): pistolas, MSMC e M200 vazias.
  */
-const MAG_PUSH: ReadonlySet<string> = new Set(['automag3', 'm9', 'msmc', 'm200']);
+const MAG_PUSH: ReadonlySet<string> = new Set(['automag3', 'm9', 'deagle', 'msmc', 'm200']);
+/** pistolas em que a esquerda chega depois no saque (a direita traz a arma sozinha e a esquerda fecha por fora dela) */
+const LATE_SUPPORT: ReadonlySet<string> = new Set(['m9', 'deagle']);
 /** no tiro, quando o ferrolho chega lá atrás (fração do `fire`): dali em diante, travado, ele não volta */
 const SLIDE_LOCK_AT = 0.42;
 /** quantos estojos esperando o `game.ts` levar para o mundo, no máximo */
@@ -977,8 +980,9 @@ export class Viewmodel {
           rot.z += 0.3 * w * mo;
           rot.y += 0.35 * w * mo;
           rot.x += 0.05 * over * mo;
-          // M9: a direita saca sozinha e a esquerda vem de baixo e fecha por fora dela, com o tranco do encaixe
-          if (spec.cls !== 'pistol' || g.id === 'm9') {
+          // M9 e Desert Eagle: a direita saca sozinha e a esquerda vem de baixo e fecha por fora dela, com o tranco do
+          // encaixe
+          if (spec.cls !== 'pistol' || LATE_SUPPORT.has(g.id)) {
             const arrive = ease(seg(u, 0.3, 0.62));
             leftAway = Math.max(leftAway, 1 - arrive);
             leftCurl = lerp(0.2, leftCurl, ease(seg(u, 0.6, 0.78)));
@@ -1031,6 +1035,14 @@ export class Viewmodel {
           // a MP7 e a MSMC têm o pente no punho, como a pistola: ele cai e o novo entra por baixo
           const gripMag = GRIP_MAG.has(g.id);
           const rp = reloadPose(reloadStyle(empty, pistol || (gripMag && !GRIP_MAG_TACTICAL.has(g.id))), u, RP);
+          if (g.id === 'deagle') {
+            // Desert Eagle: o polegar direito aperta o retém do pente (atrás do guarda-mato) antes de ele cair; a palma
+            // bate na base e a mão volta logo para o apoio, perto do punho (no caminho comum ela abria e ficava ~0,1 s
+            // parada no ar à esquerda, fora da arma)
+            rightThumb += 0.3 * hump(u, 0.1, 0.15, 0.18, 0.24);
+            rp.palm = hump(u, 0.54, 0.58, 0.6, 0.64);
+            if (u > MAG_SEAT_AT) rp.hold = 1 - ease(seg(u, MAG_SEAT_AT, 0.7));
+          }
           rot.z -= rp.tilt * 0.55 * mo;
           rot.x += rp.tilt * (pistol ? 0.45 : 0.3);
           pos.y += rp.tilt * (pistol ? 0.1 : 0.06);
@@ -1226,6 +1238,8 @@ export class Viewmodel {
             joltAt('hit', 0.32, 1.6);
           } else if (g.id === 'mpx') {
             this.mpxMelee(u, mo, pos, rot, joltAt);
+          } else if (g.id === 'deagle') {
+            leftAway = Math.max(leftAway, this.deagleBash(u, mo, pos, rot, joltAt));
           } else {
             // MP5: estocada inclinada para a esquerda, a coronha comprida fora da tela (`mp5.ts`)
             if (g.id === 'mp5') {
@@ -1294,6 +1308,10 @@ export class Viewmodel {
           }
           if (g.id === 'mpx') {
             magHold = Math.max(magHold, this.mpxInspect(u, mo, pos, rot, joltAt));
+            break;
+          }
+          if (g.id === 'deagle') {
+            leftAway = Math.max(leftAway, this.deagleInspect(u, mo, pos, rot, joltAt));
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -1464,12 +1482,16 @@ export class Viewmodel {
       V.addScaledVector(ARC_POUCH, 4 * handPouch * (1 - handPouch));
       if (mh) V.add(mh.pos);
       else V.add(this.magBottom).add(W1.set(-0.046, -0.04, 0));
+      // Desert Eagle: no tapa do encaixe, a palma vai para baixo da base (na pegada do pente ela fica à esquerda dela)
+      if (g.id === 'deagle') V.x += 0.03 * magPalm;
       LEFT.lerp(V, magHold);
-      // no meio do caminho entre o apoio e o pente, por fora: em linha reta, a mão passava por dentro da arma
-      LEFT.addScaledVector(ARC_OUT, 4 * magHold * (1 - magHold));
+      // no meio do caminho entre o apoio e o pente, por fora: em linha reta, a mão passava por dentro da arma (Desert
+      // Eagle: o apoio fica logo acima do pente, um arco curto e a mão meio fechada bastam)
+      const arc = 4 * magHold * (1 - magHold) * (g.id === 'deagle' ? 0.35 : 1);
+      LEFT.addScaledVector(ARC_OUT, arc);
       // e de dedos abertos (fechados, eles atravessavam o punho e o guarda-mão ao sair)
-      leftCurl = lerp(leftCurl, 0.15, 4 * magHold * (1 - magHold));
-      leftThumb = lerp(leftThumb, 0.15, 4 * magHold * (1 - magHold));
+      leftCurl = lerp(leftCurl, 0.15, arc);
+      leftThumb = lerp(leftThumb, 0.15, arc);
       if (mh) {
         leftCurl = lerp(leftCurl, mh.curl[0], magHold);
         leftThumb = lerp(leftThumb, mh.curl[1], magHold);
@@ -2351,6 +2373,65 @@ export class Viewmodel {
     }
     // a palma encostada na peça (o acerto medido no `setGun`)
     EG.at.add(this.egFix);
+  }
+
+  /**
+   * Inspeção da Desert Eagle, com o peso dela: a esquerda solta o punho, a arma dá um pequeno mergulho (antecipação),
+   * vira e mostra o lado direito com o cano para a direita (para), atravessa pesada pela frente (o cano cai um pouco no
+   * meio do caminho), mostra o lado esquerdo com o cano para a esquerda (para), volta passando um pouco do ponto e a
+   * esquerda bate de volta no punho. Devolve o quanto a esquerda está fora (0–1).
+   */
+  private deagleInspect(
+    u: number,
+    mo: number,
+    pos: THREE.Vector3,
+    rot: THREE.Euler,
+    joltAt: (key: string, at: number, v: number) => void,
+  ): number {
+    const pre = hump(u, 0, 0.05, 0.06, 0.13);
+    const toA = ease(seg(u, 0.08, 0.28));
+    const toB = ease(seg(u, 0.44, 0.64));
+    const home = ease(seg(u, 0.8, 0.94));
+    const swing = hump(u, 0.44, 0.54, 0.54, 0.64);
+    const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
+    const out = toA * (1 - home);
+    rot.y += lerp(-0.95 * toA, 1.05, toB) * (1 - home) * mo;
+    rot.z += lerp(0.3 * toA, -0.3, toB) * (1 - home) * mo;
+    rot.x += (0.12 * out - 0.16 * swing - 0.05 * pre - 0.06 * settle) * mo;
+    pos.x -= 0.05 * out;
+    pos.y += 0.03 * out - 0.012 * swing - 0.01 * pre;
+    pos.z += 0.02 * out;
+    joltAt('showA', 0.28, 0.6);
+    joltAt('showB', 0.64, 0.8);
+    joltAt('grab', 0.94, 1.4);
+    return hump(u, 0.02, 0.12, 0.84, 0.94);
+  }
+
+  /**
+   * Coronhada da Desert Eagle: a esquerda solta, a arma arma o golpe para trás e para a direita (antecipação), bate
+   * para a frente e para a esquerda virando de lado (o tranco no acerto), segue um pouco e volta; a esquerda volta ao
+   * punho no fim. Devolve o quanto a esquerda está fora (0–1).
+   */
+  private deagleBash(
+    u: number,
+    mo: number,
+    pos: THREE.Vector3,
+    rot: THREE.Euler,
+    joltAt: (key: string, at: number, v: number) => void,
+  ): number {
+    const wind = hump(u, 0, 0.18, 0.2, 0.32);
+    const hit = hump(u, 0.18, 0.34, 0.4, 0.82);
+    // depois do acerto a arma ainda anda um pouco no mesmo sentido, desacelerando (sem ficar parada no fim do golpe)
+    const follow = ease(seg(u, 0.34, 0.5)) * (1 - ease(seg(u, 0.5, 0.86)));
+    const settle = Math.sin(seg(u, 0.82, 1) * Math.PI) * (1 - seg(u, 0.82, 1));
+    pos.x += 0.03 * wind - 0.1 * hit - 0.025 * follow;
+    pos.y += 0.015 * wind + 0.01 * hit;
+    pos.z += 0.03 * wind - 0.12 * hit;
+    rot.z += (-0.3 * wind + 0.75 * hit + 0.18 * follow) * mo;
+    rot.y += (-0.2 * wind + 0.45 * hit + 0.08 * follow) * mo;
+    rot.x += (0.12 * wind - 0.15 * hit + 0.04 * settle) * mo;
+    joltAt('hit', 0.34, -1.6);
+    return hump(u, 0.02, 0.15, 0.7, 0.92);
   }
 
   /** desenha por cima do que já está na tela */
