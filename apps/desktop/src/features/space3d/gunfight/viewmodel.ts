@@ -179,6 +179,15 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   sv98: 'bolt',
   automag3: 'pistol',
 };
+/** polegar da direita por arma: [fechamento, abertura para o lado da palma] (dá a volta por trás do punho) */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  deagle: [0.3, 0.2],
+};
+/** pistolas cujo ferrolho fica aberto no retém depois da última bala, e quanto ele fica para trás (m) */
+const SLIDE_LOCK: ReadonlySet<string> = new Set(['deagle']);
+const SLIDE_BACK = 0.035;
+/** pistolas em que a mão de apoio sobe junto com o pente novo até o fim do encaixe (a palma empurra a base) */
+const MAG_PUSH: ReadonlySet<string> = new Set(['deagle']);
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
@@ -423,6 +432,8 @@ export class Viewmodel {
   private ejectAfter = false;
   /** revólver: o tambor abriu e a vareta foi empurrada neste quadro (os estojos caem depois das peças no lugar) */
   private dumpAfter = false;
+  /** o ferrolho da pistola ficou aberto no último tiro (pente vazio): fica para trás até a recarga vazia soltar */
+  private slideLocked = false;
   private gun: GunModel | null = null;
   private spec: GunSpec | null = null;
   private action: { kind: VmAction; t: number; ms: number; side: number } | null = null;
@@ -534,6 +545,7 @@ export class Viewmodel {
       this.rightCurl = [...this.holds.right.curl];
     }
     this.clearDebris();
+    this.slideLocked = false;
     this.magHome.set(0, -0.06, 0.03);
     const mag = g.parts.mag;
     if (mag) {
@@ -602,12 +614,14 @@ export class Viewmodel {
 
   /**
    * Tiro: o coice da arma pelas molas dela (`recoil.vm`), a rolagem e o lado no sentido do recuo (`side` ±1); mirando,
-   * menor (a mira de ferro não sai do centro), e o primeiro tiro com `first` do coice.
+   * menor (a mira de ferro não sai do centro), e o primeiro tiro com `first` do coice. `empty`: foi a última bala do
+   * pente (na pistola com retém, o ferrolho volta e fica aberto).
    */
-  fire(side: number, first = 1) {
+  fire(side: number, first = 1, empty = false) {
     const sp = this.spec;
     if (!sp) return;
     this.play('fire', 120);
+    if (empty && this.gun && SLIDE_LOCK.has(this.gun.id)) this.slideLocked = true;
     const v = sp.recoil.vm;
     const a = this.adsNow;
     const k = first;
@@ -833,7 +847,8 @@ export class Viewmodel {
           rot.z += 0.3 * w * mo;
           rot.y += 0.35 * w * mo;
           rot.x += 0.05 * over * mo;
-          if (spec.cls !== 'pistol') {
+          // Desert Eagle: a direita traz a arma pesada e a esquerda chega depois, bate no punho e fecha
+          if (spec.cls !== 'pistol' || g.id === 'deagle') {
             const arrive = ease(seg(u, 0.3, 0.62));
             leftAway = Math.max(leftAway, 1 - arrive);
             leftCurl = lerp(0.2, leftCurl, ease(seg(u, 0.6, 0.78)));
@@ -845,6 +860,8 @@ export class Viewmodel {
         }
         case 'fire':
           if (spec.cls !== 'sniper') boltBack = Math.sin(Math.min(1, u * 1.2) * Math.PI) * 0.035;
+          // última bala: o ferrolho chega atrás e para no retém (não volta)
+          if (this.slideLocked && u * 1.2 >= 0.5) boltBack = SLIDE_BACK;
           // o indicador aperta e o gatilho vai para trás (~60 ms)
           trig = hump(u, 0, 0.12, 0.4, 0.6);
           rightIndex = lerp(rightIndex, this.rightCurl[2] + TRIGGER_SQUEEZE, trig);
@@ -885,6 +902,14 @@ export class Viewmodel {
           }
           // a MP7 e a MSMC têm o pente no punho, como a pistola: ele cai e o novo entra por baixo
           const rp = reloadPose(reloadStyle(empty, pistol || GRIP_MAG.has(g.id)), u, RP);
+          if (g.id === 'deagle') {
+            // Desert Eagle: o polegar direito aperta o retém do pente (atrás do guarda-mato) antes de ele cair; a palma
+            // bate na base e a mão volta logo para o apoio, perto do punho (no caminho comum ela abria e ficava ~0,1 s
+            // parada no ar à esquerda, fora da arma)
+            rightThumb += 0.3 * hump(u, 0.1, 0.15, 0.18, 0.24);
+            rp.palm = hump(u, 0.54, 0.58, 0.6, 0.64);
+            if (u > MAG_SEAT_AT) rp.hold = 1 - ease(seg(u, MAG_SEAT_AT, 0.7));
+          }
           rot.z -= rp.tilt * 0.55 * mo;
           rot.x += rp.tilt * (pistol ? 0.45 : 0.3);
           pos.y += rp.tilt * (pistol ? 0.1 : 0.06);
@@ -896,6 +921,8 @@ export class Viewmodel {
           magPouch = rp.pouch;
           magHold = rp.hold;
           handOut = rp.handOut;
+          // a mão sobe junto com o pente novo até o encaixe (parada 9 cm embaixo do poço, a palma não chegava na base)
+          if (MAG_PUSH.has(g.id) && rp.dropped) handOut = rp.out;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
           // o pente velho cai (cópia sem cartuchos, do lugar dele): o da arma já está no colete, fora da tela
@@ -910,6 +937,7 @@ export class Viewmodel {
             }
           }
           if (empty) this.emptyGesture(u, joltAt);
+          if (empty && u >= 0.8) this.slideLocked = false;
           break;
         }
         case 'reloadClip': {
@@ -971,6 +999,8 @@ export class Viewmodel {
         case 'melee': {
           if (knife) {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
+          } else if (g.id === 'deagle') {
+            leftAway = Math.max(leftAway, this.deagleBash(u, mo, pos, rot, joltAt));
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             const w = hump(u, 0, 0.25, 0.5, 1);
@@ -987,6 +1017,10 @@ export class Viewmodel {
         case 'inspect': {
           if (knife) {
             this.knifeInspect(u, mo, pos, rot, joltAt);
+            break;
+          }
+          if (g.id === 'deagle') {
+            leftAway = Math.max(leftAway, this.deagleInspect(u, mo, pos, rot, joltAt));
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -1098,6 +1132,8 @@ export class Viewmodel {
       leftThumb = lerp(leftThumb, EG.thumb, EG.alt);
     }
 
+    // ferrolho aberto no retém (pente vazio): fica para trás até a recarga vazia soltar
+    if (this.slideLocked && a?.kind !== 'fire') boltBack = Math.max(boltBack, SLIDE_BACK);
     this.sway.position.set(0, 0, 0);
     this.holder.position.copy(pos);
     this.holder.rotation.copy(rot);
@@ -1143,12 +1179,16 @@ export class Viewmodel {
       V.addScaledVector(ARC_POUCH, 4 * handPouch * (1 - handPouch));
       if (mh) V.add(mh.pos);
       else V.add(this.magBottom).add(W1.set(-0.046, -0.04, 0));
+      // Desert Eagle: no tapa do encaixe, a palma vai para baixo da base (na pegada do pente ela fica à esquerda dela)
+      if (g.id === 'deagle') V.x += 0.03 * magPalm;
       LEFT.lerp(V, magHold);
-      // no meio do caminho entre o apoio e o pente, por fora: em linha reta, a mão passava por dentro da arma
-      LEFT.addScaledVector(ARC_OUT, 4 * magHold * (1 - magHold));
+      // no meio do caminho entre o apoio e o pente, por fora: em linha reta, a mão passava por dentro da arma (Desert
+      // Eagle: o apoio fica logo acima do pente, um arco curto e a mão meio fechada bastam)
+      const arc = 4 * magHold * (1 - magHold) * (g.id === 'deagle' ? 0.35 : 1);
+      LEFT.addScaledVector(ARC_OUT, arc);
       // e de dedos abertos (fechados, eles atravessavam o punho e o guarda-mão ao sair)
-      leftCurl = lerp(leftCurl, 0.15, 4 * magHold * (1 - magHold));
-      leftThumb = lerp(leftThumb, 0.15, 4 * magHold * (1 - magHold));
+      leftCurl = lerp(leftCurl, 0.15, arc);
+      leftThumb = lerp(leftThumb, 0.15, arc);
       if (mh) {
         leftCurl = lerp(leftCurl, mh.curl[0], magHold);
         leftThumb = lerp(leftThumb, mh.curl[1], magHold);
@@ -1658,9 +1698,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
@@ -1905,6 +1948,65 @@ export class Viewmodel {
     }
     // a palma encostada na peça (o acerto medido no `setGun`)
     EG.at.add(this.egFix);
+  }
+
+  /**
+   * Inspeção da Desert Eagle, com o peso dela: a esquerda solta o punho, a arma dá um pequeno mergulho (antecipação),
+   * vira e mostra o lado direito com o cano para a direita (para), atravessa pesada pela frente (o cano cai um pouco no
+   * meio do caminho), mostra o lado esquerdo com o cano para a esquerda (para), volta passando um pouco do ponto e a
+   * esquerda bate de volta no punho. Devolve o quanto a esquerda está fora (0–1).
+   */
+  private deagleInspect(
+    u: number,
+    mo: number,
+    pos: THREE.Vector3,
+    rot: THREE.Euler,
+    joltAt: (key: string, at: number, v: number) => void,
+  ): number {
+    const pre = hump(u, 0, 0.05, 0.06, 0.13);
+    const toA = ease(seg(u, 0.08, 0.28));
+    const toB = ease(seg(u, 0.44, 0.64));
+    const home = ease(seg(u, 0.8, 0.94));
+    const swing = hump(u, 0.44, 0.54, 0.54, 0.64);
+    const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
+    const out = toA * (1 - home);
+    rot.y += lerp(-0.95 * toA, 1.05, toB) * (1 - home) * mo;
+    rot.z += lerp(0.3 * toA, -0.3, toB) * (1 - home) * mo;
+    rot.x += (0.12 * out - 0.16 * swing - 0.05 * pre - 0.06 * settle) * mo;
+    pos.x -= 0.05 * out;
+    pos.y += 0.03 * out - 0.012 * swing - 0.01 * pre;
+    pos.z += 0.02 * out;
+    joltAt('showA', 0.28, 0.6);
+    joltAt('showB', 0.64, 0.8);
+    joltAt('grab', 0.94, 1.4);
+    return hump(u, 0.02, 0.12, 0.84, 0.94);
+  }
+
+  /**
+   * Coronhada da Desert Eagle: a esquerda solta, a arma arma o golpe para trás e para a direita (antecipação), bate
+   * para a frente e para a esquerda virando de lado (o tranco no acerto), segue um pouco e volta; a esquerda volta ao
+   * punho no fim. Devolve o quanto a esquerda está fora (0–1).
+   */
+  private deagleBash(
+    u: number,
+    mo: number,
+    pos: THREE.Vector3,
+    rot: THREE.Euler,
+    joltAt: (key: string, at: number, v: number) => void,
+  ): number {
+    const wind = hump(u, 0, 0.18, 0.2, 0.32);
+    const hit = hump(u, 0.18, 0.34, 0.4, 0.82);
+    // depois do acerto a arma ainda anda um pouco no mesmo sentido, desacelerando (sem ficar parada no fim do golpe)
+    const follow = ease(seg(u, 0.34, 0.5)) * (1 - ease(seg(u, 0.5, 0.86)));
+    const settle = Math.sin(seg(u, 0.82, 1) * Math.PI) * (1 - seg(u, 0.82, 1));
+    pos.x += 0.03 * wind - 0.1 * hit - 0.025 * follow;
+    pos.y += 0.015 * wind + 0.01 * hit;
+    pos.z += 0.03 * wind - 0.12 * hit;
+    rot.z += (-0.3 * wind + 0.75 * hit + 0.18 * follow) * mo;
+    rot.y += (-0.2 * wind + 0.45 * hit + 0.08 * follow) * mo;
+    rot.x += (0.12 * wind - 0.15 * hit + 0.04 * settle) * mo;
+    joltAt('hit', 0.34, -1.6);
+    return hump(u, 0.02, 0.15, 0.7, 0.92);
   }
 
   /** desenha por cima do que já está na tela */
