@@ -302,6 +302,19 @@ export const KARAMBIT_ARM = {
   middle: 0.95,
 };
 
+/**
+ * Balisong aberta nesta mão (espaço da faca: pulso e giro). Medida nas esferas da mão (`contact.ts`), não chutada: os
+ * dois cabos juntos (3,2 × 0,9 cm) passam pelo vão de cada dedo fechado, a palma encosta no lado direito deles, médio,
+ * anelar e mindinho dão a volta por baixo (o lado do cabo de morder) e as pontas encostam no lado esquerdo; o indicador
+ * fecha logo atrás dos pinos (nada da mão passa à frente de z = −0,053, onde começa a lâmina) e o polegar deita por
+ * cima, do lado esquerdo. Fecham partindo de abertos até encostar (o encaixe do `setGun`): médio ~1,28, anelar ~1,18,
+ * mindinho ~1,03, indicador ~1,02.
+ */
+export const BALISONG_ARM = {
+  pos: [0.0172, 0.0522, 0.0329] as THREE.Vector3Tuple,
+  quat: [0.2915, 0.3664, 0.5862, -0.6611] as [number, number, number, number],
+};
+
 /** a mão dos braços para as pegadas (`grips.ts`) */
 export const ARM_HAND_FIT = {
   hole: FIST_HOLE,
@@ -310,6 +323,7 @@ export const ARM_HAND_FIT = {
   clamp: 0.005,
   ring: { row: 0.022, back: 0.023 },
   karambit: KARAMBIT_ARM,
+  balisong: BALISONG_ARM,
   vgripTilt: 0.5,
   clampYaw: 0.45,
   clampRoll: 0.15,

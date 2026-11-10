@@ -1058,14 +1058,16 @@ export function knife(id: 'karambit' | 'bayonet'): GunModel {
 /**
  * Abre (1) ou fecha (0) a balisong: de 0 a ½ o cabo de morder dá meia volta no pino dele (sai de cima da lâmina); de ½
  * a 1 a lâmina dá meia volta no pino do cabo seguro, levando o de morder, que volta a encostar no seguro do outro lado.
- * Fora desse caminho (`bite` e `blade` à parte, em rad) para os floreios.
+ * As duas meias voltas giram para fora (−x): fechada, o cabo de morder e a lâmina ficam do lado +y do seguro e saem para
+ * +y; girando para +x, os dois atravessavam o cabo seguro (e a mão). Fora desse caminho (`bite` e `blade` à parte, em
+ * rad) para os floreios.
  */
 export function setBalisong(g: GunModel, open: number, extraBite = 0, extraBlade = 0) {
   const f = g.flip;
   if (!f) return;
   const u = Math.max(0, Math.min(1, open));
-  f.bite.rotation.x = Math.PI * Math.min(1, u * 2) + extraBite;
-  f.blade.rotation.x = Math.PI * Math.max(0, u * 2 - 1) + extraBlade;
+  f.bite.rotation.x = -Math.PI * Math.min(1, u * 2) + extraBite;
+  f.blade.rotation.x = -Math.PI * Math.max(0, u * 2 - 1) + extraBlade;
 }
 
 /**
@@ -1074,7 +1076,7 @@ export function setBalisong(g: GunModel, open: number, extraBite = 0, extraBlade
  */
 const FIST_BEHIND_GUARD = 0.045 + 0.022;
 
-function fileKnife(id: GunId, scene: THREE.Object3D): GunModel {
+export function fileKnife(id: GunId, scene: THREE.Object3D): GunModel {
   const src = scene.clone(true);
   const root = new THREE.Group();
   root.add(src);

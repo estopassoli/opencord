@@ -100,6 +100,8 @@ export interface HandFit {
    * `ring` (mão de cápsulas do boneco)
    */
   karambit?: { pos: THREE.Vector3Tuple; quat: [number, number, number, number]; index: number; middle: number };
+  /** balisong aberta medida para esta mão (pulso e giro no espaço da faca); sem ela, o martelo das outras facas */
+  balisong?: { pos: THREE.Vector3Tuple; quat: [number, number, number, number] };
   /**
    * empunhadura vertical: quanto a mão inclina a mais (o pulso desce para trás, na linha do antebraço que vem de baixo;
    * reta, o pulso dobrava em ângulo)
@@ -155,6 +157,10 @@ export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass, hf:
   if (g.id === 'karambit' && hf.karambit) {
     const k = hf.karambit;
     return { pos: new THREE.Vector3(...k.pos), quat: new THREE.Quaternion(...k.quat), curl: [k.middle, 0.3, k.index] };
+  }
+  if (g.id === 'balisong' && hf.balisong) {
+    const b = hf.balisong;
+    return { pos: new THREE.Vector3(...b.pos), quat: new THREE.Quaternion(...b.quat), curl: [hf.curl, 0.7, hf.curl] };
   }
   if (g.id === 'karambit') {
     const pos = handle.clone().sub(holeIn(hf, PUNHO));
