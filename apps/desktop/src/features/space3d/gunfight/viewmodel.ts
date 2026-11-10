@@ -171,7 +171,7 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   mcx: 'slap',
   mpx: 'slap',
   pdw: 'slap',
-  msmc: 'slap',
+  msmc: 'front',
   aks74u: 'under',
   stg44: 'front',
   rs9: 'bolt',
@@ -179,8 +179,26 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   sv98: 'bolt',
   automag3: 'pistol',
 };
+/** polegar da direita por arma: [fechamento, abertura para o lado da palma] (dá a volta por trás do punho) */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  msmc: [0.55, 1.1],
+};
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
+/**
+ * pente no punho que sobra embaixo dele (MSMC): com bala, a esquerda pega a base, puxa, guarda no colete e volta com um
+ * cheio, como nos fuzis (cair, só vazio)
+ */
+const GRIP_MAG_TACTICAL: ReadonlySet<string> = new Set(['msmc']);
+/** quanto a arma sobe a mais na recarga do pente no punho (x, y, z em m, cano para cima em rad, no pico) */
+const GRIP_MAG_LIFT: Partial<Record<string, readonly [number, number, number, number]>> = {
+  msmc: [-0.04, 0.06, 0.02, 0.15],
+};
+/**
+ * a bola da alavanca do ferrolho (espaço da arma) quando a peça inteira é grande e o meio dela não é onde se pega.
+ * MSMC: a alavanca fica na frente da caixa, do lado esquerdo, logo acima da empunhadura (a peça vai até o fundo da caixa)
+ */
+const CHARGE_KNOB: Partial<Record<string, THREE.Vector3>> = { msmc: new THREE.Vector3(-0.035, 0.069, -0.16) };
 /** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
 const CYL_OUT = new THREE.Vector3(-0.034, -0.01, 0);
 /** o gesto da recarga vazia neste quadro (preenchido pelo `emptyGesture`; peças, mãos e o giro da esquerda) */
@@ -546,6 +564,8 @@ export class Viewmodel {
     else this.magBottom.copy(this.magHome).add(V.set(0, -0.08, 0));
     const handle = g.parts.charge ?? g.parts.slide ?? g.parts.bolt;
     this.chargeHome = handle ? partCenter(g, handle) : null;
+    const knob = CHARGE_KNOB[g.id];
+    if (knob && this.chargeHome) this.chargeHome.copy(knob);
     // o retém fica do lado esquerdo do receptor, logo acima e atrás do poço do pente: a palma encosta nele
     const top = box ? box.max.y : this.magHome.y;
     const bz = box ? box.max.z : this.magHome.z;
@@ -884,18 +904,35 @@ export class Viewmodel {
             break;
           }
           // a MP7 e a MSMC têm o pente no punho, como a pistola: ele cai e o novo entra por baixo
-          const rp = reloadPose(reloadStyle(empty, pistol || GRIP_MAG.has(g.id)), u, RP);
+          const gripMag = GRIP_MAG.has(g.id);
+          const rp = reloadPose(reloadStyle(empty, pistol || (gripMag && !GRIP_MAG_TACTICAL.has(g.id))), u, RP);
           rot.z -= rp.tilt * 0.55 * mo;
           rot.x += rp.tilt * (pistol ? 0.45 : 0.3);
           pos.y += rp.tilt * (pistol ? 0.1 : 0.06);
           pos.x -= rp.tilt * 0.03;
+          // pente no punho (MSMC): o fundo do punho ficava na beirada de baixo da tela e a troca acontecia fora dela; a
+          // arma sobe e vem para o meio, e o pente entrando por baixo aparece. Vazia, ela já volta logo depois do
+          // encaixe (`back`): a alavanca fica na frente, em cima da empunhadura, e com a arma deitada o braço esquerdo
+          // subia esticado atravessando a tela
+          const lift = GRIP_MAG_LIFT[g.id];
+          if (lift) {
+            const back = empty ? rp.tilt * ease(seg(u, 0.57, 0.72)) : 0;
+            const t = rp.tilt - back;
+            rot.z += back * 0.55 * mo;
+            rot.x += t * lift[3] - back * 0.3;
+            pos.x += t * lift[0] + back * 0.03;
+            pos.y += t * lift[1] - back * 0.06;
+            pos.z += t * lift[2];
+          }
           joltAt('out', MAG_OUT_AT + 0.02, -1.2);
           joltAt('seat', MAG_SEAT_AT, 2.4);
           magPull = pistol ? MAG_PULL_PISTOL : MAG_PULL;
           MAG.copy(magPull).multiplyScalar(rp.out);
           magPouch = rp.pouch;
           magHold = rp.hold;
-          handOut = rp.handOut;
+          // pente no punho: depois de o velho cair, a mão sobe junto com o novo e empurra a base até ele encaixar (ela
+          // ficava parada embaixo do punho, aberta, e o pente subia sozinho)
+          handOut = gripMag && rp.dropped ? rp.out : rp.handOut;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
           // o pente velho cai (cópia sem cartuchos, do lugar dele): o da arma já está no colete, fora da tela
@@ -971,6 +1008,20 @@ export class Viewmodel {
         case 'melee': {
           if (knife) {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
+          } else if (g.id === 'msmc') {
+            // MSMC: arma o golpe (recua e vai um pouco para a direita, ~80 ms), bate para a frente e para a esquerda
+            // girando (tranco no acerto, em 30%), passa um pouco do ponto e volta devagar (antes ia e ficava parada no
+            // fim, sem antecipação nem acerto)
+            const ant = hump(u, 0, 0.16, 0.16, 0.3);
+            const hit = expOut(seg(u, 0.16, 0.3)) * (1 - ease(seg(u, 0.42, 1)));
+            const over = hump(u, 0.28, 0.36, 0.36, 0.52);
+            pos.z += 0.035 * ant - 0.14 * hit - 0.012 * over;
+            pos.x += 0.02 * ant - 0.05 * hit;
+            pos.y += -0.012 * ant + 0.02 * hit;
+            rot.z += (-0.15 * ant + 0.55 * hit + 0.05 * over) * mo;
+            rot.y += (0.1 * ant - 0.1 * hit) * mo;
+            rot.x += (0.06 * ant - 0.04 * hit) * mo;
+            joltAt('hit', 0.3, 1.8);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             const w = hump(u, 0, 0.25, 0.5, 1);
@@ -1658,9 +1709,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
