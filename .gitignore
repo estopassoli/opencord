@@ -23,3 +23,6 @@ apps/desktop/resources/win/
 
 # relatório das animações feitas à mão (scripts/anims)
 .anim-report/
+
+# worktrees temporários dos agentes do Claude Code
+.claude/worktrees/

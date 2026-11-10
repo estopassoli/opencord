@@ -24,6 +24,14 @@ export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) =>
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-10',
+    time: '08:00',
+    kind: 'melhoria',
+    icon: 'gamepad',
+    title: 'Armas do gunfight com pegadas e animações revistas',
+    body: 'Todas as armas e facas do gunfight foram revistas quadro a quadro. As mãos agora seguram de verdade: polegar por trás do punho, indicador reto fora do gatilho, mão de apoio fechada no guarda-mão e na empunhadura, e a mão que troca o pente leva o novo até a arma. As recargas seguem a arma real (alavanca puxada, ferrolho que trava aberto no último tiro, pente da AK que encaixa balançando, revólver com tambor, carregador rápido e cão armado pelo polegar), a luneta não apaga mais a tela ao mirar e as facas ganharam golpes com arco e inspeções novas.',
+  },
+  {
     date: '2026-11-09',
     time: '18:00',
     kind: 'novo',
