@@ -49,6 +49,34 @@ import {
   reloadStyle,
 } from './reload';
 import { kickSpring, spring, stepSpring } from './spring';
+import {
+  BFR_CHAMBER,
+  BFR_CLOSE_AT,
+  BFR_DUMP_AT,
+  BFR_INSPECT,
+  BFR_LOADER_DROP,
+  BFR_LOADER_SHOW,
+  BFR_MELEE,
+  BFR_RL_COCK,
+  BFR_RL_DECOCK,
+  BFR_SEAT_AT,
+  COCK_MS,
+  COCK_SHIFT_DOWN,
+  COCK_SHIFT_UP,
+  COCK_THUMB_DOWN,
+  COCK_THUMB_UP,
+  bfrMove,
+  bfrReload,
+  blankBfrMove,
+  blankBfrReload,
+  cockAt,
+  craneArm,
+  craneOffset,
+  placeCraneArm,
+  poseHammer,
+  splitHammer,
+  type Hammer,
+} from './bfr';
 import { AuthoredArms, hasAuthored } from './fpanim';
 import type { GunSpec } from './weapons';
 import type { GunId } from '@opencord/contracts';
@@ -179,6 +207,10 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   sv98: 'bolt',
   automag3: 'pistol',
 };
+/** polegar da direita por arma: [fechamento, abertura para o lado da palma] (dá a volta por trás do punho) */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  bfr: [0.3, 0.6],
+};
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
@@ -234,6 +266,24 @@ const LOADER_SHOW = 0.44;
 const LOADER_GONE = 0.64;
 /** onde a mão segura o carregador rápido (espaço da mão: à frente da palma, nos dedos) */
 const LOADER_IN_HAND = new THREE.Vector3(0, -0.03, -0.085);
+/**
+ * Magnum BFR (`bfr.ts`): a recarga, a coronhada e a inspeção deste quadro, o gesto do polegar no cão, o giro da mão
+ * esquerda segurando o carregador rápido atrás do tambor (pela esquerda: palma para a direita, dedos para a frente
+ * fechando no corpo dele, polegar por cima; por trás, a mão tampava o carregador) e onde ele fica nela (espaço da mão)
+ */
+const BR = blankBfrReload();
+const BM = blankBfrMove();
+const CK = { reach: 0, ham: 0 };
+const BFR_LQ = new THREE.Quaternion().setFromRotationMatrix(
+  new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(0, 0.95, 0.3).normalize(),
+    new THREE.Vector3(-1, 0, 0),
+    new THREE.Vector3(0, -0.3, 0.95).normalize(),
+  ),
+);
+const BFR_LQ_INV = BFR_LQ.clone().invert();
+const BFR_IN_HAND = new THREE.Vector3(0, -0.03, -0.06);
+const BFR_Q = new THREE.Quaternion();
 /** acertos dos dedos (misturados por quadro, sem alocar) */
 const OFF_R: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
 const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
@@ -423,6 +473,20 @@ export class Viewmodel {
   private ejectAfter = false;
   /** revólver: o tambor abriu e a vareta foi empurrada neste quadro (os estojos caem depois das peças no lugar) */
   private dumpAfter = false;
+  /**
+   * Magnum BFR: o cão (separado da armação), o quanto ele está armado (0–1), o gesto do polegar depois do tiro (ms;
+   * negativo = esperando o coice; NaN = nenhum), o cão no começo da recarga, o raio dos furos do tambor e se o
+   * carregador rápido vazio já foi largado nesta recarga
+   */
+  private bfrHam: Hammer | null = null;
+  private bfrCocked = 1;
+  private bfrCockT = Number.NaN;
+  private bfrFrom = 1;
+  private bfrRing = 0.012;
+  private bfrDropped = false;
+  /** o braço do tambor aberto e a face da frente do tambor (z, espaço da arma) */
+  private bfrArm: THREE.Mesh | null = null;
+  private bfrFront = 0;
   private gun: GunModel | null = null;
   private spec: GunSpec | null = null;
   private action: { kind: VmAction; t: number; ms: number; side: number } | null = null;
@@ -506,6 +570,7 @@ export class Viewmodel {
     if (this.gun && this.gun !== g) disposeGun(this.gun);
     this.gun = g;
     this.spec = spec;
+    this.bfrHam = null;
     this.holder.add(g.root);
     // a primeira pessoa vê a arma com o próprio frustum (a câmera é outra): nunca some pelas bordas
     g.root.traverse((o) => {
@@ -592,6 +657,13 @@ export class Viewmodel {
     }
     this.action = { kind, t: 0, ms: Math.max(1, ms), side: this.meleeSide };
     this.joltDone.clear();
+    // BFR: no saque o cão vem abaixado (o polegar arma subindo); na recarga, o polegar desarma se estiver armado
+    if (this.bfrHam && (kind === 'draw' || kind === 'reload' || kind === 'reloadEmpty')) {
+      if (kind === 'draw') this.bfrCocked = 0;
+      this.bfrFrom = this.bfrCocked;
+      this.bfrCockT = Number.NaN;
+      this.bfrDropped = false;
+    }
     // supressor e quebra-chamas: sem clarão na boca
     if (kind === 'fire' && !this.spec?.noFlash) {
       this.flashUntil = this.now + 45;
@@ -618,6 +690,11 @@ export class Viewmodel {
     // semiautomática e automática: o estojo sai no tiro (no ferrolho, sai quando a mão abre a culatra)
     if (!sp.boltMs) this.eject(false);
     this.authored?.fire();
+    // BFR (ação simples): o cão cai no tiro; o polegar arma de novo depois do coice
+    if (this.bfrHam) {
+      this.bfrCocked = 0;
+      this.bfrCockT = -150;
+    }
   }
 
   /** o coice de agora (para trás em m e a subida em rad), para as medidas */
@@ -797,6 +874,10 @@ export class Viewmodel {
     let leftAway = ease(this.leftOffK);
     /** revólver: a fração da recarga (para o carregador rápido e os cartuchos do tambor); −1 fora dela */
     let cylU = -1;
+    /** BFR: a fração da recarga (−1 fora dela) e o gesto do polegar no cão feito pela ação deste quadro */
+    let bfrRl = -1;
+    let bfrGesture = false;
+    let bfrCockSpin = false;
 
     // o deslocamento desta ação é medido em volta do switch (para o `carry` de uma ação cortada)
     const p0x = pos.x;
@@ -841,6 +922,13 @@ export class Viewmodel {
             joltAt('slap', 0.62, 1.1);
           }
           joltAt('end', 0.8, 1.6);
+          // BFR: o polegar arma o cão enquanto a arma chega (o tambor gira um furo)
+          if (this.bfrHam) {
+            const ms = (u - 0.28) * a.ms * 1.35;
+            if (ms >= 0) cockAt(ms, false, CK);
+            else CK.reach = CK.ham = 0;
+            bfrGesture = bfrCockSpin = true;
+          }
           break;
         }
         case 'fire':
@@ -856,6 +944,38 @@ export class Viewmodel {
           // gesto da arma solta o ferrolho. A arma sobe e inclina para o pente e a mão ficarem na tela
           const empty = a.kind === 'reloadEmpty';
           const pistol = spec.cls === 'pistol';
+          if (this.bfrHam && g.parts.mag) {
+            // BFR (`bfr.ts`): desarma, abre o tambor no braço, cano para cima e a vareta (os estojos caem), cano
+            // para baixo, carregador rápido do cinto alinhado e empurrado, larga o vazio, fecha e arma o cão
+            const br = bfrReload(u, BR);
+            pos.x += br.px;
+            pos.y += br.py;
+            pos.z += br.pz;
+            rot.x += br.rx;
+            rot.y += br.ry * mo;
+            rot.z += br.rz * mo;
+            joltAt('out', 0.2, -1.2);
+            joltAt('rod', BFR_DUMP_AT, -1.4);
+            joltAt('seat', BFR_SEAT_AT, 1.6);
+            joltAt('close', BFR_CLOSE_AT, 2.4);
+            if (u >= BFR_DUMP_AT && !this.joltDone.has('dump')) {
+              this.joltDone.add('dump');
+              this.dumpAfter = true;
+            }
+            bfrRl = u;
+            craneOffset(this.loaderSeat, br.out, MAG);
+            if (this.bfrArm) placeCraneArm(this.bfrArm, this.loaderSeat, MAG, this.bfrFront, br.out);
+            cylSpin = br.spin;
+            const dms = u * a.ms * BFR_RL_DECOCK.speed;
+            const cms = (u - BFR_RL_COCK.at) * a.ms * BFR_RL_COCK.speed;
+            if (this.bfrFrom > 0.5 && dms < COCK_MS) cockAt(dms, true, CK);
+            else if (cms >= 0) {
+              cockAt(cms, false, CK);
+              bfrCockSpin = true;
+            } else CK.reach = CK.ham = 0;
+            bfrGesture = true;
+            break;
+          }
           if (spec.revolver) {
             // revólver (`cylinderPose`): a arma deita para a direita e mostra o tambor aberto; a esquerda segura por
             // baixo dele, busca o carregador rápido no cinto, empurra os cartuchos e o tambor fecha
@@ -971,6 +1091,17 @@ export class Viewmodel {
         case 'melee': {
           if (knife) {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
+          } else if (this.bfrHam) {
+            // BFR: coronhada com antecipação e arco (`BFR_MELEE`); a esquerda sai do caminho
+            const m = bfrMove(BFR_MELEE, u, BM);
+            pos.x += m.px;
+            pos.y += m.py;
+            pos.z += m.pz;
+            rot.x += m.rx * mo;
+            rot.y += m.ry * mo;
+            rot.z += m.rz * mo;
+            leftAway = Math.max(leftAway, m.away);
+            joltAt('hit', 0.32, 2.4);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             const w = hump(u, 0, 0.25, 0.5, 1);
@@ -987,6 +1118,20 @@ export class Viewmodel {
         case 'inspect': {
           if (knife) {
             this.knifeInspect(u, mo, pos, rot, joltAt);
+            break;
+          }
+          if (this.bfrHam) {
+            // BFR: o lado esquerdo (tambor) sem a mão na frente, depois o direito e o topo (`BFR_INSPECT`)
+            const m = bfrMove(BFR_INSPECT, u, BM);
+            pos.x += m.px;
+            pos.y += m.py;
+            pos.z += m.pz;
+            rot.x += m.rx * mo;
+            rot.y += m.ry * mo;
+            rot.z += m.rz * mo;
+            leftAway = Math.max(leftAway, m.away);
+            joltAt('stop1', 0.22, 0.6);
+            joltAt('stop2', 0.6, 0.6);
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -1016,6 +1161,38 @@ export class Viewmodel {
         }
       }
       if (u >= 1) this.action = null;
+    }
+    // BFR: o cão e o polegar. Sem gesto da ação: depois do tiro o polegar arma o cão (passado o coice); parado com o
+    // cão abaixado (uma recarga cortada), arma também
+    let bfrReach = 0;
+    let bfrHamNow = 1;
+    if (this.bfrArm && bfrRl < 0) this.bfrArm.visible = false;
+    if (this.bfrHam) {
+      if (!bfrGesture) {
+        const busy = this.action && this.action.kind !== 'fire' && this.action.kind !== 'inspect';
+        if (Number.isNaN(this.bfrCockT) && this.bfrCocked < 1 && !busy) this.bfrCockT = 0;
+        if (!Number.isNaN(this.bfrCockT)) {
+          this.bfrCockT += dt * 1000;
+          if (this.bfrCockT >= 0) {
+            cockAt(this.bfrCockT, false, CK);
+            bfrGesture = bfrCockSpin = true;
+          }
+          if (this.bfrCockT >= COCK_MS) {
+            this.bfrCockT = Number.NaN;
+            CK.ham = 1;
+          }
+        }
+      }
+      if (bfrGesture) {
+        bfrReach = CK.reach;
+        this.bfrCocked = CK.ham;
+      }
+      bfrHamNow = this.bfrCocked;
+      poseHammer(this.bfrHam, bfrHamNow);
+      // armar gira o tambor um furo (5 furos: parado ele fica igual)
+      if (bfrCockSpin) cylSpin += BFR_CHAMBER * bfrHamNow;
+      // o polegar na espora: a mão sobe um pouco no punho (a arma rola na mão)
+      if (bfrReach > 0) GRIP_R.addScaledVector(W2.copy(COCK_SHIFT_DOWN).lerp(COCK_SHIFT_UP, bfrHamNow), bfrReach);
     }
     spin = KD.spin;
     open = KD.open;
@@ -1157,6 +1334,27 @@ export class Viewmodel {
     // fim do encaixe: os dedos soltam e a palma empurra a base
     leftCurl = lerp(leftCurl, 0.15, magPalm);
     leftThumb = lerp(leftThumb, 0.15, magPalm);
+    // BFR: a esquerda embaixo do tambor (andando com ele; a palma empurra a vareta), no cinto e com o carregador
+    // rápido (a mão fica onde o carregador tem que estar: alinhado atrás dos furos, depois empurrando)
+    if (bfrRl >= 0 && mh) {
+      W1.copy(mh.pos).add(MAG);
+      W1.z += 0.015 * BR.rod;
+      LEFT.lerp(W1, BR.cradle).addScaledVector(ARC_OUT, 4 * BR.cradle * (1 - BR.cradle));
+      leftCurl = lerp(leftCurl, mh.curl[0], BR.cradle);
+      leftThumb = lerp(leftThumb, mh.curl[1] + 0.35 * BR.rod, BR.cradle);
+      if (BR.belt > 0) {
+        this.holder.worldToLocal(W1.copy(POUCH_L));
+        LEFT.lerp(W1, BR.belt).addScaledVector(ARC_OUT, 4 * BR.belt * (1 - BR.belt));
+      }
+      if (BR.loader > 0) {
+        W1.copy(this.loaderSeat).add(MAG);
+        W1.z += BR.lz;
+        LEFT.lerp(W1.sub(W2.copy(BFR_IN_HAND).applyQuaternion(BFR_LQ)), BR.loader);
+      }
+      const hold = Math.max(BR.belt, BR.loader);
+      leftCurl = lerp(leftCurl, 0.8, hold);
+      leftThumb = lerp(leftThumb, 0.5, hold);
+    }
     // gesto da recarga vazia: a mão esquerda vai pela lateral (ou por baixo) até a peça
     if (leftAlt > 0) LEFT.lerp(EG.at, leftAlt).addScaledVector(ARC_OUT, 4 * leftAlt * (1 - leftAlt));
     // ferrolho: a mão direita anda junto com a alavanca (já no lugar deste quadro: sobe girando com o ferrolho e vem
@@ -1203,7 +1401,13 @@ export class Viewmodel {
     // quanto o indicador está no gatilho (1) ou fora dele, sobre a armação (0)
     const span = this.rightCurl[2] - trigOff;
     const onTrigger = Math.abs(span) > 1e-3 ? Math.max(0, Math.min(1, (rightIndex - trigOff) / span)) : 1;
-    this.handR.setCurl(rightCurl, rightThumb, rightIndex, this.rightOffsets(rightK, onTrigger, clipK, kar ? open : 0));
+    const offR = this.rightOffsets(rightK, onTrigger, clipK, kar ? open : 0);
+    // BFR: o polegar estica por cima da armação até a espora do cão e anda com ela
+    if (bfrReach > 0 && offR === OFF_R) {
+      OFF_R[4] = lerp(OFF_R[4], lerp(COCK_THUMB_DOWN[0], COCK_THUMB_UP[0], bfrHamNow) - rightThumb, bfrReach);
+      OFF_R[5] = lerp(OFF_R[5], lerp(COCK_THUMB_DOWN[1], COCK_THUMB_UP[1], bfrHamNow), bfrReach);
+    }
+    this.handR.setCurl(rightCurl, rightThumb, rightIndex, offR);
     // a mão esquerda solta e desce para fora da tela (o braço não estica até a arma). A conta é no espaço da câmera:
     // no da arma, que gira ~0,9 rad saindo da tática, a mão passava pelo meio da tela, aberta e solta
     if (leftAway > 1e-3) {
@@ -1214,7 +1418,15 @@ export class Viewmodel {
     this.placeLoader(cylU);
     this.handL.root.quaternion.copy(LEFT_Q.copy(this.leftQ).slerp(altQ, leftAlt));
     if (mh && magHold > 0) this.handL.root.quaternion.slerp(mh.quat, magHold);
-    this.handL.setCurl(leftCurl, leftThumb, leftCurl, this.leftOffsets(magHold, leftAlt, magPalm, leftAway));
+    let leftFit = magHold;
+    if (bfrRl >= 0) {
+      if (mh) this.handL.root.quaternion.slerp(mh.quat, BR.cradle);
+      this.handL.root.quaternion.slerp(BFR_LQ, BR.loader);
+      this.placeBfrLoader(bfrRl, cylSpin);
+      leftFit = BR.cradle * (1 - Math.max(BR.belt, BR.loader));
+      leftAway = Math.max(leftAway, BR.belt, BR.loader);
+    }
+    this.handL.setCurl(leftCurl, leftThumb, leftCurl, this.leftOffsets(leftFit, leftAlt, magPalm, leftAway));
     if (kp) this.knifeGuard(now, inp, mo);
     this.handR.root.updateMatrixWorld(true);
     this.handL.root.updateMatrixWorld(true);
@@ -1658,9 +1870,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
@@ -1700,6 +1915,17 @@ export class Viewmodel {
       this.loader = speedLoader(spec.mag, ring).root;
       this.holder.add(this.loader);
       this.loaderSeat.set((cyl.min.x + cyl.max.x) / 2, (cyl.min.y + cyl.max.y) / 2, cyl.max.z);
+      this.bfrRing = ring;
+      this.bfrFront = cyl.min.z + 0.004;
+    }
+    // BFR: o cão separado da armação (o polegar arma antes de cada tiro), armado
+    if (g.id === 'bfr') {
+      this.bfrHam = splitHammer(g);
+      this.bfrCocked = 1;
+      this.bfrCockT = Number.NaN;
+      if (this.bfrHam) poseHammer(this.bfrHam, 1);
+      this.bfrArm = craneArm();
+      this.holder.add(this.bfrArm);
     }
     if (g.id === 'kar98k') {
       this.clip = stripperClip();
@@ -1751,6 +1977,38 @@ export class Viewmodel {
     ld.quaternion.identity();
   }
 
+  /**
+   * BFR: o carregador rápido na mão desde o cinto (os cartuchos para a frente, girados para os furos do tambor), atrás
+   * do tambor e empurrando; largado, o corpo vazio cai e os cartuchos ficam nos furos (girando com o tambor) até ele
+   * fechar.
+   */
+  private placeBfrLoader(u: number, spin: number) {
+    const ld = this.loader;
+    if (!ld) return;
+    ld.visible = u >= BFR_LOADER_SHOW && u < BFR_CLOSE_AT;
+    if (!ld.visible) return;
+    // o primeiro cartucho no furo de cima (90°), com o tambor girado `spin`
+    BFR_Q.setFromAxisAngle(Z_AXIS, Math.PI / 2 + spin);
+    const held = u < BFR_LOADER_DROP;
+    if (held) {
+      ld.position.copy(BFR_IN_HAND).applyQuaternion(this.handL.root.quaternion).add(this.handL.root.position);
+      ld.quaternion.copy(this.handL.root.quaternion).multiply(BFR_LQ_INV).multiply(BFR_Q);
+    } else {
+      ld.position.copy(this.loaderSeat).add(MAG);
+      ld.quaternion.copy(BFR_Q);
+    }
+    // os dois primeiros filhos são o disco e o botão (o corpo); os outros, os cartuchos
+    const kids = ld.children;
+    for (let i = 0; i < kids.length; i++) kids[i]!.visible = held || i >= 2;
+    if (!held && !this.bfrDropped) {
+      this.bfrDropped = true;
+      const body = ld.clone();
+      for (let i = 0; i < body.children.length; i++) body.children[i]!.visible = i < 2;
+      ld.updateMatrixWorld(true);
+      this.toss(body, ld.matrixWorld, V.set(-0.35, -0.3, 0.25), W1.set(2.5, 1, 4));
+    }
+  }
+
   /** solta o que a arma anterior deixou (pente que caía, pente-lâmina) */
   private disposeExtras() {
     this.clearDebris();
@@ -1766,6 +2024,11 @@ export class Viewmodel {
       disposeTree(this.loader);
     }
     this.loader = null;
+    if (this.bfrArm) {
+      this.bfrArm.removeFromParent();
+      disposeTree(this.bfrArm);
+    }
+    this.bfrArm = null;
   }
 
   /** as peças soltas são cópias (geometria do pente vazio e do pente-lâmina, liberadas com eles) */
@@ -1836,9 +2099,12 @@ export class Viewmodel {
     const axis = new THREE.Vector3(0, 0, -1).applyQuaternion(Q1);
     const kind: EjectKind = g.id === 'bfr' ? 'rifle' : 'pistol';
     const n = Math.min(this.spec.mag, EJECT_MAX - this.ejects.length);
+    // BFR: saem dos furos (no raio deles), pela face de trás do tambor
+    const ring = g.id === 'bfr' ? this.bfrRing : 0.012;
+    const back = g.id === 'bfr' ? 0.045 : 0;
     for (let i = 0; i < n; i++) {
       const a = (i / Math.max(1, n)) * Math.PI * 2;
-      const at = new THREE.Vector3(Math.cos(a) * 0.012, Math.sin(a) * 0.012, 0).applyQuaternion(Q1).add(c);
+      const at = new THREE.Vector3(Math.cos(a) * ring, Math.sin(a) * ring, back).applyQuaternion(Q1).add(c);
       const vel = new THREE.Vector3((Math.random() - 0.5) * 0.3, -0.6 - Math.random() * 0.5, 0.1 + Math.random() * 0.2);
       this.ejects.push({ at, vel, axis: axis.clone(), kind });
     }
