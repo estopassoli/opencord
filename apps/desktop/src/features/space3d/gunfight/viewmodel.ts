@@ -49,6 +49,20 @@ import {
   BAY_SLASH_R,
   BAY_TOSS,
 } from './bayonet';
+import {
+  BAL_DRAW,
+  BAL_FIT_START,
+  BAL_FLIP_CURL,
+  BAL_GUARD,
+  BAL_HEAVY,
+  BAL_INSPECT,
+  BAL_LIFT,
+  BAL_SLASH_L,
+  BAL_SLASH_R,
+  balShift,
+  balSpread,
+  type BalTracks,
+} from './balisong';
 import { ARM_RIG } from './armsrig';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { fitHand, soupOf } from './contact';
@@ -168,10 +182,12 @@ const ADS_EYE: Partial<Record<GunId, number>> = { m4: -0.15, mp5: -0.2, mp7: -0.
  * o punho fechado (a ponta do cabo aparece do lado do mindinho) e a lâmina para a frente e para cima, com o pulso
  * dobrado para o lado do mindinho, como quem segura de verdade. Karambit em reversa: o punho quase em pé no terço direito,
  * o antebraço entrando pelo canto de baixo, a argola em cima com o indicador e a garra saindo por baixo do punho e
- * curvando para o meio da tela, com a face à vista (a pegada é `KARAMBIT_ARM`, em `handrig.ts`).
+ * curvando para o meio da tela, com a face à vista (a pegada é `KARAMBIT_ARM`, em `handrig.ts`). Balisong em martelo:
+ * o punho fechado nos dois cabos no canto de baixo à direita (a ponta dos cabos sai do lado do mindinho), a lâmina para
+ * a frente, para cima e para o meio da tela, com a face à vista e o dorso da mão para a câmera (`BALISONG_ARM`).
  */
 const KNIFE_POSE: Record<
-  'bayonet' | 'karambit',
+  'bayonet' | 'karambit' | 'balisong',
   {
     pos: THREE.Vector3;
     rot: THREE.Vector3Tuple;
@@ -187,6 +203,11 @@ const KNIFE_POSE: Record<
     pos: new THREE.Vector3(0.1232, -0.065, -0.3373),
     rot: [-0.1294, 0.8447, -0.3458],
     fore: new THREE.Vector3(-0.2, 0.05, -0.98).normalize(),
+  },
+  balisong: {
+    pos: new THREE.Vector3(0.1694, -0.1241, -0.3889),
+    rot: [0.5252, 0.769, 1.8761],
+    fore: new THREE.Vector3(-0.15, 0, -0.99).normalize(),
   },
 };
 const HIP_PISTOL = new THREE.Vector3(0.09, -0.085, -0.33);
@@ -555,6 +576,15 @@ const GUARD_Q = (() => {
   const x = new THREE.Vector3().crossVectors(back, z);
   return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
 })();
+/** a guarda da balisong: punho frouxo com o pulso reto (`BAL_GUARD`) */
+const BAL_GUARD_Q = (() => {
+  const f = new THREE.Vector3(...BAL_GUARD.fwd).normalize();
+  const back = new THREE.Vector3(...BAL_GUARD.back);
+  back.addScaledVector(f, -back.dot(f)).normalize();
+  const z = f.clone().negate();
+  const x = new THREE.Vector3().crossVectors(back, z);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
+})();
 /** a guarda relaxada: dedos meio dobrados (o mindinho mais), o indicador um pouco mais aberto e o polegar solto */
 const GUARD_CURL = 0.5;
 const GUARD_INDEX = 0.38;
@@ -846,7 +876,7 @@ export class Viewmodel {
       // os dedos partem abertos e fecham até encostar no cabo, um por um. Karambit: o indicador (atravessando a argola)
       // e o médio (rente à frente dela) ficam no fechamento medido da pegada; o anelar e o mindinho partem dele
       const kar = g.id === 'karambit';
-      const start: [number, number, number] = kar ? curlOf(this.handR) : [...KNIFE_OPEN];
+      const start: [number, number, number] = kar ? curlOf(this.handR) : g.flip ? [...BAL_FIT_START] : [...KNIFE_OPEN];
       // kukri: o polegar fica no fechamento medido, por cima dos dedos (`KUKRI_ARM`), sem encaixe
       const kuk = g.id === 'kukri';
       const f = fitHand(soupOf(g.root), 1, this.handR.root.position, this.handR.root.quaternion, start, {
@@ -990,7 +1020,7 @@ export class Viewmodel {
         ? KUKRI_POSE
         : g.id === 'bayonet'
           ? BAY_POSE
-          : KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet']
+          : KNIFE_POSE[g.id === 'karambit' || g.id === 'balisong' ? g.id : 'bayonet']
       : null;
     const own = HIP_OWN[g.id];
     const hip = kp ? kp.pos : own ? own.pos : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
@@ -1065,7 +1095,21 @@ export class Viewmodel {
     }
     const kuk = g.id === 'kukri';
     if (kuk) kukriRun(pos, RUN_E, sp, this.tacK, this.sprintK, this.bob, mo);
-    if (!kar && !bay && !kuk) {
+    const bal = !!g.flip;
+    if (bal) {
+      // balisong: correndo, o punho desce e bombeia com o passo, a ponta para a frente e para baixo; na tática, o braço
+      // sobe dobrado para perto do peito com a ponta para cima, e o bombeio fica mais largo
+      const pump = Math.sin(this.bob) * mo;
+      pos.x += sp * 0.01 + this.tacK * -0.03 + pump * 0.012 * this.sprintK;
+      pos.y += sp * -0.05 + this.tacK * 0.04 + Math.abs(Math.cos(this.bob)) * -0.012 * this.sprintK * mo;
+      pos.z += sp * 0.02 + this.tacK * 0.05 - pump * 0.015 * this.sprintK;
+      RUN_E.set(
+        sp * -0.4 + this.tacK * 0.4 + pump * 0.12 * this.sprintK,
+        sp * 0.15 + this.tacK * -0.15,
+        sp * -0.2 + this.tacK * 0.3,
+      );
+    }
+    if (!kar && !bay && !kuk && !bal) {
       pos.x += sp * -0.03;
       pos.y += sp * -0.05;
       rot.y += sp * 0.65;
@@ -1837,7 +1881,14 @@ export class Viewmodel {
     }
     // dedos soltos enquanto a faca gira. Karambit: os três de baixo bem abertos, o polegar fechado e o indicador mais
     // dobrado segurando a argola (medido: assim a volta inteira passa livre da mão)
-    if (open > 0 && kar) {
+    if (open > 0 && g.flip) {
+      // balisong: os dedos meio fechados (esticam quando o cabo de morder passa por baixo do punho) e o polegar fechado
+      // por cima (medido: a lâmina e o cabo de morder passam livres da mão a volta inteira)
+      const spread = 1 - balSpread(KD.shut);
+      rightCurl = lerp(rightCurl, BAL_FLIP_CURL.fingers * spread, open);
+      rightThumb = lerp(rightThumb, BAL_FLIP_CURL.thumb, open);
+      rightIndex = lerp(rightIndex, BAL_FLIP_CURL.index * spread, open);
+    } else if (open > 0 && kar) {
       rightCurl = lerp(rightCurl, KAR_SPIN_CURL.fingers, open);
       rightThumb = lerp(rightThumb, KAR_SPIN_CURL.thumb, open);
       rightIndex = lerp(rightIndex, KAR_SPIN_CURL.index, open);
@@ -1917,8 +1968,13 @@ export class Viewmodel {
             .normalize()
             .multiplyScalar(KD.slide),
         );
-      // balisong: a lâmina e o cabo de morder giram nos pinos (aberta, fechando ou nos floreios)
-      if (g.flip) setBalisong(g, 1 - KD.shut, KD.bite, KD.bladeX);
+      // balisong: a lâmina e o cabo de morder giram nos pinos (aberta, fechando ou nos floreios); fechada, a pilha
+      // desce na mão (o punho fica em volta dela) e, girando com os dedos soltos, ela descola da palma
+      if (g.flip) {
+        setBalisong(g, 1 - KD.shut, KD.bite, KD.bladeX);
+        g.root.position.y += balShift(KD.shut);
+        g.root.position.x += BAL_LIFT * open;
+      }
     }
     this.holder.updateMatrixWorld(true);
     // recarga: a mão esquerda segue o fundo do pente de verdade (já no lugar deste quadro), a palma por baixo dele
@@ -2050,7 +2106,7 @@ export class Viewmodel {
     // quanto o indicador está no gatilho (1) ou fora dele, sobre a armação (0)
     const span = this.rightCurl[2] - trigOff;
     const onTrigger = Math.abs(span) > 1e-3 ? Math.max(0, Math.min(1, (rightIndex - trigOff) / span)) : 1;
-    const offR = this.rightOffsets(rightK, onTrigger, clipK, kar || g.id === 'bayonet' ? open : 0);
+    const offR = this.rightOffsets(rightK, onTrigger, clipK, kar || g.id === 'bayonet' || g.flip ? open : 0);
     // BFR: o polegar estica por cima da armação até a espora do cão e anda com ela
     if (bfrReach > 0 && offR === OFF_R) {
       OFF_R[4] = lerp(OFF_R[4], lerp(COCK_THUMB_DOWN[0], COCK_THUMB_UP[0], bfrHamNow) - rightThumb, bfrReach);
@@ -2249,7 +2305,15 @@ export class Viewmodel {
   ) {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
-    if (this.gun?.flip) return this.balisongDraw(u, full, pos, rot, joltAt);
+    if (this.gun?.flip) {
+      this.balisongPlay(BAL_DRAW, u, full, pos);
+      if (full) {
+        joltAt('bite', 0.38, 0.9);
+        joltAt('lock', 0.56, 1.8);
+      }
+      joltAt('catch', 0.62, 1.4);
+      return;
+    }
     if (kar) {
       this.karambitPlay(KAR_DRAW, u, full, pos);
       joltAt('catch', 0.6, 2.2);
@@ -2303,43 +2367,6 @@ export class Viewmodel {
   }
 
   /**
-   * Saque da balisong: a mão sobe de baixo com ela fechada, de lado para a câmera; os dedos soltam e o cabo de morder dá
-   * meia volta (tranco), a lâmina gira para fora e trava entre os cabos (tranco maior), o pulso batendo para um lado e
-   * para o outro a cada meia volta; os dedos fecham e o braço desce para a guarda. Com "reduzir movimento", ela já
-   * vem aberta.
-   */
-  private balisongDraw(
-    u: number,
-    full: boolean,
-    pos: THREE.Vector3,
-    rot: THREE.Euler,
-    joltAt: (key: string, at: number, v: number) => void,
-  ) {
-    const entry = 1 - ease(seg(u, 0, 0.24));
-    const high = 1 - ease(seg(u, 0.66, 0.86));
-    const settle = hump(u, 0.8, 0.86, 0.9, 1);
-    pos.x += 0.06 * entry - 0.02 * high;
-    pos.y += 0.06 * high - 0.24 * entry - 0.015 * settle;
-    pos.z += 0.03 * high;
-    KD.ez = -0.85 * high;
-    KD.ex = 0.2 * high;
-    KD.pro = 0.15 * high;
-    if (full) {
-      const o = ease(seg(u, 0.3, 0.64));
-      KD.shut = 1 - o;
-      // o pulso acompanha cada meia volta (vai e volta)
-      KD.pro += 0.3 * Math.sin(o * Math.PI * 2);
-      KD.open = hump(u, 0.22, 0.29, 0.64, 0.72) * 0.8;
-      joltAt('bite', 0.47, 0.9);
-      joltAt('lock', 0.64, 1.8);
-    }
-    joltAt('catch', 0.86, 1.4);
-    rot.x += 0.04 * settle;
-    KD.ly = -0.2 * (1 - ease(seg(u, 0.25, 0.75)));
-    KD.lz = 0.05 * (1 - ease(seg(u, 0.25, 0.75)));
-  }
-
-  /**
    * Inspeção da faca no momento `u` (0–1): o braço levanta a faca para o meio-direita da tela e mais perto do rosto; o
    * antebraço gira devagar mostrando uma face da lâmina (pausa) e a outra (pausa); depois o floreio — a baioneta fica em
    * pé e gira no próprio comprimento entre os dedos — e volta para a guarda (a karambit usa `KAR_INSPECT`). A faca nunca gira sozinha: a mão e o braço vão junto o tempo todo. A esquerda baixa um pouco, fora do caminho.
@@ -2353,7 +2380,18 @@ export class Viewmodel {
   ) {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
-    const bal = !!this.gun?.flip;
+    if (this.gun?.flip) {
+      this.balisongPlay(BAL_INSPECT, u, full, pos);
+      joltAt('faceA', 0.12, 0.8);
+      joltAt('faceB', 0.4, 0.8);
+      if (full) {
+        joltAt('half', 0.62, 0.8);
+        joltAt('shut', 0.72, 1.2);
+        joltAt('half2', 0.82, 0.8);
+        joltAt('lock2', 0.88, 1.6);
+      }
+      return;
+    }
     if (kar) {
       this.karambitPlay(KAR_INSPECT, u, full, pos);
       joltAt('faceA', 0.2, 0.8);
@@ -2399,20 +2437,6 @@ export class Viewmodel {
       KD.ez -= 0.3 * fl;
       KD.spin = full ? -Math.PI * 2 * sU : 0;
       KD.open = full ? hump(u, 0.58, 0.63, 0.8, 0.85) : 0;
-    } else if (bal) {
-      // balisong: em pé, fecha (a lâmina volta para dentro dos cabos, depois o cabo de morder) e abre de novo, com o
-      // pulso batendo para cada lado a cada meia volta
-      KD.ez = -0.8 * fl;
-      KD.ex += 0.15 * fl;
-      if (full) {
-        const close = ease(seg(u, 0.6, 0.7));
-        const reopen = ease(seg(u, 0.73, 0.84));
-        KD.shut = close * (1 - reopen);
-        KD.pro += 0.35 * Math.sin(close * Math.PI * 2) + 0.35 * Math.sin(reopen * Math.PI * 2);
-        KD.open = hump(u, 0.57, 0.61, 0.83, 0.87) * 0.8;
-        joltAt('shut', 0.7, 1);
-        joltAt('lock2', 0.84, 1.4);
-      }
     } else {
       // em pé (a ponta para cima) e girando no comprimento entre os dedos soltos
       KD.ez = -0.9 * fl;
@@ -2451,6 +2475,11 @@ export class Viewmodel {
     if (this.gun?.id === 'bayonet') {
       this.karambitPlay(s > 0 ? BAY_SLASH_R : BAY_SLASH_L, u, mo >= 1, pos);
       joltAt('cut', 0.32, 1.4);
+      return;
+    }
+    if (this.gun?.flip) {
+      this.balisongPlay(s > 0 ? BAL_SLASH_R : BAL_SLASH_L, u, mo >= 1, pos);
+      joltAt('cut', 0.3, 1.4);
       return;
     }
     const w = hump(u, 0, 0.18, 0.7, 1);
@@ -2520,6 +2549,11 @@ export class Viewmodel {
     }
     if (this.gun?.id === 'bayonet') {
       this.karambitPlay(BAY_HEAVY, u, mo >= 1, pos);
+      joltAt('stab', 0.47, 3);
+      return;
+    }
+    if (this.gun?.flip) {
+      this.balisongPlay(BAL_HEAVY, u, mo >= 1, pos);
       joltAt('stab', 0.47, 3);
       return;
     }
@@ -2613,6 +2647,25 @@ export class Viewmodel {
   }
 
   /**
+   * Uma animação da balisong (`BalTracks`) no momento `u`: o braço anda e gira em volta da faca, o antebraço vira, ela
+   * fecha e abre nos pinos e os dedos soltam. Com "reduzir movimento" (`full` falso), ela fica aberta e os dedos fechados.
+   */
+  private balisongPlay(t: BalTracks, u: number, full: boolean, pos: THREE.Vector3) {
+    pos.x += track(u, t.px);
+    pos.y += track(u, t.py);
+    pos.z += track(u, t.pz);
+    KD.ex += track(u, t.ex);
+    KD.ey += track(u, t.ey);
+    KD.ez += track(u, t.ez);
+    KD.pro += track(u, t.pro);
+    KD.shut = full ? track(u, t.shut) : 0;
+    KD.open = full ? track(u, t.open) : 0;
+    KD.lx += track(u, t.lx);
+    KD.ly += track(u, t.ly);
+    KD.lz += track(u, t.lz);
+  }
+
+  /**
    * A esquerda de guarda com faca: baixa à esquerda, meio fechada, respirando e balançando com o passo e o mouse; na
    * corrida desce, e as animações da faca a deslocam (`KD.l*`). A conta é no espaço da câmera e vai para o da arma, onde
    * a mão mora.
@@ -2631,11 +2684,13 @@ export class Viewmodel {
     GL.z += 0.04 * this.sprintK + KD.lz;
     this.handL.root.position.copy(this.holder.worldToLocal(GL));
     this.holder.getWorldQuaternion(HQ);
-    this.handL.root.quaternion.copy(HQ.invert().multiply(bay ? BAY_GUARD.quat : GUARD_Q));
+    const bal = !!this.gun?.flip;
+    this.handL.root.quaternion.copy(HQ.invert().multiply(bay ? BAY_GUARD.quat : bal ? BAL_GUARD_Q : GUARD_Q));
     // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador
-    // baioneta e kukri: os dedos da esquerda de cada uma (a kukri num punho solto: aberta em garra, parecia segurar
-    // uma bola invisível)
+    // baioneta, balisong e kukri: os dedos da esquerda de cada uma (a kukri num punho solto: aberta em garra, parecia
+    // segurar uma bola invisível)
     if (bay) this.handL.setCurl(BAY_GUARD.curl, BAY_GUARD.thumb, BAY_GUARD.index);
+    else if (bal) this.handL.setCurl(BAL_GUARD.curl, BAL_GUARD.thumb, BAL_GUARD.index);
     else {
       const gc = this.gun?.id === 'kukri' ? KUK_GUARD_CURL : null;
       this.handL.setCurl(gc?.[0] ?? GUARD_CURL, gc?.[1] ?? GUARD_THUMB, gc?.[2] ?? GUARD_INDEX);
