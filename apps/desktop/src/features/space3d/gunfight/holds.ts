@@ -636,12 +636,11 @@ function pistolSupport(g: GunModel): {
  * os dedos da direita, o indicador logo abaixo do guarda-mato, e o polegar vai esticado para a frente na lateral
  * esquerda, embaixo do da direita (os dedos descem 0,45 rad; `thumbUp`: quanto o polegar abre para o lado do dorso); a
  * palma vai para trás e vira um pouco para o punho, com a base dela na lateral esquerda por cima das pontas da direita
- * (mais à frente, sobrava uma faixa do punho entre as mãos na primeira pessoa). Rhino: o apoio de sempre (`APOIO_LADO`)
- * com a palma no punho (no revólver o "pente" é o tambor, lá na frente: a palma ficava 4,5 cm à frente do punho,
- * fechada no ar na frente do guarda-mato). BFR: o jeito da M9 (no do Rhino, copiado à mão, a palma ficava ~2 cm fora do
- * punho, e os dedos abertos e em concha embaixo dele, sem encostar nos da direita); medido com as sondas: a palma na
- * lateral esquerda do punho por cima das pontas da direita, virada um pouco para as costas dele, e os dedos fechados na
- * frente, por cima dos da direita.
+ * (mais à frente, sobrava uma faixa do punho entre as mãos na primeira pessoa). Rhino e BFR: o jeito da M9, medido com
+ * as sondas: a palma na lateral esquerda do punho por cima das pontas da direita, virada um pouco para as costas dele,
+ * e os dedos fechados na frente, por cima dos da direita (no revólver o "pente" é o tambor, lá na frente: no apoio de
+ * sempre a palma ficava 4,5–6 cm à frente do punho, fechada no ar; e a primeira correção, a olho, deixava a palma ~2 cm
+ * fora do punho e os dedos abertos, em concha, embaixo dele).
  */
 const PISTOL_SUPPORT: Partial<
   Record<
@@ -670,11 +669,10 @@ const PISTOL_SUPPORT: Partial<
     thumbUp: -0.4,
   },
   rhino: {
-    palm: [-0.034, -0.027, 0.03],
-    fingers: [0, -0.6, -0.8],
-    back: [-1, 0, 0],
-    curl: [0.7, 0.15, 0.7],
-    thumbUp: -0.2,
+    palm: [-0.03, -0.01, 0.05],
+    fingers: [0, -Math.sin(0.4), -Math.cos(0.4)],
+    back: [-1, 0, 0.3],
+    curl: [0.8, 0.1, 0.8],
   },
   bfr: {
     palm: [-0.03, -0.02, 0.05],

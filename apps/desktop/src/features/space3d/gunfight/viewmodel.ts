@@ -555,12 +555,27 @@ const BFR_Q = new THREE.Quaternion();
 const RHINO_PULL = new THREE.Vector3(-0.025, -0.015, 0.05);
 const RHINO_LOADER_TOSS = 0.69;
 /**
- * a mão com o carregador rápido pela esquerda dele: palma para a arma, dedos para cima dando a volta nele, o pulso
- * embaixo (por trás do tambor, o antebraço tapava o tambor e o carregador na visão do jogador)
+ * Rhino, no carregamento: a arma vira `yaw` rad, o carregador para `hover` m mais atrás dos furos e chega inclinado
+ * `tilt` rad, endireitando antes de empurrar (a mão em C tapava o tambor inteiro e os cartuchos entrando nunca
+ * apareciam; assim o carregador, o tambor aberto e as pontas dos cartuchos aparecem por uns quadros); fechando o tambor,
+ * a boca desce `level` rad (ela subia ~40°).
  */
-const RHINO_LOADER_Q = new THREE.Quaternion().setFromRotationMatrix(
-  new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, -1, 0)),
-);
+const RHINO_SHOW = { yaw: -0.5, hover: 0.025, tilt: -0.9, level: 0.45 };
+/**
+ * a mão com o carregador rápido pela esquerda dele, virada 1,2 rad para baixo dele: palma para a arma, dedos dando a
+ * volta nele, o pulso embaixo (por trás do tambor, o antebraço tapava o tambor e o carregador na visão do jogador)
+ */
+const RHINO_LOADER_Q = new THREE.Quaternion()
+  .setFromAxisAngle(new THREE.Vector3(0, 0, 1), 1.2)
+  .multiply(
+    new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(-1, 0, 0),
+        new THREE.Vector3(0, -1, 0),
+      ),
+    ),
+  );
 /** acertos dos dedos (misturados por quadro, sem alocar) */
 const OFF_R: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
 const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
@@ -721,6 +736,7 @@ const KQ2 = new THREE.Quaternion();
 const KE = new THREE.Euler(0, 0, 0, 'ZYX');
 const TWIST_Q = new THREE.Quaternion();
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const GL = new THREE.Vector3();
 /** karambit correndo: giro do braço no espaço da câmera (somado ao das animações, fora do `carry`) */
 const RUN_E = new THREE.Vector3();
@@ -1447,6 +1463,9 @@ export class Viewmodel {
               pos.y -= 0.03 * down;
               pos.z -= 0.03 * down;
               rhinoRod = hump(u, 0.21, 0.245, 0.26, 0.3);
+              // no carregamento a arma vira para o carregador aparecer; fechando o tambor, fica quase nivelada
+              rot.y += RHINO_SHOW.yaw * hump(u, 0.46, 0.53, 0.64, 0.71) * mo;
+              rot.x -= RHINO_SHOW.level * hump(u, 0.72, 0.8, 0.86, 0.96) * mo;
               joltAt('rod', 0.245, -0.8);
             }
             magPull = CYL_OUT;
@@ -3090,9 +3109,11 @@ export class Viewmodel {
     // empurra; puxa de volta o vazio e volta para baixo do tambor
     const align = ease(seg(u, 0.5, 0.57)) * (1 - ease(seg(u, RHINO_LOADER_TOSS, 0.76)));
     const push = ease(seg(u, 0.57, MAG_SEAT_AT));
+    // para atrás dos furos, com as pontas dos cartuchos à vista, e só então empurra
+    const hover = RHINO_SHOW.hover * (1 - ease(seg(u, 0.54, 0.58)));
     V.copy(this.loaderSeat)
       .add(MAG)
-      .add(W2.set(0, 0, 0.03 * (1 - push)))
+      .add(W2.set(0, 0, (0.03 + hover) * (1 - push)))
       .sub(W1)
       .multiplyScalar(align)
       .addScaledVector(RHINO_PULL, hump(u, 0.61, 0.66, RHINO_LOADER_TOSS, 0.76));
@@ -3100,6 +3121,9 @@ export class Viewmodel {
     ld.position.copy(W1).add(V);
     // o polegar gira o botão e solta os cartuchos, que ficam no tambor
     ld.quaternion.setFromAxisAngle(Z_AXIS, 0.6 * ease(seg(u, MAG_SEAT_AT, 0.62)));
+    // chega inclinado (as pontas dos cartuchos à vista) e endireita atrás dos furos
+    const tilt = RHINO_SHOW.tilt * (1 - ease(seg(u, 0.54, 0.585)));
+    if (tilt !== 0) ld.quaternion.premultiply(Q1.setFromAxisAngle(Y_AXIS, tilt));
     for (let i = 2; i < ld.children.length; i++) ld.children[i]!.visible = u < MAG_SEAT_AT;
     return side;
   }
@@ -3194,9 +3218,9 @@ export class Viewmodel {
     const axis = new THREE.Vector3(0, 0, -1).applyQuaternion(Q1);
     const kind: EjectKind = g.id === 'bfr' ? 'rifle' : 'pistol';
     const n = Math.min(this.spec.mag, EJECT_MAX - this.ejects.length);
-    // BFR: saem dos furos (no raio deles), pela face de trás do tambor
-    const ring = g.id === 'bfr' ? this.bfrRing : 0.012;
-    const back = g.id === 'bfr' ? 0.045 : 0;
+    // BFR e Rhino: saem dos furos (no raio deles), pela face de trás do tambor (a origem dele fica no meio do eixo)
+    const ring = g.id === 'bfr' || g.id === 'rhino' ? this.bfrRing : 0.012;
+    const back = g.id === 'bfr' ? 0.045 : g.id === 'rhino' ? 0.022 : 0;
     for (let i = 0; i < n; i++) {
       const a = (i / Math.max(1, n)) * Math.PI * 2;
       const at = new THREE.Vector3(Math.cos(a) * ring, Math.sin(a) * ring, back).applyQuaternion(Q1).add(c);
