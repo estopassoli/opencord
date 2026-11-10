@@ -180,11 +180,14 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   automag3: 'pistol',
 };
 /**
- * O polegar da direita no punho, por arma (fechamento e abertura para o lado da palma, no lugar do encaixe medido): dá a
+ * O polegar da direita no punho, por arma: [fechamento, abertura para o lado da palma], no lugar do encaixe medido. Dá a
  * volta por trás do punho e deita na lateral esquerda, atrás do gatilho. O encaixe deixava o da StG 44 em pé do lado
  * direito, encostado na caixa (medido no harness: a ponta passa de x +3,6 cm para −2,6 cm, a ~2 mm da malha).
  */
-const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = { stg44: [0.5, 0.85] };
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  stg44: [0.5, 0.85],
+  rs9: [0.63, 1.1],
+};
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
@@ -993,10 +996,19 @@ export class Viewmodel {
             joltAt('hit', 0.32, -1.4);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
-            const w = hump(u, 0, 0.25, 0.5, 1);
+            // RS9: antes, recolhe a arma para trás e para a direita (antecipação) e só então empurra
+            const rs9 = g.id === 'rs9';
+            const w = rs9 ? hump(u, 0.12, 0.3, 0.5, 1) : hump(u, 0, 0.25, 0.5, 1);
             pos.z -= 0.15 * w;
             pos.x -= 0.08 * w;
             rot.z += 0.6 * w * mo;
+            if (rs9) {
+              const pre = hump(u, 0, 0.1, 0.12, 0.26);
+              pos.z += 0.035 * pre;
+              pos.x += 0.015 * pre;
+              rot.z -= 0.12 * pre * mo;
+              rot.x += 0.05 * pre * mo;
+            }
           }
           break;
         }
@@ -1013,7 +1025,9 @@ export class Viewmodel {
           // depois rola e mostra o lado direito e o topo, com a mão de apoio no pente; volta passando um pouco do ponto
           const w = hump(u, 0.04, 0.22, 0.82, 1);
           const pre = hump(u, 0, 0.05, 0.06, 0.14);
-          const side2 = hump(u, 0.46, 0.6, 0.74, 0.86);
+          // RS9: o segundo lado volta direto para casa, junto com a arma (antes, ele saía primeiro e a arma passava de
+          // novo pelo lado esquerdo antes de voltar)
+          const side2 = g.id === 'rs9' ? hump(u, 0.46, 0.6, 0.82, 1) : hump(u, 0.46, 0.6, 0.74, 0.86);
           const settle = Math.sin(seg(u, 0.86, 1) * Math.PI) * (1 - seg(u, 0.86, 1));
           // StG 44: no segundo lado o cano vai para a esquerda e quase não sobe, com a arma mais longe: o lado direito
           // fica de frente (com o cano para cima, a coronha comprida vinha para a câmera e só se via a soleira)
