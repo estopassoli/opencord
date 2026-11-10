@@ -87,7 +87,7 @@ import { fitHand, soupOf } from './contact';
 import { flashTexture } from './fx';
 import { ARM_HAND_FIT, BOWIE_ARM, KUKRI_ARM, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
-import { aimReticles } from './attachmodels';
+import { aimReticles, scopeEyepiece } from './attachmodels';
 import { disposeGun, movePart, partBox, partCenter, posePart, setBalisong, type GunModel, type Part } from './models';
 import { PINCH_CURL, fitAt, gunHolds, magMesh, speedLoader, stripperClip, warmHolds, type Holds } from './holds';
 import {
@@ -195,6 +195,17 @@ const ROT = new THREE.Euler(0, 0, 0, 'YXZ');
  * distância do olho mirando (z da câmera onde fica o ponto `sight`): a M4 encosta mais para o furo de trás abrir; a
  * SCAR-L um pouco (a −0,2 o furo era um anel fino em volta da massa)
  */
+/**
+ * Luneta: o olho fica `SCOPE_RELIEF` atrás da ocular (m). A arma some e a luneta cobre a tela a 85% da mira
+ * (`game.ts`); com o olho a 7 cm do meio da mira (antes), a câmera passava da ocular entre 73% e 85% (L115 já a 73%;
+ * SV-98, RS9, Ballista e M200 perto de 85%) e se via o tubo por dentro, escuro, ou nada do vidro. Chegando mais longe, a
+ * ocular fica na frente do olho até a luneta cobrir a tela; mirando de verdade, a arma não aparece.
+ */
+const SCOPE_RELIEF = 0.045;
+function scopeEye(g: GunModel): number {
+  const e = scopeEyepiece(g.id);
+  return e ? Math.min(-0.07, g.sight.z - e.z - SCOPE_RELIEF) : -0.07;
+}
 const ADS_EYE: Partial<Record<GunId, number>> = { m4: -0.15, mp5: -0.2, mp7: -0.18, scarl: -0.17 };
 /**
  * Facas paradas (posição e giro YXZ do `holder`, sem mirar). Baioneta em martelo: o polegar por cima, o cabo atravessando
@@ -1097,7 +1108,7 @@ export class Viewmodel {
       spec.cls === 'pistol'
         ? -0.34
         : spec.scope
-          ? -0.07
+          ? scopeEye(g)
           : (g.adsEye ?? ADS_EYE[g.id] ?? (spec.cls === 'smg' ? -0.25 : -0.2));
     // o ponto da linha de mira já inclinado (`sightPitch`): sem isso, a linha da alça à massa passava 1–3 px fora do centro
     const sPitch = g.sightPitch ?? 0;
