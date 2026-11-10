@@ -95,7 +95,8 @@ export const KAR_INSPECT: KarTracks = {
 /**
  * Golpe leve, da direita para a esquerda (450 ms; o acerto sai em 30%): o punho recua para a direita e para cima com o
  * pulso armado, a garra apontando para baixo (antecipação, ~80 ms); corta num arco rápido que cruza o meio da tela com
- * a ponta da garra na frente, segue desacelerando e volta.
+ * a ponta da garra na frente, segue desacelerando e volta. A esquerda desce e sai para a esquerda até a volta, para a
+ * garra passar longe dela (com o punho de guarda comum das facas, ela chegava a encostar na volta, ~0,68).
  */
 // prettier-ignore
 export const KAR_SLASH_R: KarTracks = {
@@ -105,8 +106,8 @@ export const KAR_SLASH_R: KarTracks = {
   ex: [[0, 0], [0.18, 0.2, 2], [0.2, 0.2, 1], [0.32, -0.4, 1], [0.5, -0.45], [0.85, 0]],
   ey: [[0, 0], [0.18, -0.2, 2], [0.2, -0.2, 1], [0.32, 0.5, 1], [0.5, 0.6], [0.85, 0]],
   ez: [[0, 0], [0.18, 0.5, 2], [0.2, 0.5, 1], [0.32, -0.45, 1], [0.5, -0.75], [0.85, 0]],
-  lx: [[0, 0], [0.25, -0.05], [0.6, -0.05], [1, 0]],
-  ly: [[0, 0], [0.25, -0.06], [0.6, -0.06], [1, 0]],
+  lx: [[0, 0], [0.25, -0.06], [0.7, -0.06], [1, 0]],
+  ly: [[0, 0], [0.25, -0.1], [0.7, -0.1], [1, 0]],
   lz: [[0, 0], [0.25, 0.05], [0.6, 0.05], [1, 0]],
 };
 
