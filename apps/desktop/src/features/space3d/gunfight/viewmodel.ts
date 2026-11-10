@@ -1253,10 +1253,11 @@ export class Viewmodel {
     const pc = Math.cos(sPitch);
     const ps = Math.sin(sPitch);
     AIM.set(-g.sight.x, -(g.sight.y * pc - g.sight.z * ps), eyeZ - (g.sight.y * ps + g.sight.z * pc));
-    const hp = au.meta.hip.pos;
-    const hr = au.meta.hip.rot;
-    const pos = POS.set(hp[0], hp[1], hp[2]).lerp(AIM, ads);
-    const rot = ROT.set(lerp(hr[0], sPitch, ads), hr[1] * (1 - ads), hr[2] * (1 - ads), 'YXZ');
+    // no quadril, a arma fica onde as outras armas longas ficam (HIP_LONG, cano um pouco para o centro): a pose de
+    // quadril do clipe é a da câmera da referência, perto e no meio demais (a arma tapava metade da tela); o clipe
+    // inteiro anda junto, então as mãos continuam na arma
+    const pos = POS.copy(HIP_LONG).lerp(AIM, ads);
+    const rot = ROT.set(sPitch * ads, 0.06 * (1 - ads), -0.08 * (1 - ads), 'YXZ');
     // o passo (a corrida tem o dela no clipe), o balanço e o resto, como nas outras armas
     const bobA = inp.moving * (1 - ads * 0.85) * (inp.crouch ? 0.6 : 1) * mo * (1 - this.sprintK);
     pos.x += Math.sin(this.bob) * 0.012 * bobA;

@@ -180,7 +180,10 @@ export class AuthoredArms {
     );
     this.hipInv = this.hip.clone().invert();
     const build = buildFromKey(g.buildKey ?? '');
-    const sup = build.under ? this.meta.support[build.under as keyof Meta['support']] : undefined;
+    // empunhadura angulada: a pegada medida nela ficava aberta na frente da arma; a de fábrica (embaixo da caixa,
+    // logo atrás dela) já deixa a base da mão encostada na rampa, como se segura esse acessório
+    const sup =
+      build.under && build.under !== 'agrip' ? this.meta.support[build.under as keyof Meta['support']] : undefined;
     if (sup) {
       this.supportDelta = m16(sup.anchor).multiply(m16(this.meta.support.base.anchor).invert());
       this.supportFingers = quatMap(sup.fingers, '_l');
