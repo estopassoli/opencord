@@ -101,3 +101,14 @@ _Acrescente aprendizados curtos e datados. Não apague o que outros escreveram._
 - 2026-11-09: mira de ferro — `frontTop` com fatia fixa (60% até a boca) erra em arma curta (MP7: massa a 55%). Perfil de
   cima por fatia de z (`caio-pr4/prof.cjs`) mostra a massa; `SIGHT_AT` por arma. Sonda desta rodada: `scratchpad/caio-pr4`
   (porta 5571; `gold.cjs` acha latão, `shield.cjs` HUD logo após nascer, `hv.cjs` corrigido para material em lista).
+- 2026-11-10 (junção das 21 revisões por arma, branch `integracao-armas`): conferir junção de pegada por NÚMERO, não por
+  foto — `scratchpad/integ/{mkvm.sh,cmp.sh}` exporta a ponta de cada branch (`git archive`), monta o harness vm contra
+  ela e compara `vm().holds` (porta 5840). Deu igual ao branch em todas, inclusive depois de juntar 5 jeitos de pegada
+  da direita numa tabela só (`RIGHT_FIX` com `kind`: nudge/hole/wrist/hold).
+- 2026-11-10: agentes copiam código de outro branch "verbatim" (SV-98 → L115/Kar98k, AKS → AK) e o git deixa a 2ª
+  cópia como conteúdo novo sem conflito (TRIG_OFF/PAD_PINCH duplicados): depois de cada merge, `grep` pelas declarações.
+- 2026-11-10: mecanismos únicos: trava do ferrolho = `SLIDE_LOCK` + `vm.emptied()` (game.ts, último tiro e saque);
+  mão que sobe com o pente = `MAG_PUSH` com `rp.dropped` (na troca com bala `handOut` já segue o pente);
+  `LATE_SUPPORT` (esquerda chega depois no saque). `fire(side, first, empty)` não existe mais.
+- 2026-11-10: a checagem de worktree recusa `for`/heredoc/`&` junto com git na mesma linha: scripts em arquivo no
+  scratchpad e comandos git sozinhos.
