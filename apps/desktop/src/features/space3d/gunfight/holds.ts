@@ -237,8 +237,31 @@ function clampHold(g: GunModel, cls: GunClass): Hold {
     const cost = clampCost(soup, hold, sec);
     if (!best || cost < best.cost) best = { cost, hold };
   }
+  const nudge = LEFT_NUDGE[g.id];
+  if (nudge) {
+    const h = best!.hold;
+    h.pos.add(new THREE.Vector3(...nudge.at));
+    h.off = [
+      h.off[0] + nudge.curl,
+      h.off[1] + nudge.curl,
+      h.off[2] + nudge.curl,
+      h.off[3] + nudge.curl,
+      h.off[4],
+      h.off[5],
+    ];
+  }
   return best!.hold;
 }
+
+/**
+ * Acerto do apoio em "C" por arma, conferido no harness (corte do guarda-mão e closes): o deslocamento do pulso (espaço
+ * da arma) e quanto os quatro dedos fecham a mais. FN Ballista: o encaixe parava com a palma ~1 cm abaixo do bloco de
+ * baixo do guarda-mão e as pontas dos dedos ~1 cm fora da lateral direita (mão aberta, solta); assim a palma encosta
+ * embaixo dele e as pontas encostam na lateral, sem entrar.
+ */
+const LEFT_NUDGE: Partial<Record<GunId, { at: THREE.Vector3Tuple; curl: number }>> = {
+  ballista: { at: [-0.002, 0.012, 0], curl: 0.08 },
+};
 
 /** as variações do apoio em "C": [dedos para a frente (rad), palma para a esquerda (rad), deslocamento (m), polegar] */
 const CLAMP_TRY: readonly (readonly [number, number, number, number])[] = [

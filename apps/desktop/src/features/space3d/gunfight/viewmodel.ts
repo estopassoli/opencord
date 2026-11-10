@@ -177,6 +177,8 @@ const BOLT_HAND: Partial<Record<string, { knob: THREE.Vector3; roll: number }>> 
   // M200: a mão fechada na bola, girando 40% do giro dela (girando tudo, o dorso virava para cima e o braço vinha do
   // alto da tela, com o cotovelo levantado)
   m200: { knob: new THREE.Vector3(0.0649, 0.0225, -0.0049), roll: 0.4 },
+  // FN Ballista: a bola fica longe da caixa (a mão fecha em volta dela), mas virava ~70° com a alavanca
+  ballista: { knob: new THREE.Vector3(0.0558, 0.0607, -0.0143), roll: 0.35 },
 };
 const KNOB_NOW = new THREE.Vector3();
 const KNOB_Q = new THREE.Quaternion();
@@ -243,6 +245,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   msmc: [0.55, 1.1],
   m200: [0.46, 0.7],
   mp5: [0.25, 0.8],
+  ballista: [0.42, 0.65],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
@@ -342,6 +345,14 @@ const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 
 const NO_OFF: FingerOffsets = [0, 0, 0, 0, 0];
 const M1 = new THREE.Matrix4();
 const POUCH = new THREE.Vector3();
+/**
+ * Inspeção por arma: o giro que mostra o lado esquerdo (rad), a rolagem e o deslocamento (x para a esquerda, z para
+ * trás). FN Ballista: a coronha comprida passava na frente da câmera e enchia metade da tela; a arma vai para a frente
+ * (antes de girar) e para a direita, e rola menos, mostrando o lado esquerdo inteiro de perfil
+ */
+const INSPECT_TUNE: Partial<Record<string, { yaw: number; roll: number; x: number; z: number }>> = {
+  ballista: { yaw: 0.95, roll: 0.35, x: -0.06, z: -0.16 },
+};
 /** armas em que a mão de apoio pega o pente pela lateral (na inspeção) */
 const SIDE_MAG: ReadonlySet<string> = new Set(['m4', 'ak47', 'mp5', 'scarl', 'mcx', 'aks74u', 'stg44', 'mpx', 'pdw']);
 const M2 = new THREE.Matrix4();
@@ -1183,6 +1194,20 @@ export class Viewmodel {
           } else if (g.id === 'm200') {
             m200Pose(M200_BASH, u, mo, pos, rot);
             joltAt('hit', 0.32, 1.6);
+          } else if (g.id === 'ballista') {
+            // FN Ballista: arma o golpe (recua, o cano vai para a direita), varre a arma para a frente e para a esquerda
+            // com a lateral direita na frente (o acerto do jogo é aos 160 ms, ~32%), dá o tranco e volta passando um
+            // pouco do ponto (empurrada para a frente, a coronha comprida enchia a tela)
+            const pre = hump(u, 0, 0.16, 0.18, 0.3);
+            const hit = ease(seg(u, 0.18, 0.32)) * (1 - ease(seg(u, 0.42, 0.92)));
+            const back = Math.sin(seg(u, 0.85, 1) * Math.PI) * (1 - seg(u, 0.85, 1));
+            pos.z += 0.03 * pre - 0.1 * hit;
+            pos.x += 0.03 * pre - 0.08 * hit;
+            pos.y += -0.01 * pre + 0.01 * hit;
+            rot.z += (-0.1 * pre + 0.3 * hit) * mo;
+            rot.y += (-0.22 * pre + 0.5 * hit) * mo;
+            rot.x += (0.06 * pre - 0.05 * hit + 0.03 * back) * mo;
+            joltAt('hit', 0.32, 1.6);
           } else {
             // MP5: estocada inclinada para a esquerda, a coronha comprida fora da tela (`mp5.ts`)
             if (g.id === 'mp5') {
@@ -1262,13 +1287,15 @@ export class Viewmodel {
           // e do segundo lado ela volta direto para casa (passar de novo pelo primeiro fazia a coronha virar para a câmera)
           const stg = g.id === 'stg44';
           const side1 = stg && u > 0.6 ? 0 : 1 - side2;
-          rot.y += pre * 0.08 * mo - w * 1.0 * side1 + side2 * (stg ? S2_STG.yaw : -0.25);
-          rot.z += w * 0.5 * side1 - side2 * (stg ? S2_STG.roll : 0.45) * mo;
+          const lt = INSPECT_TUNE[g.id];
+          rot.y += pre * 0.08 * mo - w * (lt?.yaw ?? 1.0) * side1 + side2 * (stg ? S2_STG.yaw : -0.25);
+          rot.z += w * (lt?.roll ?? 0.5) * side1 - side2 * (stg ? S2_STG.roll : 0.45) * mo;
           rot.x += side2 * (stg ? S2_STG.pitch : 0.3) * mo - settle * 0.04 * mo;
           if (stg) pos.z -= side2 * S2_STG.push;
-          pos.x -= w * 0.08 - side2 * 0.02;
+          pos.x -= w * (lt?.x ?? 0.08) - side2 * 0.02;
           pos.y += w * 0.04 + side2 * 0.015;
-          pos.z += w * 0.03;
+          // arma comprida: vai para a frente antes de girar e só volta depois (senão a coronha passa pela câmera)
+          pos.z += (lt ? hump(u, 0, 0.12, 0.88, 1) : w) * (lt?.z ?? 0.03);
           // a mão de apoio vai ao pente no segundo lado (fuzis e submetralhadoras de pente pela lateral)
           if (spec.cls !== 'pistol' && this.holds?.mag && SIDE_MAG.has(g.id)) {
             magHold = Math.max(magHold, side2);
