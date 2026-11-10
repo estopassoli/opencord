@@ -140,7 +140,11 @@ function measure(g: GunModel, cls: GunClass): Holds {
       const hole =
         fix.kind === 'hole'
           ? new THREE.Vector3(...fix.at)
-          : ARM_HAND_FIT.grip.clone().applyQuaternion(rg.quat).add(rg.pos).add(new THREE.Vector3(...fix.at));
+          : ARM_HAND_FIT.grip
+              .clone()
+              .applyQuaternion(rg.quat)
+              .add(rg.pos)
+              .add(new THREE.Vector3(...fix.at));
       rg.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), fix.upright));
       rg.pos.copy(hole).sub(ARM_HAND_FIT.grip.clone().applyQuaternion(rg.quat));
     }
@@ -254,7 +258,6 @@ function inclined(a: number): THREE.Quaternion {
   const y = new THREE.Vector3(1, 0, 0);
   return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, x.clone().cross(y)));
 }
-
 
 type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
 
@@ -634,7 +637,12 @@ const PISTOL_SUPPORT: Partial<
   >
 > = {
   automag3: { palm: [-0.032, -0.005, 0.03], fingers: [0, -0.6, -0.8], back: [-1, 0, 0.1], curl: [0.8, 0, 0.8] },
-  m9: { palm: [-0.03, -0.02, 0.025], fingers: [0, -Math.sin(0.4), -Math.cos(0.4)], back: [-1, 0, 0], curl: [0.8, 0.1, 0.8] },
+  m9: {
+    palm: [-0.03, -0.02, 0.025],
+    fingers: [0, -Math.sin(0.4), -Math.cos(0.4)],
+    back: [-1, 0, 0],
+    curl: [0.8, 0.1, 0.8],
+  },
   deagle: {
     palm: [-0.04, -0.01, 0.004],
     fingers: [0, -Math.sin(0.45), -Math.cos(0.45)],
@@ -642,8 +650,20 @@ const PISTOL_SUPPORT: Partial<
     curl: [0.8, 0.4, 0.8],
     thumbUp: -0.4,
   },
-  rhino: { palm: [-0.034, -0.027, 0.03], fingers: [0, -0.6, -0.8], back: [-1, 0, 0], curl: [0.7, 0.15, 0.7], thumbUp: -0.2 },
-  bfr: { palm: [-0.034, -0.035, 0.04], fingers: [0, -0.6, -0.8], back: [-1, 0, 0], curl: [0.7, 0.15, 0.7], thumbUp: -0.2 },
+  rhino: {
+    palm: [-0.034, -0.027, 0.03],
+    fingers: [0, -0.6, -0.8],
+    back: [-1, 0, 0],
+    curl: [0.7, 0.15, 0.7],
+    thumbUp: -0.2,
+  },
+  bfr: {
+    palm: [-0.034, -0.035, 0.04],
+    fingers: [0, -0.6, -0.8],
+    back: [-1, 0, 0],
+    curl: [0.7, 0.15, 0.7],
+    thumbUp: -0.2,
+  },
 };
 /** palma para +x, dedos para a frente e para baixo (0, −0,6, −0,8), indicador para cima */
 const APOIO_LADO = basis([0, 0.8, -0.6], [-1, 0, 0], [0, 0.6, 0.8]);
