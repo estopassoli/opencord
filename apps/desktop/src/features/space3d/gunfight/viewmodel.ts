@@ -460,11 +460,6 @@ const DEBRIS_MAX = 4;
  */
 const SLIDE_LOCK: ReadonlySet<string> = new Set(['automag3', 'm9', 'deagle']);
 const SLIDE_LOCK_BACK = 0.035;
-/**
- * Armas em que a mão de apoio sobe junto com o pente novo e empurra a base até encaixar, depois que o velho cai (na
- * troca com bala ela já segue o pente): pistolas, MSMC, M200 e AK-47 vazias.
- */
-const MAG_PUSH: ReadonlySet<string> = new Set(['automag3', 'm9', 'deagle', 'msmc', 'm200', 'ak47']);
 /** pistolas em que a esquerda chega depois no saque (a direita traz a arma sozinha e a esquerda fecha por fora dela) */
 const LATE_SUPPORT: ReadonlySet<string> = new Set(['m9', 'deagle']);
 /** no tiro, quando o ferrolho chega lá atrás (fração do `fire`): dali em diante, travado, ele não volta */
@@ -1368,15 +1363,12 @@ export class Viewmodel {
           MAG.copy(magPull).multiplyScalar(rp.out);
           magPouch = rp.pouch;
           magHold = rp.hold;
+          // no `drop`, a mão sobe junto com o pente novo e a palma empurra a base até o fim (`reloadPose`)
           handOut = rp.handOut;
-          // a mão sobe junto com o pente novo e a palma empurra a base até o fim (sem isso, no `drop` ela ficava
-          // parada embaixo do poço, aberta, e o pente subia sozinho)
-          if (MAG_PUSH.has(g.id) && rp.dropped) handOut = rp.out;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
           if (g.id === 'm9') {
-            // M9: o polegar da direita aperta o retém do pente, atrás do guarda-mato, logo antes de ele cair (a mão que
-            // sobe com o pente novo é a de `MAG_PUSH`)
+            // M9: o polegar da direita aperta o retém do pente, atrás do guarda-mato, logo antes de ele cair
             rightThumb += 0.3 * hump(u, 0.08, 0.13, 0.19, 0.26);
           }
           if (g.id === 'ak47') {
