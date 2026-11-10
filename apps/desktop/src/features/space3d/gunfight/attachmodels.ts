@@ -44,7 +44,9 @@ const MOUNT: Partial<Record<GunId, Mount>> = {
   rs9: { r: 0.013, over: 0.04 },
   sv98: { r: 0.011 },
   ballista: { r: 0.012, over: 0.03 },
-  scarl: { top: [0.114, -0.02], r: 0.011, over: 0.03 },
+  // SCAR-L: a mira no meio do trilho (o trilho é reto de z 0 a −0,2), como na M4; em −0,02 a ocular da luneta 3x ficava
+  // 3 cm atrás do olho e, entrando na mira, a câmera atravessava a luneta (a tela ficava cinza)
+  scarl: { top: [0.114, -0.12], r: 0.011, over: 0.03 },
   mcx: { top: [0.121, -0.119], r: 0.011, over: 0.03 },
   mpx: { top: [0.116, -0.034], r: 0.009, over: 0.02 },
   pdw: { top: [0.099, -0.094], r: 0.009, over: 0.02 },
