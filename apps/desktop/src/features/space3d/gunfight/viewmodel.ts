@@ -501,6 +501,17 @@ const SLIDE_LOCK: ReadonlySet<string> = new Set(['automag3', 'm9', 'deagle']);
 const SLIDE_LOCK_BACK = 0.035;
 /** pistolas em que a esquerda chega depois no saque (a direita traz a arma sozinha e a esquerda fecha por fora dela) */
 const LATE_SUPPORT: ReadonlySet<string> = new Set(['m9', 'deagle']);
+/**
+ * Médio, anelar e mindinho da direita quando a esquerda sai da arma (recarga, corrida tática, saque): o fechamento de
+ * cada um. M9: o punho tem 2,4 cm de largura e, no encaixe medido com o apoio (a palma esquerda cobre as pontas), as
+ * pontas passavam ~1,5 cm da lateral esquerda, em leque; fechados mais, elas encostam nela.
+ */
+const RIGHT_CLOSE: Partial<Record<string, readonly [number, number, number]>> = { m9: [1, 0.95, 0.55] };
+/**
+ * Saque com a esquerda chegando depois: de onde ela sobe à vista até o punho (m, espaço da arma). M9: vinda direto de
+ * fora da tela, ela aparecia e fechava num quadro só (~17 ms); daqui ela sobe à vista ~100 ms antes do tranco.
+ */
+const LATE_RISE: Partial<Record<string, THREE.Vector3>> = { m9: new THREE.Vector3(-0.03, -0.08, 0.02) };
 /** no tiro, quando o ferrolho chega lá atrás (fração do `fire`): dali em diante, travado, ele não volta */
 const SLIDE_LOCK_AT = 0.42;
 /** quantos estojos esperando o `game.ts` levar para o mundo, no máximo */
@@ -1335,8 +1346,13 @@ export class Viewmodel {
           // M9 e Desert Eagle: a direita saca sozinha e a esquerda vem de baixo e fecha por fora dela, com o tranco do
           // encaixe
           if (spec.cls !== 'pistol' || LATE_SUPPORT.has(g.id)) {
-            const arrive = ease(seg(u, 0.3, 0.62));
-            leftAway = Math.max(leftAway, 1 - arrive);
+            const rise = LATE_RISE[g.id];
+            if (rise) {
+              // M9: a esquerda vem de fora da tela até logo abaixo do punho e sobe à vista, acelerando até o tranco
+              leftAway = Math.max(leftAway, 1 - ease(seg(u, 0.2, 0.36)));
+              const r = seg(u, 0.32, 0.62);
+              LEFT.addScaledVector(rise, 1 - r * r);
+            } else leftAway = Math.max(leftAway, 1 - ease(seg(u, 0.3, 0.62)));
             leftCurl = lerp(0.2, leftCurl, ease(seg(u, 0.6, 0.78)));
             leftThumb = lerp(0.2, leftThumb, ease(seg(u, 0.6, 0.78)));
             joltAt('slap', 0.62, 1.1);
@@ -2215,6 +2231,12 @@ export class Viewmodel {
     const span = this.rightCurl[2] - trigOff;
     const onTrigger = Math.abs(span) > 1e-3 ? Math.max(0, Math.min(1, (rightIndex - trigOff) / span)) : 1;
     const offR = this.rightOffsets(rightK, onTrigger, clipK, kar || g.id === 'bayonet' || g.flip ? open : 0);
+    // M9: sem a esquerda na arma, médio, anelar e mindinho fecham mais, com as pontas encostando na lateral esquerda
+    const close = RIGHT_CLOSE[g.id];
+    if (close && offR === OFF_R) {
+      const w = Math.max(leftAway, magHold);
+      for (let i = 1; i < 4; i++) OFF_R[i] = lerp(OFF_R[i]!, close[i - 1]! - rightCurl, w);
+    }
     // BFR: o polegar estica por cima da armação até a espora do cão e anda com ela
     if (bfrReach > 0 && offR === OFF_R) {
       OFF_R[4] = lerp(OFF_R[4], lerp(COCK_THUMB_DOWN[0], COCK_THUMB_UP[0], bfrHamNow) - rightThumb, bfrReach);

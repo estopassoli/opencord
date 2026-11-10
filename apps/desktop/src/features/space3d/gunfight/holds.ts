@@ -624,21 +624,22 @@ function pistolSupport(g: GunModel): {
 }
 /**
  * Apoio da pistola medido para uma arma (espaço da arma): o centro da palma, para onde apontam os dedos e o dorso, e os
- * fechamentos (dedos, polegar, indicador). Automag III: o punho é longo e o apoio de sempre parava a palma ~1,7 cm
- * fora dele, com os dedos abertos sem encostar em nada; aqui a palma cobre a lateral esquerda do punho, os dedos
- * descem por cima dos da direita e o polegar fica esticado para a frente embaixo do ferrolho (conferido no harness).
- * M9: a palma tapa a lateral esquerda do punho por cima das pontas dos dedos da direita, os dedos dão a volta na frente
- * por cima dos da direita (o indicador logo abaixo do guarda-mato) e o polegar vai esticado para a frente, embaixo do
- * da direita (no apoio de sempre a mão ficava baixa, com os dedos abertos e soltos embaixo do punho); os dedos descem
- * 0,4 rad. Desert Eagle: com a direita mais baixa no punho fundo, o apoio comum deixava o indicador da esquerda ~4 cm
- * abaixo do guarda-mato e o polegar dela atravessando a armação; aqui a palma sobe e cobre os dedos da direita, o
- * indicador logo abaixo do guarda-mato, e o polegar vai esticado para a frente na lateral esquerda, embaixo do da
- * direita (os dedos descem 0,45 rad; `thumbUp`: quanto o polegar abre para o lado do dorso); a palma vai para trás e
- * vira um pouco para o punho, com a base dela na lateral esquerda por cima das pontas da direita (mais à frente, sobrava
- * uma faixa do punho entre as mãos na primeira pessoa). Rhino: o apoio de sempre (`APOIO_LADO`) com a palma no punho
- * (no revólver o "pente" é o tambor, lá na frente: a palma ficava 4,5 cm à frente do punho, fechada no ar na frente
- * do guarda-mato). BFR: o mesmo do Rhino (a palma ficava ~6 cm à frente do punho,
- * fechada no ar embaixo do tambor), com a palma no meio do punho.
+ * fechamentos (dedos, polegar, indicador). Automag III: o punho é longo e o apoio de sempre parava a palma ~1,7 cm fora
+ * dele, com os dedos abertos sem encostar em nada; aqui a palma cobre a lateral esquerda do punho, os dedos descem por
+ * cima dos da direita e o polegar fica esticado para a frente embaixo do ferrolho (conferido no harness). M9: a palma
+ * tapa a lateral esquerda do punho por cima das pontas dos dedos da direita, os dedos dão a volta na frente por cima
+ * dos da direita (o indicador logo abaixo do guarda-mato) e o polegar vai esticado para a frente, embaixo do da direita
+ * (no apoio de sempre a mão ficava baixa, com os dedos abertos e soltos embaixo do punho); os dedos descem 0,4 rad e a
+ * palma vai para trás, virada para o punho, com a base dela perto das costas dele (mais à frente, o punho aparecia
+ * entre as mãos de trás e na mira). Desert Eagle: com a direita mais baixa no punho fundo, o apoio comum deixava o
+ * indicador da esquerda ~4 cm abaixo do guarda-mato e o polegar dela atravessando a armação; aqui a palma sobe e cobre
+ * os dedos da direita, o indicador logo abaixo do guarda-mato, e o polegar vai esticado para a frente na lateral
+ * esquerda, embaixo do da direita (os dedos descem 0,45 rad; `thumbUp`: quanto o polegar abre para o lado do dorso); a
+ * palma vai para trás e vira um pouco para o punho, com a base dela na lateral esquerda por cima das pontas da direita
+ * (mais à frente, sobrava uma faixa do punho entre as mãos na primeira pessoa). Rhino: o apoio de sempre (`APOIO_LADO`)
+ * com a palma no punho (no revólver o "pente" é o tambor, lá na frente: a palma ficava 4,5 cm à frente do punho,
+ * fechada no ar na frente do guarda-mato). BFR: o mesmo do Rhino (a palma ficava ~6 cm à frente do punho, fechada no ar
+ * embaixo do tambor), com a palma no meio do punho.
  */
 const PISTOL_SUPPORT: Partial<
   Record<
@@ -654,9 +655,9 @@ const PISTOL_SUPPORT: Partial<
 > = {
   automag3: { palm: [-0.032, -0.005, 0.03], fingers: [0, -0.6, -0.8], back: [-1, 0, 0.1], curl: [0.8, 0, 0.8] },
   m9: {
-    palm: [-0.03, -0.02, 0.025],
+    palm: [-0.026, -0.022, 0.042],
     fingers: [0, -Math.sin(0.4), -Math.cos(0.4)],
-    back: [-1, 0, 0],
+    back: [-1, 0, 0.45],
     curl: [0.8, 0.1, 0.8],
   },
   deagle: {
