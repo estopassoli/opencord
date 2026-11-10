@@ -233,6 +233,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   sv98: [0.45, 0.85],
   scarl: [0.5, 0.5],
   aks74u: [0.45, 0.7],
+  m9: [0.4, 0.45], // pistola com as duas mãos: deita na lateral esquerda, para a frente, por cima do polegar de apoio
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
@@ -288,10 +289,10 @@ const DEBRIS_MAX = 4;
  * Pistolas em que o ferrolho trava aberto depois do último tiro (o retém segura ele para trás) e só fecha quando o
  * polegar solta o retém na recarga vazia; e quanto ele fica para trás (m, o mesmo do gesto da recarga vazia).
  */
-const SLIDE_LOCK: ReadonlySet<string> = new Set(['automag3']);
+const SLIDE_LOCK: ReadonlySet<string> = new Set(['automag3', 'm9']);
 const SLIDE_LOCK_BACK = 0.035;
 /** pistolas em que a mão de apoio leva o pente novo até encaixar (ver a recarga) */
-const MAG_PUSH: ReadonlySet<string> = new Set(['automag3']);
+const MAG_PUSH: ReadonlySet<string> = new Set(['automag3', 'm9']);
 /** no tiro, quando o ferrolho chega lá atrás (fração do `fire`): dali em diante, travado, ele não volta */
 const SLIDE_LOCK_AT = 0.42;
 /** quantos estojos esperando o `game.ts` levar para o mundo, no máximo */
@@ -914,7 +915,8 @@ export class Viewmodel {
           rot.z += 0.3 * w * mo;
           rot.y += 0.35 * w * mo;
           rot.x += 0.05 * over * mo;
-          if (spec.cls !== 'pistol') {
+          // M9: a direita saca sozinha e a esquerda vem de baixo e fecha por fora dela, com o tranco do encaixe
+          if (spec.cls !== 'pistol' || g.id === 'm9') {
             const arrive = ease(seg(u, 0.3, 0.62));
             leftAway = Math.max(leftAway, 1 - arrive);
             leftCurl = lerp(0.2, leftCurl, ease(seg(u, 0.6, 0.78)));
@@ -979,9 +981,14 @@ export class Viewmodel {
           handOut = rp.handOut;
           // a mão sobe junto com o pente novo e a palma empurra a base até o fim (sem isso, no `drop` ela ficava
           // parada embaixo do poço, aberta, e o pente subia sozinho)
-          if (MAG_PUSH.has(g.id) && rp.dropped) handOut = rp.out;
+          if (MAG_PUSH.has(g.id) && u >= MAG_OUT_AT) handOut = rp.out;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
+          if (g.id === 'm9') {
+            // M9: o polegar da direita aperta o retém do pente, atrás do guarda-mato, logo antes de ele cair (a mão que
+            // sobe com o pente novo é a de `MAG_PUSH`)
+            rightThumb += 0.3 * hump(u, 0.08, 0.13, 0.19, 0.26);
+          }
           // o pente velho cai (cópia sem cartuchos, do lugar dele): o da arma já está no colete, fora da tela
           if (rp.dropped && !this.joltDone.has('drop')) {
             this.joltDone.add('drop');
@@ -1089,6 +1096,8 @@ export class Viewmodel {
           } else if (g.id === 'scarl') {
             scarBash(u, mo, pos, rot);
             joltAt('hit', 0.32, -1.6);
+          } else if (g.id === 'm9') {
+            this.pistolBash(u, mo, pos, rot, joltAt);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             // RS9: antes, recolhe a arma para trás e para a direita (antecipação) e só então empurra
@@ -1751,6 +1760,30 @@ export class Viewmodel {
    * Golpe pesado: antecipação longa (a mão recua e sobe), estocada reta para a frente com a ponta para a frente, tranco
    * forte no fim e volta devagar. A esquerda puxa para trás na estocada.
    */
+  /**
+   * Coronhada da M9 com as duas mãos: antecipa (a arma recua e o cano sobe, ~60 ms), estoca para a frente e para a
+   * esquerda com o cano descendo (o golpe com a frente da armação chega em 0,32, junto com o acerto do `game.ts`), dá o
+   * tranco e volta devagar, passando um pouco do ponto
+   */
+  private pistolBash(
+    u: number,
+    mo: number,
+    pos: THREE.Vector3,
+    rot: THREE.Euler,
+    joltAt: (key: string, at: number, v: number) => void,
+  ) {
+    const pre = hump(u, 0, 0.12, 0.14, 0.28);
+    const hit = expOut(seg(u, 0.12, 0.32)) * (1 - ease(seg(u, 0.42, 0.9)));
+    const settle = Math.sin(seg(u, 0.82, 1) * Math.PI) * (1 - seg(u, 0.82, 1));
+    pos.z += 0.035 * pre - 0.16 * hit;
+    pos.y += 0.012 * pre - 0.015 * hit;
+    pos.x -= 0.07 * hit;
+    rot.x += (0.16 * pre - 0.3 * hit + 0.03 * settle) * mo;
+    rot.z += (-0.05 * pre + 0.45 * hit) * mo;
+    rot.y += 0.12 * hit * mo;
+    joltAt('hit', 0.32, 2.2);
+  }
+
   private knifeStab(
     u: number,
     mo: number,

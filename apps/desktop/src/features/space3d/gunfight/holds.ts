@@ -493,6 +493,10 @@ function pistolSupport(g: GunModel): {
  * fechamentos (dedos, polegar, indicador). Automag III: o punho é longo e o apoio de sempre parava a palma ~1,7 cm
  * fora dele, com os dedos abertos sem encostar em nada; aqui a palma cobre a lateral esquerda do punho, os dedos
  * descem por cima dos da direita e o polegar fica esticado para a frente embaixo do ferrolho (conferido no harness).
+ * M9: a palma tapa a lateral esquerda do punho por cima das pontas dos dedos da direita, os dedos dão a volta na frente
+ * por cima dos da direita (o indicador logo abaixo do guarda-mato) e o polegar vai esticado para a frente, embaixo do
+ * da direita (no apoio de sempre a mão ficava baixa, com os dedos abertos e soltos embaixo do punho); os dedos descem
+ * 0,4 rad.
  */
 const PISTOL_SUPPORT: Partial<
   Record<
@@ -501,6 +505,7 @@ const PISTOL_SUPPORT: Partial<
   >
 > = {
   automag3: { palm: [-0.032, -0.005, 0.03], fingers: [0, -0.6, -0.8], back: [-1, 0, 0.1], curl: [0.8, 0, 0.8] },
+  m9: { palm: [-0.03, -0.02, 0.025], fingers: [0, -Math.sin(0.4), -Math.cos(0.4)], back: [-1, 0, 0], curl: [0.8, 0.1, 0.8] },
 };
 /** palma para +x, dedos para a frente e para baixo (0, −0,6, −0,8), indicador para cima */
 const APOIO_LADO = basis([0, 0.8, -0.6], [-1, 0, 0], [0, 0.6, 0.8]);
