@@ -432,6 +432,13 @@ function pistolSupport(g: GunModel): {
   curl: [number, number, number];
   thumbUp?: number;
 } {
+  const own = PISTOL_SUPPORT[g.id];
+  if (own) {
+    const [s, c] = [Math.sin(own.down), Math.cos(own.down)];
+    const q = basis([0, c, -s], [-1, 0, 0], [0, s, c]);
+    const at = new THREE.Vector3(...own.palm).sub(new THREE.Vector3(0, 0, -0.046).applyQuaternion(q));
+    return { pos: at, quat: q, curl: [0.8, own.thumb, 0.8] };
+  }
   const mag = g.parts.mag ? partBox(g, g.parts.mag) : null;
   const zc = mag ? (mag.min.z + mag.max.z) / 2 : 0.03;
   // o centro da palma ao lado do punho, um pouco abaixo do guarda-mato
@@ -442,6 +449,16 @@ function pistolSupport(g: GunModel): {
 }
 /** palma para +x, dedos para a frente e para baixo (0, −0,6, −0,8), indicador para cima */
 const APOIO_LADO = basis([0, 0.8, -0.6], [-1, 0, 0], [0, 0.6, 0.8]);
+/**
+ * Apoio da pistola medido por arma (no harness, quadro a quadro): o centro da palma (espaço da arma), o quanto os dedos
+ * descem (rad; o polegar sobe junto, para a frente pela lateral esquerda do quadro) e o fechamento do polegar.
+ * M9: a palma tapa a lateral esquerda do punho por cima das pontas dos dedos da direita, os dedos dão a volta na frente
+ * por cima dos da direita (o indicador logo abaixo do guarda-mato) e o polegar vai esticado para a frente, embaixo do
+ * da direita (no apoio de sempre a mão ficava baixa, com os dedos abertos e soltos embaixo do punho)
+ */
+const PISTOL_SUPPORT: Partial<Record<GunId, { palm: THREE.Vector3Tuple; down: number; thumb: number }>> = {
+  m9: { palm: [-0.03, -0.02, 0.025], down: 0.4, thumb: 0.1 },
+};
 
 /**
  * O indicador fora do gatilho: esticado sobre a armação (`TRIGGER_OFF`), ele entrava na lateral da caixa da culatra em

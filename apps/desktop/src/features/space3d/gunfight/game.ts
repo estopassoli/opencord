@@ -1163,7 +1163,8 @@ export class GunGame {
     kickSpring(this.punch, sk, sc, rc.punch.up * pk);
     kickSpring(this.punchYaw, sk, sc, -side * 0.3);
     kickSpring(this.punchRoll, sk, sc, rc.punch.roll * pk * sgn);
-    this.vm.fire(sgn, first);
+    // a última bala do pente: a pistola fica com o ferrolho aberto no retém
+    this.vm.fire(sgn, first, this.ammo.get(this.weapon)?.mag === 0);
   }
 
   /**

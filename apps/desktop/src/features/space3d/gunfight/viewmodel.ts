@@ -179,6 +179,13 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   sv98: 'bolt',
   automag3: 'pistol',
 };
+/** polegar da direita por arma: [fechamento, abertura para o lado da palma] (dá a volta por trás do punho) */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  m9: [0.4, 0.45], // pistola com as duas mãos: deita na lateral esquerda, para a frente, por cima do polegar de apoio
+};
+/** pistolas cujo ferrolho fica aberto no retém depois da última bala, e quanto ele fica para trás (m) */
+const SLIDE_LOCK: ReadonlySet<string> = new Set(['m9']);
+const SLIDE_BACK = 0.035;
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
@@ -462,6 +469,8 @@ export class Viewmodel {
   private readonly flash: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly flashLight: THREE.PointLight;
   private flashUntil = 0;
+  /** o ferrolho da pistola ficou aberto no último tiro (pente vazio): fica para trás até a recarga vazia soltar */
+  private slideLocked = false;
   private now = 0;
   /** 1 normal; ~0,3 com "reduzir movimento" */
   private readonly motion: number;
@@ -534,6 +543,7 @@ export class Viewmodel {
       this.rightCurl = [...this.holds.right.curl];
     }
     this.clearDebris();
+    this.slideLocked = false;
     this.magHome.set(0, -0.06, 0.03);
     const mag = g.parts.mag;
     if (mag) {
@@ -602,12 +612,14 @@ export class Viewmodel {
 
   /**
    * Tiro: o coice da arma pelas molas dela (`recoil.vm`), a rolagem e o lado no sentido do recuo (`side` ±1); mirando,
-   * menor (a mira de ferro não sai do centro), e o primeiro tiro com `first` do coice.
+   * menor (a mira de ferro não sai do centro), e o primeiro tiro com `first` do coice. `empty`: foi a última bala do
+   * pente (na pistola com retém, o ferrolho volta e fica aberto).
    */
-  fire(side: number, first = 1) {
+  fire(side: number, first = 1, empty = false) {
     const sp = this.spec;
     if (!sp) return;
     this.play('fire', 120);
+    if (empty && this.gun && SLIDE_LOCK.has(this.gun.id)) this.slideLocked = true;
     const v = sp.recoil.vm;
     const a = this.adsNow;
     const k = first;
@@ -833,7 +845,8 @@ export class Viewmodel {
           rot.z += 0.3 * w * mo;
           rot.y += 0.35 * w * mo;
           rot.x += 0.05 * over * mo;
-          if (spec.cls !== 'pistol') {
+          // M9: a direita saca sozinha e a esquerda vem de baixo e fecha por fora dela, com o tranco do encaixe
+          if (spec.cls !== 'pistol' || g.id === 'm9') {
             const arrive = ease(seg(u, 0.3, 0.62));
             leftAway = Math.max(leftAway, 1 - arrive);
             leftCurl = lerp(0.2, leftCurl, ease(seg(u, 0.6, 0.78)));
@@ -845,6 +858,8 @@ export class Viewmodel {
         }
         case 'fire':
           if (spec.cls !== 'sniper') boltBack = Math.sin(Math.min(1, u * 1.2) * Math.PI) * 0.035;
+          // última bala: o ferrolho chega atrás e para no retém (não volta)
+          if (this.slideLocked && u * 1.2 >= 0.5) boltBack = SLIDE_BACK;
           // o indicador aperta e o gatilho vai para trás (~60 ms)
           trig = hump(u, 0, 0.12, 0.4, 0.6);
           rightIndex = lerp(rightIndex, this.rightCurl[2] + TRIGGER_SQUEEZE, trig);
@@ -898,6 +913,13 @@ export class Viewmodel {
           handOut = rp.handOut;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
+          if (g.id === 'm9') {
+            // a mão sobe junto com o pente novo até o fim do encaixe (sem isto ela ficava parada 9 cm abaixo do punho,
+            // aberta, enquanto o pente entrava sozinho) e o polegar da direita aperta o retém do pente, atrás do
+            // guarda-mato, logo antes de ele cair
+            if (u >= MAG_OUT_AT) handOut = rp.out;
+            rightThumb += 0.3 * hump(u, 0.08, 0.13, 0.19, 0.26);
+          }
           // o pente velho cai (cópia sem cartuchos, do lugar dele): o da arma já está no colete, fora da tela
           if (rp.dropped && !this.joltDone.has('drop')) {
             this.joltDone.add('drop');
@@ -910,6 +932,7 @@ export class Viewmodel {
             }
           }
           if (empty) this.emptyGesture(u, joltAt);
+          if (empty && u >= 0.8) this.slideLocked = false;
           break;
         }
         case 'reloadClip': {
@@ -971,6 +994,8 @@ export class Viewmodel {
         case 'melee': {
           if (knife) {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
+          } else if (g.id === 'm9') {
+            this.pistolBash(u, mo, pos, rot, joltAt);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             const w = hump(u, 0, 0.25, 0.5, 1);
@@ -1098,6 +1123,8 @@ export class Viewmodel {
       leftThumb = lerp(leftThumb, EG.thumb, EG.alt);
     }
 
+    // ferrolho aberto no retém (pente vazio): fica para trás até a recarga vazia soltar
+    if (this.slideLocked && a?.kind !== 'fire') boltBack = Math.max(boltBack, SLIDE_BACK);
     this.sway.position.set(0, 0, 0);
     this.holder.position.copy(pos);
     this.holder.rotation.copy(rot);
@@ -1580,6 +1607,30 @@ export class Viewmodel {
    * Golpe pesado: antecipação longa (a mão recua e sobe), estocada reta para a frente com a ponta para a frente, tranco
    * forte no fim e volta devagar. A esquerda puxa para trás na estocada.
    */
+  /**
+   * Coronhada da M9 com as duas mãos: antecipa (a arma recua e o cano sobe, ~60 ms), estoca para a frente e para a
+   * esquerda com o cano descendo (o golpe com a frente da armação chega em 0,32, junto com o acerto do `game.ts`), dá o
+   * tranco e volta devagar, passando um pouco do ponto
+   */
+  private pistolBash(
+    u: number,
+    mo: number,
+    pos: THREE.Vector3,
+    rot: THREE.Euler,
+    joltAt: (key: string, at: number, v: number) => void,
+  ) {
+    const pre = hump(u, 0, 0.12, 0.14, 0.28);
+    const hit = expOut(seg(u, 0.12, 0.32)) * (1 - ease(seg(u, 0.42, 0.9)));
+    const settle = Math.sin(seg(u, 0.82, 1) * Math.PI) * (1 - seg(u, 0.82, 1));
+    pos.z += 0.035 * pre - 0.16 * hit;
+    pos.y += 0.012 * pre - 0.015 * hit;
+    pos.x -= 0.07 * hit;
+    rot.x += (0.16 * pre - 0.3 * hit + 0.03 * settle) * mo;
+    rot.z += (-0.05 * pre + 0.45 * hit) * mo;
+    rot.y += 0.12 * hit * mo;
+    joltAt('hit', 0.32, 2.2);
+  }
+
   private knifeStab(
     u: number,
     mo: number,
@@ -1658,9 +1709,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
