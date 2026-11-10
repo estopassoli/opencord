@@ -195,15 +195,17 @@ const IRON: Partial<Record<GunId, { rear: [number, number]; front: [number, numb
 
 /**
  * Lunetas e miras de fábrica: a altura do eixo óptico (espaço da arma). Na luneta, o olho fica na ocular; no ponto
- * vermelho de fábrica (MSMC, MCX), o retículo vai no vidro em `z` (raio `r`).
+ * vermelho de fábrica (MSMC, MCX), o retículo vai no vidro em `z` (raio `r`). `x`: onde fica o meio da janela da mira
+ * de fábrica no modelo, quando ela não está no meio da arma; a mira anda até a janela ficar na linha de mira (x = 0).
+ * MCX: a janela ficava ~5 mm à esquerda, e o ponto (no centro da tela) aparecia na borda direita do vidro.
  */
-const OPTIC: Partial<Record<GunId, { y: number; z?: number; r?: number }>> = {
+const OPTIC: Partial<Record<GunId, { y: number; z?: number; r?: number; x?: number }>> = {
   rs9: { y: 0.1557 },
   sv98: { y: 0.1307 },
   ballista: { y: 0.1516 },
   m200: { y: 0.1613 },
   msmc: { y: 0.123, z: -0.003, r: 0.009 },
-  mcx: { y: 0.153, z: -0.12, r: 0.0105 },
+  mcx: { y: 0.1538, z: -0.12, r: 0.0105, x: -0.0052 },
 };
 
 interface Template {
@@ -544,6 +546,14 @@ const AXIS = new THREE.Vector3();
 const Z = new THREE.Vector3(0, 0, 1);
 
 /**
+ * Materiais (pelo nome no arquivo) de peças com faces faltando que a câmera vê por trás. SCAR-L: entrando na mira com
+ * a luneta 3x (olho mais alto e mais à frente), entre 60% e 75% da mira a parte de trás da caixa e a coronha (malha
+ * aberta) apareciam como uma placa cinza solta à direita da luneta (e lascas com o ponto vermelho); desenhadas dos dois
+ * lados, elas aparecem fechadas, como peça da arma.
+ */
+const TWO_SIDED: Partial<Record<GunId, readonly string[]>> = { scarl: ['Material.027'] };
+
+/**
  * Arma do arquivo: o cano aponta para +x no arquivo; gira para −z e põe a origem no gatilho. A mira fica no alto da
  * arma acima do gatilho, a mão de apoio a 60% do caminho até o cano, embaixo.
  */
@@ -564,6 +574,12 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   src.traverse((o) => {
     if (o instanceof THREE.Mesh) {
       o.castShadow = true;
+      // peças abertas do modelo que a câmera vê por dentro ao mirar (`TWO_SIDED`): desenhadas dos dois lados
+      const two = TWO_SIDED[id];
+      if (two && !Array.isArray(o.material) && two.includes(o.material.name)) {
+        o.material = own(o.material.clone());
+        o.material.side = THREE.DoubleSide;
+      }
       // cartuchos: cada cópia tem o seu material (escondido; a recarga mostra só nesta arma)
       if (Array.isArray(o.material) && o.material[1]?.name === ROUNDS) {
         rounds = own(o.material[1].clone());
@@ -602,6 +618,15 @@ function fromFile(id: GunId, scene: THREE.Object3D): GunModel {
   src.position.sub(new THREE.Vector3(grip.x, grip.y - 0.03, grip.z + 0.02));
   holder.updateMatrixWorld(true);
   box.setFromObject(src);
+  // a mira de fábrica fora do meio da arma (`OPTIC.x`) anda até a janela ficar na linha de mira (o holder ainda está na
+  // origem: o espaço do mundo é o da arma)
+  const opticX = OPTIC[id]?.x;
+  if (ownOptic?.parent && opticX) {
+    const at = ownOptic.getWorldPosition(new THREE.Vector3());
+    at.x -= opticX;
+    ownOptic.position.copy(ownOptic.parent.worldToLocal(at));
+    holder.updateMatrixWorld(true);
+  }
   const parts: GunModel['parts'] = {};
   for (const [n, o] of bones) {
     const k = BONE_PART[n]!;

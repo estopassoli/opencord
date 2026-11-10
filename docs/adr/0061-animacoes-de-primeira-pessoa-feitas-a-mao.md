@@ -139,3 +139,13 @@ conferida pela API do Sketchfab); créditos em `assets/guns/CREDITS.md` e no men
 - Limitações conhecidas: a mão de apoio no parado fica meio aberta embaixo da caixa (a pegada do guarda-mão do AK não fecha
   em volta do MP7); na recarga da pistola a mão de apoio entra até ~2 cm na arma em alguns quadros; a angulada usa uma
   pegada medida que ainda não ficou boa; teste no app e em máquina real pendentes.
+
+## Adendo (2026-11-10): MP7 de volta ao caminho de código
+
+MP7 de volta ao caminho de código até os clipes serem refeitos; motivo: QA reprovou a recarga (o braço esquerdo saltava
+~60 cm acima do olho por um dado ruim do clipe, o pente trocava sem mão e a mão de apoio não segurava a arma). O conjunto
+`AUTHORED` (`fpanim.ts`) fica vazio; o pipeline (`fpanim.ts`, `fpmix.ts`, `fpclips-mp7.ts`, `scripts/anims/`) e o arquivo
+`assets/anims/mp7.glb` ficam no repositório, desligados (o arquivo não é baixado enquanto nenhuma arma usa os clipes), e
+os testes deles continuam como testes de unidade. No caminho de código, o MP7 ganhou o polegar por trás do punho
+(`RIGHT_THUMB`), a recarga do pente no punho como a da MSMC (com bala, a esquerda pega a base e troca pelo colete; a arma
+sobe para a troca aparecer) e a inspeção em arco mais longe da câmera (`ARC_TUNE`).

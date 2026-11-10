@@ -74,7 +74,7 @@ import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { fitHand, soupOf } from './contact';
 import { KNIFE_GUARD, KNIFE_GUARD_AT, knifeGuardQuat } from './knifeguard';
 import { flashTexture } from './fx';
-import { ARM_HAND_FIT, BOWIE_ARM, KUKRI_ARM, type FingerOffsets } from './handrig';
+import { ARM_HAND_FIT, BOWIE_ARM, FIST_HOLE, KUKRI_ARM, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
 import { aimReticles, scopeEyepiece } from './attachmodels';
 import { disposeGun, movePart, partBox, partCenter, posePart, setBalisong, type GunModel, type Part } from './models';
@@ -301,7 +301,7 @@ const PALM_HALF = 0.017;
  * (StG 44), o "tapa HK" da MP5 (`mp5.ts`: trava a alavanca antes de tirar o pente e solta com um tapa depois), o polegar
  * direito solta o ferrolho da pistola, a mão direita trabalha o ferrolho da sniper.
  */
-type EmptyKind = 'slap' | 'under' | 'rack' | 'front' | 'hk' | 'pistol' | 'bolt';
+type EmptyKind = 'slap' | 'under' | 'rack' | 'front' | 'hook' | 'hk' | 'pistol' | 'bolt';
 const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   m4: 'slap',
   mp7: 'slap',
@@ -317,7 +317,7 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   pdw: 'slap',
   msmc: 'front',
   aks74u: 'rack',
-  stg44: 'front',
+  stg44: 'hook',
   rs9: 'bolt',
   ballista: 'bolt',
   sv98: 'bolt',
@@ -340,30 +340,57 @@ const RACK_AT_OF: Partial<Record<string, THREE.Vector3>> = {
   ak47: new THREE.Vector3(0.11, 0, 0.058),
 };
 /**
+ * StG 44 (`hook`): a alavanca fica à esquerda, na frente da caixa, com a haste saindo ~4 cm para o lado. A esquerda
+ * vem pela esquerda e fecha os dedos em gancho na ponta da haste (palma para trás, dedos descendo pela frente dela e
+ * dobrando para a caixa); puxa até o fim e solta: a alavanca volta sozinha num estalo e a mão fica atrás, abrindo.
+ * Antes a mão ia espalmada por cima da caixa e a alavanca voltava junto com ela. `HOOK_AT`: o ponto da haste no vão
+ * dos dedos (espaço da arma, com a alavanca parada); no puxão a arma rola um pouco (`HOOK_ROLL`) e desce, com a
+ * lateral esquerda (alavanca e mão em gancho) virada para a câmera.
+ */
+const HOOK_AT = new THREE.Vector3(-0.062, 0.07, -0.127);
+const HOOK_Q = new THREE.Quaternion()
+  .setFromAxisAngle(new THREE.Vector3(0, 0, 1), -1)
+  .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.2))
+  .multiply(
+    new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(1, 0, 0),
+        new THREE.Vector3(0, 0, -1),
+        new THREE.Vector3(0, 1, 0),
+      ),
+    ),
+  );
+const HOOK_PULL = 0.06;
+const HOOK_ROLL = 0.3;
+/**
  * O polegar da direita no punho, por arma: [fechamento, abertura para o lado da palma], no lugar do encaixe medido. Dá a
  * volta por trás do punho e deita na lateral esquerda, atrás do gatilho. O encaixe deixava o da StG 44 em pé do lado
- * direito, encostado na caixa (medido no harness: a ponta passa de x +3,6 cm para −2,6 cm, a ~2 mm da malha).
+ * direito, encostado na caixa (medido no harness: a ponta passa de x +3,6 cm para −2,6 cm, a ~2 mm da malha). Nas armas
+ * com a pegada da direita medida (`RIGHT_FIX` `hold`, em `holds.ts`), o polegar foi escolhido junto com ela: encostado
+ * na lateral esquerda do punho, sem entrar.
  */
 const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   stg44: [0.5, 0.85],
   rs9: [0.63, 1.1],
-  mcx: [0.45, 0.8],
-  m4: [0.5, 0.85],
+  mcx: [0.6, 0.9],
+  m4: [0.6, 0.9],
   automag3: [0.6, 0.3], // por trás do punho abaixo do ferrolho, deitado para a frente na armação (fora do recuo)
   sv98: [0.45, 0.85],
   scarl: [0.5, 0.5],
   aks74u: [0.45, 0.7],
   m9: [0.4, 0.45], // pistola com as duas mãos: deita na lateral esquerda, para a frente, por cima do polegar de apoio
-  msmc: [0.55, 1.1],
+  msmc: [0.4, 0.6],
   m200: [0.46, 0.7],
-  mp5: [0.25, 0.8],
+  mp5: [0.58, 0.9],
   ballista: [0.42, 0.65],
-  mpx: [0.6, 0.9],
+  mpx: [0.5, 0.5],
   deagle: [0.4, 0.3],
-  l115: [0.58, 0.9],
+  l115: [0.45, 0.8],
   bfr: [0.3, 0.6],
   ak47: [0.35, 0.5],
   rhino: [0.5, 0.6],
+  // MP7 (de volta ao caminho de código): o encaixe deixava o polegar em pé do lado direito, por cima do punho
+  mp7: [0.5, 0.85],
 };
 /**
  * O indicador fora do gatilho mais baixo, por arma (rad, a base gira para o lado do mindinho): Desert Eagle: a mão fica
@@ -389,13 +416,17 @@ const MPX_INSPECT = {
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /**
- * pente no punho que sobra embaixo dele (MSMC): com bala, a esquerda pega a base, puxa, guarda no colete e volta com um
- * cheio, como nos fuzis (cair, só vazio)
+ * pente no punho que sobra embaixo dele (MSMC, MP7): com bala, a esquerda pega a base, puxa, guarda no colete e volta
+ * com um cheio, como nos fuzis (cair, só vazio)
  */
-const GRIP_MAG_TACTICAL: ReadonlySet<string> = new Set(['msmc']);
-/** quanto a arma sobe a mais na recarga do pente no punho (x, y, z em m, cano para cima em rad, no pico) */
+const GRIP_MAG_TACTICAL: ReadonlySet<string> = new Set(['msmc', 'mp7']);
+/**
+ * quanto a arma sobe a mais na recarga do pente no punho (x, y, z em m, cano para cima em rad, no pico). MP7: como a
+ * MSMC (sem subir, a troca do pente acontecia embaixo da borda da tela)
+ */
 const GRIP_MAG_LIFT: Partial<Record<string, readonly [number, number, number, number]>> = {
   msmc: [-0.04, 0.06, 0.02, 0.15],
+  mp7: [-0.04, 0.06, 0.02, 0.15],
 };
 /**
  * a bola da alavanca do ferrolho (espaço da arma) quando a peça inteira é grande e o meio dela não é onde se pega.
@@ -740,6 +771,8 @@ export class Viewmodel {
   private chargeHome: THREE.Vector3 | null = null;
   /** o retém do ferrolho (esquerda do receptor, acima do pente): o pulso para o tapa da recarga vazia */
   private readonly slapAt = new THREE.Vector3();
+  /** StG 44: o pulso esquerdo com a haste da alavanca no vão dos dedos (o gesto `hook`, espaço da arma) */
+  private readonly hookAt = new THREE.Vector3();
   private readonly leftQ = new THREE.Quaternion();
   /** as pegadas medidas na malha da arma (`holds.ts`): palma encostada, cada dedo fechado até tocar */
   private holds: Holds | null = null;
@@ -1539,6 +1572,14 @@ export class Viewmodel {
             rot.z += EG.rightK * 0.85 * mo;
             rot.x -= EG.rightK * 0.12 * mo;
             pos.x += EG.rightK * 0.02;
+          }
+          // StG 44: no puxão da alavanca, a arma rola para a direita (a lateral esquerda, com a alavanca e a mão em
+          // gancho, vira para a câmera) e vem um pouco para o meio
+          if (empty && g.id === 'stg44') {
+            const k = hump(u, 0.6, 0.69, 0.8, 0.9);
+            rot.z -= k * HOOK_ROLL * mo;
+            pos.x -= k * 0.03;
+            pos.y -= k * 0.03;
           }
           break;
         }
@@ -2997,6 +3038,23 @@ export class Viewmodel {
       this.egFix.copy(h.pos).sub(EG.at);
       this.egOff = h.off;
     }
+    // StG 44: o vão dos dedos fechados na haste da alavanca e os dedos fechando até encostar nela
+    if (EMPTY_GESTURE[g.id] === 'hook') {
+      this.hookAt.copy(HOOK_AT).sub(FIST_HOLE.clone().applyQuaternion(HOOK_Q));
+      const f = fitHand(soupOf(g.root, { at: HOOK_AT, r: 0.18 }), -1, this.hookAt, HOOK_Q, [0.5, 0.6, 0.5], {
+        fingers: ['index', 'middle', 'ring', 'pinky', 'thumb'],
+        maxCurl: 1.4,
+      });
+      this.hookAt.copy(f.pos);
+      this.egOff = [
+        f.offsets[0] + 0.5 - 0.95,
+        f.offsets[1] + 0.5 - 0.95,
+        f.offsets[2] + 0.5 - 0.95,
+        f.offsets[3] + 0.5 - 0.95,
+        f.offsets[4],
+        0,
+      ];
+    }
     // AKS-74U: a direita na alavanca, de punho fechado (os dedos fecham até encostar na lateral da caixa; sem isso,
     // fechados, eles entravam ~3 cm nela); vira a pegada de alavanca dela
     if (EMPTY_GESTURE[g.id] === 'rack' && this.chargeHome && this.holds) {
@@ -3294,6 +3352,20 @@ export class Viewmodel {
         EG.thumb = 0.7;
         EG.out = 0.4;
         joltAt('release', 0.8, 2);
+        break;
+      }
+      case 'hook': {
+        const pull = ease(seg(u, 0.7, 0.75));
+        const snap = ease(seg(u, 0.765, 0.78));
+        EG.charge = EG.bolt = HOOK_PULL * pull * (1 - snap);
+        EG.alt = hump(u, 0.6, 0.68, 0.82, 0.9);
+        EG.altQ = HOOK_Q;
+        // a mão fica atrás depois de soltar (e abre um pouco); a alavanca volta sem ela
+        EG.at.copy(this.hookAt).add(V.set(0, 0.004 * snap, HOOK_PULL * pull + 0.012 * snap));
+        EG.curl = lerp(0.95, 0.7, snap);
+        EG.thumb = 0.6;
+        EG.out = 0.3;
+        joltAt('release', 0.78, 2);
         break;
       }
       case 'hk':
@@ -3681,7 +3753,9 @@ const OLD_INSPECT: ReadonlySet<string> = new Set(['rs9', 'ak47', 'ballista']);
 /**
  * Acerto do arco por arma: `yaw` é o giro do primeiro lado (rad; o comum é 1) e `push` leva a arma para longe (m,
  * negativo) durante toda a inspeção. Snipers compridas (L115, SV-98): virando 1 rad, a coronha enchia a metade esquerda
- * da tela no primeiro lado; giram menos e vão para a frente antes de virar.
+ * da tela no primeiro lado; giram menos e vão para a frente antes de virar. MP7: a coronha esticada é comprida para a
+ * arma, e perto da câmera ela atravessava a metade de baixo à esquerda; vai mais para longe (girando menos ela apontava
+ * a soleira para a câmera).
  */
 interface ArcTune {
   yaw: number;
@@ -3692,6 +3766,7 @@ const ARC_TUNE: Partial<Record<string, ArcTune>> = {
   sv98: { yaw: 0.8, push: -0.15 },
   stg44: { yaw: 0.8, push: -0.15 },
   msmc: { yaw: 0.8, push: -0.12 },
+  mp7: { yaw: 0.9, push: -0.15 },
 };
 
 /**

@@ -1,6 +1,7 @@
 /**
- * Animações de primeira pessoa feitas à mão, quadro a quadro (ADR-0061). Por enquanto só o MP7 (`AUTHORED`); as outras
- * armas seguem com as animações feitas em código do `viewmodel.ts`.
+ * Animações de primeira pessoa feitas à mão, quadro a quadro (ADR-0061). Hoje desligadas (`AUTHORED` vazio: o MP7 voltou
+ * ao caminho de código até os clipes serem refeitos); todas as armas seguem com as animações feitas em código do
+ * `viewmodel.ts`.
  *
  * O arquivo `assets/anims/<arma>.glb` tem só o esqueleto dos braços (os mesmos ossos de `assets/arms.glb`) mais o
  * encaixe da arma (`weapon`), o pente (`mag`), a alavanca (`charge`) e um osso de controle (`ctl`: na posição dele, a
@@ -28,8 +29,12 @@ import { Kit, mat, type GunModel } from './models';
 /** armas cujo clipe foi escrito com a empunhadura dobrável aberta (hoje nenhuma) */
 const FOLDING: ReadonlySet<GunId> = new Set<GunId>();
 
-/** armas com animação feita à mão (o resto segue no caminho de código) */
-export const AUTHORED: ReadonlySet<GunId> = new Set<GunId>(['mp7']);
+/**
+ * armas com animação feita à mão (o resto segue no caminho de código). Hoje nenhuma: o MP7 voltou ao caminho de código
+ * até os clipes serem refeitos (o QA reprovou a recarga: o braço esquerdo saltava acima do olho e o pente trocava sem
+ * mão). O pipeline e o arquivo `assets/anims/mp7.glb` ficam, desligados.
+ */
+export const AUTHORED: ReadonlySet<GunId> = new Set<GunId>();
 
 type Meta = typeof MP7_ANIM;
 const META: Partial<Record<GunId, { url: string; meta: Meta }>> = { mp7: { url: mp7Url, meta: MP7_ANIM } };
@@ -44,10 +49,13 @@ let loading: Promise<void> | null = null;
 /** carrega os clipes uma vez (junto com as armas) */
 export function loadFpAnims(): Promise<void> {
   loading ??= Promise.all(
-    (Object.entries(META) as [GunId, { url: string; meta: Meta }][]).map(async ([id, m]) => {
-      const g = await new GLTFLoader().loadAsync(m.url);
-      registerFpAnims(id, g.scene, g.animations);
-    }),
+    // só as armas que usam os clipes (o arquivo de uma arma desligada não é baixado)
+    (Object.entries(META) as [GunId, { url: string; meta: Meta }][])
+      .filter(([id]) => AUTHORED.has(id))
+      .map(async ([id, m]) => {
+        const g = await new GLTFLoader().loadAsync(m.url);
+        registerFpAnims(id, g.scene, g.animations);
+      }),
   ).then(() => undefined);
   return loading;
 }
