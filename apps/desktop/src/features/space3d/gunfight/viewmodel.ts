@@ -1507,8 +1507,6 @@ export class Viewmodel {
             rot.x += (0.1 * pre - 0.05 * hit) * mo;
             rot.y += 0.12 * hit * mo;
             joltAt('hit', 0.32, -1.4);
-          } else if (ARC_MOVES.has(g.id)) {
-            gunBash(u, mo, pos, rot, joltAt);
           } else if (g.id === 'm4') {
             m4Bash(u, mo, pos, rot, joltAt);
           } else if (g.id === 'automag3') {
@@ -1609,20 +1607,21 @@ export class Viewmodel {
               joltAt('hit', MP5_BASH_HIT, 1.6);
               break;
             }
-            // golpe com a arma: empurra a arma para a frente e para o lado
-            // RS9: antes, recolhe a arma para trás e para a direita (antecipação) e só então empurra
-            const rs9 = g.id === 'rs9';
-            const w = rs9 ? hump(u, 0.12, 0.3, 0.5, 1) : hump(u, 0, 0.25, 0.5, 1);
+            // a coronhada comum das armas longas: antecipação, golpe rolando, tranco e volta assentando (`gunBash`)
+            if (g.id !== 'rs9') {
+              gunBash(u, mo, pos, rot, joltAt);
+              break;
+            }
+            // RS9 (a dela, de antes da comum): recolhe a arma para trás e para a direita (antecipação) e só então empurra
+            const w = hump(u, 0.12, 0.3, 0.5, 1);
             pos.z -= 0.15 * w;
             pos.x -= 0.08 * w;
             rot.z += 0.6 * w * mo;
-            if (rs9) {
-              const pre = hump(u, 0, 0.1, 0.12, 0.26);
-              pos.z += 0.035 * pre;
-              pos.x += 0.015 * pre;
-              rot.z -= 0.12 * pre * mo;
-              rot.x += 0.05 * pre * mo;
-            }
+            const pre = hump(u, 0, 0.1, 0.12, 0.26);
+            pos.z += 0.035 * pre;
+            pos.x += 0.015 * pre;
+            rot.z -= 0.12 * pre * mo;
+            rot.x += 0.05 * pre * mo;
           }
           break;
         }
@@ -1633,12 +1632,6 @@ export class Viewmodel {
         case 'inspect': {
           if (knife) {
             this.knifeInspect(u, mo, pos, rot, joltAt);
-            break;
-          }
-          if (ARC_MOVES.has(g.id)) {
-            const s2 = inspectArc(u, mo, pos, rot);
-            if (this.holds?.mag) magHold = Math.max(magHold, s2);
-            joltAt('grab', 0.56, 0.8);
             break;
           }
           if (g.id === 'm4') {
@@ -1741,7 +1734,17 @@ export class Viewmodel {
             leftAway = Math.max(leftAway, hump(u, 0.62, 0.72, 0.86, 0.96));
             break;
           }
-          // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
+          // a inspeção comum das armas longas: o arco (`inspectArc`); a mão de apoio vai ao pente se ele é pela lateral
+          if (spec.cls !== 'pistol' && !OLD_INSPECT.has(g.id)) {
+            const s2 = inspectArc(u, mo, pos, rot, ARC_TUNE[g.id]);
+            if (this.holds?.mag && SIDE_MAG.has(g.id)) {
+              magHold = Math.max(magHold, s2);
+              joltAt('grab', 0.56, 0.8);
+            }
+            break;
+          }
+          // pistolas, e as armas que se acertaram em cima da inspeção antiga (RS9, StG 44, AK-47, Ballista): duas
+          // paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
           // depois rola e mostra o lado direito e o topo, com a mão de apoio no pente; volta passando um pouco do ponto
           const w = hump(u, 0.04, 0.22, 0.82, 1);
           const pre = hump(u, 0, 0.05, 0.06, 0.14);
@@ -3446,10 +3449,26 @@ function authoredThumb(o: FingerOffsets): FingerOffsets {
 }
 
 /**
- * Armas com inspeção e coronhada em arco próprio (MCX): a coronha esqueleto longa passava na frente da câmera quando a
- * arma empinava na segunda pose da inspeção comum, e a volta passava de novo pela primeira pose (vai e volta).
+ * Armas longas que ficam na inspeção antiga (vira, rola para o outro lado e volta pelo primeiro), acertada em cima dela
+ * por arma: RS9, StG 44, AK-47 e Ballista (`INSPECT_TUNE`). As outras sem inspeção própria usam o arco (`inspectArc`,
+ * feito na MCX): na antiga, a coronha das armas compridas vinha para a câmera no segundo lado e a volta passava de novo
+ * pelo primeiro.
  */
-const ARC_MOVES: ReadonlySet<string> = new Set(['mcx']);
+const OLD_INSPECT: ReadonlySet<string> = new Set(['rs9', 'stg44', 'ak47', 'ballista']);
+
+/**
+ * Acerto do arco por arma: `yaw` é o giro do primeiro lado (rad; o comum é 1) e `push` leva a arma para longe (m,
+ * negativo) durante toda a inspeção. Snipers compridas (L115, SV-98): virando 1 rad, a coronha enchia a metade esquerda
+ * da tela no primeiro lado; giram menos e vão para a frente antes de virar.
+ */
+interface ArcTune {
+  yaw: number;
+  push: number;
+}
+const ARC_TUNE: Partial<Record<string, ArcTune>> = {
+  l115: { yaw: 0.8, push: -0.15 },
+  sv98: { yaw: 0.8, push: -0.15 },
+};
 
 /**
  * Inspeção em arco: antecipação curta, a arma vira e mostra o lado direito (para), depois o cano vai para a esquerda e
@@ -3457,12 +3476,12 @@ const ARC_MOVES: ReadonlySet<string> = new Set(['mcx']);
  * da tela, e volta direto da segunda pose para o lugar, passando um pouco do ponto. Devolve o quanto a esquerda segura
  * o pente.
  */
-function inspectArc(u: number, mo: number, pos: THREE.Vector3, rot: THREE.Euler): number {
+function inspectArc(u: number, mo: number, pos: THREE.Vector3, rot: THREE.Euler, tune?: ArcTune): number {
   const w = hump(u, 0.04, 0.22, 0.8, 0.97);
   const pre = hump(u, 0, 0.05, 0.06, 0.14);
   const s2 = ease(seg(u, 0.46, 0.62));
   const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
-  rot.y += pre * 0.08 * mo + w * lerp(-1.0, IA.ry, s2) * mo;
+  rot.y += pre * 0.08 * mo + w * lerp(-(tune?.yaw ?? 1), IA.ry, s2) * mo;
   rot.z += w * lerp(0.5, IA.rz, s2) * mo;
   rot.x += w * lerp(0, IA.rx, s2) * mo - settle * 0.04 * mo;
   pos.x += w * lerp(-0.08, IA.px, s2);
@@ -3471,6 +3490,7 @@ function inspectArc(u: number, mo: number, pos: THREE.Vector3, rot: THREE.Euler)
   const turn = 4 * s2 * (1 - s2) * w;
   pos.z += w * lerp(0.03, IA.pz, s2) - 0.05 * turn;
   pos.y -= 0.02 * turn;
+  if (tune) pos.z += tune.push * hump(u, 0, 0.12, 0.86, 1);
   return hump(u, 0.48, 0.62, 0.74, 0.86);
 }
 /** a segunda pose da inspeção em arco (giro YXZ e posição somados à de quadril) */
