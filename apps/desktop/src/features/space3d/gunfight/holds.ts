@@ -420,10 +420,11 @@ function clampHold(g: GunModel, cls: GunClass): Hold {
   const soup = near(g, first.pos);
   const sec = section(soup, g.support);
   let best: { cost: number; hold: Hold } | null = null;
-  for (const [clampYaw, clampRoll, clamp, clampThumbUp] of CLAMP_TRY) {
+  const pick = CLAMP_PICK[g.id];
+  for (const [clampYaw, clampRoll, clamp, clampThumbUp] of pick ? [pick] : CLAMP_TRY) {
     const lg = leftGrip(g, cls, { ...ARM_HAND_FIT, clampYaw, clampRoll, clamp, clampThumbUp });
     const hold = fitLeft(g, { ...lg, wrap: CLAMP_WRAP }, false, [], soup);
-    const cost = clampCost(soup, hold, sec);
+    const cost = clampCost(soup, hold, sec) + wristCost(hold.quat, -1);
     if (!best || cost < best.cost) best = { cost, hold };
   }
   const nudge = LEFT_NUDGE[g.id];
@@ -444,6 +445,18 @@ function clampHold(g: GunModel, cls: GunClass): Hold {
 }
 
 /**
+ * O giro do apoio em "C" escolhido no harness, por arma, no lugar da busca. Kar98k, PDW e StG 44: com o guarda-mão
+ * alto, a busca preferia a palma reta por baixo (as pontas dos dedos não passam da borda de cima) e o braço esquerdo
+ * entrava na horizontal pela esquerda, cobrindo a tela mirando; com a palma girada para a lateral esquerda, o antebraço
+ * vem de baixo com o pulso reto, e as pontas passam ~1 cm da borda de cima, como na mão de verdade em volta da coronha.
+ */
+const CLAMP_PICK: Partial<Record<GunId, readonly [number, number, number, number]>> = {
+  kar98k: [0.8, -0.45, 0.005, 0.3],
+  pdw: [0.8, -0.45, 0.005, 0.3],
+  stg44: [0.8, -0.45, 0.005, 0.3],
+};
+
+/**
  * Acerto do apoio em "C" por arma, conferido no harness (corte do guarda-mão e closes): o deslocamento do pulso (espaço
  * da arma) e quanto os quatro dedos fecham a mais. FN Ballista: o encaixe parava com a palma ~1 cm abaixo do bloco de
  * baixo do guarda-mão e as pontas dos dedos ~1 cm fora da lateral direita (mão aberta, solta); assim a palma encosta
@@ -460,7 +473,11 @@ const LEFT_NUDGE: Partial<Record<GunId, { at: THREE.Vector3Tuple; curl: number }
  */
 const CLAMP_WRAP = 1;
 
-/** as variações do apoio em "C": [dedos para a frente (rad), palma para a esquerda (rad), deslocamento (m), polegar] */
+/**
+ * as variações do apoio em "C": [dedos para a frente (rad), giro da palma (rad; negativo vira a palma para a lateral
+ * esquerda e baixa o pulso, positivo para a direita), deslocamento (m), polegar]. As de giro negativo deixam o
+ * antebraço vir de baixo e da esquerda com o pulso reto (`wristCost`).
+ */
 const CLAMP_TRY: readonly (readonly [number, number, number, number])[] = [
   [ARM_HAND_FIT.clampYaw, ARM_HAND_FIT.clampRoll, ARM_HAND_FIT.clamp, ARM_HAND_FIT.clampThumbUp],
   [0.6, 0.3, 0.015, 0.3],
@@ -468,6 +485,10 @@ const CLAMP_TRY: readonly (readonly [number, number, number, number])[] = [
   [0.3, 0.15, 0.015, 0.6],
   [0.3, 0.3, 0.015, 0.9],
   [0.45, 0.3, 0.015, 0.6],
+  [0.8, -0.15, 0.005, 0.3],
+  [0.8, -0.3, 0.005, 0.3],
+  [0.8, -0.45, 0.005, 0.3],
+  [0.8, -0.6, 0.005, 0.3],
 ];
 
 /** a fatia do guarda-mão no apoio: as laterais e a altura (do fundo ao topo) */
@@ -488,6 +509,30 @@ function section(soup: Soup, at: THREE.Vector3) {
   }
   if (!Number.isFinite(lo)) return { lo: at.y, hi: at.y + 0.05, left: -0.025, right: 0.025 };
   return { lo, hi, left: Math.min(left, -0.01), right: Math.max(right, 0.01) };
+}
+
+/**
+ * O antebraço que deixaria o pulso reto, no espaço da mão (do cotovelo para o pulso; medido nos braços,
+ * `assets/arms.glb`), e a direção de onde o antebraço de apoio vem de verdade, no espaço da arma: de baixo, de trás e
+ * da esquerda, o cotovelo embaixo da arma.
+ */
+const FORE_AXIS = new THREE.Vector3(0.075, 0.16, -0.984).normalize();
+const FORE_LEFT = new THREE.Vector3(0.45, 0.55, -0.7).normalize();
+const FA = new THREE.Vector3();
+/**
+ * O peso do pulso no custo do apoio. Antes não entrava, e a busca ficava com a palma reta por baixo e os dedos
+ * apontando para a direita: o antebraço que deixaria o pulso reto vinha de cima ou atravessado pela esquerda, então o
+ * braço de verdade (de baixo) dobrava o pulso uns 50–80° (pedido do mantenedor, 2026-11-10). Com o peso, a palma gira
+ * para a lateral esquerda do guarda-mão onde os dedos ainda encaixam.
+ */
+const WRIST_WEIGHT = 30;
+/** quanto a pegada obriga o pulso a dobrar (custo acima de ~20°, onde ainda parece reto) */
+function wristCost(quat: THREE.Quaternion, side: 1 | -1): number {
+  FA.copy(FORE_AXIS)
+    .setX(FORE_AXIS.x * side)
+    .applyQuaternion(quat);
+  const a = Math.acos(Math.max(-1, Math.min(1, FA.dot(FORE_LEFT))));
+  return WRIST_WEIGHT * Math.max(0, a - 0.35);
 }
 
 /** o custo de uma pegada de apoio (ver `clampHold`) */
@@ -546,7 +591,7 @@ function agripHold(g: GunModel, cls: GunClass): Hold {
       });
       lg.pos.z += back;
       const hold = fitLeft(g, { ...lg, wrap: CLAMP_WRAP }, false, [], soup);
-      let cost = clampCost(soup, hold, sec);
+      let cost = clampCost(soup, hold, sec) + wristCost(hold.quat, -1);
       const { tip } = leftContact(soup, hold);
       for (const f of ['index', 'middle', 'ring', 'pinky'] as const)
         cost += 4000 * Math.max(0, tip[f]!.y - g.support.y - AGRIP_TIP_UP);
@@ -568,9 +613,13 @@ function agripHold(g: GunModel, cls: GunClass): Hold {
  * pega a caixa e o tubo de gás em cima, e a fração da altura deixava os dedos à altura da mira)
  */
 const AGRIP_TIP_UP = 0.014;
-/** as variações da esquerda na angulada: [dedos para a frente (rad), palma para a esquerda (rad), recuo (m)] */
+/**
+ * as variações da esquerda na angulada: [dedos para a frente (rad), giro da palma (rad, como no `CLAMP_TRY`), recuo
+ * (m)]. O giro negativo baixa o pulso para o antebraço vir de baixo (`wristCost`); girando mais ou inclinando a mão, ela
+ * entra na rampa
+ */
 const AGRIP_TRY: readonly (readonly [number, number, number])[] = [0.45, 0.7, 0.95, 1.2].flatMap((yaw) =>
-  [0.15, 0.35].flatMap((roll) =>
+  [-0.2, 0.15, 0.35].flatMap((roll) =>
     [-0.015, -0.005, 0.005, 0.015, 0.025, 0.035, 0.045].map((back) => [yaw, roll, back] as const),
   ),
 );

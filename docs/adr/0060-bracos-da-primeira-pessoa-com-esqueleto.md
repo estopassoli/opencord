@@ -62,3 +62,28 @@ um modelo de braços de verdade, com esqueleto, e poses escritas por arma.
   alcance) ao kukri (maior alcance, mais lenta).
 - **Karambit**: a mão vai 3 cm para trás e 6 mm para baixo (`ARM_HAND_FIT.ring`): o indicador passa pela argola em vez
   de ficar pendurado na frente dela.
+
+## Adendo (2026-11-10): pulso humano
+- **Problema**: o mantenedor viu no jogo o pulso "todo envergado" em todas as armas. Medido no harness (ângulo entre o
+  antebraço e o antebraço que deixaria o pulso reto), a direita dobrava 65–105° parada e 105–160° mirando, e a esquerda
+  50–60° parada e até 150° na pistola. A causa: o cotovelo saía de uma IK com o ombro fixo quase embaixo da câmera (o
+  braço sempre subia por baixo), e o giro de cada mão vinha da pegada, escolhido só para os dedos encostarem. Nada ligava
+  um ao outro, a não ser nas facas, em que o antebraço já seguia a mão.
+- **Decisão**: em `arms.ts`, depois da IK, o antebraço é girado para dentro de uma elipse de limites do pulso em volta
+  do antebraço do pulso reto (`limitWrist`, `WRIST_LIMIT`: 50° para a palma, 40° para o dorso, 15° para o polegar e 30°
+  para o mindinho, um pouco antes do máximo de uma mão de verdade). A mão não sai do lugar na arma; quem se acomoda é o
+  antebraço e, com ele, o braço. Uma trava (`keepElbowDown`) devolve o antebraço para o lado da IK só o necessário quando
+  o pulso reto mandaria o cotovelo a menos de 15 cm abaixo do olho, acima do pulso ou para o outro lado do corpo (a
+  direita puxando a alavanca da AK; a pistola mirando, com os dois antebraços na horizontal tomando o terço de baixo da
+  tela). Nesses quadros o pulso passa do limite: na pistola mirando fica em ~50–60°, e na direita mirando com fuzil
+  (atrás da mira, quase fora da tela) pode passar disso.
+- **Apoio em "C"**: a busca da pegada (`holds.ts`, `clampHold`) passa a pesar o pulso (`wristCost`): a palma gira para
+  a lateral esquerda do guarda-mão (antes ficava reta por baixo, com os dedos apontando para a direita, e o antebraço
+  "reto" entraria na horizontal pela esquerda, cobrindo a tela mirando). Kar98k e PDW têm o giro escolhido à mão
+  (`CLAMP_PICK`), e a StG 44 também, com as pontas dos dedos passando um pouco da caixa da culatra. A empunhadura
+  angulada pesa o pulso também, mas inclinar ou girar mais a mão a faz entrar na rampa: ali o braço esquerdo ainda vem
+  quase horizontal mirando, mais baixo que antes.
+- **Alternativas descartadas**: mudar só o ombro de lugar (não conserta pegadas que pedem antebraços em direções
+  diferentes ao mesmo tempo); mover a mão para seguir o braço (solta os dedos da arma).
+- **Limites**: o braço (osso de cima) aponta para o ombro com o tamanho dele, mas não chega mais exatamente nele; o
+  ombro fica fora da tela. Teste em máquina real (Windows) pendente.

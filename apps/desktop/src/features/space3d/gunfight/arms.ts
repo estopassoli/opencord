@@ -50,6 +50,8 @@ interface Side {
     hinge: number;
     /** o inverso do giro de descanso da mão em relação ao antebraço */
     handRestQi: THREE.Quaternion;
+    /** a palma no espaço do antebraço, com o pulso reto (perpendicular ao eixo do antebraço) */
+    palm: THREE.Vector3;
   } | null;
   /** os dedos pedidos (aplicados quando o modelo chega) */
   curl: [number, number, number, FingerOffsets];
@@ -74,6 +76,70 @@ const Q2 = new THREE.Quaternion();
 const ONE = new THREE.Vector3(1, 1, 1);
 const SC = new THREE.Vector3();
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const NY = new THREE.Vector3();
+const NP = new THREE.Vector3();
+const NS = new THREE.Vector3();
+const REQ = new THREE.Vector3();
+const TRY = new THREE.Vector3();
+
+/**
+ * Quanto o pulso dobra no máximo (radianos), medido entre o antebraço e o antebraço que deixaria o pulso reto. Uma mão
+ * de verdade chega a uns 75° para a palma, 65° para o dorso, 20° para o lado do polegar e 35° para o do mindinho;
+ * aqui fica um pouco antes disso, onde a pose ainda parece confortável. Cada lado com o seu limite, juntos numa elipse.
+ */
+const deg = THREE.MathUtils.degToRad;
+export const WRIST_LIMIT = { flex: deg(50), ext: deg(40), radial: deg(15), ulnar: deg(30) };
+
+/**
+ * O cotovelo de verdade fica abaixo do pulso (o antebraço desce pelo menos ~10°), a pelo menos 15 cm abaixo do olho
+ * (`ELBOW_TOP`, no espaço da câmera; os ombros ficam a ~0,33 m) e do lado do próprio ombro. O pulso reto às vezes pede o
+ * contrário: a direita subindo para puxar a alavanca da AK (o cotovelo ia para a altura dos olhos e o antebraço entrava
+ * pelo canto de cima da tela) ou a pistola mirando (os dois antebraços na horizontal, na altura das mãos, tomando o
+ * terço de baixo da tela). Aí o antebraço volta para o pedido pela IK só o necessário, e o pulso dobra um pouco mais.
+ */
+const ELBOW_DROP = Math.sin(deg(10));
+const ELBOW_TOP = -0.15;
+const ELBOW_CROSS = 0.25;
+const elbowOk = (v: THREE.Vector3, wristY: number, sign: number) =>
+  v.y <= -ELBOW_DROP && wristY + v.y * ARM_RIG.fore <= ELBOW_TOP && sign * v.x >= -ELBOW_CROSS;
+/** `toElbow` (unitário, do pulso para o cotovelo) de volta para `requested` até o cotovelo ficar num lugar possível */
+export function keepElbowDown(toElbow: THREE.Vector3, requested: THREE.Vector3, wristY: number, sign: 1 | -1) {
+  if (elbowOk(toElbow, wristY, sign)) return toElbow;
+  // nem o da IK dá (a mão alta demais): fica com o cotovelo mais baixo dos dois
+  if (!elbowOk(requested, wristY, sign)) return requested.y < toElbow.y ? toElbow.copy(requested) : toElbow;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 8; i++) {
+    const t = (lo + hi) / 2;
+    if (elbowOk(TRY.copy(toElbow).lerp(requested, t).normalize(), wristY, sign)) hi = t;
+    else lo = t;
+  }
+  return toElbow.lerp(requested, hi).normalize();
+}
+
+/**
+ * Pulso humano: `toElbow` (do pulso para o cotovelo, unitário) é girado para dentro da elipse do `WRIST_LIMIT` em
+ * volta do antebraço que deixaria o pulso reto (`straight`, do cotovelo para o pulso; `palm`, a palma, perpendicular a
+ * ele). A mão não sai do lugar; quem se acomoda é o antebraço (e o braço). `sign`: 1 na direita, −1 na esquerda.
+ */
+export function limitWrist(toElbow: THREE.Vector3, straight: THREE.Vector3, palm: THREE.Vector3, sign: 1 | -1) {
+  NS.crossVectors(straight, palm);
+  // com a mão parada, dobrar o pulso para a palma leva o antebraço para o lado do dorso (`ap` < 0); para o polegar,
+  // leva para o lado do mindinho (`NS` aponta para o polegar na direita e para o mindinho na esquerda)
+  const dy = -toElbow.dot(straight);
+  const ap = Math.atan2(-toElbow.dot(palm), dy);
+  const as = Math.atan2(-toElbow.dot(NS), dy);
+  const L = WRIST_LIMIT;
+  const k = (ap / (ap < 0 ? L.flex : L.ext)) ** 2 + (as / (as * sign < 0 ? L.radial : L.ulnar)) ** 2;
+  if (k <= 1) return toElbow;
+  const f = 1 / Math.sqrt(k);
+  return toElbow
+    .copy(straight)
+    .addScaledVector(palm, Math.tan(ap * f))
+    .addScaledVector(NS, Math.tan(as * f))
+    .normalize()
+    .negate();
+}
 
 export class FpsArms {
   /** vai para a cena da primeira pessoa (espaço da câmera) */
@@ -144,6 +210,12 @@ export class FpsArms {
       const w0 = hand.getWorldPosition(new THREE.Vector3());
       const n0 = new THREE.Vector3().crossVectors(e0.clone().sub(s0), w0.clone().sub(e0));
       const x0 = new THREE.Vector3(1, 0, 0).applyQuaternion(fore.getWorldQuaternion(new THREE.Quaternion()));
+      // a palma (−y no espaço da mão do jogo) levada para o espaço do antebraço com o pulso reto
+      const rest = this.handRest[key];
+      const palm = new THREE.Vector3(0, -1, 0)
+        .applyQuaternion(rest.quat.clone().invert())
+        .applyQuaternion(hand.quaternion);
+      palm.y = 0;
       s.bones = {
         upper,
         fore,
@@ -151,6 +223,7 @@ export class FpsArms {
         target,
         hinge: n0.dot(x0) >= 0 ? 1 : -1,
         handRestQi: hand.quaternion.clone().invert(),
+        palm: palm.normalize(),
       };
       const [c, t, ix, off] = s.curl;
       poseFingers(target, s.sign, c, t, ix, off);
@@ -186,7 +259,11 @@ export class FpsArms {
     // antebraço com o tamanho dele, do pulso para o cotovelo pedido; braço do cotovelo para o ombro
     E.copy(elbow).sub(W);
     if (E.lengthSq() < 1e-8) E.set(0.3 * side, -0.4, 0.5);
-    E.normalize().multiplyScalar(ARM_RIG.fore).add(W);
+    E.normalize();
+    REQ.copy(E);
+    this.humanWrist(b, E, s.sign);
+    keepElbowDown(E, REQ, W.y, s.sign);
+    E.multiplyScalar(ARM_RIG.fore).add(W);
     S2.copy(shoulder).sub(E);
     if (S2.lengthSq() < 1e-8) S2.set(0, -1, 1);
     S2.normalize().multiplyScalar(ARM_RIG.upper).add(E);
@@ -212,6 +289,15 @@ export class FpsArms {
     M.copy(b.fore.matrixWorld).invert().multiply(HM);
     M.decompose(b.hand.position, b.hand.quaternion, SC);
     b.hand.scale.set(1, 1, 1);
+  }
+
+  /** pulso humano (`limitWrist`) com o antebraço do pulso reto desta mão neste quadro */
+  private humanWrist(b: NonNullable<Side['bones']>, toElbow: THREE.Vector3, sign: 1 | -1) {
+    // o antebraço do pulso reto: o giro da mão vezes o inverso do descanso dela; y = do cotovelo para o pulso
+    Q.setFromRotationMatrix(M2.extractRotation(HM)).multiply(b.handRestQi);
+    NY.copy(Y_AXIS).applyQuaternion(Q);
+    NP.copy(b.palm).applyQuaternion(Q);
+    limitWrist(toElbow, NY, NP, sign);
   }
 
   /** giro local de cada osso de dedo (nomes sem o sufixo do lado), no lugar da pose escrita do `setCurl` */

@@ -123,7 +123,10 @@ export interface HandFit {
   vgripTilt: number;
   /** apoio em "C": quanto os dedos apontam para a frente (rad; 0 atravessando a arma) */
   clampYaw: number;
-  /** apoio em "C": quanto a palma gira para a lateral esquerda do guarda-mão (rad; 0 de palma para cima) */
+  /**
+   * apoio em "C": quanto a palma gira em volta do cano (rad; 0 de palma para cima, positivo para a lateral direita,
+   * negativo para a esquerda, com o pulso mais baixo)
+   */
   clampRoll: number;
   /** apoio em "C": o fechamento do polegar e quanto ele abre para o lado da palma (sobe pela lateral esquerda) */
   clampThumb: number;
