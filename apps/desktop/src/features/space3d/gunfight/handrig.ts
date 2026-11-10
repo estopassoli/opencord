@@ -15,9 +15,10 @@ import { ARM_RIG, type ArmBoneRest, type ArmSideRest } from './armsrig';
 
 /**
  * acerto de cada dedo em cima do fechamento: indicador, médio, anelar, mindinho e polegar; o sexto (opcional) abre o
- * polegar para o lado da palma (`HAND_POSE.thumbAbduct`, 0 a ~1): o polegar sobe pela lateral do guarda-mão no apoio
+ * polegar para o lado da palma (`HAND_POSE.thumbAbduct`, 0 a ~1): o polegar sobe pela lateral do guarda-mão no apoio;
+ * o sétimo (opcional, rad) gira a base do indicador para o lado do mindinho (o indicador fora do gatilho mais baixo)
  */
-export type FingerOffsets = readonly [number, number, number, number, number, number?];
+export type FingerOffsets = readonly [number, number, number, number, number, number?, number?];
 const NO_OFFSETS: FingerOffsets = [0, 0, 0, 0, 0];
 
 export type ProbePart = 'palm' | 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';
@@ -133,7 +134,7 @@ export function poseFingers(
     const cf = Math.min(1.6, raw + pose.lead[i]! * clamp01(raw * 2));
     const b = pose.bend[i]!;
     const tr = i === 0 ? split : 0;
-    const spread = pose.spread[i]! * (1 - 0.6 * clamp01(cf)) - (i === 0 ? pose.triggerSplay * tr : 0);
+    const spread = pose.spread[i]! * (1 - 0.6 * clamp01(cf)) - (i === 0 ? pose.triggerSplay * tr - (off[6] ?? 0) : 0);
     setBone(target, 'palm_' + f, k * b[0] * cf, 0, 0);
     setBone(target, f + '1', k * cf * lerp(b[1], pose.trigger[0], tr), 0, sp * spread);
     setBone(target, f + '2', k * cf * lerp(b[2], pose.trigger[1], tr), 0, 0);

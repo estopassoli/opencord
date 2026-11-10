@@ -358,12 +358,18 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   mp5: [0.25, 0.8],
   ballista: [0.42, 0.65],
   mpx: [0.6, 0.9],
-  deagle: [0.3, 0.2],
+  deagle: [0.4, 0.3],
   l115: [0.58, 0.9],
   bfr: [0.3, 0.6],
   ak47: [0.35, 0.5],
   rhino: [0.5, 0.6],
 };
+/**
+ * O indicador fora do gatilho mais baixo, por arma (rad, a base gira para o lado do mindinho): Desert Eagle: a mão fica
+ * baixa no punho fundo e inclinada, e o dedo reto subia ~40° até encostar no ferrolho; aqui ele vai reto ao longo da
+ * armação, por fora do guarda-mato.
+ */
+const INDEX_DROP: Partial<Record<string, number>> = { deagle: 0.35 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
 /** inspeção da MPX: giro (rad) e deslocamento (m) de cada lado (`mpxInspect`) */
@@ -538,7 +544,7 @@ const RHINO_LOADER_Q = new THREE.Quaternion().setFromRotationMatrix(
   new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, -1, 0)),
 );
 /** acertos dos dedos (misturados por quadro, sem alocar) */
-const OFF_R: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+const OFF_R: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
 const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
 const NO_OFF: FingerOffsets = [0, 0, 0, 0, 0];
 const M1 = new THREE.Matrix4();
@@ -2865,6 +2871,7 @@ export class Viewmodel {
     if (!h && open <= 0) return this.knifeOff;
     if (!h) {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
+      OFF_R[6] = 0;
       return OFF_R;
     }
     const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
@@ -2875,6 +2882,8 @@ export class Viewmodel {
       if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
+    const drop = this.gun ? (INDEX_DROP[this.gun.id] ?? 0) : 0;
+    OFF_R[6] = drop * (1 - onTrigger) * (1 - toLever) * (1 - clip);
     // Kar98k, no pente-lâmina: o polegar aberto para o lado, deitado de través em cima das balas
     if (clip > 0) OFF_R[5] += CLIP_THUMB_AB * clip;
     return OFF_R;

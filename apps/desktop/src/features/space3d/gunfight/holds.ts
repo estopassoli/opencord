@@ -128,11 +128,10 @@ function measure(g: GunModel, cls: GunClass): Holds {
       off: [...fix.off],
     };
   } else if (fix?.kind === 'wrist') {
-    // de lado, inclinada `incl`, ou a de sempre girada `yaw` em volta do y da arma
-    const quat =
-      fix.incl !== undefined
-        ? inclined(fix.incl)
-        : rg.quat.clone().premultiply(Y_TURN.setFromAxisAngle(Y_AXIS, fix.yaw ?? 0));
+    // de lado, inclinada `incl` (ou a de sempre), girada `yaw` em volta do y da arma
+    const quat = (fix.incl !== undefined ? inclined(fix.incl) : rg.quat.clone()).premultiply(
+      Y_TURN.setFromAxisAngle(Y_AXIS, fix.yaw ?? 0),
+    );
     right = fitRight(g, new THREE.Vector3(...fix.pos), quat, qc(rg.curl), pistol, true);
   } else {
     if (fix?.kind === 'nudge' || fix?.kind === 'hole') {
@@ -159,8 +158,16 @@ function measure(g: GunModel, cls: GunClass): Holds {
       : clampHold(g, cls);
   const pk = PAD_PINCH[g.id];
   const pinch = pk ? padPinch(g, right, pk) : pinchHold(g, rg.quat);
-  return { right, left, mag: magHold(g, cls, rightBalls), pinch, trigOff: TRIG_OFF[g.id] ?? trigOff(g, right) };
+  const magAvoid = MAG_FREE.has(g.id) ? [] : rightBalls;
+  return { right, left, mag: magHold(g, cls, magAvoid), pinch, trigOff: TRIG_OFF[g.id] ?? trigOff(g, right) };
 }
+
+/**
+ * Pistolas em que a esquerda fecha os dedos no pente sem desviar da direita: o pente é medido parado, dentro do punho,
+ * e os dedos que sobem pela lateral dele paravam na palma da direita, abertos (Desert Eagle: o pente novo ia equilibrado
+ * na palma aberta). Fechados no pente, eles abrem no tapa da base (`magPalm`), antes de chegar na direita.
+ */
+const MAG_FREE: ReadonlySet<GunId> = new Set<GunId>(['deagle']);
 
 /**
  * O indicador fora do gatilho, por arma. SV-98: esticado ao longo da lateral direita do guarda-mato (a procura achava
@@ -210,9 +217,11 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
  *   fileira dos nós dos dedos já desce para trás) o anelar e o mindinho nasciam atrás da frente do punho e ficavam
  *   esticados, e a palma ficava ~1 cm fora (o pé do polegar batia na trava do ferrolho). Aqui a mão vem mais baixa,
  *   inclinada um pouco para a frente: os nós ficam em pé na frente do punho e os dedos dão a volta até a lateral
- *   esquerda. Ou (`yaw`) a mão de sempre girada em volta do eixo y da arma (rad; positivo, os dedos viram para a
- *   esquerda e o pulso sai para a direita). L115: o punho da coronha de buraco é fundo (4,7 cm da frente ao buraco)
- *   e estreito (2,8 cm); a busca deixava os dedos em volta do ar, na frente dele, embaixo do guarda-mato. Virada, a
+ *   esquerda, e girada 0,1 rad (`yaw`) para o polegar alcançar a lateral esquerda por trás do punho (sem isso ele
+ *   ficava de lado, com um calombo atrás do ferrolho). `yaw`: a mão girada em volta do eixo y da arma (rad; positivo,
+ *   os dedos viram para a esquerda e o pulso sai para a direita), a de sempre quando não há `incl`. L115: o punho da
+ *   coronha de buraco é fundo (4,7 cm da frente ao buraco) e estreito (2,8 cm); a busca deixava os dedos em volta do
+ *   ar, na frente dele, embaixo do guarda-mato. Virada, a
  *   mão fecha na frente do punho com as pontas na lateral esquerda (medido no harness: médio 0,99, anelar 0,84,
  *   palma encostada sem entrar). Automag III: a busca deixava a mão ~1 cm para fora do punho (só a base do polegar
  *   encostava) e o polegar não alcançava a lateral esquerda por baixo do ferrolho: cruzava por trás da traseira dele, e
@@ -243,9 +252,9 @@ type RightFix =
 const RIGHT_FIX: Partial<Record<GunId, RightFix>> = {
   msmc: { kind: 'nudge', at: [-0.02, -0.01, -0.03], upright: 0.3 },
   rhino: { kind: 'hole', at: [0.004, -0.008, 0.054], upright: -0.15 },
-  deagle: { kind: 'wrist', pos: [0.042, -0.036, 0.068], incl: -0.16 },
+  deagle: { kind: 'wrist', pos: [0.042, -0.036, 0.068], incl: -0.16, yaw: 0.1 },
   l115: { kind: 'wrist', pos: [0.0488, 0.0021, 0.092], yaw: 0.15 },
-  automag3: { kind: 'wrist', pos: [0.036, 0.015, 0.087], yaw: 0 },
+  automag3: { kind: 'wrist', pos: [0.036, 0.015, 0.087] },
   ak47: {
     kind: 'hold',
     pos: [0.0242, -0.0315, 0.099],
@@ -414,7 +423,7 @@ function vgripHold(g: GunModel, cls: GunClass): Hold {
       const at = lg.pos.clone().addScaledVector(down, d);
       const hold = fitLeft(g, { ...lg, pos: at, curl: [lg.curl[0], t, lg.curl[2]], thumbUp: up }, false, [], soup);
       // o fechamento do polegar volta para o da pegada (a primeira pessoa parte dele) e a diferença vai no acerto
-      const off: [number, number, number, number, number, number?] = [...hold.off];
+      const off: [number, number, number, number, number, number?, number?] = [...hold.off];
       off[4] = hold.off[4] + qc([0, t, 0])[1] - q(lg.curl[1]);
       hold.off = off;
       hold.curl = qc(lg.curl);
@@ -624,9 +633,11 @@ function pistolSupport(g: GunModel): {
  * 0,4 rad. Desert Eagle: com a direita mais baixa no punho fundo, o apoio comum deixava o indicador da esquerda ~4 cm
  * abaixo do guarda-mato e o polegar dela atravessando a armação; aqui a palma sobe e cobre os dedos da direita, o
  * indicador logo abaixo do guarda-mato, e o polegar vai esticado para a frente na lateral esquerda, embaixo do da
- * direita (os dedos descem 0,45 rad; `thumbUp`: quanto o polegar abre para o lado do dorso). Rhino: o apoio de sempre
- * (`APOIO_LADO`) com a palma no punho (no revólver o "pente" é o tambor, lá na frente: a palma ficava 4,5 cm à frente
- * do punho, fechada no ar na frente do guarda-mato). BFR: o mesmo do Rhino (a palma ficava ~6 cm à frente do punho,
+ * direita (os dedos descem 0,45 rad; `thumbUp`: quanto o polegar abre para o lado do dorso); a palma vai para trás e
+ * vira um pouco para o punho, com a base dela na lateral esquerda por cima das pontas da direita (mais à frente, sobrava
+ * uma faixa do punho entre as mãos na primeira pessoa). Rhino: o apoio de sempre (`APOIO_LADO`) com a palma no punho
+ * (no revólver o "pente" é o tambor, lá na frente: a palma ficava 4,5 cm à frente do punho, fechada no ar na frente
+ * do guarda-mato). BFR: o mesmo do Rhino (a palma ficava ~6 cm à frente do punho,
  * fechada no ar embaixo do tambor), com a palma no meio do punho.
  */
 const PISTOL_SUPPORT: Partial<
@@ -649,9 +660,9 @@ const PISTOL_SUPPORT: Partial<
     curl: [0.8, 0.1, 0.8],
   },
   deagle: {
-    palm: [-0.04, -0.01, 0.004],
+    palm: [-0.035, -0.012, 0.026],
     fingers: [0, -Math.sin(0.45), -Math.cos(0.45)],
-    back: [-1, 0, 0],
+    back: [-1, 0, 0.25],
     curl: [0.8, 0.4, 0.8],
     thumbUp: -0.4,
   },
