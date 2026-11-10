@@ -115,3 +115,6 @@ _Acrescente aprendizados curtos e datados. Não apague o que outros escreveram._
 - 2026-11-10: prova forte de junção sem perda: renderizar as mesmas cenas no bundle da junção e no do branch da arma e
   comparar por PSNR (`integ/guncmp.sh`, `knifecmp.sh`): 21 armas e 3 facas deram pixel a pixel iguais (só a BFR muda,
   pela mão de apoio corrigida de propósito).
+- 2026-11-10: facas juntadas numa cadeia por id (karambit, baioneta, kukri, balisong, Bowie, Ka-Bar) em pose, encaixe,
+  corrida, saque/inspeção/golpes e guarda; branches de faca antigos trazem a linha `balisongDraw` e `const bal` do
+  código velho — tirar na junção. As 6 iguais pixel a pixel ao branch (karambit igual ao main).
