@@ -2775,7 +2775,7 @@ export class Viewmodel {
       Math.abs(Math.cos(this.bob + 0.6)) * -0.01 * bobA +
       Math.sin(now / 900 + 0.8) * 0.003 * mo -
       this.swayY * 0.04 -
-      (bw ? 0.12 : 0.08) * this.sprintK +
+      KNIFE_GUARD.sprintDrop * this.sprintK +
       KD.ly;
     GL.z += 0.04 * this.sprintK + KD.lz;
     // a mesma mão em todas as facas (`knifeguard.ts`): meio punho relaxado, o pulso na linha do antebraço (o cotovelo

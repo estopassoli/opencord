@@ -33,6 +33,8 @@ export const KNIFE_GUARD = {
    * o polegar por cima; da câmera se vê o punho de lado, com os dedos dobrados e o polegar deitado sobre eles
    */
   back: [-0.4, 1, -0.3] as [number, number, number],
+  /** correndo, quanto a mão desce (m, espaço da câmera): sai inteira pela borda de baixo, sem o punho espiando */
+  sprintDrop: 0.17,
 };
 
 /**
