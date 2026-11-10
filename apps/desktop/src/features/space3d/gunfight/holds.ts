@@ -155,7 +155,7 @@ function measure(g: GunModel, cls: GunClass): Holds {
   const left = pistol
     ? fitLeft(g, pistolSupport(g), true, rightBalls)
     : g.foregrip?.kind === 'vertical'
-      ? vgripHold(g, cls)
+      ? (vgripFixed(g) ?? vgripHold(g, cls))
       : clampHold(g, cls);
   const pk = PAD_PINCH[g.id];
   const pinch = pk ? padPinch(g, right, pk) : pinchHold(g, rg.quat);
@@ -459,6 +459,49 @@ const VGRIP_THUMB: readonly (readonly [number, number])[] = [
   [0.3, 0.5],
   [0.2, 0.9],
 ];
+
+type FixedHold = {
+  pos: THREE.Vector3Tuple;
+  quat: [number, number, number, number];
+  curl: [number, number, number];
+  off: FingerOffsets;
+};
+/**
+ * A esquerda na empunhadura vertical medida no harness, por arma: `own` na de fábrica, `vgrip` na do armeiro. MCX: no
+ * encaixe comum a mão fazia um "C" aberto em volta da empunhadura (de fábrica: médio e anelar a 8–14 mm dela; na do
+ * armeiro, 5–6 mm), as pontas aparecendo soltas à direita dela na primeira pessoa. Aqui a palma encosta na lateral
+ * esquerda e as falanges de cada dedo encostam na frente e na lateral direita (busca de pulso e giro perto da pegada de
+ * antes, com o encaixe dos dedos de sempre; nada entra mais de 1 mm).
+ */
+const VGRIP_FIX: Partial<Record<GunId, { own?: FixedHold; vgrip?: FixedHold }>> = {
+  mcx: {
+    own: {
+      pos: [-0.0418, -0.0475, -0.2034],
+      quat: [0.1557, -0.2455, 0.7233, 0.6263],
+      curl: [0.9, 0.6, 0.9],
+      off: [-0.0281, 0.1281, 0.1031, 0.0203, 0.1188, 0.5],
+    },
+    vgrip: {
+      pos: [-0.0304, -0.0586, -0.2245],
+      quat: [0.2224, -0.2224, 0.6712, 0.6712],
+      curl: [0.9, 0.6, 0.9],
+      off: [0.0531, 0.2109, 0.1469, -0.125, 0.1734, 0.5],
+    },
+  },
+};
+
+/** a pegada medida da esquerda na empunhadura vertical desta arma (a de fábrica, se ela está à vista), ou nada */
+function vgripFixed(g: GunModel): Hold | null {
+  const fix = VGRIP_FIX[g.id];
+  const h = g.ownGrip?.visible ? fix?.own : fix?.vgrip;
+  if (!h) return null;
+  return {
+    pos: new THREE.Vector3(...h.pos),
+    quat: new THREE.Quaternion(...h.quat).normalize(),
+    curl: [...h.curl],
+    off: [...h.off],
+  };
+}
 
 /**
  * Esquerda na empunhadura vertical: fecha em volta dela, logo abaixo do guarda-mão. Empunhadura curta (a da MSMC): o
