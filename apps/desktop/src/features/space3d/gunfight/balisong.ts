@@ -88,7 +88,8 @@ export const BAL_INSPECT: BalTracks = {
 /**
  * Golpe leve da direita para a esquerda (400 ms; o acerto sai em 30%): o punho arma para a direita e para cima com a
  * ponta para trás (antecipação, ~60 ms), corta num arco rápido que cruza o meio da tela com o fio na frente, segue
- * desacelerando e volta.
+ * desacelerando e volta. A esquerda desce e sai para a esquerda o bastante para o punho passar por cima dela com
+ * ~2 cm de folga (antes ele encostava nela, 0,30–0,55).
  */
 // prettier-ignore
 export const BAL_SLASH_R: BalTracks = {
@@ -98,9 +99,9 @@ export const BAL_SLASH_R: BalTracks = {
   ex: [[0, 0], [0.16, 0.3, 2], [0.18, 0.3, 1], [0.3, 0.1, 1], [0.48, 0.33], [0.86, 0]],
   ey: [[0, 0], [0.16, -0.1, 2], [0.18, -0.1, 1], [0.3, -0.25, 1], [0.48, -0.05], [0.86, 0]],
   ez: [[0, 0], [0.16, -1.19, 2], [0.18, -1.19, 1], [0.3, 0.76, 1], [0.48, 1.27], [0.86, 0]],
-  lx: [[0, 0], [0.2, -0.07], [0.6, -0.07], [1, 0]],
-  ly: [[0, 0], [0.2, -0.11], [0.6, -0.11], [1, 0]],
-  lz: [[0, 0], [0.25, 0.05], [0.6, 0.05], [1, 0]],
+  lx: [[0, 0], [0.2, -0.09], [0.6, -0.09], [1, 0]],
+  ly: [[0, 0], [0.2, -0.16], [0.6, -0.16], [1, 0]],
+  lz: [[0, 0], [0.25, 0.06], [0.6, 0.06], [1, 0]],
 };
 
 /**
