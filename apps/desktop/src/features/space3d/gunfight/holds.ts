@@ -126,7 +126,44 @@ function measure(g: GunModel, cls: GunClass): Holds {
     : g.foregrip?.kind === 'vertical'
       ? vgripHold(g, cls)
       : clampHold(g, cls);
-  return { right, left, mag: magHold(g, cls, rightBalls), pinch: pinchHold(g, rg.quat), trigOff: trigOff(g, right) };
+  const pk = PAD_PINCH[g.id];
+  const pinch = pk ? padPinch(g, right, pk) : pinchHold(g, rg.quat);
+  return { right, left, mag: magHold(g, cls, rightBalls), pinch, trigOff: TRIG_OFF[g.id] ?? trigOff(g, right) };
+}
+
+/**
+ * O indicador fora do gatilho, por arma. SV-98: esticado ao longo da lateral direita do guarda-mato (a procura achava
+ * o primeiro fechamento livre em 0,45, com a ponta ainda dentro do guarda-mato, na frente do gatilho).
+ */
+const TRIG_OFF: Partial<Record<GunId, number>> = { sv98: 0 };
+
+/**
+ * Pinça na bola da alavanca quando ela fica rente à coronha (SV-98): a pegada do punho sobe até a bola (a bola fica
+ * logo acima do gatilho), girada `spin` rad em volta do eixo do cano; o indicador vai por baixo da bola e o polegar
+ * por cima, os outros três fechados na palma. O indicador sai do ponto `from` (a polpa no gatilho) e vai para `to`.
+ * A pegada genérica (o vão da mão fechada na bola) deixava a mão aberta em garra por cima da caixa da culatra.
+ */
+const PAD_PINCH: Partial<
+  Record<GunId, { spin: number; from: THREE.Vector3Tuple; to: THREE.Vector3Tuple; fist: number }>
+> = {
+  sv98: { spin: -0.3, from: [0.003, 0.012, -0.033], to: [0.03, 0.052, -0.039], fist: 1.5 },
+};
+
+function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[GunId]>): Hold {
+  const r = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), k.spin);
+  const pos = right.pos
+    .clone()
+    .sub(new THREE.Vector3(...k.from))
+    .applyQuaternion(r)
+    .add(new THREE.Vector3(...k.to));
+  const quat = r.multiply(right.quat);
+  const fist = k.fist - PINCH[0];
+  const f = fitHand(near(g, pos), 1, pos, quat, PINCH, {
+    fingers: ['index', 'thumb'],
+    base: [right.curl[2] + right.off[0] - PINCH[2], fist, fist, fist, 0, 0],
+    maxCurl: 1.5,
+  });
+  return { pos: f.pos, quat, curl: [...PINCH], off: f.offsets };
 }
 
 type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
