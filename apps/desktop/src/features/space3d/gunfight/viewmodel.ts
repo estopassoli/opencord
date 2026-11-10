@@ -48,6 +48,7 @@ import {
   BAL_SLASH_L,
   BAL_SLASH_R,
   balShift,
+  balFlipIndex,
   balSpread,
   type BalTracks,
 } from './balisong';
@@ -1927,12 +1928,12 @@ export class Viewmodel {
     // dedos soltos enquanto a faca gira. Karambit: os três de baixo bem abertos, o polegar fechado e o indicador mais
     // dobrado segurando a argola (medido: assim a volta inteira passa livre da mão)
     if (open > 0 && g.flip) {
-      // balisong: os dedos meio fechados (esticam quando o cabo de morder passa por baixo do punho) e o polegar fechado
-      // por cima (medido: a lâmina e o cabo de morder passam livres da mão a volta inteira)
+      // balisong: os dedos meio fechados (esticam quando o cabo de morder passa por baixo do punho), o polegar fechado
+      // por cima e o indicador no cabo seguro (medido: a lâmina e o cabo de morder passam livres da mão a volta inteira)
       const spread = 1 - balSpread(KD.shut);
       rightCurl = lerp(rightCurl, BAL_FLIP_CURL.fingers * spread, open);
       rightThumb = lerp(rightThumb, BAL_FLIP_CURL.thumb, open);
-      rightIndex = lerp(rightIndex, BAL_FLIP_CURL.index * spread, open);
+      rightIndex = lerp(rightIndex, balFlipIndex(KD.shut), open);
     } else if (open > 0 && kar) {
       rightCurl = lerp(rightCurl, KAR_SPIN_CURL.fingers, open);
       rightThumb = lerp(rightThumb, KAR_SPIN_CURL.thumb, open);

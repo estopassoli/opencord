@@ -18,6 +18,7 @@ import {
   BAL_LIFT,
   BAL_SLASH_L,
   BAL_SLASH_R,
+  balFlipIndex,
   balShift,
   balSpread,
   type BalTracks,
@@ -136,7 +137,7 @@ describe('balisong — pegada e giros na mão dos braços', () => {
       // só o que gira (a lâmina e o cabo de morder, preso nela)
       const soup = soupOf(g.root, undefined, g.flip!.blade);
       const s = 1 - balSpread(shut);
-      const probes = handProbes(1, BAL_FLIP_CURL.fingers * s, BAL_FLIP_CURL.thumb, BAL_FLIP_CURL.index * s);
+      const probes = handProbes(1, BAL_FLIP_CURL.fingers * s, BAL_FLIP_CURL.thumb, balFlipIndex(shut));
       // a mão no espaço da faca: a faca desce `balShift` e descola `BAL_LIFT` (a mão vai o contrário)
       const at = grip.pos.clone().sub(new THREE.Vector3(BAL_LIFT, balShift(shut), 0));
       for (const part of ['palm', 'index', 'middle', 'ring', 'pinky', 'thumb'] as const) {
@@ -151,6 +152,24 @@ describe('balisong — pegada e giros na mão dos braços', () => {
         expect(gap, `${part} em ${u.toFixed(3)}`).toBeGreaterThan(-0.0005);
       }
     }
+    setBalisong(g, 1);
+  });
+
+  it('girando, o indicador fica no cabo seguro junto dos pinos (a pinça), sem entrar nele', () => {
+    const grip = rightGrip(g, 'knife', ARM_HAND_FIT);
+    // meio aberta (a lâmina para trás, o cabo de morder para fora: a pausa do saque e do floreio)
+    setBalisong(g, 0.5);
+    g.root.updateMatrixWorld(true);
+    const safe = soupOf(g.root, undefined, g.root.getObjectByName('safe_mesh')!);
+    const probes = handProbes(1, BAL_FLIP_CURL.fingers, BAL_FLIP_CURL.thumb, balFlipIndex(0.5)).filter(
+      (p) => p.part === 'index',
+    );
+    const at = grip.pos.clone().sub(new THREE.Vector3(BAL_LIFT, balShift(0.5), 0));
+    const gap = clearance(safe, [], probes, at, grip.quat, 0.03);
+    expect(gap).toBeGreaterThan(-0.0005);
+    expect(gap).toBeLessThan(0.003);
+    // e abre quando o cabo de morder passa por baixo do punho
+    expect(balFlipIndex(0.2)).toBeLessThan(0.05);
     setBalisong(g, 1);
   });
 
