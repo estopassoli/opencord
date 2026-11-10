@@ -118,7 +118,15 @@ function measure(g: GunModel, cls: GunClass): Holds {
   rest(g);
   const pistol = cls === 'pistol';
   const rg = rightGrip(g, cls, ARM_HAND_FIT);
-  const right = fitRight(g, rg.pos, rg.quat, qc(rg.curl), pistol);
+  const fixed = RIGHT_FIXED[g.id];
+  const right = fixed
+    ? {
+        pos: new THREE.Vector3(...fixed.pos),
+        quat: new THREE.Quaternion(...fixed.quat).normalize(),
+        curl: [...fixed.curl] as [number, number, number],
+        off: [...fixed.off] as FingerOffsets,
+      }
+    : fitRight(g, rg.pos, rg.quat, qc(rg.curl), pistol);
   // a direita vira obstáculo para a esquerda (na pistola, os dedos da esquerda passam por cima dos dela)
   const rightBalls = balls(right, 1);
   const left = pistol
@@ -387,6 +395,33 @@ function fitRight(
   off[5] = bestT!.up;
   return { pos: best.pos, quat: quat.clone(), curl: rc, off };
 }
+/**
+ * Pegada da direita medida no harness com a mão dos braços (pulso e giro no espaço da arma, fechamentos e acertos), nas
+ * armas em que o encaixe automático erra. AK-47: o gatilho fica ~8 cm à frente das costas do punho e o punho é estreito
+ * (2,4 cm); o encaixe punha o médio em cima da barra do guarda-mato, os dedos davam a volta 3–5 cm à frente do punho,
+ * soltos, e o polegar ficava em pé do lado direito, encostado na caixa. Aqui a mão desce 3,5 cm (o médio logo abaixo
+ * do guarda-mato), os dedos apontam ~9° para a esquerda, médio, anelar e mindinho dão a volta no punho com as pontas na
+ * lateral esquerda (encostados, nada entrando), o indicador alcança a frente do gatilho e o polegar dá a volta por trás
+ * do punho e deita na lateral esquerda, no alto (`RIGHT_THUMB` do viewmodel).
+ */
+const RIGHT_FIXED: Partial<
+  Record<
+    GunId,
+    {
+      pos: THREE.Vector3Tuple;
+      quat: [number, number, number, number];
+      curl: [number, number, number];
+      off: FingerOffsets;
+    }
+  >
+> = {
+  ak47: {
+    pos: [0.0242, -0.0315, 0.099],
+    quat: [0.053, -0.053, -0.7051, 0.7051],
+    curl: [0.9, 0.5, 0.35],
+    off: [0, 0.153, 0.047, -0.389, -0.15, 0.5],
+  },
+};
 /** o polegar da direita no punho: [fechamento de partida, aberto para o lado da palma] */
 const RIGHT_THUMB: readonly (readonly [number, number])[] = [
   [0.5, 0],
