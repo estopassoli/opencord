@@ -50,6 +50,7 @@ import {
 } from './reload';
 import { kickSpring, spring, stepSpring } from './spring';
 import { AuthoredArms, hasAuthored } from './fpanim';
+import { M200_BASH, M200_BOLT, M200_INSPECT, m200Pose } from './m200';
 import type { GunSpec } from './weapons';
 import type { GunId } from '@opencord/contracts';
 
@@ -172,6 +173,9 @@ const PINCH: readonly [number, number, number] = PINCH_CURL;
  */
 const BOLT_HAND: Partial<Record<string, { knob: THREE.Vector3; roll: number }>> = {
   sv98: { knob: new THREE.Vector3(0.0227, 0.0444, -0.0263), roll: 0.35 },
+  // M200: a mão fechada na bola, girando 40% do giro dela (girando tudo, o dorso virava para cima e o braço vinha do
+  // alto da tela, com o cotovelo levantado)
+  m200: { knob: new THREE.Vector3(0.0649, 0.0225, -0.0049), roll: 0.4 },
 };
 const KNOB_NOW = new THREE.Vector3();
 const KNOB_Q = new THREE.Quaternion();
@@ -235,6 +239,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   aks74u: [0.45, 0.7],
   m9: [0.4, 0.45], // pistola com as duas mãos: deita na lateral esquerda, para a frente, por cima do polegar de apoio
   msmc: [0.55, 1.1],
+  m200: [0.46, 0.7],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
@@ -307,14 +312,10 @@ const DEBRIS_MAX = 4;
 const SLIDE_LOCK: ReadonlySet<string> = new Set(['automag3', 'm9']);
 const SLIDE_LOCK_BACK = 0.035;
 /**
- * Armas em que a mão de apoio sobe junto com o pente novo e empurra a base até encaixar (ver a recarga); `drop`: só
- * quando o velho cai (pistolas; MSMC vazia, pente no punho), `swap`: também na troca com bala.
+ * Armas em que a mão de apoio sobe junto com o pente novo e empurra a base até encaixar, depois que o velho cai (na
+ * troca com bala ela já segue o pente): pistolas, MSMC e M200 vazias.
  */
-const MAG_PUSH: Partial<Record<string, 'drop' | 'swap'>> = {
-  automag3: 'drop',
-  m9: 'drop',
-  msmc: 'drop',
-};
+const MAG_PUSH: ReadonlySet<string> = new Set(['automag3', 'm9', 'msmc', 'm200']);
 /** no tiro, quando o ferrolho chega lá atrás (fração do `fire`): dali em diante, travado, ele não volta */
 const SLIDE_LOCK_AT = 0.42;
 /** quantos estojos esperando o `game.ts` levar para o mundo, no máximo */
@@ -1020,8 +1021,7 @@ export class Viewmodel {
           handOut = rp.handOut;
           // a mão sobe junto com o pente novo e a palma empurra a base até o fim (sem isso, no `drop` ela ficava
           // parada embaixo do poço, aberta, e o pente subia sozinho)
-          const push = MAG_PUSH[g.id];
-          if (push && u >= MAG_OUT_AT && (push === 'swap' || rp.dropped)) handOut = rp.out;
+          if (MAG_PUSH.has(g.id) && rp.dropped) handOut = rp.out;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
           if (g.id === 'm9') {
@@ -1043,6 +1043,9 @@ export class Viewmodel {
           if (empty) this.emptyGesture(u, joltAt);
           // o polegar soltou o retém: o ferrolho fecha (o gesto `pistol` segura ele aberto até aqui)
           if (empty && u >= 0.8) this.slideHeld = false;
+          // M200 vazia: no ferrolho do fim, a arma deita para a esquerda como no ferrolho do tiro (a alavanca fica à
+          // vista, em vez de escondida pela inclinação da recarga)
+          if (empty && g.id === 'm200') m200Pose(M200_BOLT, seg(u, 0.62, 0.98), mo, pos, rot);
           break;
         }
         case 'reloadClip': {
@@ -1084,9 +1087,12 @@ export class Viewmodel {
         case 'bolt': {
           // sniper: abaixa um pouco; a mão direita sai do punho, pega a alavanca, gira, puxa (o estojo sai), empurra,
           // gira de volta e volta para o punho
-          const w = hump(u, 0, 0.12, 0.85, 1);
-          pos.y -= w * 0.02;
-          rot.z -= w * 0.15 * mo;
+          if (g.id === 'm200') m200Pose(M200_BOLT, u, mo, pos, rot);
+          else {
+            const w = hump(u, 0, 0.12, 0.85, 1);
+            pos.y -= w * 0.02;
+            rot.z -= w * 0.15 * mo;
+          }
           boltRot = hump(u, 0.12, 0.28, 0.66, 0.8) * 1.2;
           boltBack = hump(u, 0.28, 0.45, 0.48, 0.66) * 0.09;
           joltAt('back', 0.45, -1);
@@ -1152,6 +1158,9 @@ export class Viewmodel {
             rot.y += (0.1 * ant - 0.1 * hit) * mo;
             rot.x += (0.06 * ant - 0.04 * hit) * mo;
             joltAt('hit', 0.3, 1.8);
+          } else if (g.id === 'm200') {
+            m200Pose(M200_BASH, u, mo, pos, rot);
+            joltAt('hit', 0.32, 1.6);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             // RS9: antes, recolhe a arma para trás e para a direita (antecipação) e só então empurra
@@ -1195,6 +1204,11 @@ export class Viewmodel {
             if (this.holds?.mag) magHold = Math.max(magHold, grab);
             joltAt('grab', 0.56, 0.8);
             joltAt('show', 0.22, 0.5);
+            break;
+          }
+          if (g.id === 'm200') {
+            m200Pose(M200_INSPECT, u, mo, pos, rot);
+            joltAt('turn', 0.6, 0.6);
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
