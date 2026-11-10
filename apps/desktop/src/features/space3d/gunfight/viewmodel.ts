@@ -179,6 +179,10 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   sv98: 'bolt',
   automag3: 'pistol',
 };
+/** polegar da direita por arma: [fechamento, abertura para o lado da palma] (dá a volta por trás do punho) */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  rs9: [0.63, 1.1],
+};
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
@@ -973,10 +977,19 @@ export class Viewmodel {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
-            const w = hump(u, 0, 0.25, 0.5, 1);
+            // RS9: antes, recolhe a arma para trás e para a direita (antecipação) e só então empurra
+            const rs9 = g.id === 'rs9';
+            const w = rs9 ? hump(u, 0.12, 0.3, 0.5, 1) : hump(u, 0, 0.25, 0.5, 1);
             pos.z -= 0.15 * w;
             pos.x -= 0.08 * w;
             rot.z += 0.6 * w * mo;
+            if (rs9) {
+              const pre = hump(u, 0, 0.1, 0.12, 0.26);
+              pos.z += 0.035 * pre;
+              pos.x += 0.015 * pre;
+              rot.z -= 0.12 * pre * mo;
+              rot.x += 0.05 * pre * mo;
+            }
           }
           break;
         }
@@ -993,7 +1006,9 @@ export class Viewmodel {
           // depois rola e mostra o lado direito e o topo, com a mão de apoio no pente; volta passando um pouco do ponto
           const w = hump(u, 0.04, 0.22, 0.82, 1);
           const pre = hump(u, 0, 0.05, 0.06, 0.14);
-          const side2 = hump(u, 0.46, 0.6, 0.74, 0.86);
+          // RS9: o segundo lado volta direto para casa, junto com a arma (antes, ele saía primeiro e a arma passava de
+          // novo pelo lado esquerdo antes de voltar)
+          const side2 = g.id === 'rs9' ? hump(u, 0.46, 0.6, 0.82, 1) : hump(u, 0.46, 0.6, 0.74, 0.86);
           const settle = Math.sin(seg(u, 0.86, 1) * Math.PI) * (1 - seg(u, 0.86, 1));
           rot.y += pre * 0.08 * mo - w * 1.0 * (1 - side2) - side2 * 0.25;
           rot.z += w * 0.5 * (1 - side2) - side2 * 0.45 * mo;
@@ -1658,9 +1673,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
