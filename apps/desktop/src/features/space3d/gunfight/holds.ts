@@ -118,6 +118,15 @@ function measure(g: GunModel, cls: GunClass): Holds {
   rest(g);
   const pistol = cls === 'pistol';
   const rg = rightGrip(g, cls, ARM_HAND_FIT);
+  const pr = PISTOL_RIGHT[g.id];
+  if (pr) {
+    // punho mais para trás do gatilho e mais inclinado que o das outras pistolas: a mão acompanha
+    rg.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pr.rake));
+    rg.pos
+      .fromArray(pr.at)
+      .sub(ARM_HAND_FIT.grip.clone().applyQuaternion(rg.quat))
+      .add(new THREE.Vector3(0.004, 0, 0));
+  }
   const right = fitRight(g, rg.pos, rg.quat, qc(rg.curl), pistol);
   // a direita vira obstáculo para a esquerda (na pistola, os dedos da esquerda passam por cima dos dela)
   const rightBalls = balls(right, 1);
@@ -128,6 +137,15 @@ function measure(g: GunModel, cls: GunClass): Holds {
       : clampHold(g, cls);
   return { right, left, mag: magHold(g, cls, rightBalls), pinch: pinchHold(g, rg.quat), trigOff: trigOff(g, right) };
 }
+
+/**
+ * Pistolas com o punho fora do padrão (o meio do punho, onde passa o vão da mão, e quanto a mão inclina a mais): o
+ * Rhino tem o punho ~1 cm mais para trás do gatilho e ~10° mais inclinado; na pegada de sempre os dedos fechavam no ar
+ * na frente dele e a mão ficava baixa, com o alto do punho à mostra atrás dela.
+ */
+const PISTOL_RIGHT: Partial<Record<GunId, { at: THREE.Vector3Tuple; rake: number }>> = {
+  rhino: { at: [0, -0.008, 0.054], rake: -0.15 },
+};
 
 type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
 
@@ -436,10 +454,17 @@ function pistolSupport(g: GunModel): {
   const zc = mag ? (mag.min.z + mag.max.z) / 2 : 0.03;
   // o centro da palma ao lado do punho, um pouco abaixo do guarda-mato
   const palm = new THREE.Vector3(-0.034, -0.032, zc - 0.006);
+  // revólver: o "pente" é o tambor, lá na frente; a palma vai no punho (medido no modelo)
+  const sp = SUPPORT_PALM[g.id];
+  if (sp) palm.fromArray(sp.palm);
   const quat = APOIO_LADO.clone();
   const pos = palm.sub(new THREE.Vector3(0, 0, -0.046).applyQuaternion(quat));
-  return { pos, quat, curl: [0.7, 0.15, 0.7] };
+  return { pos, quat, curl: [0.7, 0.15, 0.7], thumbUp: sp?.thumbUp };
 }
+/** o centro da palma de apoio nas pistolas em que o pente não marca o punho (Rhino: o tambor ficava 4,5 cm à frente) */
+const SUPPORT_PALM: Partial<Record<GunId, { palm: THREE.Vector3Tuple; thumbUp?: number }>> = {
+  rhino: { palm: [-0.034, -0.027, 0.03], thumbUp: -0.2 },
+};
 /** palma para +x, dedos para a frente e para baixo (0, −0,6, −0,8), indicador para cima */
 const APOIO_LADO = basis([0, 0.8, -0.6], [-1, 0, 0], [0, 0.6, 0.8]);
 
