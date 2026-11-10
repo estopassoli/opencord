@@ -187,6 +187,7 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
 const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   stg44: [0.5, 0.85],
   rs9: [0.63, 1.1],
+  mcx: [0.45, 0.8],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
@@ -994,6 +995,8 @@ export class Viewmodel {
             rot.x += (0.1 * pre - 0.05 * hit) * mo;
             rot.y += 0.12 * hit * mo;
             joltAt('hit', 0.32, -1.4);
+          } else if (ARC_MOVES.has(g.id)) {
+            gunBash(u, mo, pos, rot, joltAt);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             // RS9: antes, recolhe a arma para trás e para a direita (antecipação) e só então empurra
@@ -1019,6 +1022,12 @@ export class Viewmodel {
         case 'inspect': {
           if (knife) {
             this.knifeInspect(u, mo, pos, rot, joltAt);
+            break;
+          }
+          if (ARC_MOVES.has(g.id)) {
+            const s2 = inspectArc(u, mo, pos, rot);
+            if (this.holds?.mag) magHold = Math.max(magHold, s2);
+            joltAt('grab', 0.56, 0.8);
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -2131,4 +2140,60 @@ function authoredThumb(o: FingerOffsets): FingerOffsets {
   THUMB_OFF[4] = AUTHORED_THUMB[0];
   THUMB_OFF[5] = AUTHORED_THUMB[1];
   return THUMB_OFF;
+}
+
+/**
+ * Armas com inspeção e coronhada em arco próprio (MCX): a coronha esqueleto longa passava na frente da câmera quando a
+ * arma empinava na segunda pose da inspeção comum, e a volta passava de novo pela primeira pose (vai e volta).
+ */
+const ARC_MOVES: ReadonlySet<string> = new Set(['mcx']);
+
+/**
+ * Inspeção em arco: antecipação curta, a arma vira e mostra o lado direito (para), depois o cano vai para a esquerda e
+ * ela mostra o lado esquerdo e o pente (a mão de apoio vai nele) quase sem empinar, com a coronha saindo pela direita
+ * da tela, e volta direto da segunda pose para o lugar, passando um pouco do ponto. Devolve o quanto a esquerda segura
+ * o pente.
+ */
+function inspectArc(u: number, mo: number, pos: THREE.Vector3, rot: THREE.Euler): number {
+  const w = hump(u, 0.04, 0.22, 0.8, 0.97);
+  const pre = hump(u, 0, 0.05, 0.06, 0.14);
+  const s2 = ease(seg(u, 0.46, 0.62));
+  const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
+  rot.y += pre * 0.08 * mo + w * lerp(-1.0, IA.ry, s2) * mo;
+  rot.z += w * lerp(0.5, IA.rz, s2) * mo;
+  rot.x += w * lerp(0, IA.rx, s2) * mo - settle * 0.04 * mo;
+  pos.x += w * lerp(-0.08, IA.px, s2);
+  pos.y += w * lerp(0.04, IA.py, s2);
+  // virando de uma pose para a outra, a coronha varre a frente da câmera: a arma vai um pouco para longe e para baixo
+  const turn = 4 * s2 * (1 - s2) * w;
+  pos.z += w * lerp(0.03, IA.pz, s2) - 0.05 * turn;
+  pos.y -= 0.02 * turn;
+  return hump(u, 0.48, 0.62, 0.74, 0.86);
+}
+/** a segunda pose da inspeção em arco (giro YXZ e posição somados à de quadril) */
+const IA = { rx: 0.1, ry: 0.35, rz: -0.35, px: -0.06, py: 0.05, pz: -0.02 };
+
+/**
+ * Coronhada com peso: a arma recua e arma para a direita (antecipação), vai rápido para a frente e para a esquerda
+ * rolando (no acerto, em 0,32 — o `game.ts` conta o golpe em 160 ms de 500), dá o tranco, segue um pouco e volta
+ * devagar, assentando.
+ */
+function gunBash(
+  u: number,
+  mo: number,
+  pos: THREE.Vector3,
+  rot: THREE.Euler,
+  joltAt: (key: string, at: number, v: number) => void,
+) {
+  const a = hump(u, 0, 0.16, 0.18, 0.3);
+  const s = expOut(seg(u, 0.17, 0.32)) * (1 - ease(seg(u, 0.44, 0.95)));
+  const f = hump(u, 0.3, 0.4, 0.44, 0.7);
+  const settle = Math.sin(seg(u, 0.85, 1) * Math.PI) * (1 - seg(u, 0.85, 1));
+  pos.z += 0.035 * a - 0.16 * s - 0.012 * f;
+  pos.x += 0.02 * a - 0.085 * s;
+  pos.y += 0.012 * a + 0.008 * s - 0.006 * f;
+  rot.z += (-0.15 * a + 0.62 * s + 0.06 * f) * mo;
+  rot.y += (0.1 * a + 0.16 * s) * mo;
+  rot.x += (0.08 * a - 0.08 * s - 0.03 * settle) * mo;
+  joltAt('hit', 0.32, -1.4);
 }
