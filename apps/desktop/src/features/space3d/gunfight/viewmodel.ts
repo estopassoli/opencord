@@ -63,6 +63,23 @@ import {
   balSpread,
   type BalTracks,
 } from './balisong';
+import {
+  KABAR_GRIP,
+  KABAR_GUARD_L,
+  KABAR_POSE,
+  KABAR_RUN,
+  KB_DRAW,
+  KB_DRAW_T,
+  KB_HEAVY,
+  KB_HEAVY_T,
+  KB_INSPECT,
+  KB_INSPECT_T,
+  KB_SLASH_L,
+  KB_SLASH_L_T,
+  KB_SLASH_R,
+  KB_SLASH_R_T,
+  turnInto,
+} from './kabar';
 import { ARM_RIG } from './armsrig';
 import { BOWIE_DRAW, BOWIE_HEAVY, BOWIE_INSPECT, BOWIE_SLASH_L, BOWIE_SLASH_R } from './bowie';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
@@ -906,7 +923,19 @@ export class Viewmodel {
       // os dedos partem abertos e fecham até encostar no cabo, um por um. Karambit: o indicador (atravessando a argola)
       // e o médio (rente à frente dela) ficam no fechamento medido da pegada; o anelar e o mindinho partem dele
       const kar = g.id === 'karambit';
-      const start: [number, number, number] = kar ? curlOf(this.handR) : g.flip ? [...BAL_FIT_START] : [...KNIFE_OPEN];
+      // Ka-Bar: a pegada medida dela (`kabar.ts`) no lugar do martelo genérico
+      if (g.id === 'kabar') {
+        this.handR.root.position.fromArray(KABAR_GRIP.pos);
+        this.handR.root.quaternion.fromArray(KABAR_GRIP.quat);
+        this.rightAt.copy(this.handR.root.position);
+      }
+      const start: [number, number, number] = kar
+        ? curlOf(this.handR)
+        : g.flip
+          ? [...BAL_FIT_START]
+          : g.id === 'kabar'
+            ? [...KABAR_GRIP.start]
+            : [...KNIFE_OPEN];
       // kukri: o polegar fica no fechamento medido, por cima dos dedos (`KUKRI_ARM`), sem encaixe
       const kuk = g.id === 'kukri';
       const f = fitHand(soupOf(g.root), 1, this.handR.root.position, this.handR.root.quaternion, start, {
@@ -1052,7 +1081,9 @@ export class Viewmodel {
           ? BAY_POSE
           : g.id === 'bowie'
             ? BOWIE_POSE
-            : KNIFE_POSE[g.id === 'karambit' || g.id === 'balisong' ? g.id : 'bayonet']
+            : g.id === 'kabar'
+              ? KABAR_POSE
+              : KNIFE_POSE[g.id === 'karambit' || g.id === 'balisong' ? g.id : 'bayonet']
       : null;
     const own = HIP_OWN[g.id];
     const hip = kp ? kp.pos : own ? own.pos : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
@@ -1155,7 +1186,23 @@ export class Viewmodel {
         sp * 0.3 + this.tacK * -0.3,
       );
     }
-    if (!kar && !bay && !kuk && !bal && !bw) {
+    // Ka-Bar: correndo, a faca desce e aponta para a frente e para a esquerda, bombeando com o passo; na tática, o braço
+    // sobe dobrado para perto do peito com a lâmina em pé (os giros em `KABAR_RUN`)
+    const kb = g.id === 'kabar';
+    if (kb) {
+      const pump = Math.sin(this.bob) * mo;
+      const R = KABAR_RUN;
+      pos.x += sp * R.sprintPos[0] + this.tacK * R.tacPos[0] + pump * 0.012 * this.sprintK;
+      pos.y +=
+        sp * R.sprintPos[1] + this.tacK * R.tacPos[1] + Math.abs(Math.cos(this.bob)) * -0.012 * this.sprintK * mo;
+      pos.z += sp * R.sprintPos[2] + this.tacK * R.tacPos[2] - pump * 0.015 * this.sprintK;
+      RUN_E.set(
+        sp * R.sprint[0] + this.tacK * R.tac[0] + pump * 0.1 * this.sprintK,
+        sp * R.sprint[1] + this.tacK * R.tac[1],
+        sp * R.sprint[2] + this.tacK * R.tac[2],
+      );
+    }
+    if (!kar && !bay && !kuk && !bal && !bw && !kb) {
       pos.x += sp * -0.03;
       pos.y += sp * -0.05;
       rot.y += sp * 0.65;
@@ -2365,6 +2412,12 @@ export class Viewmodel {
       joltAt('catch', 0.52, 2.2);
       return;
     }
+    if (this.gun?.id === 'kabar') {
+      this.karambitPlay(KB_DRAW, u, full, pos);
+      turnInto(u, KB_DRAW_T, KD);
+      joltAt('catch', 0.38, 2);
+      return;
+    }
     if (kar) {
       this.karambitPlay(KAR_DRAW, u, full, pos);
       joltAt('catch', 0.6, 2.2);
@@ -2449,6 +2502,14 @@ export class Viewmodel {
       joltAt('faceB', 0.44, 0.8);
       joltAt('catch', 0.72, 0.6);
       joltAt('settle', 0.95, 1.2);
+      return;
+    }
+    if (this.gun?.id === 'kabar') {
+      this.karambitPlay(KB_INSPECT, u, full, pos);
+      turnInto(u, KB_INSPECT_T, KD);
+      joltAt('faceA', 0.2, 0.8);
+      joltAt('faceB', 0.55, 0.8);
+      joltAt('catch', 0.9, 1.4);
       return;
     }
     if (kar) {
@@ -2546,6 +2607,12 @@ export class Viewmodel {
       joltAt('cut', 0.3, 1.4);
       return;
     }
+    if (this.gun?.id === 'kabar') {
+      this.karambitPlay(s > 0 ? KB_SLASH_R : KB_SLASH_L, u, mo >= 1, pos);
+      turnInto(u, s > 0 ? KB_SLASH_R_T : KB_SLASH_L_T, KD);
+      joltAt('cut', 0.3, 1.4);
+      return;
+    }
     const w = hump(u, 0, 0.18, 0.7, 1);
     const wind = hump(u, 0, 0.16, 0.18, 0.28);
     pos.z += 0.05 * wind;
@@ -2624,6 +2691,12 @@ export class Viewmodel {
     if (this.gun?.flip) {
       this.balisongPlay(BAL_HEAVY, u, mo >= 1, pos);
       joltAt('stab', 0.47, 3);
+      return;
+    }
+    if (this.gun?.id === 'kabar') {
+      this.karambitPlay(KB_HEAVY, u, mo >= 1, pos);
+      turnInto(u, KB_HEAVY_T, KD);
+      joltAt('stab', 0.45, 3);
       return;
     }
     const wind = ease(seg(u, 0, 0.35)) * (1 - expOut(seg(u, 0.35, 0.5)));
@@ -2759,11 +2832,12 @@ export class Viewmodel {
       HQ.invert().multiply(bay ? BAY_GUARD.quat : bal ? BAL_GUARD_Q : bw ? BOWIE_GUARD_Q : GUARD_Q),
     );
     // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador
-    // baioneta, balisong, bowie e kukri: os dedos da esquerda de cada uma (a kukri num punho solto: aberta em garra,
-    // parecia segurar uma bola invisível)
+    // baioneta, balisong, Bowie, Ka-Bar e kukri: os dedos da esquerda de cada uma (a Ka-Bar e a kukri num punho meio
+    // fechado: a garra aberta parecia segurar uma bola invisível)
     if (bay) this.handL.setCurl(BAY_GUARD.curl, BAY_GUARD.thumb, BAY_GUARD.index);
     else if (bal) this.handL.setCurl(BAL_GUARD.curl, BAL_GUARD.thumb, BAL_GUARD.index);
     else if (bw) this.handL.setCurl(0.6, 0.3, 0.48);
+    else if (this.gun?.id === 'kabar') this.handL.setCurl(KABAR_GUARD_L.curl, KABAR_GUARD_L.thumb, KABAR_GUARD_L.index);
     else {
       const gc = this.gun?.id === 'kukri' ? KUK_GUARD_CURL : null;
       this.handL.setCurl(gc?.[0] ?? GUARD_CURL, gc?.[1] ?? GUARD_THUMB, gc?.[2] ?? GUARD_INDEX);
