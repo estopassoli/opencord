@@ -62,3 +62,15 @@ Modificações (`apps/desktop/scripts/knives-build.py`, Blender): escala em metr
 eixos e origem no cabo, cabo do kukri alinhado, texturas reduzidas para 512 px (JPEG); balisong só com a pose
 fechada, com a lâmina e o cabo de morder separados em nós que giram nos pinos; cores novas na balisong e no kukri (o
 arquivo é quase todo preto).
+
+## Movimento dos braços (primeira pessoa)
+
+O movimento das animações do MP7 na primeira pessoa (`assets/anims/mp7.glb`: parado, sacar, guardar, tiro e as duas
+recargas) foi adaptado de dois modelos animados de [LokitoBlu](https://sketchfab.com/martinezequielgorno), publicados no
+Sketchfab sob a licença [Creative Commons Attribution 4.0 (CC-BY 4.0)](https://creativecommons.org/licenses/by/4.0/):
+"AK-74M" (parado, sacar, guardar, tiro) e "Pistol" (recargas).
+
+Modificações (`apps/desktop/scripts/anims/`, Blender): só o movimento é usado — a malha, a arma e as texturas dele não
+estão no jogo. O movimento foi levado para os nossos braços (`assets/arms.glb`) e para o nosso MP7 (escala pela mão,
+arma alinhada pelo punho, mão de apoio levada para a frente de baixo da caixa, pente da pistola trocado pelo nosso, mais
+comprido), reamostrado a 30 qps; a corrida, a corrida tática, o golpe e a inspeção são nossos, feitos em cima dessa pegada.

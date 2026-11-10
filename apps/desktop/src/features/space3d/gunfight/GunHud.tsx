@@ -590,7 +590,8 @@ export function GunMatchPanel({
       <p className="gf-note">
         Modelos de armas: Ultimate Low Poly Guns, de TastyTony e Pichuliru, e modelos Low Poly de TastyTony no Sketchfab
         (CC-BY 4.0), adaptados. Facas no Sketchfab (CC-BY 4.0), adaptadas: balisong de Jawa (HELLBRAD), Ka-Bar de
-        Boleklolo, Bowie de Big2XG e kukri de jsbgamedev123.
+        Boleklolo, Bowie de Big2XG e kukri de jsbgamedev123. Movimento dos braços do MP7 adaptado de &quot;AK-74M&quot;
+        e &quot;Pistol&quot;, de LokitoBlu no Sketchfab (CC-BY 4.0).
       </p>
     </div>
   );

@@ -22,7 +22,7 @@ import { flashTexture } from './fx';
 import { ARM_HAND_FIT, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
 import { aimReticles } from './attachmodels';
-import { disposeGun, movePart, partBox, partCenter, setBalisong, type GunModel, type Part } from './models';
+import { disposeGun, movePart, partBox, partCenter, posePart, setBalisong, type GunModel, type Part } from './models';
 import { PINCH_CURL, fitAt, gunHolds, magMesh, speedLoader, stripperClip, warmHolds, type Holds } from './holds';
 import {
   CLIP_ROUNDS,
@@ -38,6 +38,7 @@ import {
   reloadStyle,
 } from './reload';
 import { kickSpring, spring, stepSpring } from './spring';
+import { AuthoredArms, hasAuthored } from './fpanim';
 import type { GunSpec } from './weapons';
 import type { GunId } from '@opencord/contracts';
 
@@ -351,6 +352,13 @@ const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const GL = new THREE.Vector3();
 /** ângulo em (−π, π] (a volta mais curta para casa) */
 const wrapAngle = (a: number) => a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
+/** temporários do caminho feito à mão */
+const AU_ROOT = new THREE.Matrix4();
+const AU_M = new THREE.Matrix4();
+const AU_Q = new THREE.Quaternion();
+const AU_S = new THREE.Vector3();
+const AU_V = new THREE.Vector3();
+const AU_ONE = new THREE.Vector3(1, 1, 1);
 
 export class Viewmodel {
   readonly scene = new THREE.Scene();
@@ -440,6 +448,8 @@ export class Viewmodel {
   private now = 0;
   /** 1 normal; ~0,3 com "reduzir movimento" */
   private readonly motion: number;
+  /** animação feita à mão (ADR-0061; hoje só o MP7): no lugar das contas de código para esta arma */
+  private authored: AuthoredArms | null = null;
 
   constructor(reducedMotion = false) {
     this.motion = reducedMotion ? 0.3 : 1;
@@ -539,6 +549,8 @@ export class Viewmodel {
     this.last = zeroOffsets();
     this.carry = zeroOffsets();
     this.carryT = CARRY_MS;
+    this.authored?.dispose();
+    this.authored = !knife && hasAuthored(g.id) ? new AuthoredArms(g.id, g) : null;
     this.play('draw', knife ? KNIFE_DRAW_MS : spec.cls === 'pistol' ? 420 : 600);
   }
 
@@ -552,6 +564,12 @@ export class Viewmodel {
     }
     // a inspeção da faca tem pausa em cada face e um floreio: mais longa que a pedida (só a animação; um golpe corta)
     if (kind === 'inspect' && this.spec?.cls === 'knife') ms = KNIFE_INSPECT_MS;
+    // feita à mão: a inspeção tem a duração escrita; as outras seguem o tempo do jogo (recarga montada, saque)
+    if (this.authored && kind !== 'fire') {
+      if (kind === 'inspect') ms = this.authored.length('inspect') * 1000;
+      if (kind === 'draw' || kind === 'reload' || kind === 'reloadEmpty' || kind === 'inspect' || kind === 'melee')
+        this.authored.play(kind, ms);
+    }
     this.action = { kind, t: 0, ms: Math.max(1, ms), side: this.meleeSide };
     this.joltDone.clear();
     // supressor e quebra-chamas: sem clarão na boca
@@ -579,6 +597,7 @@ export class Viewmodel {
     kickSpring(this.kSide, v.k, v.c, -v.side * (1 - 0.6 * a) * side * k);
     // semiautomática e automática: o estojo sai no tiro (no ferrolho, sai quando a mão abre a culatra)
     if (!sp.boltMs) this.eject(false);
+    this.authored?.fire();
   }
 
   /** o coice de agora (para trás em m e a subida em rad), para as medidas */
@@ -601,6 +620,7 @@ export class Viewmodel {
     const g = this.gun;
     const spec = this.spec;
     if (!g || !spec) return;
+    if (this.authored) return this.updateAuthored(g, spec, this.authored, dt, now, inp);
     const mo = this.motion;
     const k = (rate: number) => 1 - Math.exp(-dt * rate);
     this.sprintK += ((inp.sprint && !inp.slide ? 1 : 0) - this.sprintK) * k(10);
@@ -1189,6 +1209,106 @@ export class Viewmodel {
   }
 
   /**
+   * Arma com animação feita à mão (`fpanim.ts`, ADR-0061): o clipe dá a arma, as mãos, os dedos, o pente e a alavanca
+   * no espaço em que foi escrito (a câmera em repouso, a arma na pose de quadril); aqui ficam as camadas de código por
+   * cima, as mesmas das outras armas: mirar (a mesma conta da linha de mira), balanço do mouse, passo, coice pelas
+   * molas, deslizar e pulo. Elas mexem nesse espaço inteiro, então mão e arma andam juntas; o braço é resolvido do
+   * pulso até o ombro, com o cotovelo do clipe.
+   */
+  private updateAuthored(g: GunModel, spec: GunSpec, au: AuthoredArms, dt: number, now: number, inp: VmInput) {
+    const mo = this.motion;
+    const k = (rate: number) => 1 - Math.exp(-dt * rate);
+    this.sprintK += ((inp.sprint && !inp.slide ? 1 : 0) - this.sprintK) * k(10);
+    this.tacK += ((inp.tactical && !inp.slide ? 1 : 0) - this.tacK) * k(10);
+    this.slideK += ((inp.slide ? 1 : 0) - this.slideK) * k(12);
+    this.airK += ((inp.airborne ? 1 : 0) - this.airK) * k(8);
+    const swayK = (1 - inp.ads * 0.85) * mo;
+    const lx = clamp(inp.lookX, LOOK_MAX);
+    const ly = clamp(inp.lookY, LOOK_MAX);
+    this.swayX = clamp(this.swayX + (-lx * 0.9 * swayK - this.swayX) * k(14), SWAY_MAX);
+    this.swayY = clamp(this.swayY + (ly * 0.9 * swayK - this.swayY) * k(14), SWAY_MAX);
+    const pace = inp.sprint ? (inp.tactical ? 15 : 12) : 8;
+    if (inp.moving > 0.05 && !inp.airborne && !inp.slide) this.bob += dt * pace;
+    this.adsNow = inp.ads;
+    const vk = spec.recoil.vm;
+    for (const s of [this.kBack, this.kRise, this.kRoll, this.kSide]) stepSpring(s, vk.k, vk.c, dt);
+    // o que o jogo pergunta (`busy`) e as peças do tiro (ferrolho e gatilho) continuam por aqui
+    let boltBack = 0;
+    let trig = 0;
+    const a = this.action;
+    if (a) {
+      a.t += dt * 1000;
+      const u = Math.min(1, a.t / a.ms);
+      if (a.kind === 'fire') {
+        boltBack = Math.sin(Math.min(1, u * 1.2) * Math.PI) * 0.035;
+        trig = hump(u, 0, 0.12, 0.4, 0.6);
+      }
+      if (u >= 1) this.action = null;
+    }
+    const ads = ease(inp.ads);
+    au.update(dt, { ads, sprint: this.sprintK, tac: this.tacK, stride: this.bob });
+    // a linha de mira: a mesma conta das outras armas
+    const eyeZ = g.adsEye ?? ADS_EYE[g.id] ?? (spec.cls === 'smg' ? -0.25 : -0.2);
+    const sPitch = g.sightPitch ?? 0;
+    const pc = Math.cos(sPitch);
+    const ps = Math.sin(sPitch);
+    AIM.set(-g.sight.x, -(g.sight.y * pc - g.sight.z * ps), eyeZ - (g.sight.y * ps + g.sight.z * pc));
+    const hp = au.meta.hip.pos;
+    const hr = au.meta.hip.rot;
+    const pos = POS.set(hp[0], hp[1], hp[2]).lerp(AIM, ads);
+    const rot = ROT.set(lerp(hr[0], sPitch, ads), hr[1] * (1 - ads), hr[2] * (1 - ads), 'YXZ');
+    // o passo (a corrida tem o dela no clipe), o balanço e o resto, como nas outras armas
+    const bobA = inp.moving * (1 - ads * 0.85) * (inp.crouch ? 0.6 : 1) * mo * (1 - this.sprintK);
+    pos.x += Math.sin(this.bob) * 0.012 * bobA;
+    pos.y += Math.abs(Math.cos(this.bob)) * -0.012 * bobA;
+    const steady = 1 - ads * 0.9;
+    rot.y += this.swayX;
+    rot.x += this.swayY;
+    pos.x += this.swayX * 0.05 * steady;
+    pos.y -= this.swayY * 0.05 * steady;
+    rot.z += this.slideK * 0.45 * mo * steady;
+    pos.y += (this.slideK * 0.02 + this.airK * 0.015) * steady;
+    pos.z = Math.min(pos.z + this.kBack.x, Math.max(pos.z, KICK_Z_MAX));
+    rot.x += this.kRise.x;
+    rot.z += this.kRoll.x;
+    rot.y += this.kSide.x;
+    // o espaço do clipe: a pose de quadril dele vai para a pose de agora
+    const P = au.pose;
+    AU_ROOT.compose(pos, AU_Q.setFromEuler(rot), AU_ONE).multiply(au.hipInv);
+    AU_M.multiplyMatrices(AU_ROOT, P.gun).decompose(this.holder.position, this.holder.quaternion, AU_S);
+    this.holder.scale.set(1, 1, 1);
+    this.sway.position.set(0, 0, 0);
+    // peças
+    posePart(g, g.parts.mag, P.mag);
+    if (g.rounds) g.rounds.visible = P.rounds && AU_V.setFromMatrixPosition(P.mag).lengthSq() > 1e-6;
+    movePart(g.parts.charge, V.set(0, 0, P.charge));
+    movePart(g.parts.bolt, V.set(0, 0, boltBack), 0);
+    movePart(g.parts.trigger, V.set(0, 0, 0.004 * trig));
+    this.holder.updateMatrixWorld(true);
+    // braços: a mão e o cotovelo do clipe, o braço até o ombro; os dedos do clipe
+    if (this.arms.build()) {
+      for (let s = 0; s < 2; s++) {
+        const side = s === 0 ? 1 : -1;
+        AU_M.multiplyMatrices(AU_ROOT, P.hand[s]!);
+        ELBOW.copy(P.elbow[s]!).applyMatrix4(AU_ROOT);
+        this.arms.solveHand(side, AU_M, shoulderAt(side, 0, SH), ELBOW);
+        this.arms.setFingerQuats(side, P.fingers[s]!);
+      }
+    }
+    if (this.ejectAfter) {
+      this.ejectAfter = false;
+      this.eject(true);
+    }
+    this.stepDebris(dt);
+    const on = now < this.flashUntil;
+    this.flash.visible = on;
+    this.flash.position.copy(g.muzzle).add(V.set(0, 0, -0.03));
+    this.flashLight.position.copy(this.flash.position);
+    this.flashLight.intensity = on ? 3 : 0;
+    aimReticles(g, this.camera);
+  }
+
+  /**
    * Saque da faca no momento `u` (0–1), mexendo na pose (`pos`, `rot`) e preenchendo `KD`: o braço inteiro anda, não só
    * a faca. Karambit: a mão entra pelo alto à direita, erguida; ali os dedos soltam e ela dá uma volta inteira no
    * indicador, pela argola, com o pulso virando junto; os dedos fecham e o braço desce para a guarda, passando um pouco
@@ -1691,6 +1811,8 @@ export class Viewmodel {
 
   /** libera tudo: a arma, os braços e o clarão */
   dispose() {
+    this.authored?.dispose();
+    this.authored = null;
     if (this.gun) disposeGun(this.gun);
     this.gun = null;
     this.arms.dispose();

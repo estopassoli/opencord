@@ -13,6 +13,7 @@ import type { GunId } from '@opencord/contracts';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { loadArms } from './arms';
+import { loadFpAnims } from './fpanim';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import ak47Url from '../assets/guns/ak47.glb?url';
@@ -277,6 +278,7 @@ export function loadGuns(): Promise<void> {
         ),
       ),
       loadArms(),
+      loadFpAnims(),
     ]);
     const scenes = new Map(files.map(([id, g]) => [id, g.scene]));
     const kar = scenes.get('kar98k');
@@ -520,6 +522,23 @@ export function movePart(p: Part | undefined, d: THREE.Vector3, rot = 0) {
 }
 const TMP = new THREE.Vector3();
 const TQ = new THREE.Quaternion();
+const PM = new THREE.Matrix4();
+const PM2 = new THREE.Matrix4();
+const PS = new THREE.Vector3();
+
+/**
+ * Põe a peça com um deslocamento qualquer `d` (matriz no espaço da arma, a partir do lugar dela): o pente que sai
+ * girando nas animações feitas à mão (`fpanim.ts`). O pai da peça não mexe em relação à arma.
+ */
+export function posePart(g: GunModel, p: Part | undefined, d: THREE.Matrix4) {
+  if (!p || !p.obj.parent) return;
+  g.root.updateMatrixWorld(true);
+  // o pai no espaço da arma
+  PM.copy(g.root.matrixWorld).invert().multiply(p.obj.parent.matrixWorld);
+  PM2.compose(p.rest, p.restQ, PS.set(1, 1, 1));
+  PM2.premultiply(PM).premultiply(d).premultiply(PM.invert());
+  PM2.decompose(p.obj.position, p.obj.quaternion, PS);
+}
 const AXIS = new THREE.Vector3();
 const Z = new THREE.Vector3(0, 0, 1);
 

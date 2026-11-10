@@ -166,11 +166,22 @@ export class FpsArms {
    */
   solve(side: 1 | -1, shoulder: THREE.Vector3, elbow: THREE.Vector3) {
     const s = this.sides[side > 0 ? 'r' : 'l'];
-    const b = s.bones;
-    if (!b) return;
+    if (!s.bones) return;
     const rest = side > 0 ? this.handRest.r : this.handRest.l;
     // a mão: a âncora vezes o descanso do osso no espaço da mão
     HM.copy(s.hand.root.matrixWorld).multiply(M.compose(rest.pos, rest.quat, ONE));
+    this.solveHand(side, HM, shoulder, elbow);
+  }
+
+  /**
+   * O mesmo `solve`, com a matriz do osso da mão já pronta (espaço da cena): as animações feitas à mão (`fpanim.ts`)
+   * dão a mão e o cotovelo de cada quadro.
+   */
+  solveHand(side: 1 | -1, hand: THREE.Matrix4, shoulder: THREE.Vector3, elbow: THREE.Vector3) {
+    const s = this.sides[side > 0 ? 'r' : 'l'];
+    const b = s.bones;
+    if (!b) return;
+    if (hand !== HM) HM.copy(hand);
     W.setFromMatrixPosition(HM);
     // antebraço com o tamanho dele, do pulso para o cotovelo pedido; braço do cotovelo para o ombro
     E.copy(elbow).sub(W);
@@ -201,6 +212,16 @@ export class FpsArms {
     M.copy(b.fore.matrixWorld).invert().multiply(HM);
     M.decompose(b.hand.position, b.hand.quaternion, SC);
     b.hand.scale.set(1, 1, 1);
+  }
+
+  /** giro local de cada osso de dedo (nomes sem o sufixo do lado), no lugar da pose escrita do `setCurl` */
+  setFingerQuats(side: 1 | -1, q: ReadonlyMap<string, THREE.Quaternion>) {
+    const b = this.sides[side > 0 ? 'r' : 'l'].bones;
+    if (!b) return;
+    for (const [name, bone] of b.target.bones) {
+      const v = q.get(name);
+      if (v) bone.quaternion.copy(v);
+    }
   }
 
   /** um osso na posição `at`, com o y dele em `y` e o x o mais perto possível de `x` (no espaço da cena) */

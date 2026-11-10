@@ -189,6 +189,12 @@ depois). Todo o teste manual está PENDENTE. Falta: `docs/IMPLEMENTATION_PLAN.md
   parecia um adesivo de alvo; `fx.ts`). Aberto: na 3ª pessoa mirando a arma fica no peito (não sobe ao rosto); mão
   esquerda no guarda-mão da 1ª pessoa quase toda escondida. Lista em `context/reviews/2026-11-09-pegada-recoil-r2-teste-rita.md`.
 
+  **MP7 com animação nova (Téo, 2026-11-09, ADR-0061):** só o MP7 usa o caminho novo (`gunfight/fpanim.ts` +
+  `fpmix.ts`, clipes em `assets/anims/mp7.glb` gerados por `scripts/anims/mp7.py` no Blender). Parado, sacar, guardar, tiro
+  e recargas vêm do movimento de LokitoBlu (CC BY 4.0) levado para os nossos braços; corrida, tática, golpe e inspeção
+  escritos à mão. Camadas de código (mira, balanço, coice) e de acessório por cima. Abertos: mão de apoio meio aberta no
+  parado, mão de apoio entrando na arma em quadros da recarga, angulada. Teste no app e em máquina real PENDENTE.
+
 ## Decisões registradas
 
 - ADR-0055 (e adendos) e `docs/DECISIONS.md`. Arquitetura nova exige ADR + linha em DECISIONS.
