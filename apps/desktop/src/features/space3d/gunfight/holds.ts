@@ -120,7 +120,14 @@ function measure(g: GunModel, cls: GunClass): Holds {
   const rg = rightGrip(g, cls, ARM_HAND_FIT);
   const fix = RIGHT_FIX[g.id];
   let right: Hold;
-  if (fix?.kind === 'wrist') {
+  if (fix?.kind === 'hold') {
+    right = {
+      pos: new THREE.Vector3(...fix.pos),
+      quat: new THREE.Quaternion(...fix.quat).normalize(),
+      curl: [...fix.curl],
+      off: [...fix.off],
+    };
+  } else if (fix?.kind === 'wrist') {
     // de lado, inclinada `incl`, ou a de sempre girada `yaw` em volta do y da arma
     const quat =
       fix.incl !== undefined
@@ -205,14 +212,35 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
  *   e estreito (2,8 cm); a busca deixava os dedos em volta do ar, na frente dele, embaixo do guarda-mato. Virada, a
  *   mão fecha na frente do punho com as pontas na lateral esquerda (medido no harness: médio 0,99, anelar 0,84,
  *   palma encostada sem entrar).
+ * - `hold`: a pegada inteira medida no harness com a mão dos braços (pulso e giro no espaço da arma, fechamentos e
+ *   acertos). AK-47: o gatilho fica ~8 cm à frente das costas do punho e o punho é estreito (2,4 cm); o encaixe punha
+ *   o médio em cima da barra do guarda-mato, os dedos davam a volta 3–5 cm à frente do punho, soltos, e o polegar
+ *   ficava em pé do lado direito, encostado na caixa. Aqui a mão desce 3,5 cm (o médio logo abaixo do guarda-mato),
+ *   os dedos apontam ~9° para a esquerda, médio, anelar e mindinho dão a volta no punho com as pontas na lateral
+ *   esquerda (encostados, nada entrando), o indicador alcança a frente do gatilho e o polegar dá a volta por trás do
+ *   punho e deita na lateral esquerda, no alto (`RIGHT_THUMB` do viewmodel).
  */
 type RightFix =
   | { kind: 'nudge'; at: THREE.Vector3Tuple; upright: number }
-  | { kind: 'wrist'; pos: THREE.Vector3Tuple; incl?: number; yaw?: number };
+  | { kind: 'wrist'; pos: THREE.Vector3Tuple; incl?: number; yaw?: number }
+  | {
+      kind: 'hold';
+      pos: THREE.Vector3Tuple;
+      quat: [number, number, number, number];
+      curl: [number, number, number];
+      off: FingerOffsets;
+    };
 const RIGHT_FIX: Partial<Record<GunId, RightFix>> = {
   msmc: { kind: 'nudge', at: [-0.02, -0.01, -0.03], upright: 0.3 },
   deagle: { kind: 'wrist', pos: [0.042, -0.036, 0.068], incl: -0.16 },
   l115: { kind: 'wrist', pos: [0.0488, 0.0021, 0.092], yaw: 0.15 },
+  ak47: {
+    kind: 'hold',
+    pos: [0.0242, -0.0315, 0.099],
+    quat: [0.053, -0.053, -0.7051, 0.7051],
+    curl: [0.9, 0.5, 0.35],
+    off: [0, 0.153, 0.047, -0.389, -0.15, 0.5],
+  },
 };
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Y_TURN = new THREE.Quaternion();
