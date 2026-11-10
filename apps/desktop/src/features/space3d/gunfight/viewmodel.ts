@@ -365,8 +365,6 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   ak47: [0.35, 0.5],
   rhino: [0.5, 0.6],
 };
-/** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
-const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
 /** inspeção da MPX: giro (rad) e deslocamento (m) de cada lado (`mpxInspect`) */
 const MPX_INSPECT = {
   yaw1: -0.6,
@@ -555,8 +553,8 @@ const POUCH = new THREE.Vector3();
  * trás). FN Ballista: a coronha comprida passava na frente da câmera e enchia metade da tela; a arma vai para a frente
  * (antes de girar) e para a direita, e rola menos, mostrando o lado esquerdo inteiro de perfil
  */
-const INSPECT_TUNE: Partial<Record<string, { yaw: number; roll: number; x: number; z: number }>> = {
-  ballista: { yaw: 0.95, roll: 0.35, x: -0.06, z: -0.16 },
+const INSPECT_TUNE: Partial<Record<string, { yaw: number; roll: number; x: number; z: number; free2?: boolean }>> = {
+  ballista: { yaw: 0.95, roll: 0.35, x: -0.06, z: -0.16, free2: true },
 };
 /** armas em que a mão de apoio pega o pente pela lateral (na inspeção) */
 const SIDE_MAG: ReadonlySet<string> = new Set(['m4', 'ak47', 'mp5', 'scarl', 'mcx', 'aks74u', 'stg44', 'mpx', 'pdw']);
@@ -1857,29 +1855,29 @@ export class Viewmodel {
             }
             break;
           }
-          // pistolas, e as armas que se acertaram em cima da inspeção antiga (RS9, StG 44, AK-47, Ballista): duas
+          // pistolas, e as armas que se acertaram em cima da inspeção antiga (RS9, AK-47, Ballista): duas
           // paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
           // depois rola e mostra o lado direito e o topo, com a mão de apoio no pente; volta passando um pouco do ponto
           const w = hump(u, 0.04, 0.22, 0.82, 1);
           const pre = hump(u, 0, 0.05, 0.06, 0.14);
-          // RS9: o segundo lado volta direto para casa, junto com a arma (antes, ele saía primeiro e a arma passava de
-          // novo pelo lado esquerdo antes de voltar)
-          const side2 = g.id === 'rs9' ? hump(u, 0.46, 0.6, 0.82, 1) : hump(u, 0.46, 0.6, 0.74, 0.86);
+          // RS9 e AK-47: o segundo lado volta direto para casa, junto com a arma (antes, ele saía primeiro e a arma
+          // passava de novo pelo lado esquerdo antes de voltar). AK: e o primeiro lado não volta depois do segundo (no
+          // fim, a coronha virava duas vezes para a câmera e a arma repassava pelo primeiro perfil)
+          const home = g.id === 'rs9' || g.id === 'ak47';
+          const side2 = home ? hump(u, 0.46, 0.6, 0.82, 1) : hump(u, 0.46, 0.6, 0.74, 0.86);
           const settle = Math.sin(seg(u, 0.86, 1) * Math.PI) * (1 - seg(u, 0.86, 1));
-          // StG 44: no segundo lado o cano vai para a esquerda e quase não sobe, com a arma mais longe: o lado direito
-          // fica de frente (com o cano para cima, a coronha comprida vinha para a câmera e só se via a soleira)
-          // e do segundo lado ela volta direto para casa (passar de novo pelo primeiro fazia a coronha virar para a câmera)
-          const stg = g.id === 'stg44';
-          const side1 = stg && u > 0.6 ? 0 : 1 - side2;
+          const side1 = g.id === 'ak47' && u > 0.6 ? 0 : 1 - side2;
           const lt = INSPECT_TUNE[g.id];
-          rot.y += pre * 0.08 * mo - w * (lt?.yaw ?? 1.0) * side1 + side2 * (stg ? S2_STG.yaw : -0.25);
-          rot.z += w * (lt?.roll ?? 0.5) * side1 - side2 * (stg ? S2_STG.roll : 0.45) * mo;
-          rot.x += side2 * (stg ? S2_STG.pitch : 0.3) * mo - settle * 0.04 * mo;
-          if (stg) pos.z -= side2 * S2_STG.push;
+          rot.y += pre * 0.08 * mo - w * (lt?.yaw ?? 1.0) * side1 - side2 * 0.25;
+          rot.z += w * (lt?.roll ?? 0.5) * side1 - side2 * 0.45 * mo;
+          rot.x += side2 * 0.3 * mo - settle * 0.04 * mo;
           pos.x -= w * (lt?.x ?? 0.08) - side2 * 0.02;
           pos.y += w * 0.04 + side2 * 0.015;
           // arma comprida: vai para a frente antes de girar e só volta depois (senão a coronha passa pela câmera)
           pos.z += (lt ? hump(u, 0, 0.12, 0.88, 1) : w) * (lt?.z ?? 0.03);
+          // no segundo lado, a arma comprida virada leva o guarda-mão para longe do ombro: o braço não alcança, solta do
+          // ombro e a ponta cortada da manga aparecia no meio da tela. A esquerda solta a arma e sai da tela (`free2`)
+          if (lt?.free2) leftAway = Math.max(leftAway, hump(u, 0.44, 0.54, 0.8, 0.9));
           // AK: a coronha de madeira é comprida: virada de lado, ela tapava metade da tela (e no segundo lado a arma
           // ficava em pé no meio). Vira menos, longe do rosto e mais à direita; no segundo lado, menos empinada
           if (g.id === 'ak47') {
@@ -3572,7 +3570,8 @@ function m4Inspect(
 ): number {
   const pre = hump(u, 0, 0.04, 0.05, 0.12);
   const w = ease(seg(u, 0.05, 0.24)) * (1 - ease(seg(u, 0.78, 0.95)));
-  const b = ease(seg(u, 0.44, 0.6));
+  // a virada de lado é curta (de ponta para a câmera por menos tempo)
+  const b = ease(seg(u, 0.48, 0.6));
   const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
   // nas pausas a arma não fica parada: um respiro lento de poucos graus
   const drift = Math.sin(u * Math.PI * 5) * 0.025 * w;
@@ -3584,6 +3583,10 @@ function m4Inspect(
   pos.x += lerp(M4_INSPECT_A.px, M4_INSPECT_B.px, b) * w;
   pos.y += lerp(M4_INSPECT_A.py, M4_INSPECT_B.py, b) * w;
   pos.z += lerp(M4_INSPECT_A.pz, M4_INSPECT_B.pz, b) * w;
+  // na virada (de ponta para a câmera), para baixo e para a direita, fora do meio da tela (`inspectArc`)
+  const turn = 4 * b * (1 - b) * w;
+  pos.x += TURN_AWAY.x * turn;
+  pos.y -= TURN_AWAY.y * turn;
   joltAt('sideA', 0.24, 0.6);
   joltAt('sideB', 0.6, 0.6);
   // a esquerda no pente no segundo lado, com um puxão curto para baixo e o empurrão de volta
@@ -3647,7 +3650,7 @@ function authoredThumb(o: FingerOffsets): FingerOffsets {
  * feito na MCX): na antiga, a coronha das armas compridas vinha para a câmera no segundo lado e a volta passava de novo
  * pelo primeiro.
  */
-const OLD_INSPECT: ReadonlySet<string> = new Set(['rs9', 'stg44', 'ak47', 'ballista']);
+const OLD_INSPECT: ReadonlySet<string> = new Set(['rs9', 'ak47', 'ballista']);
 
 /**
  * Acerto do arco por arma: `yaw` é o giro do primeiro lado (rad; o comum é 1) e `push` leva a arma para longe (m,
@@ -3661,6 +3664,8 @@ interface ArcTune {
 const ARC_TUNE: Partial<Record<string, ArcTune>> = {
   l115: { yaw: 0.8, push: -0.15 },
   sv98: { yaw: 0.8, push: -0.15 },
+  stg44: { yaw: 0.8, push: -0.15 },
+  msmc: { yaw: 0.8, push: -0.12 },
 };
 
 /**
@@ -3672,20 +3677,24 @@ const ARC_TUNE: Partial<Record<string, ArcTune>> = {
 function inspectArc(u: number, mo: number, pos: THREE.Vector3, rot: THREE.Euler, tune?: ArcTune): number {
   const w = hump(u, 0.04, 0.22, 0.8, 0.97);
   const pre = hump(u, 0, 0.05, 0.06, 0.14);
-  const s2 = ease(seg(u, 0.46, 0.62));
+  const s2 = ease(seg(u, 0.47, 0.6));
   const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
   rot.y += pre * 0.08 * mo + w * lerp(-(tune?.yaw ?? 1), IA.ry, s2) * mo;
   rot.z += w * lerp(0.5, IA.rz, s2) * mo;
   rot.x += w * lerp(0, IA.rx, s2) * mo - settle * 0.04 * mo;
   pos.x += w * lerp(-0.08, IA.px, s2);
   pos.y += w * lerp(0.04, IA.py, s2);
-  // virando de uma pose para a outra, a coronha varre a frente da câmera: a arma vai um pouco para longe e para baixo
+  // virando de uma pose para a outra, a arma passa de ponta (a coronha para a câmera): ela vai um pouco para longe e
+  // volta para baixo e para a direita, onde fica no quadril (no meio da tela, em pé, ela tapava a vista por ~0,1 s)
   const turn = 4 * s2 * (1 - s2) * w;
   pos.z += w * lerp(0.03, IA.pz, s2) - 0.05 * turn;
-  pos.y -= 0.02 * turn;
+  pos.y -= TURN_AWAY.y * turn;
+  pos.x += TURN_AWAY.x * turn;
   if (tune) pos.z += tune.push * hump(u, 0, 0.12, 0.86, 1);
   return hump(u, 0.48, 0.62, 0.74, 0.86);
 }
+/** na virada de lado da inspeção, quanto a arma desce e volta para a direita (m, no pico da virada) */
+const TURN_AWAY = { x: 0.08, y: 0.05 };
 /** a segunda pose da inspeção em arco (giro YXZ e posição somados à de quadril) */
 const IA = { rx: 0.1, ry: 0.35, rz: -0.35, px: -0.06, py: 0.05, pz: -0.02 };
 
