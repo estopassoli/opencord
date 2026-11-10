@@ -148,6 +148,9 @@ describe('baioneta — trilhas das animações', () => {
     // corte de volta: arma à esquerda, no acerto anda para a direita
     expect(track(0.18, BAY_SLASH_R.px)).toBeLessThan(-0.1);
     expect(track(0.34, BAY_SLASH_R.px)).toBeGreaterThan(track(0.2, BAY_SLASH_R.px) + 0.1);
+    // ... com o pulso rolando no corte (o fio vai na frente, para a direita; sem isso batia de chapa)
+    expect(track(0.34, BAY_SLASH_R.pro)).toBeLessThan(-0.3);
+    expect(track(0.2, BAY_SLASH_R.pro)).toBe(0);
     // pesado: recua (z para a câmera) e estoca para a frente e para o meio no acerto (45%)
     expect(track(0.34, BAY_HEAVY.pz)).toBeGreaterThan(0.03);
     expect(track(0.45, BAY_HEAVY.pz)).toBeLessThan(-0.12);
