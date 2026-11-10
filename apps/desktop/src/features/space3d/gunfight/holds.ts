@@ -669,21 +669,29 @@ const PISTOL_SUPPORT: Partial<
 const APOIO_LADO = basis([0, 0.8, -0.6], [-1, 0, 0], [0, 0.6, 0.8]);
 
 /**
- * O indicador fora do gatilho: esticado sobre a armação (`TRIGGER_OFF`), ele entrava na lateral da caixa da culatra em
- * várias armas. Procura, a partir dele, o fechamento mais perto que fica livre (abrindo ou fechando um pouco).
+ * O indicador fora do gatilho: reto ao longo da lateral da armação, acima do guarda-mato. Procura o fechamento mais reto
+ * em que ele só encosta na lateral (as sondas são uns mm mais gordas que a malha do dedo: até `INDEX_TOUCH` dentro é
+ * encostar). A procura antiga (a partir de `TRIGGER_OFF`, o fechamento livre mais perto) achava 0,3–0,5 na maioria
+ * das armas: o dedo ficava dobrado, enganchado dentro ou em volta do guarda-mato. Sem nenhum assim, fica a antiga.
  */
 function trigOff(g: GunModel, right: Hold): number {
   const soup = soupOf(g.root, { at: right.pos, r: 0.18 });
-  const free = (ix: number) => {
+  const gap = (ix: number) => {
     const o: [number, number, number, number, number] = [ix - right.curl[2], 0, 0, 0, 0];
-    return clearance(soup, [], handProbes(1, ...right.curl, o, 'index'), right.pos, right.quat, 0.004) >= 0.0005;
+    return clearance(soup, [], handProbes(1, ...right.curl, o, 'index'), right.pos, right.quat, 0.004);
   };
+  for (let ix = 0; ix <= INDEX_STRAIGHT; ix += 0.025) if (gap(ix) >= -INDEX_TOUCH) return ix;
+  const free = (ix: number) => gap(ix) >= 0.0005;
   for (let d = 0; d <= 0.5; d += 0.025) {
     if (free(TRIGGER_OFF - d) && TRIGGER_OFF - d >= 0) return TRIGGER_OFF - d;
     if (free(TRIGGER_OFF + d)) return TRIGGER_OFF + d;
   }
   return TRIGGER_OFF;
 }
+
+/** até onde o indicador reto pode fechar e quanto ele pode entrar na lateral encostando (m) */
+const INDEX_STRAIGHT = 0.2;
+const INDEX_TOUCH = 0.003;
 
 /** tudo parado (pente, ferrolho e alavancas no lugar) antes de medir */
 function rest(g: GunModel) {
