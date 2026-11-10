@@ -48,7 +48,8 @@ const MOUNT: Partial<Record<GunId, Mount>> = {
   // 3 cm atrás do olho e, entrando na mira, a câmera atravessava a luneta (a tela ficava cinza)
   scarl: { top: [0.114, -0.12], r: 0.011, over: 0.03 },
   mcx: { top: [0.121, -0.119], r: 0.011, over: 0.03 },
-  mpx: { top: [0.116, -0.034], r: 0.009, over: 0.02 },
+  // MPX: mais à frente no trilho (em z −0,034 a ocular da luneta 3x passava do olho e a tela ficava preta ao mirar)
+  mpx: { top: [0.116, -0.12], r: 0.009, over: 0.02 },
   pdw: { top: [0.099, -0.094], r: 0.009, over: 0.02 },
   msmc: { top: [0.091, -0.003], r: 0.008, over: 0.02 },
   aks74u: { top: [0.094, -0.024], r: 0.012, over: 0.03 },

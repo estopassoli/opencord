@@ -246,9 +246,25 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   m200: [0.46, 0.7],
   mp5: [0.25, 0.8],
   ballista: [0.42, 0.65],
+  mpx: [0.6, 0.9],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
+/** inspeção da MPX: giro (rad) e deslocamento (m) de cada lado (`mpxInspect`) */
+const MPX_INSPECT = {
+  yaw1: -0.6,
+  roll1: 0.4,
+  pitch1: 0.15,
+  x1: 0.06,
+  y1: 0.04,
+  push1: 0.04,
+  yaw2: 0.15,
+  roll2: 0.9,
+  pitch2: 0.2,
+  x2: -0.05,
+  y2: 0.07,
+  push2: 0.03,
+};
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /**
@@ -1208,6 +1224,8 @@ export class Viewmodel {
             rot.y += (-0.22 * pre + 0.5 * hit) * mo;
             rot.x += (0.06 * pre - 0.05 * hit + 0.03 * back) * mo;
             joltAt('hit', 0.32, 1.6);
+          } else if (g.id === 'mpx') {
+            this.mpxMelee(u, mo, pos, rot, joltAt);
           } else {
             // MP5: estocada inclinada para a esquerda, a coronha comprida fora da tela (`mp5.ts`)
             if (g.id === 'mp5') {
@@ -1272,6 +1290,10 @@ export class Viewmodel {
             joltAt('faceB', 0.56, 0.8);
             joltAt('grab', 0.58, 0.8);
             joltAt('end', 0.92, 1);
+            break;
+          }
+          if (g.id === 'mpx') {
+            magHold = Math.max(magHold, this.mpxInspect(u, mo, pos, rot, joltAt));
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -1962,6 +1984,61 @@ export class Viewmodel {
     KD.lx += track(u, t.lx);
     KD.ly += track(u, t.ly);
     KD.lz += track(u, t.lz);
+  }
+
+  /**
+   * Inspeção da MPX (virando o cano para a direita, a coronha comprida varria a câmera e tampava metade da tela):
+   * antecipação curta, o cano vai para a esquerda e a arma mostra o lado esquerdo (para, com uma deriva lenta), rola
+   * para a direita mostrando o poço e o pente enquanto a esquerda pega nele (para) e volta direto para casa, passando
+   * um pouco do ponto; a coronha fica sempre para a direita, fora do caminho. Devolve o quanto a esquerda segura o pente.
+   */
+  private mpxInspect(
+    u: number,
+    mo: number,
+    pos: THREE.Vector3,
+    rot: THREE.Euler,
+    joltAt: (key: string, at: number, v: number) => void,
+  ): number {
+    const P = MPX_INSPECT;
+    const pre = hump(u, 0, 0.05, 0.05, 0.12);
+    const s1 = hump(u, 0.05, 0.22, 0.46, 0.6);
+    const s2 = hump(u, 0.46, 0.62, 0.8, 0.97);
+    const d1 = (seg(u, 0.22, 0.46) - 0.5) * s1;
+    const d2 = (seg(u, 0.62, 0.8) - 0.5) * s2;
+    const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
+    rot.y += (pre * 0.06 - s1 * P.yaw1 + s2 * P.yaw2 + d1 * 0.08) * mo;
+    rot.z += (s1 * P.roll1 - s2 * P.roll2 + d2 * 0.08) * mo;
+    rot.x += (-pre * 0.05 + s1 * P.pitch1 + s2 * P.pitch2 - settle * 0.05) * mo;
+    pos.x += -s1 * P.x1 + s2 * P.x2;
+    pos.y += s1 * P.y1 + s2 * P.y2 - pre * 0.01;
+    pos.z += pre * 0.015 - s1 * P.push1 - s2 * P.push2;
+    joltAt('grab', 0.6, 0.8);
+    joltAt('home', 0.97, 1);
+    return hump(u, 0.48, 0.6, 0.8, 0.93);
+  }
+
+  /**
+   * Golpe com a MPX (antes: a arma ia para a frente sem antecipação e ficava parada 25% do tempo): recua e cai para a
+   * direita, sai rápida para a frente e para a esquerda rolando (acerto a 30%, com tranco e um rebote curto) e volta.
+   */
+  private mpxMelee(
+    u: number,
+    mo: number,
+    pos: THREE.Vector3,
+    rot: THREE.Euler,
+    joltAt: (key: string, at: number, v: number) => void,
+  ) {
+    const pre = hump(u, 0, 0.14, 0.14, 0.28);
+    const hit = ease(seg(u, 0.14, 0.3)) * (1 - ease(seg(u, 0.36, 0.92)));
+    // o tranco do acerto: a arma volta um pouco logo depois de bater
+    const back = hump(u, 0.3, 0.36, 0.36, 0.5);
+    pos.z += 0.03 * pre - 0.16 * hit + 0.02 * back;
+    pos.x += 0.025 * pre - 0.08 * hit;
+    pos.y -= 0.01 * pre;
+    rot.z += (-0.2 * pre + 0.6 * hit) * mo;
+    rot.x += (0.12 * pre - 0.06 * hit) * mo;
+    rot.y += (-0.1 * pre + 0.15 * hit) * mo;
+    joltAt('hit', 0.3, -1.4);
   }
 
   /**
