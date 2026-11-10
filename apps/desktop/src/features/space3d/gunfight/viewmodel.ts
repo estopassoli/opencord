@@ -1298,7 +1298,7 @@ export class Viewmodel {
           this.rightCurl[0],
           this.rightCurl[1],
           this.rightCurl[2] + TRIGGER_SQUEEZE * trig,
-          this.rightOffsets(0, 1, 0),
+          authoredThumb(this.rightOffsets(0, 1, 0)),
         );
         this.handR.root.updateMatrixWorld(true);
         elbowHint(this.handR.root.getWorldPosition(W1), 1, ELBOW, 0, 0, FORE_DIR);
@@ -1983,4 +1983,18 @@ function applyGrip(h: ArmHand, g: Grip) {
   h.root.position.copy(g.pos);
   h.root.quaternion.copy(g.quat);
   setGrip(h, g.curl[0], g.curl[1], g.curl[2]);
+}
+
+/**
+ * O polegar da direita nas armas de animação feita à mão (MP7): dá a volta por trás do punho e deita na lateral
+ * esquerda, atrás do gatilho e por cima dos dedos. O encaixe medido (`holds.ts`) deixava ele em pé do lado direito,
+ * encostado na caixa (fechamento e abertura para o lado da palma conferidos no harness, vistos da câmera e da esquerda).
+ */
+const AUTHORED_THUMB: readonly [number, number] = [0.2, 1.1];
+const THUMB_OFF: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+function authoredThumb(o: FingerOffsets): FingerOffsets {
+  for (let i = 0; i < 4; i++) THUMB_OFF[i] = o[i] ?? 0;
+  THUMB_OFF[4] = AUTHORED_THUMB[0];
+  THUMB_OFF[5] = AUTHORED_THUMB[1];
+  return THUMB_OFF;
 }
