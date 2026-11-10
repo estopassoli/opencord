@@ -101,6 +101,16 @@ export interface HandFit {
    */
   karambit?: { pos: THREE.Vector3Tuple; quat: [number, number, number, number]; index: number; middle: number };
   /**
+   * baioneta medida para esta mão (pulso e giro no espaço da faca e o fechamento de cada dedo: indicador, médio, anelar,
+   * mindinho, polegar); sem ela, a conta do martelo (mão de cápsulas do boneco)
+   */
+  bayonet?: {
+    pos: THREE.Vector3Tuple;
+    quat: [number, number, number, number];
+    curl: readonly [number, number, number, number, number];
+    thumbUp: number;
+  };
+  /**
    * empunhadura vertical: quanto a mão inclina a mais (o pulso desce para trás, na linha do antebraço que vem de baixo;
    * reta, o pulso dobrava em ângulo)
    */
@@ -155,6 +165,17 @@ export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass, hf:
   if (g.id === 'karambit' && hf.karambit) {
     const k = hf.karambit;
     return { pos: new THREE.Vector3(...k.pos), quat: new THREE.Quaternion(...k.quat), curl: [k.middle, 0.3, k.index] };
+  }
+  if (g.id === 'bayonet' && hf.bayonet) {
+    const b = hf.bayonet;
+    // os dedos partem do fechamento do indicador (mais fechados que ele, o indicador virava dedo de gatilho); o médio,
+    // o anelar e o mindinho vão pelo acerto de cada um (`viewmodel.ts`)
+    return {
+      pos: new THREE.Vector3(...b.pos),
+      quat: new THREE.Quaternion(...b.quat),
+      curl: [b.curl[0], b.curl[4], b.curl[0]],
+      thumbUp: b.thumbUp,
+    };
   }
   if (g.id === 'karambit') {
     const pos = handle.clone().sub(holeIn(hf, PUNHO));

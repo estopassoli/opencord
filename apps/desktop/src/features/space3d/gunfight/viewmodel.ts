@@ -26,6 +26,18 @@ import {
   track,
   type KarTracks,
 } from './karambit';
+import {
+  BAY_DRAW,
+  BAY_GUARD,
+  BAY_HEAVY,
+  BAY_INSPECT,
+  BAY_OPEN,
+  BAY_POSE,
+  BAY_RUN,
+  BAY_SLASH_L,
+  BAY_SLASH_R,
+  BAY_TOSS,
+} from './bayonet';
 import { ARM_RIG } from './armsrig';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { fitHand, soupOf } from './contact';
@@ -552,7 +564,14 @@ export class Viewmodel {
     this.slapAt.set(-0.025 - PALM_HALF, top - 0.04, bz + 0.046 - 0.01);
     if (!knife) this.prepareGunParts(g, spec);
     this.knifeOff = NO_OFF;
-    if (knife) {
+    const bay = ARM_HAND_FIT.bayonet;
+    if (knife && g.id === 'bayonet') {
+      // baioneta: os fechamentos já medidos na pegada (`BAYONET_ARM`), cada dedo encostado no cabo
+      knifeSpinFrame(g, this.spinPivot, this.spinAxis);
+      this.rightCurl = curlOf(this.handR);
+      const c = this.rightCurl[0];
+      this.knifeOff = [0, bay.curl[1] - c, bay.curl[2] - c, bay.curl[3] - c, 0, bay.thumbUp];
+    } else if (knife) {
       knifeSpinFrame(g, this.spinPivot, this.spinAxis);
       // os dedos partem abertos e fecham até encostar no cabo, um por um. Karambit: o indicador (atravessando a argola)
       // e o médio (rente à frente dela) ficam no fechamento medido da pegada; o anelar e o mindinho partem dele
@@ -669,7 +688,12 @@ export class Viewmodel {
     // faca não mira (o botão direito dela é o golpe pesado)
     const knife = spec.cls === 'knife';
     const ads = knife ? 0 : ease(inp.ads);
-    const kp = knife ? KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet'] : null;
+    // a baioneta M9 tem a guarda dela (`bayonet.ts`); as outras facas de lâmina reta usam a de `KNIFE_POSE.bayonet`
+    const kp = knife
+      ? g.id === 'bayonet'
+        ? BAY_POSE
+        : KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet']
+      : null;
     const hip = kp ? kp.pos : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
     // mirando: a linha de mira passa pelo centro da tela, um pouco à frente do olho (na luneta, o olho na ocular)
     const eyeZ =
@@ -710,7 +734,23 @@ export class Viewmodel {
     // corrida: arma atravessada e baixa; corrida tática: arma para cima, cano para o alto
     const sp = this.sprintK * (1 - this.tacK);
     const kar = g.id === 'karambit';
+    const bay = g.id === 'bayonet';
     RUN_E.set(0, 0, 0);
+    if (bay) {
+      // baioneta: correndo, o punho desce com a lâmina deitada para a frente e bombeia com o passo; na tática, o braço
+      // dobra para perto do peito com a lâmina em pé
+      const pump = Math.sin(this.bob) * mo;
+      const s = BAY_RUN.sprint;
+      const t = BAY_RUN.tac;
+      pos.x += sp * s.px + this.tacK * t.px + pump * 0.012 * this.sprintK;
+      pos.y += sp * s.py + this.tacK * t.py + Math.abs(Math.cos(this.bob)) * -0.014 * this.sprintK * mo;
+      pos.z += sp * s.pz + this.tacK * t.pz - pump * 0.018 * this.sprintK;
+      RUN_E.set(
+        sp * s.ex + this.tacK * t.ex + pump * 0.1 * this.sprintK,
+        sp * s.ey + this.tacK * t.ey,
+        sp * s.ez + this.tacK * t.ez,
+      );
+    }
     if (kar) {
       // karambit: correndo, o punho desce e bombeia com o passo, a garra deitada para trás; na tática, o braço sobe
       // dobrado para perto do peito, a garra para baixo, e o bombeio fica mais largo
@@ -724,7 +764,7 @@ export class Viewmodel {
         sp * -0.25 + this.tacK * 0.35,
       );
     }
-    if (!kar) {
+    if (!kar && !bay) {
       pos.x += sp * -0.03;
       pos.y += sp * -0.05;
       rot.y += sp * 0.65;
@@ -1074,6 +1114,10 @@ export class Viewmodel {
       rightCurl = lerp(rightCurl, KAR_SPIN_CURL.fingers, open);
       rightThumb = lerp(rightThumb, KAR_SPIN_CURL.thumb, open);
       rightIndex = lerp(rightIndex, KAR_SPIN_CURL.index, open);
+    } else if (open > 0 && g.id === 'bayonet') {
+      rightCurl = lerp(rightCurl, BAY_OPEN.fingers, open);
+      rightThumb = lerp(rightThumb, BAY_OPEN.thumb, open);
+      rightIndex = lerp(rightIndex, BAY_OPEN.index, open);
     } else if (open > 0) {
       rightCurl = lerp(rightCurl, OPEN_CURL, open);
       rightThumb = lerp(rightThumb, OPEN_THUMB, open);
@@ -1130,7 +1174,12 @@ export class Viewmodel {
       g.root.quaternion.copy(SPIN_Q);
       g.root.position.copy(this.spinPivot).sub(V.copy(this.spinPivot).applyQuaternion(SPIN_Q));
       // karambit: a argola escorrega para fora no indicador enquanto gira (o cabo passa longe da palma)
-      if (KD.slide !== 0) g.root.position.add(V.fromArray(KAR_SLIDE).normalize().multiplyScalar(KD.slide));
+      if (KD.slide !== 0)
+        g.root.position.add(
+          V.fromArray(g.id === 'bayonet' ? BAY_TOSS : KAR_SLIDE)
+            .normalize()
+            .multiplyScalar(KD.slide),
+        );
       // balisong: a lâmina e o cabo de morder giram nos pinos (aberta, fechando ou nos floreios)
       if (g.flip) setBalisong(g, 1 - KD.shut, KD.bite, KD.bladeX);
     }
@@ -1203,7 +1252,12 @@ export class Viewmodel {
     // quanto o indicador está no gatilho (1) ou fora dele, sobre a armação (0)
     const span = this.rightCurl[2] - trigOff;
     const onTrigger = Math.abs(span) > 1e-3 ? Math.max(0, Math.min(1, (rightIndex - trigOff) / span)) : 1;
-    this.handR.setCurl(rightCurl, rightThumb, rightIndex, this.rightOffsets(rightK, onTrigger, clipK, kar ? open : 0));
+    this.handR.setCurl(
+      rightCurl,
+      rightThumb,
+      rightIndex,
+      this.rightOffsets(rightK, onTrigger, clipK, kar || g.id === 'bayonet' ? open : 0),
+    );
     // a mão esquerda solta e desce para fora da tela (o braço não estica até a arma). A conta é no espaço da câmera:
     // no da arma, que gira ~0,9 rad saindo da tática, a mão passava pelo meio da tela, aberta e solta
     if (leftAway > 1e-3) {
@@ -1392,6 +1446,11 @@ export class Viewmodel {
       joltAt('catch', 0.6, 2.2);
       return;
     }
+    if (this.gun?.id === 'bayonet') {
+      this.karambitPlay(BAY_DRAW, u, full, pos);
+      joltAt('catch', 0.5, 2.2);
+      return;
+    }
     // passa um pouco do ponto ao chegar na guarda e volta
     const settle = hump(u, 0.72, 0.8, 0.84, 1);
     pos.y -= 0.02 * settle;
@@ -1488,6 +1547,13 @@ export class Viewmodel {
       joltAt('catch', 0.86, 1.6);
       return;
     }
+    if (this.gun?.id === 'bayonet') {
+      this.karambitPlay(BAY_INSPECT, u, full, pos);
+      joltAt('faceA', 0.14, 0.8);
+      joltAt('faceB', 0.43, 0.8);
+      joltAt('catch', 0.85, 1.8);
+      return;
+    }
     const lift = hump(u, 0, 0.1, 0.88, 1);
     pos.x -= 0.06 * lift;
     pos.y += 0.07 * lift;
@@ -1556,6 +1622,11 @@ export class Viewmodel {
       joltAt('cut', 0.3, 1.4);
       return;
     }
+    if (this.gun?.id === 'bayonet') {
+      this.karambitPlay(s > 0 ? BAY_SLASH_R : BAY_SLASH_L, u, mo >= 1, pos);
+      joltAt('cut', 0.32, 1.4);
+      return;
+    }
     const w = hump(u, 0, 0.18, 0.7, 1);
     const wind = hump(u, 0, 0.16, 0.18, 0.28);
     pos.z += 0.05 * wind;
@@ -1589,6 +1660,11 @@ export class Viewmodel {
   ) {
     if (this.gun?.id === 'karambit') {
       this.karambitPlay(KAR_HEAVY, u, mo >= 1, pos);
+      joltAt('stab', 0.47, 3);
+      return;
+    }
+    if (this.gun?.id === 'bayonet') {
+      this.karambitPlay(BAY_HEAVY, u, mo >= 1, pos);
       joltAt('stab', 0.47, 3);
       return;
     }
@@ -1633,7 +1709,8 @@ export class Viewmodel {
    */
   private knifeGuard(now: number, inp: VmInput, mo: number) {
     const bobA = inp.moving * (inp.crouch ? 0.6 : 1) * mo;
-    GL.copy(GUARD_L);
+    const bay = this.gun?.id === 'bayonet';
+    GL.copy(bay ? BAY_GUARD.at : GUARD_L);
     GL.x += Math.sin(this.bob + 0.6) * 0.01 * bobA + this.swayX * 0.04 + KD.lx;
     GL.y +=
       Math.abs(Math.cos(this.bob + 0.6)) * -0.01 * bobA +
@@ -1644,9 +1721,10 @@ export class Viewmodel {
     GL.z += 0.04 * this.sprintK + KD.lz;
     this.handL.root.position.copy(this.holder.worldToLocal(GL));
     this.holder.getWorldQuaternion(HQ);
-    this.handL.root.quaternion.copy(HQ.invert().multiply(GUARD_Q));
+    this.handL.root.quaternion.copy(HQ.invert().multiply(bay ? BAY_GUARD.quat : GUARD_Q));
     // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador
-    this.handL.setCurl(GUARD_CURL, GUARD_THUMB, GUARD_INDEX);
+    if (bay) this.handL.setCurl(BAY_GUARD.curl, BAY_GUARD.thumb, BAY_GUARD.index);
+    else this.handL.setCurl(GUARD_CURL, GUARD_THUMB, GUARD_INDEX);
   }
 
   /** os acertos dos dedos da direita: os da pegada, indo para os da alavanca; soltos no pente-lâmina */

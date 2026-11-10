@@ -1013,6 +1013,8 @@ export function knife(id: 'karambit' | 'bayonet'): GunModel {
     bs.quadraticCurveTo(0.025, 0.109, 0.016, 0.086);
     bs.closePath();
     blade.add(meshG(solid(bs, 0.0035, 0.0012), steel));
+  } else if (id === 'bayonet') {
+    bayonetParts(root, blade, handleMat);
   } else {
     const s = new THREE.Shape();
     s.moveTo(0, -0.012);
@@ -1053,6 +1055,92 @@ export function knife(id: 'karambit' | 'bayonet'): GunModel {
     support: new THREE.Vector3(0, 0, 0),
     length: 0.25,
   };
+}
+
+/** baioneta M9: onde a guarda termina (a lâmina sai dela para −z) e onde fica o pomo (+z); o cabo fica entre eles */
+export const M9 = { guardFront: -0.058, guardBack: -0.052, pommel: 0.072 } as const;
+
+/**
+ * Baioneta M9 (em código, sem copiar modelo nenhum): lâmina de 18 cm com ponta "clip" (o dorso desce para a ponta), dorso
+ * grosso com a serra, o fio afiado claro e mais fino (a lâmina lê de que lado corta), o furo do corta-arame; guarda em
+ * placa com a argola do cano em cima (do lado do dorso), cabo oval de 12,4 cm (do tamanho da mão dos braços: mais grosso, os dedos não fechavam) um pouco mais grosso no meio e pomo de
+ * aço com o encaixe. Espaço da faca: lâmina para −z, dorso para +y, as faces para ±x.
+ */
+function bayonetParts(root: THREE.Group, blade: THREE.Group, handleMat: THREE.Material) {
+  const flatMat = mat(0x6f767e, 0.5, 0.6);
+  const edgeMat = mat(0xb9c0c8, 0.32, 0.75);
+  const steel = mat(0x55595f, 0.5, 0.55);
+  // a lâmina desenhada no plano (u = para a frente a partir da guarda, v = do fio ao dorso) e girada para −z
+  const toKnife = new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(0, 0, -1),
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(1, 0, 0),
+  );
+  const extrude = (sh: THREE.Shape, depth: number, bevel: number) =>
+    new THREE.ExtrudeGeometry(sh, {
+      depth,
+      bevelEnabled: bevel > 0,
+      bevelSize: bevel,
+      bevelThickness: bevel,
+      bevelSegments: 1,
+      curveSegments: 10,
+    })
+      .translate(0, 0, -depth / 2)
+      .applyMatrix4(toKnife)
+      .translate(0, 0, M9.guardFront);
+  const L = 0.178;
+  const spine = 0.0155;
+  const edge = -0.0155;
+  // o perfil inteiro (fino, claro): é o fio afiado que aparece em volta do corpo grosso
+  const out = new THREE.Shape();
+  out.moveTo(0, edge);
+  out.lineTo(0.125, edge);
+  out.quadraticCurveTo(0.165, edge + 0.003, L, 0.004);
+  out.quadraticCurveTo(0.15, 0.012, 0.12, spine);
+  out.lineTo(0, spine);
+  out.closePath();
+  blade.add(meshG(extrude(out, 0.0014, 0.0004), edgeMat));
+  // o corpo grosso (o dorso com a serra e o furo do corta-arame): a linha do fio afiado fica abaixo dele
+  const body = new THREE.Shape();
+  body.moveTo(0, -0.005);
+  body.lineTo(0.128, -0.0035);
+  body.quadraticCurveTo(0.142, 0.004, 0.118, spine);
+  body.lineTo(0.104, spine);
+  for (let u = 0.104; u > 0.034; u -= 0.007) {
+    body.lineTo(u - 0.0035, spine + 0.0032);
+    body.lineTo(u - 0.007, spine);
+  }
+  body.lineTo(0, spine);
+  body.closePath();
+  const hole = new THREE.Path();
+  hole.absellipse(0.112, 0.0045, 0.0062, 0.0035, 0, Math.PI * 2, false, 0);
+  body.holes.push(hole);
+  blade.add(meshG(extrude(body, 0.0042, 0.0005), flatMat));
+  // guarda: placa do fio ao dorso, a argola do cano em cima
+  const gz = (M9.guardFront + M9.guardBack) / 2;
+  const gd = M9.guardBack - M9.guardFront;
+  root.add(mesh(new THREE.BoxGeometry(0.016, 0.046, gd), steel, 0, -0.003, gz));
+  const ring = new THREE.Shape();
+  ring.absarc(0, 0, 0.0145, 0, Math.PI * 2, false);
+  const ringHole = new THREE.Path();
+  ringHole.absarc(0, 0, 0.0108, 0, Math.PI * 2, true);
+  ring.holes.push(ringHole);
+  const rg = new THREE.ExtrudeGeometry(ring, { depth: 0.011, bevelEnabled: false, curveSegments: 20 });
+  root.add(mesh(rg.translate(0, 0, -0.011 / 2), steel, 0, 0.033, gz - 0.0025));
+  // cabo oval, um pouco mais grosso no meio (torneado no eixo y e deitado para z)
+  const len = M9.pommel - M9.guardBack;
+  const prof: THREE.Vector2[] = [];
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10;
+    prof.push(new THREE.Vector2(0.0127 + 0.0012 * Math.sin(Math.PI * t) - 0.0005 * t, (t - 0.5) * len));
+  }
+  const hg = new THREE.LatheGeometry(prof, 18).rotateX(Math.PI / 2).scale(0.86, 1, 1);
+  root.add(mesh(hg, handleMat, 0, 0, (M9.pommel + M9.guardBack) / 2));
+  // pomo de aço com o encaixe do fuzil (o rasgo em cima, do lado do dorso) e o botão de soltar
+  const pom = new THREE.CylinderGeometry(0.0134, 0.0128, 0.016, 18).rotateX(Math.PI / 2).scale(0.88, 1.05, 1);
+  root.add(mesh(pom, steel, 0, 0, M9.pommel + 0.008));
+  root.add(mesh(new THREE.BoxGeometry(0.008, 0.005, 0.016), mat(0x151617, 0.8, 0.1), 0, 0.0128, M9.pommel + 0.008));
+  root.add(mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.004, 10), steel, 0, 0.0138, M9.pommel - 0.004));
 }
 
 /**
