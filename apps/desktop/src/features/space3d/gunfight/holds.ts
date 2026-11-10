@@ -118,7 +118,17 @@ function measure(g: GunModel, cls: GunClass): Holds {
   rest(g);
   const pistol = cls === 'pistol';
   const rg = rightGrip(g, cls, ARM_HAND_FIT);
-  const right = fitRight(g, rg.pos, rg.quat, qc(rg.curl), pistol);
+  const at = RIGHT_AT[g.id];
+  const right = at
+    ? fitRight(
+        g,
+        new THREE.Vector3(...at.pos),
+        rg.quat.clone().premultiply(Y_TURN.setFromAxisAngle(Y_AXIS, at.yaw)),
+        qc(rg.curl),
+        pistol,
+        true,
+      )
+    : fitRight(g, rg.pos, rg.quat, qc(rg.curl), pistol);
   // a direita vira obstáculo para a esquerda (na pistola, os dedos da esquerda passam por cima dos dela)
   const rightBalls = balls(right, 1);
   const left = pistol
@@ -126,8 +136,58 @@ function measure(g: GunModel, cls: GunClass): Holds {
     : g.foregrip?.kind === 'vertical'
       ? vgripHold(g, cls)
       : clampHold(g, cls);
-  return { right, left, mag: magHold(g, cls, rightBalls), pinch: pinchHold(g, rg.quat), trigOff: trigOff(g, right) };
+  const pk = PAD_PINCH[g.id];
+  const pinch = pk ? padPinch(g, right, pk) : pinchHold(g, rg.quat);
+  return { right, left, mag: magHold(g, cls, rightBalls), pinch, trigOff: TRIG_OFF[g.id] ?? trigOff(g, right) };
 }
+
+/**
+ * O indicador fora do gatilho, por arma. SV-98: esticado ao longo da lateral direita do guarda-mato (a procura achava
+ * o primeiro fechamento livre em 0,45, com a ponta ainda dentro do guarda-mato, na frente do gatilho).
+ */
+const TRIG_OFF: Partial<Record<GunId, number>> = {};
+
+/**
+ * Pinça na bola da alavanca quando ela fica rente à coronha (SV-98): a pegada do punho sobe até a bola (a bola fica
+ * logo acima do gatilho), girada `spin` rad em volta do eixo do cano; o indicador vai por baixo da bola e o polegar
+ * por cima, os outros três fechados na palma. O indicador sai do ponto `from` (a polpa no gatilho) e vai para `to`.
+ * A pegada genérica (o vão da mão fechada na bola) deixava a mão aberta em garra por cima da caixa da culatra.
+ */
+const PAD_PINCH: Partial<
+  Record<GunId, { spin: number; from: THREE.Vector3Tuple; to: THREE.Vector3Tuple; fist: number }>
+> = {
+  l115: { spin: -0.4, from: [-0.0147, -0.0044, -0.0103], to: [0.0538, 0.0353, -0.0406], fist: 1.5 },
+};
+
+function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[GunId]>): Hold {
+  const r = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), k.spin);
+  const pos = right.pos
+    .clone()
+    .sub(new THREE.Vector3(...k.from))
+    .applyQuaternion(r)
+    .add(new THREE.Vector3(...k.to));
+  const quat = r.multiply(right.quat);
+  const fist = k.fist - PINCH[0];
+  const f = fitHand(near(g, pos), 1, pos, quat, PINCH, {
+    fingers: ['index', 'thumb'],
+    base: [right.curl[2] + right.off[0] - PINCH[2], fist, fist, fist, 0, 0],
+    maxCurl: 1.5,
+  });
+  return { pos: f.pos, quat, curl: [...PINCH], off: f.offsets };
+}
+
+/**
+ * A direita medida à mão por arma, no lugar da busca pelo punho: o pulso (espaço da arma) e quanto a mão gira em volta
+ * do eixo y da arma (rad; positivo, os dedos viram para a esquerda e o pulso sai para a direita).
+ * L115: o punho da coronha de buraco é fundo (4,7 cm da frente ao buraco) e estreito (2,8 cm); a busca deixava os
+ * dedos em volta do ar, na frente dele, embaixo do guarda-mato. Virada, a mão fecha na frente do punho com as pontas na
+ * lateral esquerda (medido no harness: médio 0,99, anelar 0,84, palma encostada sem entrar).
+ */
+const RIGHT_AT: Partial<Record<GunId, { pos: THREE.Vector3Tuple; yaw: number }>> = {
+  l115: { pos: [0.0488, 0.0021, 0.092], yaw: 0.15 },
+};
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const Y_TURN = new THREE.Quaternion();
 
 type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
 
@@ -282,6 +342,8 @@ function fitRight(
   quat: THREE.Quaternion,
   rc: [number, number, number],
   pistol: boolean,
+  /** o pulso já medido (`RIGHT_AT`): sem andar pelo punho e sem a palma empurrar a mão para fora */
+  fixed = false,
 ): Hold {
   const trig = g.parts.trigger;
   const soup = soupOf(g.root, { at: pos0, r: 0.18 }, undefined, trig?.obj);
@@ -332,10 +394,10 @@ function fitRight(
   const thumbProbe = handProbes(1, rc[0], 0.5, rc[2], [0, 0, 0, 0, 0, 0.3], 'thumb');
   let best = { score: Infinity, pos: pos0.clone(), ix: rc[2] };
   const cands: { score: number; pos: THREE.Vector3; ix: number }[] = [];
-  for (let dy = -0.03; dy <= 0.0181; dy += 0.003)
-    for (let dz = -0.01; dz <= 0.0301; dz += 0.005) {
+  for (let dy = fixed ? 0 : -0.03; dy <= (fixed ? 0 : 0.0181); dy += 0.003)
+    for (let dz = fixed ? 0 : -0.01; dz <= (fixed ? 0 : 0.0301); dz += 0.005) {
       const p = pos0.clone().addScaledVector(down, dy).addScaledVector(fwd, dz);
-      const f = fitHand(soup, 1, p, quat, rc, { palm: true, fingers: ['middle', 'ring'] });
+      const f = fitHand(soup, 1, p, quat, rc, { palm: !fixed, fingers: ['middle', 'ring'] });
       const mid = rc[0] + f.offsets[1];
       const ring = rc[0] + f.offsets[2];
       const [ix, tip] = index(f.pos);
