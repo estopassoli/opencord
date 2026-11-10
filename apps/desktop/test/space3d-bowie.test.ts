@@ -117,6 +117,19 @@ describe('Bowie — trilhas das animações', () => {
     expect(at(BOWIE_SLASH_L, 0.34)).toBeGreaterThan(0.02);
   });
 
+  it('o revés mostra o arco a 60 Hz: nenhum quadro pula metade do corte e ≥ 2 quadros passam pelo meio', () => {
+    // golpe leve de 560 ms; o corte vai da antecipação (0,2) ao acerto (0,33)
+    const tick = 1000 / 60 / 560;
+    const a = track(0.2, BOWIE_SLASH_L.px);
+    const b = track(0.33, BOWIE_SLASH_L.px);
+    const frac: number[] = [];
+    for (let u = 0.2; u <= 0.33 + 1e-9; u += tick) frac.push((track(u, BOWIE_SLASH_L.px) - a) / (b - a));
+    for (let i = 1; i < frac.length; i++) expect(frac[i]! - frac[i - 1]!).toBeLessThan(0.4);
+    expect(frac.filter((f) => f > 0.25 && f < 0.8).length).toBeGreaterThanOrEqual(2);
+    // a lâmina vem de deitada para a esquerda até em pé (gira com o braço, não fica para trás)
+    expect(track(0.33, BOWIE_SLASH_L.ez) - track(0.2, BOWIE_SLASH_L.ez)).toBeLessThan(-1.2);
+  });
+
   it('o pesado arma no alto, segura um instante e desce depois do acerto (45%)', () => {
     expect(track(0.33, BOWIE_HEAVY.py)).toBeGreaterThan(0.08);
     expect(track(0.36, BOWIE_HEAVY.py) - track(0.3, BOWIE_HEAVY.py)).toBeLessThan(0.02);

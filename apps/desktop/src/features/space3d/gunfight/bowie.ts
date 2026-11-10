@@ -70,18 +70,20 @@ export const BOWIE_SLASH_R: KarTracks = {
 /**
  * Golpe leve, o outro lado (alternando): o revés. O punho cruza para a esquerda e para cima com o antebraço virado (a
  * lâmina deitada para a esquerda, a face à vista; antecipação); corta da esquerda para a direita num arco que passa
- * pelo meio da tela, segue para baixo à direita e volta. O antebraço vira no seguimento para o pomo não entrar na
- * manga.
+ * pelo meio da tela, segue para baixo à direita e volta. O corte (0,2–0,33) é suave nas duas pontas: com a saída
+ * rápida, um único quadro de 60 Hz ia de 17% a 61% do golpe e nenhum cruzava o meio; assim três quadros passam por
+ * ele, e a lâmina vem de deitada para em pé, a ponta varrendo para a direita junto com o braço (antes ela ficava para
+ * trás). O antebraço vira no seguimento para o pomo não entrar na manga.
  */
 // prettier-ignore
 export const BOWIE_SLASH_L: KarTracks = {
-  px: [[0, 0], [0.18, -0.1, 2], [0.2, -0.1, 1], [0.34, 0.04, 1], [0.46, 0.08], [0.82, 0]],
-  py: [[0, 0], [0.18, 0.06, 2], [0.2, 0.06, 1], [0.34, 0.04, 1], [0.46, 0.01], [0.82, 0]],
-  pz: [[0, 0], [0.18, 0.01, 2], [0.2, 0.01, 1], [0.34, -0.05, 1], [0.46, -0.03], [0.82, 0]],
-  ex: [[0, 0], [0.18, -0.05, 2], [0.2, -0.05, 1], [0.34, 0.1, 1], [0.46, 0.15], [0.82, 0]],
-  ey: [[0, 0], [0.18, 0.35, 2], [0.2, 0.35, 1], [0.34, -0.4, 1], [0.46, -0.55], [0.82, 0]],
-  ez: [[0, 0], [0.18, 0.45, 2], [0.2, 0.45, 1], [0.34, -0.25, 1], [0.46, -0.4], [0.82, 0]],
-  pro: [[0, 0], [0.18, 0.3, 2], [0.2, 0.3, 1], [0.34, -0.1, 1], [0.46, 0.3], [0.82, 0]],
+  px: [[0, 0], [0.18, -0.1, 2], [0.2, -0.1, 0], [0.33, 0.05, 1], [0.46, 0.09], [0.82, 0]],
+  py: [[0, 0], [0.18, 0.06, 2], [0.2, 0.06, 0], [0.33, 0.04, 1], [0.46, 0.01], [0.82, 0]],
+  pz: [[0, 0], [0.18, 0.01, 2], [0.2, 0.01, 0], [0.33, -0.05, 1], [0.46, -0.03], [0.82, 0]],
+  ex: [[0, 0], [0.18, -0.05, 2], [0.2, -0.05, 0], [0.33, 0.1, 1], [0.46, 0.15], [0.82, 0]],
+  ey: [[0, 0], [0.18, 0.35, 2], [0.2, 0.35, 0], [0.33, -0.49, 1], [0.46, -0.65], [0.82, 0]],
+  ez: [[0, 0], [0.18, 0.45, 2], [0.2, 0.45, 0], [0.33, -0.95, 1], [0.46, -1.3], [0.82, 0]],
+  pro: [[0, 0], [0.18, 0.3, 2], [0.2, 0.3, 0], [0.33, -0.1, 1], [0.46, 0.3], [0.82, 0]],
   lx: [[0, 0], [0.15, -0.04], [0.45, -0.04], [0.8, 0]],
   ly: [[0, 0], [0.15, -0.07], [0.45, -0.06], [0.8, 0]],
   lz: [[0, 0], [0.15, 0.03], [0.45, 0.04], [0.8, 0]],
