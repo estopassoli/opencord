@@ -105,8 +105,11 @@ const W1 = new THREE.Vector3();
 const POS = new THREE.Vector3();
 const AIM = new THREE.Vector3();
 const ROT = new THREE.Euler(0, 0, 0, 'YXZ');
-/** distância do olho mirando (z da câmera onde fica o ponto `sight`): a M4 encosta mais para o furo de trás abrir */
-const ADS_EYE: Partial<Record<GunId, number>> = { m4: -0.15, mp5: -0.2, mp7: -0.18 };
+/**
+ * distância do olho mirando (z da câmera onde fica o ponto `sight`): a M4 encosta mais para o furo de trás abrir; a
+ * SCAR-L um pouco (a −0,2 o furo era um anel fino em volta da massa)
+ */
+const ADS_EYE: Partial<Record<GunId, number>> = { m4: -0.15, mp5: -0.2, mp7: -0.18, scarl: -0.17 };
 /**
  * Facas paradas (posição e giro YXZ do `holder`, sem mirar). Baioneta em martelo: o polegar por cima, o cabo atravessando
  * o punho fechado (a ponta do cabo aparece do lado do mindinho) e a lâmina para a frente e para cima, com o pulso
@@ -178,6 +181,11 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   ballista: 'bolt',
   sv98: 'bolt',
   automag3: 'pistol',
+};
+/** polegar da direita por arma: [fechamento, abertura para o lado da palma] (dá a volta por trás do punho) */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  stg44: [0.5, 0.85],
+  scarl: [0.5, 0.5],
 };
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
@@ -971,6 +979,9 @@ export class Viewmodel {
         case 'melee': {
           if (knife) {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
+          } else if (g.id === 'scarl') {
+            scarBash(u, mo, pos, rot);
+            joltAt('hit', 0.32, -1.6);
           } else {
             // golpe com a arma: empurra a arma para a frente e para o lado
             const w = hump(u, 0, 0.25, 0.5, 1);
@@ -987,6 +998,14 @@ export class Viewmodel {
         case 'inspect': {
           if (knife) {
             this.knifeInspect(u, mo, pos, rot, joltAt);
+            break;
+          }
+          if (g.id === 'scarl') {
+            // SCAR-L: a esquerda vai ao pente no segundo lado e volta ao guarda-mão antes de a arma assentar
+            const grab = scarInspect(u, mo, pos, rot);
+            if (this.holds?.mag) magHold = Math.max(magHold, grab);
+            joltAt('grab', 0.56, 0.8);
+            joltAt('show', 0.22, 0.5);
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -1658,9 +1677,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
@@ -1998,6 +2020,46 @@ function partHome(p: Part, holder: THREE.Object3D, out: THREE.Vector3) {
   movePart(p, V.set(0, 0, 0));
   p.obj.updateMatrixWorld(true);
   return partNow(p, holder, out);
+}
+
+/**
+ * Coronhada da SCAR-L (`BASH`: 500 ms, acerto em 160 ms = 32%): a arma recua e cai para a direita (antecipação), sai
+ * rápida para a frente e para a esquerda rolando a lateral para o alvo, segura um instante e volta devagar
+ */
+function scarBash(u: number, mo: number, pos: THREE.Vector3, rot: THREE.Euler) {
+  const pre = hump(u, 0, 0.16, 0.16, 0.3);
+  const hit = ease(seg(u, 0.14, 0.32)) * (1 - ease(seg(u, 0.42, 0.96)));
+  pos.z += 0.035 * pre - 0.16 * hit;
+  pos.x += 0.025 * pre - 0.085 * hit;
+  pos.y += -0.012 * pre - 0.005 * hit;
+  rot.z += (-0.18 * pre + 0.65 * hit) * mo;
+  rot.x += (0.12 * pre - 0.06 * hit) * mo;
+  rot.y += (-0.06 * pre + 0.14 * hit) * mo;
+}
+
+/** os dois lados da inspeção da SCAR-L: giro (rad) e deslocamento (m) */
+const SCAR_S1 = { yaw: 0.7, roll: 0.4, pitch: 0.05, x: 0.01, y: 0.03, z: -0.07 };
+const SCAR_S2 = { yaw: 0.5, roll: 0.35, pitch: 0.12, x: -0.06, y: 0.03, z: -0.05 };
+/**
+ * Inspeção da SCAR-L (2400 ms): um pequeno recuo (antecipação), a arma vira e mostra o lado direito com a janela de
+ * ejeção (para), cruza para o lado esquerdo com a alavanca de manejo e o pente (para; a esquerda segura o pente) e volta
+ * direto para casa, passando um pouco do ponto. A arma vai mais para a frente que nas outras (a caixa e a coronha da
+ * SCAR são altas e tapavam metade da tela). Devolve quanto a esquerda está no pente (0–1).
+ */
+function scarInspect(u: number, mo: number, pos: THREE.Vector3, rot: THREE.Euler): number {
+  const pre = hump(u, 0, 0.05, 0.06, 0.14);
+  const s1 = hump(u, 0.05, 0.22, 0.4, 0.54);
+  // a arma vai para a frente antes de virar: virando no lugar, a coronha passava rente à câmera
+  const f1 = hump(u, 0.03, 0.15, 0.4, 0.54);
+  const s2 = hump(u, 0.44, 0.6, 0.78, 0.93);
+  const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
+  rot.y += (pre * 0.08 - s1 * SCAR_S1.yaw + s2 * SCAR_S2.yaw) * mo;
+  rot.z += (s1 * SCAR_S1.roll - s2 * SCAR_S2.roll) * mo;
+  rot.x += (s1 * SCAR_S1.pitch + s2 * SCAR_S2.pitch - settle * 0.04) * mo;
+  pos.x += f1 * SCAR_S1.x + s2 * SCAR_S2.x;
+  pos.y += f1 * SCAR_S1.y + s2 * SCAR_S2.y - pre * 0.008;
+  pos.z += f1 * SCAR_S1.z + s2 * SCAR_S2.z + pre * 0.012;
+  return hump(u, 0.46, 0.6, 0.78, 0.9);
 }
 
 function curlOf(h: ArmHand): [number, number, number] {
