@@ -162,6 +162,17 @@ const SIDE_Q = new THREE.Quaternion().setFromRotationMatrix(
 );
 /** pegando a alavanca do ferrolho em pinça (dedos, polegar, indicador) */
 const PINCH: readonly [number, number, number] = PINCH_CURL;
+/**
+ * Ferrolho trabalhado em pinça na bola da alavanca (SV-98: a bola fica a ~2 cm da coronha, sem lugar para a mão
+ * fechar em volta dela): a bola parada (espaço da arma) e quanto do giro da alavanca o pulso acompanha. Preso por
+ * inteiro, ele virava ~70° junto com ela e a mão ficava de dorso para cima, os dedos pendurados por cima da caixa.
+ */
+const BOLT_HAND: Partial<Record<string, { knob: THREE.Vector3; roll: number }>> = {
+  sv98: { knob: new THREE.Vector3(0.0227, 0.0444, -0.0263), roll: 0.35 },
+};
+const KNOB_NOW = new THREE.Vector3();
+const KNOB_Q = new THREE.Quaternion();
+const LEVER_Q = new THREE.Quaternion();
 /** o coice nunca traz a arma para mais perto da câmera que isto (z no espaço da câmera do viewmodel) */
 const KICK_Z_MAX = -0.12;
 /** meia espessura da palma (palpite para os gestos da recarga; o encaixe medido corrige) */
@@ -204,6 +215,7 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   mcx: [0.45, 0.8],
   m4: [0.5, 0.85],
   automag3: [0.2, 0.8],
+  sv98: [0.45, 0.85],
 };
 /** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
 const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
@@ -1278,7 +1290,18 @@ export class Viewmodel {
     const pinch = this.holds?.pinch ?? null;
     const lever = g.parts.boltRot ?? (g.id === 'kar98k' ? g.parts.charge : undefined);
     let pinchQ = 0;
-    if (rightK > 0 && pinch && lever) {
+    const boltHand = BOLT_HAND[g.id];
+    if (rightK > 0 && pinch && lever && boltHand) {
+      // a pinça segue a bola da alavanca, mas o pulso gira só uma parte do giro dela, em volta da bola
+      holderSpace(lever.obj, this.holder, M2).multiply(this.handleRestInv);
+      M2.decompose(W1, LEVER_Q, S1);
+      KNOB_NOW.copy(boltHand.knob).applyMatrix4(M2);
+      LEVER_Q.slerp(KNOB_Q.identity(), 1 - boltHand.roll);
+      HANDLE.copy(pinch.pos).sub(boltHand.knob).applyQuaternion(LEVER_Q).add(KNOB_NOW);
+      RIGHT_Q.copy(LEVER_Q).multiply(pinch.quat);
+      GRIP_R.lerp(HANDLE, rightK);
+      pinchQ = rightK;
+    } else if (rightK > 0 && pinch && lever) {
       M1.compose(pinch.pos, pinch.quat, S1.set(1, 1, 1));
       M1.premultiply(holderSpace(lever.obj, this.holder, M2).multiply(this.handleRestInv));
       M1.decompose(HANDLE, RIGHT_Q, S1);
