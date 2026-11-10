@@ -20,6 +20,12 @@ import { GUNS, type GunClass } from './weapons';
 interface Mount {
   /** topo do trilho (y) e o meio da mira (z) */
   top?: [number, number];
+  /**
+   * Onde vai a luneta 3x quando não cabe no `top` (y, z): a ocular dela fica 6,8 cm atrás do meio e, nas armas de mira
+   * mais para trás, passava do olho entrando na mira (a tela escurecia entre 70 e 85% da mira, antes de a luneta
+   * cobrir a tela). As miras de ponto ficam no `top`.
+   */
+  scope3?: [number, number];
   /** a mira vai presa ao ferrolho da pistola (anda junto no tiro) */
   slide?: boolean;
   /** raio do cano na boca (a peça da boca encaixa em volta) */
@@ -32,9 +38,9 @@ interface Mount {
 
 const MOUNT: Partial<Record<GunId, Mount>> = {
   m4: { top: [0.11, -0.13], r: 0.011, over: 0.035 },
-  ak47: { top: [0.0975, -0.02], r: 0.009, gripDz: -0.04, over: 0.04 },
+  ak47: { top: [0.0975, -0.02], scope3: [0.0975, -0.09], r: 0.009, gripDz: -0.04, over: 0.04 },
   mp7: { top: [0.1, -0.005], r: 0.008, gripDz: 0.01, over: 0.02 },
-  mp5: { top: [0.131, -0.055], r: 0.008, over: 0.012 },
+  mp5: { top: [0.131, -0.055], scope3: [0.131, -0.09], r: 0.008, over: 0.012 },
   l115: { r: 0.012 },
   m200: { r: 0.024, over: 0.03 },
   kar98k: { top: [0.096, -0.385], r: 0.009 },
@@ -51,8 +57,8 @@ const MOUNT: Partial<Record<GunId, Mount>> = {
   // MPX: mais à frente no trilho (em z −0,034 a ocular da luneta 3x passava do olho e a tela ficava preta ao mirar)
   mpx: { top: [0.116, -0.12], r: 0.009, over: 0.02 },
   pdw: { top: [0.099, -0.094], r: 0.009, over: 0.02 },
-  msmc: { top: [0.091, -0.003], r: 0.008, over: 0.02 },
-  aks74u: { top: [0.094, -0.024], r: 0.012, over: 0.03 },
+  msmc: { top: [0.091, -0.003], scope3: [0.091, -0.09], r: 0.008, over: 0.02 },
+  aks74u: { top: [0.094, -0.024], scope3: [0.094, -0.09], r: 0.012, over: 0.03 },
   stg44: { top: [0.084, -0.087], r: 0.009 },
   automag3: { top: [0.0607, 0.007], slide: true, r: 0.008 },
   bfr: { top: [0.089, -0.055], r: 0.011 },
@@ -382,7 +388,7 @@ function mountOptic(g: GunModel, m: Mount, id: OpticId) {
           : id === 'pdot'
             ? pistolDot(t)
             : classicScope(t);
-  const [y, z] = m.top;
+  const [y, z] = (id === 'scope3' && m.scope3) || m.top;
   // no meio da mira de ferro (BFR, Desert Eagle, AKS-74U: a mira não fica no x = 0 do modelo)
   const x = g.sight.x;
   o.group.position.set(x, y, z);
