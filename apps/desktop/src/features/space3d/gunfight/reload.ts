@@ -74,7 +74,9 @@ export function reloadPose(style: ReloadStyle, u: number, out: ReloadPose = blan
   out.out = u < MAG_OUT_AT ? 0 : 1 - ease(seg(u, 0.5, MAG_SEAT_AT));
   out.pouch = u < MAG_OUT_AT ? 0 : 1 - ease(seg(u, 0.34, 0.5));
   out.fresh = u >= MAG_OUT_AT;
-  out.handOut = 1;
+  // antes de o velho cair a mão espera o novo embaixo do poço; depois, sobe junto com ele e a palma empurra a base até
+  // encaixar (parada embaixo do poço, ela ficava aberta no ar e o pente subia sozinho)
+  out.handOut = u < MAG_OUT_AT ? 1 : out.out;
   out.handPouch = u < MAG_OUT_AT ? 1 : out.pouch;
   return out;
 }

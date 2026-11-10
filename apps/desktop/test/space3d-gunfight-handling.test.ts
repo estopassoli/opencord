@@ -178,6 +178,8 @@ describe('recarga', () => {
     for (const u of us.filter((x) => x >= MAG_OUT_AT)) {
       const r = reloadPose('drop', u);
       expect(r.handPouch).toBeCloseTo(r.pouch, 9);
+      // e ela sobe com o novo até encaixar (a palma empurra a base)
+      expect(r.handOut).toBeCloseTo(r.out, 9);
     }
   });
 
