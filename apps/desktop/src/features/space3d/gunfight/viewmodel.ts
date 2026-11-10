@@ -50,6 +50,7 @@ import {
 } from './reload';
 import { kickSpring, spring, stepSpring } from './spring';
 import { AuthoredArms, hasAuthored } from './fpanim';
+import { HK_PRESENT_POS, HK_PRESENT_ROLL, MP5_BASH, MP5_BASH_HIT, MP5_INSPECT, hkGesture, mp5Play } from './mp5';
 import type { GunSpec } from './weapons';
 import type { GunId } from '@opencord/contracts';
 
@@ -155,14 +156,15 @@ const PALM_HALF = 0.017;
 /**
  * Recarga vazia, por arma, sem o braço esquerdo passar por cima da arma (cobria 1/3 da tela): tapa no retém do
  * ferrolho pela esquerda (M4, MP7), alavanca da direita puxada por baixo (AK), alavanca da frente puxada pela esquerda
- * (MP5), o polegar direito solta o ferrolho da pistola, a mão direita trabalha o ferrolho da sniper.
+ * (StG 44), o "tapa HK" da MP5 (`mp5.ts`: trava a alavanca antes de tirar o pente e solta com um tapa depois), o polegar
+ * direito solta o ferrolho da pistola, a mão direita trabalha o ferrolho da sniper.
  */
-type EmptyKind = 'slap' | 'under' | 'front' | 'pistol' | 'bolt';
+type EmptyKind = 'slap' | 'under' | 'front' | 'hk' | 'pistol' | 'bolt';
 const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   m4: 'slap',
   mp7: 'slap',
   ak47: 'under',
-  mp5: 'front',
+  mp5: 'hk',
   l115: 'bolt',
   m200: 'bolt',
   m9: 'pistol',
@@ -179,6 +181,11 @@ const EMPTY_GESTURE: Partial<Record<string, EmptyKind>> = {
   sv98: 'bolt',
   automag3: 'pistol',
 };
+/** polegar da direita por arma: [fechamento, abertura para o lado da palma] (dá a volta por trás do punho) */
+const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
+  stg44: [0.5, 0.85],
+  mp5: [0.25, 0.8],
+};
 /** pente dentro do punho (MP7, MSMC): ele cai e o novo entra por baixo, como na pistola */
 const GRIP_MAG: ReadonlySet<string> = new Set(['mp7', 'msmc']);
 /** o tambor do revólver sai para a esquerda e um pouco para baixo (espaço da arma) */
@@ -187,6 +194,8 @@ const CYL_OUT = new THREE.Vector3(-0.034, -0.01, 0);
 const EG = {
   bolt: 0,
   charge: 0,
+  /** a alavanca girando no tubo (o entalhe da MP5) */
+  chargeRot: 0,
   boltRot: 0,
   rightK: 0,
   thumbR: 0,
@@ -196,6 +205,10 @@ const EG = {
   curl: 0.8,
   thumb: 0.5,
   at: new THREE.Vector3(),
+  /** o arco da mão indo e voltando da peça (`ARC_OUT`, por fora e por baixo; a MP5 vai por cima) */
+  arc: new THREE.Vector3(),
+  /** MP5: a arma vem ao encontro da mão na alavanca (0–1) */
+  present: 0,
 };
 /** na recarga, o pulso esquerdo em relação ao fundo do pente: a palma (para cima) encosta embaixo dele (ver grips) */
 const LEFT_Q = new THREE.Quaternion();
@@ -752,6 +765,7 @@ export class Viewmodel {
     let boltBack = 0;
     let boltRot = 0;
     let chargeBack = 0;
+    let chargeRot = 0;
     /** faca: giro dela na mão (rad, no `spinAxis`) e o quanto os dedos soltam (0–1); o resto da faca fica em `KD` */
     let spin = 0;
     let open = 0;
@@ -910,6 +924,18 @@ export class Viewmodel {
             }
           }
           if (empty) this.emptyGesture(u, joltAt);
+          // MP5: com a mão na alavanca, a pose do vazio (que leva a mão ao colete) espera ela soltar; e a arma desfaz a
+          // inclinação da recarga (de lado, a alavanca subia para o alto da tela e o braço atravessava a vista) e chega
+          // um pouco mais perto (`mp5.ts`)
+          if (empty && g.id === 'mp5') magHold *= 1 - EG.alt;
+          if (empty && EG.present > 0) {
+            const k = rp.tilt * EG.present;
+            rot.z += (k * 0.55 + HK_PRESENT_ROLL * EG.present) * mo;
+            rot.x -= k * 0.3;
+            pos.y -= k * 0.06;
+            pos.x += k * 0.03;
+            pos.addScaledVector(HK_PRESENT_POS, EG.present);
+          }
           break;
         }
         case 'reloadClip': {
@@ -972,6 +998,12 @@ export class Viewmodel {
           if (knife) {
             this.knifeSlash(u, a.side, mo, pos, rot, joltAt);
           } else {
+            // MP5: estocada inclinada para a esquerda, a coronha comprida fora da tela (`mp5.ts`)
+            if (g.id === 'mp5') {
+              mp5Play(MP5_BASH, u, mo, pos, rot);
+              joltAt('hit', MP5_BASH_HIT, 1.6);
+              break;
+            }
             // golpe com a arma: empurra a arma para a frente e para o lado
             const w = hump(u, 0, 0.25, 0.5, 1);
             pos.z -= 0.15 * w;
@@ -987,6 +1019,16 @@ export class Viewmodel {
         case 'inspect': {
           if (knife) {
             this.knifeInspect(u, mo, pos, rot, joltAt);
+            break;
+          }
+          // MP5: rola mostrando um lado e o outro, a esquerda confere o pente (`mp5.ts`)
+          if (g.id === 'mp5') {
+            const m = mp5Play(MP5_INSPECT, u, mo, pos, rot);
+            if (this.holds?.mag) magHold = Math.max(magHold, m);
+            joltAt('faceA', 0.2, 0.8);
+            joltAt('faceB', 0.56, 0.8);
+            joltAt('grab', 0.58, 0.8);
+            joltAt('end', 0.92, 1);
             break;
           }
           // duas paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
@@ -1083,6 +1125,7 @@ export class Viewmodel {
     if (a?.kind === 'reloadEmpty' && a.t < a.ms) {
       boltBack = Math.max(boltBack, EG.bolt);
       chargeBack = EG.charge;
+      chargeRot = EG.chargeRot;
       rightK = Math.max(rightK, EG.rightK);
       boltRot = Math.max(boltRot, EG.boltRot);
       if (EG.rightK > 0) {
@@ -1121,7 +1164,7 @@ export class Viewmodel {
     if (g.rounds) g.rounds.visible = MAG.lengthSq() > 1e-6 && !(cylU >= CYL_DUMP_AT && cylU < MAG_SEAT_AT);
     movePart(g.parts.bolt, V.set(0, 0, boltBack), 0);
     movePart(g.parts.slide, V.set(0, 0, boltBack));
-    movePart(g.parts.charge, V.set(0, 0, chargeBack));
+    movePart(g.parts.charge, V.set(0, 0, chargeBack), chargeRot);
     movePart(g.parts.boltRot, V.set(0, 0, boltBack), boltRot);
     movePart(g.parts.trigger, V.set(0, 0, 0.004 * trig));
     // faca: gira em volta do pivô (a argola no indicador, ou o meio do cabo), com a mão parada nela
@@ -1158,7 +1201,7 @@ export class Viewmodel {
     leftCurl = lerp(leftCurl, 0.15, magPalm);
     leftThumb = lerp(leftThumb, 0.15, magPalm);
     // gesto da recarga vazia: a mão esquerda vai pela lateral (ou por baixo) até a peça
-    if (leftAlt > 0) LEFT.lerp(EG.at, leftAlt).addScaledVector(ARC_OUT, 4 * leftAlt * (1 - leftAlt));
+    if (leftAlt > 0) LEFT.lerp(EG.at, leftAlt).addScaledVector(EG.arc, 4 * leftAlt * (1 - leftAlt));
     // ferrolho: a mão direita anda junto com a alavanca (já no lugar deste quadro: sobe girando com o ferrolho e vem
     // para trás), na pegada medida em volta da bola dela
     const pinch = this.holds?.pinch ?? null;
@@ -1658,9 +1701,12 @@ export class Viewmodel {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       return OFF_R;
     }
+    const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
-      const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
+      if (th && i === 4) grip = th[0] - h.right.curl[1];
+      if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
     return OFF_R;
@@ -1846,8 +1892,10 @@ export class Viewmodel {
 
   /** o gesto da recarga vazia no momento `u` (0–1): preenche `EG` (ver `EMPTY_GESTURE`) */
   private emptyGesture(u: number, joltAt: (key: string, at: number, v: number) => void) {
-    EG.bolt = EG.charge = EG.boltRot = EG.rightK = EG.thumbR = EG.alt = EG.out = 0;
+    EG.bolt = EG.charge = EG.chargeRot = EG.boltRot = EG.rightK = EG.thumbR = EG.alt = EG.out = 0;
     EG.altQ = SIDE_Q;
+    EG.present = 0;
+    EG.arc.copy(ARC_OUT);
     const kind = this.gun ? EMPTY_GESTURE[this.gun.id] : undefined;
     const ch = this.chargeHome;
     switch (kind) {
@@ -1889,6 +1937,9 @@ export class Viewmodel {
         joltAt('release', 0.8, 2);
         break;
       }
+      case 'hk':
+        if (ch) hkGesture(u, ch, SIDE_Q, EG, joltAt);
+        break;
       case 'pistol':
         // o ferrolho ficou aberto: o polegar direito aperta o retém e ele fecha (a mão esquerda não sai do apoio)
         EG.bolt = u < 0.8 ? 0.035 : 0;
