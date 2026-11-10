@@ -341,7 +341,9 @@ const RACK_AT_OF: Partial<Record<string, THREE.Vector3>> = {
 /**
  * O polegar da direita no punho, por arma: [fechamento, abertura para o lado da palma], no lugar do encaixe medido. Dá a
  * volta por trás do punho e deita na lateral esquerda, atrás do gatilho. O encaixe deixava o da StG 44 em pé do lado
- * direito, encostado na caixa (medido no harness: a ponta passa de x +3,6 cm para −2,6 cm, a ~2 mm da malha).
+ * direito, encostado na caixa (medido no harness: a ponta passa de x +3,6 cm para −2,6 cm, a ~2 mm da malha). Nas armas
+ * com a pegada da direita medida (`RIGHT_FIX` `hold`, em `holds.ts`), o polegar foi escolhido junto com ela: encostado
+ * na lateral esquerda do punho, sem entrar.
  */
 const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   stg44: [0.5, 0.85],
@@ -353,13 +355,13 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
   scarl: [0.5, 0.5],
   aks74u: [0.45, 0.7],
   m9: [0.4, 0.45], // pistola com as duas mãos: deita na lateral esquerda, para a frente, por cima do polegar de apoio
-  msmc: [0.55, 1.1],
+  msmc: [0.4, 0.6],
   m200: [0.46, 0.7],
   mp5: [0.25, 0.8],
   ballista: [0.42, 0.65],
-  mpx: [0.6, 0.9],
+  mpx: [0.5, 0.5],
   deagle: [0.3, 0.2],
-  l115: [0.58, 0.9],
+  l115: [0.45, 0.8],
   bfr: [0.3, 0.6],
   ak47: [0.35, 0.5],
   rhino: [0.5, 0.6],

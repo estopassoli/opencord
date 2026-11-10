@@ -173,22 +173,39 @@ const TRIG_OFF: Partial<Record<GunId, number>> = { sv98: 0 };
  * logo acima do gatilho), girada `spin` rad em volta do eixo do cano; o indicador vai por baixo da bola e o polegar
  * por cima, os outros três fechados na palma. O indicador sai do ponto `from` (a polpa no gatilho) e vai para `to`.
  * A pegada genérica (o vão da mão fechada na bola) deixava a mão aberta em garra por cima da caixa da culatra.
+ * `grip`: o pulso e o giro da pegada do punho de que a pinça parte, quando a pegada da arma mudou depois de a pinça ser
+ * medida (L115: a pinça continua a mesma).
  */
 const PAD_PINCH: Partial<
-  Record<GunId, { spin: number; from: THREE.Vector3Tuple; to: THREE.Vector3Tuple; fist: number }>
+  Record<
+    GunId,
+    {
+      spin: number;
+      from: THREE.Vector3Tuple;
+      to: THREE.Vector3Tuple;
+      fist: number;
+      grip?: { pos: THREE.Vector3Tuple; quat: [number, number, number, number] };
+    }
+  >
 > = {
   sv98: { spin: -0.3, from: [0.003, 0.012, -0.033], to: [0.03, 0.052, -0.039], fist: 1.5 },
-  l115: { spin: -0.4, from: [-0.0147, -0.0044, -0.0103], to: [0.0538, 0.0353, -0.0406], fist: 1.5 },
+  l115: {
+    spin: -0.4,
+    from: [-0.0147, -0.0044, -0.0103],
+    to: [0.0538, 0.0353, -0.0406],
+    fist: 1.5,
+    grip: { pos: [0.0488, 0.0021, 0.092], quat: [-0.15776, -0.052983, -0.689284, 0.705119] },
+  },
 };
 
 function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[GunId]>): Hold {
   const r = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), k.spin);
-  const pos = right.pos
+  const pos = (k.grip ? new THREE.Vector3(...k.grip.pos) : right.pos)
     .clone()
     .sub(new THREE.Vector3(...k.from))
     .applyQuaternion(r)
     .add(new THREE.Vector3(...k.to));
-  const quat = r.multiply(right.quat);
+  const quat = r.multiply(k.grip ? new THREE.Quaternion(...k.grip.quat).normalize() : right.quat);
   const fist = k.fist - PINCH[0];
   const f = fitHand(near(g, pos), 1, pos, quat, PINCH, {
     fingers: ['index', 'thumb'],
@@ -201,20 +218,14 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
 /**
  * A pegada da direita acertada à mão por arma, onde a conta comum não fecha a mão (uma tabela só, um jeito por arma):
  * - `nudge`: quanto o vão da mão anda (m) e quanto a mão fica mais em pé (rad, o punho menos inclinado); a busca pelo
- *   punho continua. MSMC: o punho (com o pente dentro) é fino (~2 cm), quase em pé e fica bem à frente do de um fuzil;
- *   na pegada comum a mão ficava ~3 cm atrás e alta, com a base do polegar apoiada na caixa: a palma não chegava ao
- *   punho e anelar e mindinho ficavam abertos para a frente. Agora a palma encosta no punho e os dedos fecham na frente
- *   dele (o polegar é o `RIGHT_THUMB` do viewmodel).
+ *   punho continua (hoje nenhuma arma: a MSMC passou para `hold`).
  * - `wrist`: o pulso medido (espaço da arma) e a inclinação da mão de lado (rad), no lugar da busca. Desert Eagle: o
  *   punho tem ~6 cm de fundo, a frente quase em pé e o guarda-mato baixo; na pegada comum (mão inclinada ~17°, e a
  *   fileira dos nós dos dedos já desce para trás) o anelar e o mindinho nasciam atrás da frente do punho e ficavam
  *   esticados, e a palma ficava ~1 cm fora (o pé do polegar batia na trava do ferrolho). Aqui a mão vem mais baixa,
  *   inclinada um pouco para a frente: os nós ficam em pé na frente do punho e os dedos dão a volta até a lateral
  *   esquerda. Ou (`yaw`) a mão de sempre girada em volta do eixo y da arma (rad; positivo, os dedos viram para a
- *   esquerda e o pulso sai para a direita). L115: o punho da coronha de buraco é fundo (4,7 cm da frente ao buraco)
- *   e estreito (2,8 cm); a busca deixava os dedos em volta do ar, na frente dele, embaixo do guarda-mato. Virada, a
- *   mão fecha na frente do punho com as pontas na lateral esquerda (medido no harness: médio 0,99, anelar 0,84,
- *   palma encostada sem entrar).
+ *   esquerda e o pulso sai para a direita).
  * - `hole`: como o `nudge`, mas o vão da mão vai a um ponto do punho (espaço da arma). Rhino: o punho fica ~1 cm mais
  *   para trás do gatilho e ~10° mais inclinado que o das outras pistolas; na pegada de sempre os dedos fechavam no ar
  *   na frente dele e a mão ficava baixa, com o alto do punho à mostra atrás dela (o vão 4 mm para fora do meio).
@@ -225,6 +236,14 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
  *   os dedos apontam ~9° para a esquerda, médio, anelar e mindinho dão a volta no punho com as pontas na lateral
  *   esquerda (encostados, nada entrando), o indicador alcança a frente do gatilho e o polegar dá a volta por trás do
  *   punho e deita na lateral esquerda, no alto (`RIGHT_THUMB` do viewmodel).
+ *   L115, SCAR-L, MPX, MSMC, M4, MP5 e MCX (medidas com uma busca no harness: pulso e giro perto da pegada de antes,
+ *   com o encaixe dos dedos e do gatilho de sempre): na pegada da conta comum, os nós do médio e do anelar ficavam
+ *   1–2,5 cm à frente do punho (MSMC: a mão inteira ~2 cm à frente), e médio, anelar e mindinho davam a volta no ar em
+ *   garra na frente dele, com as pontas soltas; e o indicador reto, fora do gatilho, entrava 2–6 mm na armação (por
+ *   isso essas armas ficavam com o dedo dobrado, enganchado no guarda-mato). Aqui os nós ficam na frente do punho, os
+ *   três dedos fecham nele com as pontas encostadas na lateral esquerda, a polpa do indicador fica no gatilho e o
+ *   indicador reto encosta na armação acima do guarda-mato sem entrar (conferido pelos vértices da malha dos braços:
+ *   nada da mão direita entra mais de 0,5 mm na arma, fora o que já entrava antes).
  */
 type RightFix =
   | { kind: 'nudge' | 'hole'; at: THREE.Vector3Tuple; upright: number }
@@ -237,10 +256,36 @@ type RightFix =
       off: FingerOffsets;
     };
 const RIGHT_FIX: Partial<Record<GunId, RightFix>> = {
-  msmc: { kind: 'nudge', at: [-0.02, -0.01, -0.03], upright: 0.3 },
   rhino: { kind: 'hole', at: [0.004, -0.008, 0.054], upright: -0.15 },
   deagle: { kind: 'wrist', pos: [0.042, -0.036, 0.068], incl: -0.16 },
-  l115: { kind: 'wrist', pos: [0.0488, 0.0021, 0.092], yaw: 0.15 },
+  l115: {
+    kind: 'hold',
+    pos: [0.0344, -0.0222, 0.1148],
+    quat: [0.044, -0.05, -0.6683, 0.7409],
+    curl: [0.9, 0.5, 0.65],
+    off: [-0.1, -0.0188, -0.1313, -0.4328, -0.05, 0.8],
+  },
+  scarl: {
+    kind: 'hold',
+    pos: [0.039, 0.0033, 0.0929],
+    quat: [-0.0407, -0.0963, -0.6469, 0.7553],
+    curl: [0.9, 0.5, 0.65],
+    off: [-0.05, -0.0125, -0.1656, -0.4031, 0, 0.5],
+  },
+  mpx: {
+    kind: 'hold',
+    pos: [0.0339, -0.0079, 0.0998],
+    quat: [-0.0032, -0.0836, -0.6891, 0.7199],
+    curl: [0.9, 0.5, 0.65],
+    off: [-0.1, -0.0594, -0.1031, -0.4063, 0, 0.5],
+  },
+  msmc: {
+    kind: 'hold',
+    pos: [0.031, -0.0354, 0.0822],
+    quat: [0.1094, -0.0136, -0.6363, 0.7636],
+    curl: [0.9, 0.5, 0.65],
+    off: [-0.05, 0.0891, -0.1563, -0.5, -0.1, 0.6],
+  },
   ak47: {
     kind: 'hold',
     pos: [0.0242, -0.0315, 0.099],
