@@ -1709,9 +1709,17 @@ describe('gunfight: recuo (Téo, pegada/recoil r2)', () => {
 
   it('mirando no ar, o tiro vai exatamente para o centro da mira; do quadril no ar, espalha', async () => {
     const shotDir = async (ads: boolean, u: number) => {
+      // nascer sempre no mesmo lugar: o ponto de nascer sai de Math.random (pickSpawn) e do sorteio próprio, que começa
+      // em Date.now(). Sorteado, às vezes nascia a 3 m da parede na direção do tiro, e aí o arredondamento do fim do
+      // traço (1 cm por eixo) sozinho já passava da folga (falhava ~1 em 3)
+      const rnd = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
       const { g, sent, t, view } = await airborne(ads);
+      rnd.mockRestore();
+      now.mockRestore();
       Reflect.set(g, 'rand', () => u);
-      view.yaw = 0.3;
+      // nasce em (−21, −21): olhando para +z, a linha livre vai a dezenas de metros (o mapa de canto a canto)
+      view.yaw = Math.PI + 0.3;
       view.pitch = -0.05;
       Reflect.set(g, 'aimMark', { yaw: view.yaw, pitch: view.pitch });
       const eye = g.eye;
@@ -1722,7 +1730,7 @@ describe('gunfight: recuo (Téo, pegada/recoil r2)', () => {
       // a direção do olho até onde a bala parou contra a da mira (sem o tranco: é o primeiro tiro)
       const d = { x: tx - eye.x, y: ty - eye.y, z: tz - eye.z };
       const l = Math.hypot(d.x, d.y, d.z);
-      const want = aimDir(0.3, -0.05, 0, 0, 0);
+      const want = aimDir(Math.PI + 0.3, -0.05, 0, 0, 0);
       g.dispose();
       return Math.acos(Math.min(1, (d.x * want.x + d.y * want.y + d.z * want.z) / l));
     };
