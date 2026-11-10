@@ -100,6 +100,8 @@ export interface HandFit {
    * `ring` (mão de cápsulas do boneco)
    */
   karambit?: { pos: THREE.Vector3Tuple; quat: [number, number, number, number]; index: number; middle: number };
+  /** bowie medida para esta mão (pulso e giro no espaço da faca; `curl`: indicador, médio, anelar, mindinho, polegar) */
+  bowie?: { pos: THREE.Vector3Tuple; quat: [number, number, number, number]; curl: readonly number[] };
   /**
    * empunhadura vertical: quanto a mão inclina a mais (o pulso desce para trás, na linha do antebraço que vem de baixo;
    * reta, o pulso dobrava em ângulo)
@@ -155,6 +157,13 @@ export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass, hf:
   if (g.id === 'karambit' && hf.karambit) {
     const k = hf.karambit;
     return { pos: new THREE.Vector3(...k.pos), quat: new THREE.Quaternion(...k.quat), curl: [k.middle, 0.3, k.index] };
+  }
+  if (g.id === 'bowie' && hf.bowie) {
+    const b = hf.bowie;
+    const quat = new THREE.Quaternion(...b.quat).normalize();
+    // os dedos de baixo partem de 0,5 (o acerto de cada um sobe até o medido): partindo do médio, mais fechado que o
+    // indicador, o indicador virava dedo de gatilho
+    return { pos: new THREE.Vector3(...b.pos), quat, curl: [0.5, b.curl[4] ?? 0.6, b.curl[0] ?? 1] };
   }
   if (g.id === 'karambit') {
     const pos = handle.clone().sub(holeIn(hf, PUNHO));

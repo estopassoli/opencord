@@ -27,10 +27,11 @@ import {
   type KarTracks,
 } from './karambit';
 import { ARM_RIG } from './armsrig';
+import { BOWIE_DRAW, BOWIE_HEAVY, BOWIE_INSPECT, BOWIE_SLASH_L, BOWIE_SLASH_R } from './bowie';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { fitHand, soupOf } from './contact';
 import { flashTexture } from './fx';
-import { ARM_HAND_FIT, type FingerOffsets } from './handrig';
+import { ARM_HAND_FIT, BOWIE_ARM, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
 import { aimReticles } from './attachmodels';
 import { disposeGun, movePart, partBox, partCenter, posePart, setBalisong, type GunModel, type Part } from './models';
@@ -132,6 +133,16 @@ const KNIFE_POSE: Record<
     rot: [-0.1294, 0.8447, -0.3458],
     fore: new THREE.Vector3(-0.2, 0.05, -0.98).normalize(),
   },
+};
+/**
+ * Bowie parada, em martelo (`BOWIE_ARM`): o antebraço entra pelo canto de baixo à direita, o pulso caído para o lado do
+ * mindinho, e a lâmina sobe para a frente e um pouco para o meio, o fio para a frente e a face direita à vista (o dorso
+ * da lâmina fica do lado do antebraço, como numa mão de verdade).
+ */
+const BOWIE_POSE = {
+  pos: new THREE.Vector3(0.1635, -0.1327, -0.3264),
+  rot: [0.4363, 1.0472, 1.6232] as THREE.Vector3Tuple,
+  fore: new THREE.Vector3(-0.5, -0.1, -0.86).normalize(),
 };
 const HIP_PISTOL = new THREE.Vector3(0.09, -0.085, -0.33);
 /** arma longa no quadril: perto do corpo (mais longe, o braço de apoio não alcança o guarda-mão e a arma "voa" ao mirar) */
@@ -297,6 +308,19 @@ const GUARD_Q = (() => {
 const GUARD_CURL = 0.5;
 const GUARD_INDEX = 0.38;
 const GUARD_THUMB = 0.3;
+/**
+ * Bowie: a esquerda de guarda na linha do antebraço (o pulso reto; com a de sempre, o pulso dobrava ~90° para cima e
+ * os dedos caíam, uma garra), a palma para a frente e para a direita, os dedos soltos subindo para a frente.
+ */
+const BOWIE_GUARD_L = new THREE.Vector3(-0.16, -0.19, -0.46);
+const BOWIE_GUARD_Q = (() => {
+  const f = new THREE.Vector3(0.3, 0.6, -0.74).normalize();
+  const back = new THREE.Vector3(-0.85, 0.15, 0.5);
+  back.addScaledVector(f, -back.dot(f)).normalize();
+  const z = f.clone().negate();
+  const x = new THREE.Vector3().crossVectors(back, z);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, back, z));
+})();
 /** os dedos da mão da faca antes de fechar no cabo (o encaixe fecha cada um até encostar) */
 const KNIFE_OPEN: [number, number, number] = [0.3, 0.2, 0.3];
 /**
@@ -552,7 +576,13 @@ export class Viewmodel {
     this.slapAt.set(-0.025 - PALM_HALF, top - 0.04, bz + 0.046 - 0.01);
     if (!knife) this.prepareGunParts(g, spec);
     this.knifeOff = NO_OFF;
-    if (knife) {
+    if (knife && g.id === 'bowie') {
+      // bowie: os fechamentos medidos de cada dedo (`BOWIE_ARM`, já encostados no cabo)
+      knifeSpinFrame(g, this.spinPivot, this.spinAxis);
+      const c = BOWIE_ARM.curl;
+      this.knifeOff = [0, c[1] - 0.5, c[2] - 0.5, c[3] - 0.5, 0, c[5]];
+      this.rightCurl = curlOf(this.handR);
+    } else if (knife) {
       knifeSpinFrame(g, this.spinPivot, this.spinAxis);
       // os dedos partem abertos e fecham até encostar no cabo, um por um. Karambit: o indicador (atravessando a argola)
       // e o médio (rente à frente dela) ficam no fechamento medido da pegada; o anelar e o mindinho partem dele
@@ -669,7 +699,7 @@ export class Viewmodel {
     // faca não mira (o botão direito dela é o golpe pesado)
     const knife = spec.cls === 'knife';
     const ads = knife ? 0 : ease(inp.ads);
-    const kp = knife ? KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet'] : null;
+    const kp = !knife ? null : g.id === 'bowie' ? BOWIE_POSE : KNIFE_POSE[g.id === 'karambit' ? 'karambit' : 'bayonet'];
     const hip = kp ? kp.pos : spec.cls === 'pistol' ? HIP_PISTOL : HIP_LONG;
     // mirando: a linha de mira passa pelo centro da tela, um pouco à frente do olho (na luneta, o olho na ocular)
     const eyeZ =
@@ -724,7 +754,21 @@ export class Viewmodel {
         sp * -0.25 + this.tacK * 0.35,
       );
     }
-    if (!kar) {
+    const bw = g.id === 'bowie';
+    if (bw) {
+      // bowie: correndo, o punho baixa e bombeia com o passo, a lâmina deitada para a frente e para o meio (a face à
+      // vista); na tática, o braço sobe dobrado para perto do peito com a lâmina em pé, e o bombeio fica mais largo
+      const pump = Math.sin(this.bob) * mo;
+      pos.x += sp * -0.01 + this.tacK * -0.03 + pump * 0.012 * this.sprintK;
+      pos.y += sp * -0.02 + this.tacK * 0.04 + Math.abs(Math.cos(this.bob)) * -0.014 * this.sprintK * mo;
+      pos.z += sp * 0.02 + this.tacK * 0.06 - pump * 0.015 * this.sprintK;
+      RUN_E.set(
+        sp * 0.32 + this.tacK * 0.1 + pump * 0.1 * this.sprintK,
+        sp * -0.09 + this.tacK * 0.25,
+        sp * 0.3 + this.tacK * -0.3,
+      );
+    }
+    if (!kar && !bw) {
       pos.x += sp * -0.03;
       pos.y += sp * -0.05;
       rot.y += sp * 0.65;
@@ -1387,6 +1431,11 @@ export class Viewmodel {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
     if (this.gun?.flip) return this.balisongDraw(u, full, pos, rot, joltAt);
+    if (this.gun?.id === 'bowie') {
+      this.karambitPlay(BOWIE_DRAW, u, full, pos);
+      joltAt('catch', 0.52, 2.2);
+      return;
+    }
     if (kar) {
       this.karambitPlay(KAR_DRAW, u, full, pos);
       joltAt('catch', 0.6, 2.2);
@@ -1481,6 +1530,14 @@ export class Viewmodel {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
     const bal = !!this.gun?.flip;
+    if (this.gun?.id === 'bowie') {
+      this.karambitPlay(BOWIE_INSPECT, u, full, pos);
+      joltAt('faceA', 0.12, 0.8);
+      joltAt('faceB', 0.44, 0.8);
+      joltAt('catch', 0.72, 0.6);
+      joltAt('settle', 0.95, 1.2);
+      return;
+    }
     if (kar) {
       this.karambitPlay(KAR_INSPECT, u, full, pos);
       joltAt('faceA', 0.2, 0.8);
@@ -1551,6 +1608,11 @@ export class Viewmodel {
     rot: THREE.Euler,
     joltAt: (key: string, at: number, v: number) => void,
   ) {
+    if (this.gun?.id === 'bowie') {
+      this.karambitPlay(s > 0 ? BOWIE_SLASH_R : BOWIE_SLASH_L, u, mo >= 1, pos);
+      joltAt('cut', 0.32, 1.8);
+      return;
+    }
     if (this.gun?.id === 'karambit') {
       this.karambitPlay(s > 0 ? KAR_SLASH_R : KAR_SLASH_L, u, mo >= 1, pos);
       joltAt('cut', 0.3, 1.4);
@@ -1587,6 +1649,11 @@ export class Viewmodel {
     rot: THREE.Euler,
     joltAt: (key: string, at: number, v: number) => void,
   ) {
+    if (this.gun?.id === 'bowie') {
+      this.karambitPlay(BOWIE_HEAVY, u, mo >= 1, pos);
+      joltAt('stab', 0.47, 3.4);
+      return;
+    }
     if (this.gun?.id === 'karambit') {
       this.karambitPlay(KAR_HEAVY, u, mo >= 1, pos);
       joltAt('stab', 0.47, 3);
@@ -1633,20 +1700,22 @@ export class Viewmodel {
    */
   private knifeGuard(now: number, inp: VmInput, mo: number) {
     const bobA = inp.moving * (inp.crouch ? 0.6 : 1) * mo;
-    GL.copy(GUARD_L);
+    const bw = this.gun?.id === 'bowie';
+    GL.copy(bw ? BOWIE_GUARD_L : GUARD_L);
     GL.x += Math.sin(this.bob + 0.6) * 0.01 * bobA + this.swayX * 0.04 + KD.lx;
     GL.y +=
       Math.abs(Math.cos(this.bob + 0.6)) * -0.01 * bobA +
       Math.sin(now / 900 + 0.8) * 0.003 * mo -
       this.swayY * 0.04 -
-      0.08 * this.sprintK +
+      (bw ? 0.12 : 0.08) * this.sprintK +
       KD.ly;
     GL.z += 0.04 * this.sprintK + KD.lz;
     this.handL.root.position.copy(this.holder.worldToLocal(GL));
     this.holder.getWorldQuaternion(HQ);
-    this.handL.root.quaternion.copy(HQ.invert().multiply(GUARD_Q));
+    this.handL.root.quaternion.copy(HQ.invert().multiply(bw ? BOWIE_GUARD_Q : GUARD_Q));
     // mão solta, sem cerrar (cerrada, virava um toco): os dedos em cascata e o polegar ao lado do indicador
-    this.handL.setCurl(GUARD_CURL, GUARD_THUMB, GUARD_INDEX);
+    if (bw) this.handL.setCurl(0.6, 0.3, 0.48);
+    else this.handL.setCurl(GUARD_CURL, GUARD_THUMB, GUARD_INDEX);
   }
 
   /** os acertos dos dedos da direita: os da pegada, indo para os da alavanca; soltos no pente-lâmina */
