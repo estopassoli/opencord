@@ -15,6 +15,17 @@
  */
 import * as THREE from 'three';
 import { FpsArms, type ArmHand } from './arms';
+import {
+  KAR_DRAW,
+  KAR_HEAVY,
+  KAR_INSPECT,
+  KAR_SLASH_L,
+  KAR_SLASH_R,
+  KAR_SLIDE,
+  KAR_SPIN_CURL,
+  track,
+  type KarTracks,
+} from './karambit';
 import { ARM_RIG } from './armsrig';
 import { PORT, ejectKind, ejectVelocity, type EjectKind } from './casings';
 import { fitHand, soupOf } from './contact';
@@ -99,8 +110,9 @@ const ADS_EYE: Partial<Record<GunId, number>> = { m4: -0.15, mp5: -0.2, mp7: -0.
 /**
  * Facas paradas (posição e giro YXZ do `holder`, sem mirar). Baioneta em martelo: o polegar por cima, o cabo atravessando
  * o punho fechado (a ponta do cabo aparece do lado do mindinho) e a lâmina para a frente e para cima, com o pulso
- * dobrado para o lado do mindinho, como quem segura de verdade. Karambit em reversa: a mão baixa à direita, o antebraço
- * entrando pelo canto de baixo, o indicador na argola e a garra saindo por baixo do punho, para a frente e para baixo.
+ * dobrado para o lado do mindinho, como quem segura de verdade. Karambit em reversa: o punho quase em pé no terço direito,
+ * o antebraço entrando pelo canto de baixo, a argola em cima com o indicador e a garra saindo por baixo do punho e
+ * curvando para o meio da tela, com a face à vista (a pegada é `KARAMBIT_ARM`, em `handrig.ts`).
  */
 const KNIFE_POSE: Record<
   'bayonet' | 'karambit',
@@ -116,9 +128,9 @@ const KNIFE_POSE: Record<
     fore: new THREE.Vector3(-0.34, -0.17, -0.92).normalize(),
   },
   karambit: {
-    pos: new THREE.Vector3(0.19, -0.13, -0.4),
-    rot: [0.6, 0.9, 0.6],
-    fore: new THREE.Vector3(-0.55, 0.1, -0.83).normalize(),
+    pos: new THREE.Vector3(0.1232, -0.065, -0.3373),
+    rot: [-0.1294, 0.8447, -0.3458],
+    fore: new THREE.Vector3(-0.2, 0.05, -0.98).normalize(),
   },
 };
 const HIP_PISTOL = new THREE.Vector3(0.09, -0.085, -0.33);
@@ -255,7 +267,7 @@ const FORE_DIR = new THREE.Vector3();
 const FORE_L = new THREE.Vector3();
 const SPIN_Q = new THREE.Quaternion();
 /**
- * Saque das facas (ms): o braço entra pelo alto à direita (karambit, que gira no indicador com a mão erguida) ou de baixo
+ * Saque das facas (ms): o braço sobe de baixo à direita e a karambit dá uma volta no indicador (`KAR_DRAW`), ou sobe
  * com a lâmina em pé (baioneta, que deita até a ponta apontar para o meio da tela) e desce para a guarda, passando um
  * pouco do ponto. Só a animação: o tempo de sacar do jogo (`game.ts`) não muda, e um golpe logo depois corta o saque com
  * a passagem suave do `carry`.
@@ -307,6 +319,8 @@ interface Offsets {
   roll: number;
   spin: number;
   twist: number;
+  /** karambit: quanto a argola escorrega para fora no indicador (m, em `KAR_SLIDE`) */
+  slide: number;
   open: number;
   /** balisong: quanto ela está fechada (0 aberta) e os giros extras do cabo de morder e da lâmina (rad) */
   shut: number;
@@ -330,6 +344,7 @@ const zeroOffsets = (): Offsets => ({
   roll: 0,
   spin: 0,
   twist: 0,
+  slide: 0,
   open: 0,
   shut: 0,
   bite: 0,
@@ -341,7 +356,7 @@ const zeroOffsets = (): Offsets => ({
 /** o que as animações da faca pedem neste quadro além de `pos`/`rot` (preenchido por `knifeDraw`, `knifeInspect` e os golpes) */
 const KD = zeroOffsets();
 const resetKD = () => {
-  KD.ex = KD.ey = KD.ez = KD.pro = KD.roll = KD.spin = KD.twist = KD.open = KD.lx = KD.ly = KD.lz = 0;
+  KD.ex = KD.ey = KD.ez = KD.pro = KD.roll = KD.spin = KD.twist = KD.slide = KD.open = KD.lx = KD.ly = KD.lz = 0;
   KD.shut = KD.bite = KD.bladeX = 0;
 };
 const KQ = new THREE.Quaternion();
@@ -350,6 +365,8 @@ const KE = new THREE.Euler(0, 0, 0, 'ZYX');
 const TWIST_Q = new THREE.Quaternion();
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const GL = new THREE.Vector3();
+/** karambit correndo: giro do braço no espaço da câmera (somado ao das animações, fora do `carry`) */
+const RUN_E = new THREE.Vector3();
 /** ângulo em (−π, π] (a volta mais curta para casa) */
 const wrapAngle = (a: number) => a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
 /** temporários do caminho feito à mão */
@@ -537,13 +554,16 @@ export class Viewmodel {
     this.knifeOff = NO_OFF;
     if (knife) {
       knifeSpinFrame(g, this.spinPivot, this.spinAxis);
-      // os dedos partem abertos e fecham até encostar no cabo (e o indicador na argola da karambit), um por um
-      const f = fitHand(soupOf(g.root), 1, this.handR.root.position, this.handR.root.quaternion, KNIFE_OPEN, {
-        fingers: ['index', 'middle', 'ring', 'pinky', 'thumb'],
+      // os dedos partem abertos e fecham até encostar no cabo, um por um. Karambit: o indicador (atravessando a argola)
+      // e o médio (rente à frente dela) ficam no fechamento medido da pegada; o anelar e o mindinho partem dele
+      const kar = g.id === 'karambit';
+      const start: [number, number, number] = kar ? curlOf(this.handR) : [...KNIFE_OPEN];
+      const f = fitHand(soupOf(g.root), 1, this.handR.root.position, this.handR.root.quaternion, start, {
+        fingers: kar ? ['ring', 'pinky', 'thumb'] : ['index', 'middle', 'ring', 'pinky', 'thumb'],
         maxCurl: 1.6,
       });
       this.knifeOff = f.offsets;
-      this.rightCurl = [...KNIFE_OPEN];
+      this.rightCurl = start;
     }
     // trocou de arma: nada da anterior sobra
     this.last = zeroOffsets();
@@ -689,17 +709,34 @@ export class Viewmodel {
     pos.y -= this.swayY * 0.05 * steady;
     // corrida: arma atravessada e baixa; corrida tática: arma para cima, cano para o alto
     const sp = this.sprintK * (1 - this.tacK);
-    pos.x += sp * -0.03;
-    pos.y += sp * -0.05;
-    rot.y += sp * 0.65;
-    rot.z += sp * 0.35;
-    rot.x += sp * -0.15 + Math.sin(this.bob * 2) * 0.03 * this.sprintK * mo;
-    // tática: a arma vai mais para a direita com o cano virado para dentro (a mão esquerda solta, ver abaixo)
-    pos.y += this.tacK * 0.04;
-    pos.x += this.tacK * 0.06;
-    rot.x += this.tacK * 0.9;
-    rot.z += this.tacK * 0.5;
-    rot.y += this.tacK * 0.25;
+    const kar = g.id === 'karambit';
+    RUN_E.set(0, 0, 0);
+    if (kar) {
+      // karambit: correndo, o punho desce e bombeia com o passo, a garra deitada para trás; na tática, o braço sobe
+      // dobrado para perto do peito, a garra para baixo, e o bombeio fica mais largo
+      const pump = Math.sin(this.bob) * mo;
+      pos.x += sp * 0.01 + this.tacK * -0.02 + pump * 0.012 * this.sprintK;
+      pos.y += sp * -0.05 + this.tacK * 0.005 + Math.abs(Math.cos(this.bob)) * -0.012 * this.sprintK * mo;
+      pos.z += sp * 0.02 + this.tacK * 0.04 - pump * 0.015 * this.sprintK;
+      RUN_E.set(
+        sp * 0.35 + this.tacK * -0.25 + pump * 0.12 * this.sprintK,
+        sp * 0.2 + this.tacK * -0.2,
+        sp * -0.25 + this.tacK * 0.35,
+      );
+    }
+    if (!kar) {
+      pos.x += sp * -0.03;
+      pos.y += sp * -0.05;
+      rot.y += sp * 0.65;
+      rot.z += sp * 0.35;
+      rot.x += sp * -0.15 + Math.sin(this.bob * 2) * 0.03 * this.sprintK * mo;
+      // tática: a arma vai mais para a direita com o cano virado para dentro (a mão esquerda solta, ver abaixo)
+      pos.y += this.tacK * 0.04;
+      pos.x += this.tacK * 0.06;
+      rot.x += this.tacK * 0.9;
+      rot.z += this.tacK * 0.5;
+      rot.y += this.tacK * 0.25;
+    }
     // deslizando: a arma inclina; no ar, sobe um pouco
     rot.z += this.slideK * 0.45 * mo * steady;
     pos.y += (this.slideK * 0.02 + this.airK * 0.015) * steady;
@@ -996,6 +1033,7 @@ export class Viewmodel {
     L.roll = KD.roll;
     L.spin = spin;
     L.twist = KD.twist;
+    L.slide = KD.slide;
     L.open = open;
     L.shut = KD.shut;
     L.bite = KD.bite;
@@ -1020,6 +1058,7 @@ export class Viewmodel {
       KD.pro += c.pro * w;
       KD.roll += c.roll * w;
       KD.twist += wrapAngle(c.twist) * w;
+      KD.slide += c.slide * w;
       KD.lx += c.lx * w;
       KD.ly += c.ly * w;
       KD.lz += c.lz * w;
@@ -1029,11 +1068,16 @@ export class Viewmodel {
       spin += wrapAngle(c.spin) * w;
       open = Math.max(open, c.open * w);
     }
-    // dedos soltos enquanto a faca gira (na karambit, o indicador fica fechado na argola)
-    if (open > 0) {
+    // dedos soltos enquanto a faca gira. Karambit: os três de baixo bem abertos, o polegar fechado e o indicador mais
+    // dobrado segurando a argola (medido: assim a volta inteira passa livre da mão)
+    if (open > 0 && kar) {
+      rightCurl = lerp(rightCurl, KAR_SPIN_CURL.fingers, open);
+      rightThumb = lerp(rightThumb, KAR_SPIN_CURL.thumb, open);
+      rightIndex = lerp(rightIndex, KAR_SPIN_CURL.index, open);
+    } else if (open > 0) {
       rightCurl = lerp(rightCurl, OPEN_CURL, open);
       rightThumb = lerp(rightThumb, OPEN_THUMB, open);
-      if (g.id !== 'karambit') rightIndex = lerp(rightIndex, OPEN_CURL, open);
+      rightIndex = lerp(rightIndex, OPEN_CURL, open);
     }
     // gesto da recarga vazia (calculado no `emptyGesture`)
     if (a?.kind === 'reloadEmpty' && a.t < a.ms) {
@@ -1059,7 +1103,7 @@ export class Viewmodel {
     this.holder.rotation.copy(rot);
     // faca: giro extra no espaço da câmera (o braço inteiro) e em volta do antebraço (o pulso vira as faces)
     if (knife) {
-      KQ.setFromEuler(KE.set(KD.ex * mo, KD.ey * mo, KD.ez * mo, 'ZYX'));
+      KQ.setFromEuler(KE.set((KD.ex + RUN_E.x) * mo, (KD.ey + RUN_E.y) * mo, (KD.ez + RUN_E.z) * mo, 'ZYX'));
       if (KD.pro !== 0) KQ.premultiply(KQ2.setFromAxisAngle(this.foreAxis, KD.pro * mo));
       this.holder.quaternion.premultiply(KQ);
       if (KD.roll !== 0) this.holder.quaternion.multiply(KQ2.setFromAxisAngle(Z_AXIS, KD.roll * mo));
@@ -1085,6 +1129,8 @@ export class Viewmodel {
       SPIN_Q.setFromAxisAngle(this.spinAxis, spin).multiply(TWIST_Q.setFromAxisAngle(Z_AXIS, KD.twist));
       g.root.quaternion.copy(SPIN_Q);
       g.root.position.copy(this.spinPivot).sub(V.copy(this.spinPivot).applyQuaternion(SPIN_Q));
+      // karambit: a argola escorrega para fora no indicador enquanto gira (o cabo passa longe da palma)
+      if (KD.slide !== 0) g.root.position.add(V.fromArray(KAR_SLIDE).normalize().multiplyScalar(KD.slide));
       // balisong: a lâmina e o cabo de morder giram nos pinos (aberta, fechando ou nos floreios)
       if (g.flip) setBalisong(g, 1 - KD.shut, KD.bite, KD.bladeX);
     }
@@ -1157,7 +1203,7 @@ export class Viewmodel {
     // quanto o indicador está no gatilho (1) ou fora dele, sobre a armação (0)
     const span = this.rightCurl[2] - trigOff;
     const onTrigger = Math.abs(span) > 1e-3 ? Math.max(0, Math.min(1, (rightIndex - trigOff) / span)) : 1;
-    this.handR.setCurl(rightCurl, rightThumb, rightIndex, this.rightOffsets(rightK, onTrigger, clipK));
+    this.handR.setCurl(rightCurl, rightThumb, rightIndex, this.rightOffsets(rightK, onTrigger, clipK, kar ? open : 0));
     // a mão esquerda solta e desce para fora da tela (o braço não estica até a arma). A conta é no espaço da câmera:
     // no da arma, que gira ~0,9 rad saindo da tática, a mão passava pelo meio da tela, aberta e solta
     if (leftAway > 1e-3) {
@@ -1327,9 +1373,7 @@ export class Viewmodel {
 
   /**
    * Saque da faca no momento `u` (0–1), mexendo na pose (`pos`, `rot`) e preenchendo `KD`: o braço inteiro anda, não só
-   * a faca. Karambit: a mão entra pelo alto à direita, erguida; ali os dedos soltam e ela dá uma volta inteira no
-   * indicador, pela argola, com o pulso virando junto; os dedos fecham e o braço desce para a guarda, passando um pouco
-   * do ponto. Baioneta: a mão sobe de baixo com a lâmina em pé e, enquanto o braço desce para a guarda, a lâmina deita
+   * a faca. Karambit: as trilhas de `KAR_DRAW` (`karambit.ts`). Baioneta: a mão sobe de baixo com a lâmina em pé e, enquanto o braço desce para a guarda, a lâmina deita
    * até a ponta apontar para o meio da tela. A esquerda sobe para a guarda logo atrás. Com "reduzir movimento", a faca
    * não gira na mão e os giros do braço ficam em ~30%.
    */
@@ -1343,6 +1387,11 @@ export class Viewmodel {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
     if (this.gun?.flip) return this.balisongDraw(u, full, pos, rot, joltAt);
+    if (kar) {
+      this.karambitPlay(KAR_DRAW, u, full, pos);
+      joltAt('catch', 0.6, 2.2);
+      return;
+    }
     // passa um pouco do ponto ao chegar na guarda e volta
     const settle = hump(u, 0.72, 0.8, 0.84, 1);
     pos.y -= 0.02 * settle;
@@ -1419,9 +1468,8 @@ export class Viewmodel {
 
   /**
    * Inspeção da faca no momento `u` (0–1): o braço levanta a faca para o meio-direita da tela e mais perto do rosto; o
-   * antebraço gira devagar mostrando uma face da lâmina (pausa) e a outra (pausa); depois o floreio — a karambit gira no
-   * indicador com o braço erguido, a baioneta fica em pé e gira no próprio comprimento entre os dedos — e volta para a
-   * guarda. A faca nunca gira sozinha: a mão e o braço vão junto o tempo todo. A esquerda baixa um pouco, fora do caminho.
+   * antebraço gira devagar mostrando uma face da lâmina (pausa) e a outra (pausa); depois o floreio — a baioneta fica em
+   * pé e gira no próprio comprimento entre os dedos — e volta para a guarda (a karambit usa `KAR_INSPECT`). A faca nunca gira sozinha: a mão e o braço vão junto o tempo todo. A esquerda baixa um pouco, fora do caminho.
    */
   private knifeInspect(
     u: number,
@@ -1433,6 +1481,13 @@ export class Viewmodel {
     const kar = this.gun?.id === 'karambit';
     const full = mo >= 1;
     const bal = !!this.gun?.flip;
+    if (kar) {
+      this.karambitPlay(KAR_INSPECT, u, full, pos);
+      joltAt('faceA', 0.2, 0.8);
+      joltAt('faceB', 0.44, 0.8);
+      joltAt('catch', 0.86, 1.6);
+      return;
+    }
     const lift = hump(u, 0, 0.1, 0.88, 1);
     pos.x -= 0.06 * lift;
     pos.y += 0.07 * lift;
@@ -1496,6 +1551,11 @@ export class Viewmodel {
     rot: THREE.Euler,
     joltAt: (key: string, at: number, v: number) => void,
   ) {
+    if (this.gun?.id === 'karambit') {
+      this.karambitPlay(s > 0 ? KAR_SLASH_R : KAR_SLASH_L, u, mo >= 1, pos);
+      joltAt('cut', 0.3, 1.4);
+      return;
+    }
     const w = hump(u, 0, 0.18, 0.7, 1);
     const wind = hump(u, 0, 0.16, 0.18, 0.28);
     pos.z += 0.05 * wind;
@@ -1527,6 +1587,11 @@ export class Viewmodel {
     rot: THREE.Euler,
     joltAt: (key: string, at: number, v: number) => void,
   ) {
+    if (this.gun?.id === 'karambit') {
+      this.karambitPlay(KAR_HEAVY, u, mo >= 1, pos);
+      joltAt('stab', 0.47, 3);
+      return;
+    }
     const wind = ease(seg(u, 0, 0.35)) * (1 - expOut(seg(u, 0.35, 0.5)));
     const thrust = expOut(seg(u, 0.35, 0.5)) * (1 - ease(seg(u, 0.68, 1)));
     joltAt('stab', 0.47, 3);
@@ -1538,6 +1603,27 @@ export class Viewmodel {
     rot.y -= 0.1 * thrust;
     KD.lz = 0.03 * wind + 0.06 * thrust;
     KD.ly = -0.03 * thrust;
+  }
+
+  /**
+   * Uma animação da karambit (`KarTracks`) no momento `u`: o braço anda no espaço da câmera e gira em volta da faca, o
+   * antebraço vira, a faca gira no indicador e os dedos soltam. Com "reduzir movimento" (`full` falso), a faca não gira
+   * na mão (os giros do braço já ficam em ~30% no `update`).
+   */
+  private karambitPlay(t: KarTracks, u: number, full: boolean, pos: THREE.Vector3) {
+    pos.x += track(u, t.px);
+    pos.y += track(u, t.py);
+    pos.z += track(u, t.pz);
+    KD.ex += track(u, t.ex);
+    KD.ey += track(u, t.ey);
+    KD.ez += track(u, t.ez);
+    KD.pro += track(u, t.pro);
+    KD.spin = full ? track(u, t.spin) : 0;
+    KD.slide = full ? track(u, t.slide) : 0;
+    KD.open = full ? track(u, t.open) : 0;
+    KD.lx += track(u, t.lx);
+    KD.ly += track(u, t.ly);
+    KD.lz += track(u, t.lz);
   }
 
   /**
@@ -1564,9 +1650,14 @@ export class Viewmodel {
   }
 
   /** os acertos dos dedos da direita: os da pegada, indo para os da alavanca; soltos no pente-lâmina */
-  private rightOffsets(toLever: number, onTrigger: number, clip: number): FingerOffsets {
+  private rightOffsets(toLever: number, onTrigger: number, clip: number, open = 0): FingerOffsets {
     const h = this.holds;
-    if (!h) return this.knifeOff;
+    // faca: o acerto medido no cabo; a karambit solta ele junto com os dedos quando gira
+    if (!h && open <= 0) return this.knifeOff;
+    if (!h) {
+      for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
+      return OFF_R;
+    }
     for (let i = 0; i < 6; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
       const grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);

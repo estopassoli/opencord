@@ -92,9 +92,14 @@ export interface HandFit {
   clamp: number;
   /**
    * karambit: a altura da fileira do indicador acima do pulso (no punho de lado ela fica no centro da argola) e quanto
-   * a mão vai para trás até o indicador passar na argola (a argola fica em cima do meio do cabo)
+   * o vão da mão fica atrás do centro da argola (z), para o indicador passar nela
    */
   ring: { row: number; back: number };
+  /**
+   * karambit medida para esta mão (pulso e giro no espaço da faca, o fechamento do indicador); sem ela, a conta de
+   * `ring` (mão de cápsulas do boneco)
+   */
+  karambit?: { pos: THREE.Vector3Tuple; quat: [number, number, number, number]; index: number; middle: number };
   /**
    * empunhadura vertical: quanto a mão inclina a mais (o pulso desce para trás, na linha do antebraço que vem de baixo;
    * reta, o pulso dobrava em ângulo)
@@ -113,7 +118,7 @@ const CAPSULE_HAND: HandFit = {
   curl: FIST_CURL,
   grip: FIST_HOLE,
   clamp: 0,
-  ring: { row: 0.027, back: 0.05 },
+  ring: { row: 0.027, back: 0.043 },
   vgripTilt: 0,
   clampYaw: 0.45,
   clampRoll: 0.15,
@@ -132,8 +137,8 @@ const GRIP_AT = new THREE.Vector3(0, -0.024, 0.055);
 const PISTOL_GRIP_AT = new THREE.Vector3(0, -0.014, 0.05);
 /** o delgado da coronha da Kar98k, logo atrás do guarda-mato (mais para trás, o indicador não chegava ao gatilho) */
 const DELGADO_AT = new THREE.Vector3(0, 0.01, 0.05);
-/** karambit: o centro da argola (o indicador passa nele) */
-const KARAMBIT_RING_Y = 0.056;
+/** karambit: o centro da argola (o indicador passa nele), como em `models.ts` */
+const KARAMBIT_RING = new THREE.Vector3(0, 0.057, -0.021);
 /** apoio com empunhadura angulada: quanto a mão vai para trás do apoio (a rampa começa 1,2 cm à frente dele) */
 const AGRIP_BACK = 0.03;
 /** meia espessura da palma (hand.ts): a palma encosta na arma a essa distância do centro dela */
@@ -147,10 +152,14 @@ const PALM_HALF = 0.017;
  */
 export function rightGrip(g: Pick<GunModel, 'id' | 'handle'>, cls: GunClass, hf: HandFit = CAPSULE_HAND): Grip {
   const handle = g.handle ?? new THREE.Vector3();
+  if (g.id === 'karambit' && hf.karambit) {
+    const k = hf.karambit;
+    return { pos: new THREE.Vector3(...k.pos), quat: new THREE.Quaternion(...k.quat), curl: [k.middle, 0.3, k.index] };
+  }
   if (g.id === 'karambit') {
     const pos = handle.clone().sub(holeIn(hf, PUNHO));
-    pos.y = KARAMBIT_RING_Y - hf.ring.row;
-    pos.z += hf.ring.back;
+    pos.y = KARAMBIT_RING.y - hf.ring.row;
+    pos.z = KARAMBIT_RING.z + hf.ring.back - holeIn(hf, PUNHO).z;
     return { pos, quat: PUNHO.clone(), curl: [1, 0.8, 1] };
   }
   if (cls === 'knife')

@@ -195,6 +195,14 @@ depois). Todo o teste manual está PENDENTE. Falta: `docs/IMPLEMENTATION_PLAN.md
   escritos à mão. Camadas de código (mira, balanço, coice) e de acessório por cima. Abertos: mão de apoio meio aberta no
   parado, mão de apoio entrando na arma em quadros da recarga, angulada. Teste no app e em máquina real PENDENTE.
 
+  **Karambit revista (Téo, 2026-11-09):** caminho procedural de faca, só que com pegada própria medida na mão dos braços
+  (`handrig.ts` `KARAMBIT_ARM`: indicador atravessando a argola, médio fixo rente a ela, anelar/mindinho/polegar no
+  encaixe) e animações em trilhas de chaves (`gunfight/karambit.ts`: saque com volta no indicador e argola escorregando,
+  inspeção, golpe leve alternado — da direita para a esquerda e corte puxado —, pesado em gancho; corrida/tática próprias
+  em `viewmodel.ts`). Modelo da karambit (`models.ts`) com cabo do tamanho da mão e argola à frente (afeta 3ª pessoa e
+  prévia). Teste `test/space3d-karambit.test.ts`. Abertos: médio encosta na frente da argola nos closes; 3ª pessoa não
+  vista; pouso sem reação (todas as armas). Teste no app PENDENTE.
+
 ## Decisões registradas
 
 - ADR-0055 (e adendos) e `docs/DECISIONS.md`. Arquitetura nova exige ADR + linha em DECISIONS.

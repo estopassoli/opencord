@@ -284,13 +284,32 @@ export function fistHole(c: number): THREE.Vector3 {
  */
 export const GRIP_HOLE = FIST_HOLE.clone().add(new THREE.Vector3(0, 0, 0.012));
 
+/**
+ * Karambit nesta mão (espaço da faca: pulso e giro; `index` = fechamento do indicador). Medida em cima das juntas da
+ * mão, não chutada: o cabo passa pelo vão de cada dedo fechado (médio, anelar e mindinho; o vão vai ~38° na diagonal da
+ * palma, do indicador para o pulso, como numa mão de verdade), a palma encosta na lateral direita do cabo e a falange do
+ * meio do indicador atravessa a argola (o modelo, em `models.ts`, tem a argola e os encaixes onde esta mão os põe). O
+ * encaixe medido (`contact.ts`) fecha cada dedo até encostar e abre o indicador se ele tocar a argola.
+ */
+export const KARAMBIT_ARM = {
+  pos: [0.0231, -0.0177, 0.0485] as THREE.Vector3Tuple,
+  quat: [0.2816, 0.1769, -0.6763, 0.6572] as [number, number, number, number],
+  index: 0.97,
+  /**
+   * o médio fica neste fechamento, sem encaixe: nesta mão os dedos fechados convergem para o indicador e o médio cruza
+   * a frente da argola; o encaixe o deixava esticado para cima (parecia apontar), fechado ele passa rente à argola
+   */
+  middle: 0.95,
+};
+
 /** a mão dos braços para as pegadas (`grips.ts`) */
 export const ARM_HAND_FIT = {
   hole: FIST_HOLE,
   curl: FIST_CURL,
   grip: GRIP_HOLE,
   clamp: 0.005,
-  ring: { row: 0.022, back: 0.03 },
+  ring: { row: 0.022, back: 0.023 },
+  karambit: KARAMBIT_ARM,
   vgripTilt: 0.5,
   clampYaw: 0.45,
   clampRoll: 0.15,

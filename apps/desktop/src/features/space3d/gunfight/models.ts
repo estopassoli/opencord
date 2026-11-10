@@ -938,7 +938,7 @@ export function chamfered(w: number, y0: number, y1: number, c: number, cb = c):
 }
 
 /** Karambit (lâmina curva em gancho e argola) ou baioneta M9 (lâmina reta com serrilha e cabo com guarda) */
-function knife(id: 'karambit' | 'bayonet'): GunModel {
+export function knife(id: 'karambit' | 'bayonet'): GunModel {
   const root = new THREE.Group();
   // aço das lâminas: sem mapa de ambiente, metal claro estoura em branco; mais escuro e menos liso lê como aço
   // (o karambit, de lâmina pequena e curva, um pouco mais claro para a face aparecer)
@@ -971,44 +971,46 @@ function knife(id: 'karambit' | 'bayonet'): GunModel {
         .applyMatrix4(toWorld);
       return geo;
     };
-    // cabo com quatro encaixes de dedo na frente e o dorso reto
+    // cabo do tamanho da mão: o indicador na argola e um encaixe na frente para cada um dos outros três dedos (médio
+    // logo abaixo da argola), e a lâmina sai logo abaixo do mindinho. Com 10 cm de cabo, a mão fechada cobria só a
+    // metade de cima e sobravam ~5 cm entre o mindinho e a lâmina.
     const hs = new THREE.Shape();
-    hs.moveTo(-0.013, 0.024);
-    hs.lineTo(-0.015, 0.112);
-    hs.lineTo(0.015, 0.124);
-    hs.quadraticCurveTo(0.024, 0.11, 0.02, 0.1);
-    for (const y of [0.088, 0.071, 0.054]) {
+    hs.moveTo(-0.004, 0.024);
+    hs.lineTo(-0.006, 0.076);
+    hs.lineTo(0.015, 0.088);
+    hs.quadraticCurveTo(0.024, 0.084, 0.02, 0.079);
+    for (const y of [0.068, 0.046, 0.025]) {
       hs.quadraticCurveTo(0.011, y + 0.006, 0.019, y - 0.005);
-      hs.quadraticCurveTo(0.024, y - 0.01, 0.02, y - 0.015);
+      if (y > 0.03) hs.quadraticCurveTo(0.024, y - 0.01, 0.02, y - 0.015);
     }
-    hs.quadraticCurveTo(0.012, 0.03, 0.01, 0.022);
+    hs.quadraticCurveTo(0.014, 0.019, 0.01, 0.021);
     hs.closePath();
     const grip = (gripMat = own(new THREE.MeshStandardMaterial({ color: 0x17181a, roughness: 0.9 })));
-    root.add(meshG(solid(hs, 0.016, 0.0025), grip));
+    root.add(meshG(solid(hs, 0.012, 0.0025), grip));
     // dois parafusos e as ranhuras do dorso
-    for (const y of [0.05, 0.094]) {
+    for (const y of [0.038, 0.068]) {
       for (const z of [1, -1]) {
         const sc = meshG(new THREE.CylinderGeometry(0.0028, 0.0028, 0.003, 10).rotateZ(Math.PI / 2), steel);
-        sc.position.set(z * 0.0105, -(y - 0.062), 0.001);
+        sc.position.set(z * 0.0075, -(y - 0.062), -0.009);
         root.add(sc);
       }
     }
     for (let i = 0; i < 4; i++) {
       const rib = meshG(new THREE.BoxGeometry(0.018, 0.002, 0.004), grip);
-      rib.position.set(0, -(0.032 + i * 0.007 - 0.062), 0.016);
+      rib.position.set(0, -(0.032 + i * 0.007 - 0.062), 0.007);
       root.add(rib);
     }
     // argola na ponta do cabo
-    const ring = meshG(new THREE.TorusGeometry(0.017, 0.0055, 10, 28).rotateY(Math.PI / 2), steel);
-    ring.position.set(0, 0.062 - 0.006, 0.004);
+    const ring = meshG(new THREE.TorusGeometry(0.0185, 0.005, 10, 28).rotateY(Math.PI / 2), steel);
+    ring.position.set(0, 0.057, -0.021);
     root.add(ring);
     // lâmina em garra: dorso por fora, fio na curva de dentro, ponta bem fina
     const bs = new THREE.Shape();
-    bs.moveTo(-0.014, 0.11);
-    bs.quadraticCurveTo(-0.012, 0.17, 0.05, 0.19);
-    bs.quadraticCurveTo(0.1, 0.2, 0.135, 0.185);
-    bs.quadraticCurveTo(0.095, 0.178, 0.06, 0.162);
-    bs.quadraticCurveTo(0.025, 0.145, 0.016, 0.122);
+    bs.moveTo(-0.005, 0.074);
+    bs.quadraticCurveTo(-0.004, 0.134, 0.05, 0.154);
+    bs.quadraticCurveTo(0.1, 0.164, 0.135, 0.149);
+    bs.quadraticCurveTo(0.095, 0.142, 0.06, 0.126);
+    bs.quadraticCurveTo(0.025, 0.109, 0.016, 0.086);
     bs.closePath();
     blade.add(meshG(solid(bs, 0.0035, 0.0012), steel));
   } else {
