@@ -1073,14 +1073,33 @@ export function setBalisong(g: GunModel, open: number, extraBite = 0, extraBlade
  * com a mesma conta da baioneta (`grips.ts` põe o punho 2,2 cm à frente de `handle`).
  */
 const FIST_BEHIND_GUARD = 0.045 + 0.022;
+/** grossura do cabo da kukri (o do arquivo tem 1 cm: uma tábua dentro da mão fechada) */
+const KUKRI_HANDLE_W = 2.6;
 
-function fileKnife(id: GunId, scene: THREE.Object3D): GunModel {
+/**
+ * Kukri: o arquivo vem com o fio para cima (+y) e o cabo com 1 cm de grossura. Vira a faca no comprimento (o fio, do lado
+ * côncavo da curva, fica para baixo, para o lado dos nós dos dedos, como nas outras facas, nas duas visões) e engrossa só
+ * o cabo para ~2,6 cm, o de uma kukri de verdade.
+ */
+function kukriFix(src: THREE.Object3D) {
+  src.rotation.z = Math.PI;
+  src.updateMatrixWorld(true);
+  const h = src.getObjectByName('Object_6');
+  if (!(h instanceof THREE.Mesh)) return;
+  const w = h.matrixWorld;
+  const m = new THREE.Matrix4().makeScale(KUKRI_HANDLE_W, 1, 1).multiply(w);
+  h.geometry = h.geometry.clone().applyMatrix4(m.premultiply(w.clone().invert()));
+  h.userData.own = true;
+}
+
+export function fileKnife(id: GunId, scene: THREE.Object3D): GunModel {
   const src = scene.clone(true);
   const root = new THREE.Group();
   root.add(src);
   src.traverse((o) => {
     if (o instanceof THREE.Mesh) o.castShadow = true;
   });
+  if (id === 'kukri') kukriFix(src);
   const blade = src.getObjectByName('blade');
   const bite = src.getObjectByName('bite');
   const flip = blade && bite ? { blade, bite } : undefined;
