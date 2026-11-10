@@ -44,13 +44,6 @@ function basis(x: THREE.Vector3Tuple, y: THREE.Vector3Tuple, z: THREE.Vector3Tup
   const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(...x), new THREE.Vector3(...y), new THREE.Vector3(...z));
   return new THREE.Quaternion().setFromRotationMatrix(m);
 }
-/**
- * Esquerda pela lateral do pente: palma para a arma (+x), dedos para a frente (dão a volta na frente do pente),
- * indicador em cima. Inclinada ~20° (os dedos descendo um pouco, como quem puxa o pente para baixo).
- */
-const MAG_SIDE = new THREE.Quaternion()
-  .setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.35)
-  .multiply(basis([0, 1, 0], [-1, 0, 0], [0, 0, 1]));
 /** esquerda aninhando o tambor do revólver: palma para cima, dedos para a frente */
 const CRADLE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI);
 /** esquerda por baixo do pente da pistola: palma para cima, dedos para a direita (sobem pela lateral direita) */
@@ -790,6 +783,11 @@ function balls(h: Hold, side: 1 | -1): Sphere[] {
   }));
 }
 
+/**
+ * por baixo da base, os dedos partem quase fechados e fecham em volta do pente até encostar (partindo de 0,6 eles
+ * paravam abertos na lateral e o pente parecia equilibrado na palma)
+ */
+const MAG_UNDER_CURL = 0.95;
 /** pente curto ou dentro do punho (pistola, MP7, snipers): a mão segura por baixo da base */
 const UNDER: ReadonlySet<GunId> = new Set<GunId>([
   'm9',
@@ -804,14 +802,28 @@ const UNDER: ReadonlySet<GunId> = new Set<GunId>([
 ]);
 
 /**
- * A esquerda pela lateral do pente, por arma (padrão: nós dos dedos 5 cm acima da base, dedos descendo ~20°): `up` é a
- * altura dos nós dos dedos acima da base e `tilt` o giro em x (positivo, os dedos sobem). MCX: no pente curvo dela, a
- * frente vai para a frente embaixo e o anelar e o mindinho passavam da base, esticados e soltos; mais alta e com os
- * dedos subindo um pouco, a fileira dos nós acompanha a curva e os quatro dedos fecham na frente do pente.
+ * Pela lateral, os nós dos dedos ficam logo à frente da frente do pente (`MAG_KNUCKLE`, m atrás dela; negativo, à
+ * frente) e os dedos partem quase fechados (`MAG_CURL`): dão a volta na frente dele e as pontas encostam na lateral
+ * direita. Com os nós 1,2 cm atrás da frente e os dedos partindo de 0,5, o encaixe parava cada dedo na lateral do
+ * pente (anelar e mindinho quase retos) e os quatro ficavam em garra no ar, passando da frente dele.
+ */
+const MAG_CURL = 0.8;
+const MAG_KNUCKLE = -0.005;
+/**
+ * os nós dos dedos acima da base do pente (m) e o giro da mão em x (positivo, os dedos sobem): com os dedos descendo
+ * ~20° (antes), a fileira dos nós ficava inclinada e o mindinho batia na lateral, esticado
+ */
+const MAG_UP = 0.06;
+const MAG_TILT = 0.25;
+/**
+ * O mesmo por arma: `up` e `tilt` no lugar de `MAG_UP` e `MAG_TILT`. MCX: no pente curvo dela, a frente vai para a
+ * frente embaixo e o anelar e o mindinho passavam da base, esticados e soltos; mais alta e com os dedos subindo mais,
+ * a fileira dos nós acompanha a curva e os quatro dedos fecham na frente do pente.
  */
 const MAG_SIDE_AT: Partial<Record<GunId, { up: number; tilt: number }>> = {
   mcx: { up: 0.09, tilt: 0.5 },
 };
+/** esquerda pela lateral do pente: palma para a arma (+x), dedos para a frente, indicador em cima, girada `tilt` em x */
 const magSide = (tilt: number) =>
   new THREE.Quaternion()
     .setFromAxisAngle(new THREE.Vector3(1, 0, 0), tilt)
@@ -840,7 +852,7 @@ function magHold(g: GunModel, cls: GunClass, avoid: Sphere[]): Hold | null {
     return { pos: f.pos, quat, curl, off: f.offsets };
   }
   if (UNDER.has(g.id) || cls === 'pistol') {
-    const curl: [number, number, number] = [0.6, 0.5, 0.6];
+    const curl: [number, number, number] = [MAG_UNDER_CURL, 0.5, MAG_UNDER_CURL];
     const quat = MAG_UNDER.clone();
     // os nós dos dedos (0,088 do pulso, aqui para +x) logo depois da lateral direita do pente: os dedos sobem por ela
     const pos = new THREE.Vector3(box.max.x + 0.006 - 0.088, box.min.y - 0.019, (box.min.z + box.max.z) / 2);
@@ -852,19 +864,20 @@ function magHold(g: GunModel, cls: GunClass, avoid: Sphere[]): Hold | null {
     });
     return { pos: f.pos, quat, curl, off: f.offsets };
   }
-  const curl: [number, number, number] = [0.5, 0.4, 0.5];
+  const curl: [number, number, number] = [MAG_CURL, 0.4, MAG_CURL];
   const side = MAG_SIDE_AT[g.id];
-  const quat = side ? magSide(side.tilt) : MAG_SIDE.clone();
+  const quat = magSide(side?.tilt ?? MAG_TILT);
   void avoid;
   // os nós dos dedos (0,088 do pulso pelos dedos) logo atrás da frente do pente; a palma na metade de baixo
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
-  const knuckle = new THREE.Vector3(box.min.x - 0.02, box.min.y + (side?.up ?? 0.05), box.min.z + 0.012);
+  const knuckle = new THREE.Vector3(box.min.x - 0.02, box.min.y + (side?.up ?? MAG_UP), box.min.z + MAG_KNUCKLE);
   const pos = knuckle.addScaledVector(fwd, -0.088);
   const f = fitHand(only, -1, pos, quat, curl, {
     palm: true,
     palmIn: 0.03,
     palmOut: 0.01,
     fingers: ['index', 'middle', 'ring', 'pinky', 'thumb'],
+    cap: { thumb: 0.75 },
   });
   return { pos: f.pos, quat, curl, off: f.offsets };
 }

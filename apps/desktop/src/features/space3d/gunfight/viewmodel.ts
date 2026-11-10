@@ -442,6 +442,8 @@ const ARC_OUT = new THREE.Vector3(-0.045, -0.035, 0);
  */
 const LEFT_TRANSIT: readonly [number, number] = [1.3, 0.6];
 
+/** a mão empurrando a base do pente no fim do encaixe: dedos e polegar (fechamento) */
+const MAG_PALM: readonly [number, number] = [0.45, 0.3];
 /** o pente e a mão indo para o colete: por fora e pela frente (atrás ficam o punho e a mão direita) */
 const ARC_POUCH = new THREE.Vector3(-0.08, -0.02, -0.06);
 const POUCH_R = new THREE.Vector3(0.3, -0.55, -0.1);
@@ -2114,9 +2116,10 @@ export class Viewmodel {
         leftThumb = lerp(leftThumb, mh.curl[1], magFit);
       }
     }
-    // fim do encaixe: os dedos soltam e a palma empurra a base
-    leftCurl = lerp(leftCurl, 0.15, magPalm);
-    leftThumb = lerp(leftThumb, 0.15, magPalm);
+    // fim do encaixe: os dedos soltam o pente e a palma empurra a base, os dedos juntos e meio dobrados (`MAG_PALM`;
+    // espalmada, a 0,15, a mão abria toda no quadro do tranco)
+    leftCurl = lerp(leftCurl, MAG_PALM[0], magPalm);
+    leftThumb = lerp(leftThumb, MAG_PALM[1], magPalm);
     // BFR: a esquerda embaixo do tambor (andando com ele; a palma empurra a vareta), no cinto e com o carregador
     // rápido (a mão fica onde o carregador tem que estar: alinhado atrás dos furos, depois empurrando)
     if (bfrRl >= 0 && mh) {
