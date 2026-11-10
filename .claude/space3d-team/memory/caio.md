@@ -123,3 +123,7 @@ _Acrescente aprendizados curtos e datados. Não apague o que outros escreveram._
 - 2026-11-10: conflito semântico que o git não acusa: dois branches criaram o 7º FingerOffsets com sentidos diferentes
   (enrolar × base do indicador). Ficou enrolar = 7º e INDEX_DROP = 8º (OFF_R com 8; rightOffsets copia até o 7º e
   escreve o 8º depois). Ao juntar, procurar `[6]`/`off[N]` nos dois lados, não só os conflitos marcados.
+- 2026-11-10: junção final (b1): RIGHT_FIX/RIGHT_THUMB por arma ficam com o valor do branch que mexeu na arma; gestos
+  vazios novos (`hook`) entram no `leftFree` sozinhos porque ele lê `EG.alt` (todo gesto que põe a esquerda na peça
+  conta como segurando). Comparar 3 colunas (branch | antes | junção) por arma em closeR/closeP/closeL pega o que é de
+  cada lado; câmera closeL muda com a arma inclinada — conferir a direita em closeR antes de achar regressão.
