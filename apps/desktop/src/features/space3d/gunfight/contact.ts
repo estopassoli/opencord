@@ -312,7 +312,7 @@ export function fitHand(
   const skin = o.skin ?? 0.0008;
   const out = pos.clone();
   const [c, t, ix] = curl;
-  const start: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+  const start: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
   o.base?.forEach((v, i) => (start[i] = v ?? 0));
   if (o.palm) {
     // palma: a normal dela é o −y da mão; vem de fora (dorso, +y) para dentro, de milímetro em milímetro
@@ -334,13 +334,13 @@ export function fitHand(
     // nada encostou (ou já encostava bem por fora): fica onde a pegada pôs
     if (touched && Number.isFinite(best)) out.addScaledVector(N, best);
   }
-  const offsets: [number, number, number, number, number, number] = [...start];
+  const offsets: [number, number, number, number, number, number, number] = [...start];
   const maxCurl = o.maxCurl ?? MAX_CURL;
   for (const f of o.fingers ?? []) {
     const fi = PART_INDEX[f];
     if (fi === undefined) continue;
     const base = fi === 0 ? ix : fi === 4 ? t : c;
-    const off: [number, number, number, number, number, number] = [...start];
+    const off: [number, number, number, number, number, number, number] = [...start];
     off[fi] = 0;
     let skipBase = false;
     const free = (k: number) => {

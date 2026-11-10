@@ -187,3 +187,35 @@ export function cylinderPose(u: number, out: CylinderPose = blankCylinder()): Cy
 export function blankCylinder(): CylinderPose {
   return { tilt: 0, out: 0, spin: 0, hold: 0, pouch: 0, palm: 0 };
 }
+
+/** onde a mão esquerda está neste quadro (os pesos do `update`), para saber se ela segura alguma coisa */
+export interface LeftWhere {
+  /** indo ao pente (0 no apoio, 1 nele) e se o pente está mesmo lá (1) ou a mão só vai para onde ele vai estar (0) */
+  hold: number;
+  with: number;
+  /** o gesto da recarga vazia (0 no apoio, 1 na peça) */
+  alt: number;
+  /** solta, descendo para fora da tela */
+  away: number;
+  /** BFR: embaixo do tambor (−1 fora da recarga dela) */
+  cradle: number;
+  /** com o carregador rápido na mão (BFR, Rhino) */
+  carry: number;
+}
+
+/**
+ * Quanto a mão esquerda está no ar (0–1): o contrário do contato mais forte entre o apoio, o pente, a peça do gesto, o
+ * tambor e o carregador rápido. O apoio solta logo que a mão sai dele; nos outros ela só "pega" no fim do caminho. No
+ * ar ela fica meio fechada (`LEFT_TRANSIT` do viewmodel): aberta, os dedos espalhados apareciam no meio da tela no caminho ao colete,
+ * na volta do encaixe, na troca de lado da inspeção, na chegada do saque e no cinto do revólver.
+ */
+export function leftFree(w: LeftWhere): number {
+  const near = (v: number) => ease(seg(v, 0.8, 1));
+  const left = (v: number, span: number) => 1 - ease(seg(v, 0, span));
+  const cradle = Math.max(0, w.cradle);
+  const support = left(w.hold, 0.25) * left(w.alt, 0.25) * left(w.away, 0.08) * left(cradle, 0.25);
+  const mag = near(w.hold) * w.with;
+  const part = near(w.alt);
+  const drum = near(cradle) * left(w.carry, 0.25);
+  return 1 - Math.min(1, Math.max(support, mag, part, drum, w.carry));
+}

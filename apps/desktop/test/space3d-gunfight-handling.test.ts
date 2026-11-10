@@ -24,8 +24,10 @@ import {
   MAG_OUT_AT,
   MAG_SEAT_AT,
   clipPose,
+  leftFree,
   reloadPose,
   reloadStyle,
+  type LeftWhere,
 } from '../src/features/space3d/gunfight/reload';
 
 function casing(over: Partial<Casing> = {}): Casing {
@@ -191,6 +193,36 @@ describe('recarga', () => {
     }
   });
 
+  it('a mão esquerda só deixa de estar no ar quando segura alguma coisa', () => {
+    const at = (o: Partial<LeftWhere>) => leftFree({ hold: 0, with: 1, alt: 0, away: 0, cradle: -1, carry: 0, ...o });
+    // no apoio, no pente, na peça do gesto e com o carregador rápido: segurando
+    expect(at({})).toBe(0);
+    expect(at({ hold: 1 })).toBe(0);
+    expect(at({ alt: 1 })).toBe(0);
+    expect(at({ cradle: 1 })).toBe(0);
+    expect(at({ cradle: 1, away: 1, carry: 1 })).toBe(0);
+    // no meio do caminho (apoio ↔ pente, apoio ↔ peça, saindo da tela, voltando do tambor): no ar
+    for (const v of [0.3, 0.5, 0.7]) {
+      expect(at({ hold: v })).toBe(1);
+      expect(at({ alt: v })).toBe(1);
+      expect(at({ cradle: v })).toBe(1);
+    }
+    expect(at({ away: 0.2 })).toBe(1);
+    // no `drop`, a mão que vai ao colete antes de o pente velho cair não segura nada, mesmo chegando lá
+    for (const u of us) {
+      const r = reloadPose('drop', u);
+      const free = at({
+        hold: r.hold,
+        with: 1 - Math.min(1, 4 * (Math.abs(r.handOut - r.out) + Math.abs(r.handPouch - r.pouch))),
+      });
+      if (u > 0.16 && u < MAG_OUT_AT) expect(free).toBeGreaterThan(0.99);
+      // com o pente novo, até o encaixe: segurando
+      if (u > 0.32 && u <= MAG_SEAT_AT) expect(free).toBeLessThan(0.01);
+      // voltando ao apoio depois do encaixe: no ar
+      if (u > 0.66 && u < 0.7) expect(free).toBeGreaterThan(0.99);
+    }
+  });
+
   it('pente-lâmina: abre, busca, encaixa, as cinco balas descem em dois empurrões e a lâmina sai no fechamento', () => {
     const p = us.map((u) => ({ u, ...clipPose(u) }));
     // a mão vai à cartucheira com o ferrolho já aberto
@@ -284,6 +316,36 @@ describe('mão dos braços com esqueleto (ADR-0060)', () => {
     expect(mid(l).x).toBeCloseTo(-mid(r).x, 2);
     expect(mid(l).y).toBeCloseTo(mid(r).y, 2);
     expect(mid(l).z).toBeCloseTo(mid(r).z, 2);
+  });
+
+  it('enrolar (o sétimo acerto) junta os quatro dedos e não muda nada quando é 0', () => {
+    const tips = (wrap?: number) => {
+      const off = wrap === undefined ? undefined : ([0, 0, 0, 0, 0, 0, wrap] as const);
+      const pr = handProbes(-1, 0.75, 0.3, 0.75, off);
+      return (['index', 'middle', 'ring', 'pinky'] as const).map((f) => pr.filter((p) => p.part === f).at(-1)!.at);
+    };
+    // sem enrolar, igual a sem o acerto
+    expect(tips(0).map((v) => v.toArray())).toEqual(tips().map((v) => v.toArray()));
+    // de lado (o x da mão), as pontas do indicador ao mindinho ficam mais perto: os dedos juntos, sem leque
+    const span = (t: THREE.Vector3[]) => Math.abs(t[0]!.x - t[3]!.x);
+    expect(span(tips(1))).toBeLessThan(span(tips(0)) - 0.005);
+  });
+
+  it('o oitavo acerto (a base do indicador para o lado do mindinho) mexe só no indicador, separado do enrolar', () => {
+    const tips = (off?: readonly [number, number, number, number, number, number?, number?, number?]) => {
+      const pr = handProbes(1, 0.75, 0.3, 0.3, off);
+      return (['index', 'middle', 'ring', 'pinky'] as const).map((f) => pr.filter((p) => p.part === f).at(-1)!.at);
+    };
+    const base = tips([0, 0, 0, 0, 0, 0, 0, 0]);
+    const drop = tips([0, 0, 0, 0, 0, 0, 0, 0.35]);
+    // a ponta do indicador anda
+    expect(drop[0]!.distanceTo(base[0]!)).toBeGreaterThan(0.005);
+    // os outros dedos não mexem
+    for (let i = 1; i < 4; i++) expect(drop[i]!.toArray()).toEqual(base[i]!.toArray());
+    // e o enrolar (o sétimo) continua valendo sozinho: com os dois, o médio é o do enrolar
+    const wrap = tips([0, 0, 0, 0, 0, 0, 1]);
+    const both = tips([0, 0, 0, 0, 0, 0, 1, 0.35]);
+    expect(both[1]!.toArray()).toEqual(wrap[1]!.toArray());
   });
 
   it('o vão do punho fechado fica embaixo da palma e cabe um cabo de ~2,5 cm', () => {

@@ -44,13 +44,6 @@ function basis(x: THREE.Vector3Tuple, y: THREE.Vector3Tuple, z: THREE.Vector3Tup
   const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(...x), new THREE.Vector3(...y), new THREE.Vector3(...z));
   return new THREE.Quaternion().setFromRotationMatrix(m);
 }
-/**
- * Esquerda pela lateral do pente: palma para a arma (+x), dedos para a frente (dão a volta na frente do pente),
- * indicador em cima. Inclinada ~20° (os dedos descendo um pouco, como quem puxa o pente para baixo).
- */
-const MAG_SIDE = new THREE.Quaternion()
-  .setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.35)
-  .multiply(basis([0, 1, 0], [-1, 0, 0], [0, 0, 1]));
 /** esquerda aninhando o tambor do revólver: palma para cima, dedos para a frente */
 const CRADLE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI);
 /** esquerda por baixo do pente da pistola: palma para cima, dedos para a direita (sobem pela lateral direita) */
@@ -155,9 +148,11 @@ function measure(g: GunModel, cls: GunClass): Holds {
     ? fitLeft(g, pistolSupport(g), true, rightBalls)
     : g.foregrip?.kind === 'vertical'
       ? vgripHold(g, cls)
-      : clampHold(g, cls);
+      : g.foregrip?.kind === 'angled'
+        ? agripHold(g, cls)
+        : clampHold(g, cls);
   const pk = PAD_PINCH[g.id];
-  const pinch = pk ? padPinch(g, right, pk) : pinchHold(g, rg.quat);
+  const pinch = pk ? padPinch(g, right, pk) : (AUTO_PAD.has(g.id) && autoPad(g, right)) || pinchHold(g, rg.quat);
   const magAvoid = MAG_FREE.has(g.id) ? [] : rightBalls;
   return { right, left, mag: magHold(g, cls, magAvoid), pinch, trigOff: TRIG_OFF[g.id] ?? trigOff(g, right) };
 }
@@ -188,6 +183,41 @@ const PAD_PINCH: Partial<
   l115: { spin: -0.4, from: [-0.0147, -0.0044, -0.0103], to: [0.0538, 0.0353, -0.0406], fist: 1.5 },
 };
 
+/**
+ * A pinça medida a partir da bola da alavanca, para as armas sem o acerto à mão (RS9, Kar98k, M200): a mão no giro da
+ * pegada do punho virado `AUTO_SPIN` em volta do cano, posta de forma que a bola fique entre a polpa do polegar e a
+ * lateral da ponta do indicador; médio, anelar e mindinho fechados na palma. O indicador e o polegar fecham até
+ * encostar nela. Com a pegada de cabo (`pinchHold`), a bola ficava no vão dos dedos fechados e eles paravam abertos
+ * em volta dela, em garra (Kar98k), ou espalhados embaixo dela (RS9, M200).
+ */
+const AUTO_PAD: ReadonlySet<GunId> = new Set<GunId>(['rs9', 'kar98k', 'm200']);
+const AUTO_SPIN = -0.35;
+/** o fechamento do indicador e do polegar na pinça, antes do encaixe */
+const AUTO_IX = 0.9;
+const AUTO_TH = 0.75;
+function autoPad(g: GunModel, right: Hold): Hold | null {
+  const p = g.parts.boltRot ?? (g.id === 'kar98k' ? g.parts.charge : undefined);
+  const knob = p ? knobOf(g, p) : null;
+  if (!knob) return null;
+  const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), AUTO_SPIN).multiply(right.quat);
+  const fist = 1.5 - PINCH[0];
+  const off: [number, number, number, number, number, number, number] = [
+    AUTO_IX - PINCH[2],
+    fist,
+    fist,
+    fist,
+    AUTO_TH - PINCH[1],
+    0,
+    1,
+  ];
+  const pr = handProbes(1, ...PINCH, off);
+  const tip = (part: 'index' | 'thumb') => pr.filter((q) => q.part === part).at(-1)!.at;
+  const mid = tip('index').add(tip('thumb')).multiplyScalar(0.5);
+  const pos = knob.sub(mid.applyQuaternion(quat));
+  const f = fitHand(near(g, pos), 1, pos, quat, PINCH, { fingers: ['index', 'thumb'], base: off, maxCurl: 1.5 });
+  return { pos: f.pos, quat, curl: [...PINCH], off: f.offsets };
+}
+
 function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[GunId]>): Hold {
   const r = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), k.spin);
   const pos = right.pos
@@ -199,7 +229,8 @@ function padPinch(g: GunModel, right: Hold, k: NonNullable<(typeof PAD_PINCH)[Gu
   const fist = k.fist - PINCH[0];
   const f = fitHand(near(g, pos), 1, pos, quat, PINCH, {
     fingers: ['index', 'thumb'],
-    base: [right.curl[2] + right.off[0] - PINCH[2], fist, fist, fist, 0, 0],
+    // médio, anelar e mindinho fechados na palma e enrolados (juntos, sem ponta para fora)
+    base: [right.curl[2] + right.off[0] - PINCH[2], fist, fist, fist, 0, 0, 1],
     maxCurl: 1.5,
   });
   return { pos: f.pos, quat, curl: [...PINCH], off: f.offsets };
@@ -273,7 +304,14 @@ function inclined(a: number): THREE.Quaternion {
   return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, x.clone().cross(y)));
 }
 
-type LeftGrip = { pos: THREE.Vector3; quat: THREE.Quaternion; curl: [number, number, number]; thumbUp?: number };
+type LeftGrip = {
+  pos: THREE.Vector3;
+  quat: THREE.Quaternion;
+  curl: [number, number, number];
+  thumbUp?: number;
+  /** o quanto os dedos enrolam (o sétimo acerto de `FingerOffsets`) */
+  wrap?: number;
+};
 
 /** a esquerda na pegada pedida: a palma encosta e cada dedo fecha até tocar */
 function fitLeft(g: GunModel, lg: LeftGrip, pistol = false, extra: Sphere[] = [], soup?: Soup): Hold {
@@ -284,7 +322,7 @@ function fitLeft(g: GunModel, lg: LeftGrip, pistol = false, extra: Sphere[] = []
     palmOut: pistol ? 0.04 : 0.025,
     fingers: ['index', 'middle', 'ring', 'pinky', 'thumb'],
     extra,
-    base: [0, 0, 0, 0, 0, lg.thumbUp ?? 0],
+    base: [0, 0, 0, 0, 0, lg.thumbUp ?? 0, lg.wrap ?? 0],
   });
   return { pos: lf.pos, quat: lg.quat.clone(), curl: lc, off: lf.offsets };
 }
@@ -318,7 +356,7 @@ function clampHold(g: GunModel, cls: GunClass): Hold {
   let best: { cost: number; hold: Hold } | null = null;
   for (const [clampYaw, clampRoll, clamp, clampThumbUp] of CLAMP_TRY) {
     const lg = leftGrip(g, cls, { ...ARM_HAND_FIT, clampYaw, clampRoll, clamp, clampThumbUp });
-    const hold = fitLeft(g, lg, false, [], soup);
+    const hold = fitLeft(g, { ...lg, wrap: CLAMP_WRAP }, false, [], soup);
     const cost = clampCost(soup, hold, sec);
     if (!best || cost < best.cost) best = { cost, hold };
   }
@@ -333,6 +371,7 @@ function clampHold(g: GunModel, cls: GunClass): Hold {
       h.off[3] + nudge.curl,
       h.off[4],
       h.off[5],
+      h.off[6],
     ];
   }
   return best!.hold;
@@ -347,6 +386,13 @@ function clampHold(g: GunModel, cls: GunClass): Hold {
 const LEFT_NUDGE: Partial<Record<GunId, { at: THREE.Vector3Tuple; curl: number }>> = {
   ballista: { at: [-0.002, 0.012, 0], curl: 0.08 },
 };
+
+/**
+ * os dedos do apoio em "C" enrolam em volta do guarda-mão (`HAND_POSE.wrap`): com a base dobrando tanto quanto o meio
+ * e a ponta, o primeiro toque (o nó do dedo no canto de baixo) parava cada dedo reto, inclinado para fora da lateral, e
+ * os quatro abriam em leque (o indicador e o médio em "V")
+ */
+const CLAMP_WRAP = 1;
 
 /** as variações do apoio em "C": [dedos para a frente (rad), palma para a esquerda (rad), deslocamento (m), polegar] */
 const CLAMP_TRY: readonly (readonly [number, number, number, number])[] = [
@@ -400,6 +446,69 @@ function clampCost(soup: Soup, h: Hold, s: ReturnType<typeof section>): number {
   return cost;
 }
 
+/**
+ * Esquerda na empunhadura angulada: a palma por baixo do guarda-mão, logo atrás da rampa, com o pé da mão (o lado do
+ * indicador) encostado na face de trás dela, e os dedos deitados para a frente ao longo da lateral direita, juntos e
+ * baixos (as pontas abaixo de ~60% da altura: no guarda-mão fino, os dedos em pé apareciam ao lado da alça de mira).
+ * Antes era o "C" de sempre empurrado para trás: a mão ficava 3–4 cm atrás da rampa sem tocar nela (AK-47) ou com os
+ * dedos subindo pela lateral até a altura da mira (StG 44, AKS-74U). Tenta os giros e recuos de `AGRIP_TRY` e fica com
+ * o de menor custo: o do "C" (nada entrando, pontas encostadas), mais as pontas baixas e a palma encostada na rampa.
+ */
+function agripHold(g: GunModel, cls: GunClass): Hold {
+  const fg = g.foregrip!;
+  const base = leftGrip({ support: g.support, supportW: g.supportW }, cls, ARM_HAND_FIT);
+  const soup = near(g, base.pos);
+  const sec = section(soup, g.support);
+  // a rampa: o que fica embaixo do guarda-mão na altura dela
+  const list: number[] = [];
+  const T = soup.tris;
+  const top = g.support.y - 0.004;
+  for (let i = 0; i < T.length; i += 9) {
+    const cy = (T[i + 1]! + T[i + 4]! + T[i + 7]!) / 3;
+    const cz = (T[i + 2]! + T[i + 5]! + T[i + 8]!) / 3;
+    if (cy < top && cz > fg.at.z - 0.05 && cz < fg.at.z + 0.04) for (let k = 0; k < 9; k++) list.push(T[i + k]!);
+  }
+  const ramp = list.length ? toSoup(list) : null;
+  let best: { cost: number; hold: Hold } | null = null;
+  const tryAll = (up: number) => {
+    for (const [clampYaw, clampRoll, back] of AGRIP_TRY) {
+      const lg = leftGrip({ support: g.support, supportW: g.supportW }, cls, {
+        ...ARM_HAND_FIT,
+        clampYaw,
+        clampRoll,
+        clampThumbUp: up,
+      });
+      lg.pos.z += back;
+      const hold = fitLeft(g, { ...lg, wrap: CLAMP_WRAP }, false, [], soup);
+      let cost = clampCost(soup, hold, sec);
+      const { tip } = leftContact(soup, hold);
+      for (const f of ['index', 'middle', 'ring', 'pinky'] as const)
+        cost += 4000 * Math.max(0, tip[f]!.y - g.support.y - AGRIP_TIP_UP);
+      if (ramp) {
+        const palm = handProbes(-1, hold.curl[0], hold.curl[1], hold.curl[2], hold.off, 'palm');
+        cost += 300 * Math.max(0, clearance(ramp, [], palm, hold.pos, hold.quat, 0.05) - 0.004);
+      }
+      if (!best || cost < best.cost) best = { cost, hold };
+    }
+  };
+  // o polegar de sempre; se tudo entra na arma (PDW: o polegar na lateral esquerda), outras aberturas dele
+  tryAll(0.6);
+  for (const up of [0.2, 0.9, 1.2]) if (best!.cost >= 100) tryAll(up);
+  return best!.hold;
+}
+
+/**
+ * até quanto acima do fundo do guarda-mão (m) as pontas dos dedos sobem na empunhadura angulada (a fatia do guarda-mão
+ * pega a caixa e o tubo de gás em cima, e a fração da altura deixava os dedos à altura da mira)
+ */
+const AGRIP_TIP_UP = 0.014;
+/** as variações da esquerda na angulada: [dedos para a frente (rad), palma para a esquerda (rad), recuo (m)] */
+const AGRIP_TRY: readonly (readonly [number, number, number])[] = [0.45, 0.7, 0.95, 1.2].flatMap((yaw) =>
+  [0.15, 0.35].flatMap((roll) =>
+    [-0.015, -0.005, 0.005, 0.015, 0.025, 0.035, 0.045].map((back) => [yaw, roll, back] as const),
+  ),
+);
+
 /** o polegar na empunhadura vertical: [fechamento, aberto para o lado da palma] (dando a volta por trás dela, ou
  * deitado na lateral esquerda quando por trás ele entra nela) */
 const VGRIP_THUMB: readonly (readonly [number, number])[] = [
@@ -423,7 +532,7 @@ function vgripHold(g: GunModel, cls: GunClass): Hold {
       const at = lg.pos.clone().addScaledVector(down, d);
       const hold = fitLeft(g, { ...lg, pos: at, curl: [lg.curl[0], t, lg.curl[2]], thumbUp: up }, false, [], soup);
       // o fechamento do polegar volta para o da pegada (a primeira pessoa parte dele) e a diferença vai no acerto
-      const off: [number, number, number, number, number, number?, number?] = [...hold.off];
+      const off: [number, number, number, number, number, number?, number?, number?] = [...hold.off];
       off[4] = hold.off[4] + qc([0, t, 0])[1] - q(lg.curl[1]);
       hold.off = off;
       hold.curl = qc(lg.curl);
@@ -726,6 +835,11 @@ function balls(h: Hold, side: 1 | -1): Sphere[] {
   }));
 }
 
+/**
+ * por baixo da base, os dedos partem quase fechados e fecham em volta do pente até encostar (partindo de 0,6 eles
+ * paravam abertos na lateral e o pente parecia equilibrado na palma)
+ */
+const MAG_UNDER_CURL = 0.95;
 /** pente curto ou dentro do punho (pistola, MP7, snipers): a mão segura por baixo da base */
 const UNDER: ReadonlySet<GunId> = new Set<GunId>([
   'm9',
@@ -740,14 +854,28 @@ const UNDER: ReadonlySet<GunId> = new Set<GunId>([
 ]);
 
 /**
- * A esquerda pela lateral do pente, por arma (padrão: nós dos dedos 5 cm acima da base, dedos descendo ~20°): `up` é a
- * altura dos nós dos dedos acima da base e `tilt` o giro em x (positivo, os dedos sobem). MCX: no pente curvo dela, a
- * frente vai para a frente embaixo e o anelar e o mindinho passavam da base, esticados e soltos; mais alta e com os
- * dedos subindo um pouco, a fileira dos nós acompanha a curva e os quatro dedos fecham na frente do pente.
+ * Pela lateral, os nós dos dedos ficam logo à frente da frente do pente (`MAG_KNUCKLE`, m atrás dela; negativo, à
+ * frente) e os dedos partem quase fechados (`MAG_CURL`): dão a volta na frente dele e as pontas encostam na lateral
+ * direita. Com os nós 1,2 cm atrás da frente e os dedos partindo de 0,5, o encaixe parava cada dedo na lateral do
+ * pente (anelar e mindinho quase retos) e os quatro ficavam em garra no ar, passando da frente dele.
+ */
+const MAG_CURL = 0.8;
+const MAG_KNUCKLE = -0.005;
+/**
+ * os nós dos dedos acima da base do pente (m) e o giro da mão em x (positivo, os dedos sobem): com os dedos descendo
+ * ~20° (antes), a fileira dos nós ficava inclinada e o mindinho batia na lateral, esticado
+ */
+const MAG_UP = 0.06;
+const MAG_TILT = 0.25;
+/**
+ * O mesmo por arma: `up` e `tilt` no lugar de `MAG_UP` e `MAG_TILT`. MCX: no pente curvo dela, a frente vai para a
+ * frente embaixo e o anelar e o mindinho passavam da base, esticados e soltos; mais alta e com os dedos subindo mais,
+ * a fileira dos nós acompanha a curva e os quatro dedos fecham na frente do pente.
  */
 const MAG_SIDE_AT: Partial<Record<GunId, { up: number; tilt: number }>> = {
   mcx: { up: 0.09, tilt: 0.5 },
 };
+/** esquerda pela lateral do pente: palma para a arma (+x), dedos para a frente, indicador em cima, girada `tilt` em x */
 const magSide = (tilt: number) =>
   new THREE.Quaternion()
     .setFromAxisAngle(new THREE.Vector3(1, 0, 0), tilt)
@@ -776,7 +904,7 @@ function magHold(g: GunModel, cls: GunClass, avoid: Sphere[]): Hold | null {
     return { pos: f.pos, quat, curl, off: f.offsets };
   }
   if (UNDER.has(g.id) || cls === 'pistol') {
-    const curl: [number, number, number] = [0.6, 0.5, 0.6];
+    const curl: [number, number, number] = [MAG_UNDER_CURL, 0.5, MAG_UNDER_CURL];
     const quat = MAG_UNDER.clone();
     // os nós dos dedos (0,088 do pulso, aqui para +x) logo depois da lateral direita do pente: os dedos sobem por ela
     const pos = new THREE.Vector3(box.max.x + 0.006 - 0.088, box.min.y - 0.019, (box.min.z + box.max.z) / 2);
@@ -788,19 +916,20 @@ function magHold(g: GunModel, cls: GunClass, avoid: Sphere[]): Hold | null {
     });
     return { pos: f.pos, quat, curl, off: f.offsets };
   }
-  const curl: [number, number, number] = [0.5, 0.4, 0.5];
+  const curl: [number, number, number] = [MAG_CURL, 0.4, MAG_CURL];
   const side = MAG_SIDE_AT[g.id];
-  const quat = side ? magSide(side.tilt) : MAG_SIDE.clone();
+  const quat = magSide(side?.tilt ?? MAG_TILT);
   void avoid;
   // os nós dos dedos (0,088 do pulso pelos dedos) logo atrás da frente do pente; a palma na metade de baixo
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
-  const knuckle = new THREE.Vector3(box.min.x - 0.02, box.min.y + (side?.up ?? 0.05), box.min.z + 0.012);
+  const knuckle = new THREE.Vector3(box.min.x - 0.02, box.min.y + (side?.up ?? MAG_UP), box.min.z + MAG_KNUCKLE);
   const pos = knuckle.addScaledVector(fwd, -0.088);
   const f = fitHand(only, -1, pos, quat, curl, {
     palm: true,
     palmIn: 0.03,
     palmOut: 0.01,
     fingers: ['index', 'middle', 'ring', 'pinky', 'thumb'],
+    cap: { thumb: 0.75 },
   });
   return { pos: f.pos, quat, curl, off: f.offsets };
 }

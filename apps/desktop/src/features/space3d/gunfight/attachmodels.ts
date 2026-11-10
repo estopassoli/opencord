@@ -32,6 +32,11 @@ interface Mount {
   r: number;
   /** a empunhadura fica tanto à frente (−) ou atrás (+) da mão de apoio de fábrica (m) */
   gripDz?: number;
+  /**
+   * só a angulada, no lugar do `gripDz`: StG 44, o guarda-mão é curto e o poço do pente fica logo atrás do apoio; com a
+   * rampa no apoio não sobrava lugar para a mão entre ela e o pente (a palma entrava num ou noutro)
+   */
+  agripDz?: number;
   /** a peça da boca entra tanto por cima da ponta do cano (cobre o quebra-chamas de fábrica), em m */
   over?: number;
 }
@@ -59,7 +64,7 @@ const MOUNT: Partial<Record<GunId, Mount>> = {
   pdw: { top: [0.099, -0.094], r: 0.009, over: 0.02 },
   msmc: { top: [0.091, -0.003], scope3: [0.091, -0.09], r: 0.008, over: 0.02 },
   aks74u: { top: [0.094, -0.024], scope3: [0.094, -0.09], r: 0.012, over: 0.03 },
-  stg44: { top: [0.084, -0.087], r: 0.009 },
+  stg44: { top: [0.084, -0.087], r: 0.009, agripDz: -0.03 },
   automag3: { top: [0.0607, 0.007], slide: true, r: 0.008 },
   bfr: { top: [0.089, -0.055], r: 0.011 },
   rhino: { top: [0.085, -0.064], r: 0.009 },
@@ -76,6 +81,11 @@ const EYEPIECE: Partial<Record<GunId, { z: number; r: number }>> = {
   sv98: { z: 0.032, r: 0.019 },
   ballista: { z: 0.026, r: 0.0208 },
 };
+
+/** a ocular da luneta de fábrica da sniper (espaço da arma: z e raio), ou nada */
+export function scopeEyepiece(id: GunId): { z: number; r: number } | undefined {
+  return EYEPIECE[id];
+}
 
 /** a arma montada: o modelo de fábrica com os acessórios da montagem (sem montagem, o de fábrica) */
 export function makeBuiltGun(id: GunId, build?: GunBuild): GunModel | null {
@@ -355,8 +365,14 @@ function zoomLever(g: GunModel, t: Mats): THREE.Group | null {
   if (!e) return null;
   const group = new THREE.Group();
   const y = g.sight.y;
+  // o anel é aberto (o cilindro fechado tapava a ocular: mirando, via-se um disco preto no lugar do vidro)
   new Kit()
-    .tube(t.dark, e.r + 0.002, e.r + 0.002, e.z + 0.009, e.z - 0.009, 0, y, 18)
+    .add(
+      new THREE.CylinderGeometry(e.r + 0.002, e.r + 0.002, 0.018, 18, 1, true)
+        .rotateX(-Math.PI / 2)
+        .translate(0, y, e.z),
+      t.tube,
+    )
     .box(t.accent, 0.003, 0.004, 0.012, 0, y + e.r + 0.003, e.z)
     .box(t.metal, 0.005, 0.028, 0.006, e.r + 0.003, y + 0.012, e.z)
     .box(t.dark, 0.008, 0.008, 0.008, e.r + 0.004, y + 0.027, e.z)
@@ -489,7 +505,7 @@ function mountUnder(g: GunModel, m: Mount, id: 'vgrip' | 'agrip') {
   if (g.ownGrip) g.ownGrip.visible = false;
   const group = new THREE.Group();
   const y = g.support.y;
-  const z = g.support.z + (m.gripDz ?? 0);
+  const z = g.support.z + ((id === 'agrip' ? m.agripDz : undefined) ?? m.gripDz ?? 0);
   const k = new Kit();
   if (id === 'vgrip') {
     // vertical: presilha no trilho, o punho um pouco inclinado para a frente, os sulcos dos dedos e a tampa

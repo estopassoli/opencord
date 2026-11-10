@@ -76,7 +76,7 @@ import { KNIFE_GUARD, KNIFE_GUARD_AT, knifeGuardQuat } from './knifeguard';
 import { flashTexture } from './fx';
 import { ARM_HAND_FIT, BOWIE_ARM, KUKRI_ARM, type FingerOffsets } from './handrig';
 import { TRIGGER_OFF, TRIGGER_SQUEEZE, leftGrip, rightGrip, type Grip } from './grips';
-import { aimReticles } from './attachmodels';
+import { aimReticles, scopeEyepiece } from './attachmodels';
 import { disposeGun, movePart, partBox, partCenter, posePart, setBalisong, type GunModel, type Part } from './models';
 import { PINCH_CURL, fitAt, gunHolds, magMesh, speedLoader, stripperClip, warmHolds, type Holds } from './holds';
 import {
@@ -89,6 +89,7 @@ import {
   blankPose,
   clipPose,
   cylinderPose,
+  leftFree,
   reloadPose,
   reloadStyle,
 } from './reload';
@@ -183,6 +184,17 @@ const ROT = new THREE.Euler(0, 0, 0, 'YXZ');
  * distância do olho mirando (z da câmera onde fica o ponto `sight`): a M4 encosta mais para o furo de trás abrir; a
  * SCAR-L um pouco (a −0,2 o furo era um anel fino em volta da massa)
  */
+/**
+ * Luneta: o olho fica `SCOPE_RELIEF` atrás da ocular (m). A arma some e a luneta cobre a tela a 85% da mira
+ * (`game.ts`); com o olho a 7 cm do meio da mira (antes), a câmera passava da ocular entre 73% e 85% (L115 já a 73%;
+ * SV-98, RS9, Ballista e M200 perto de 85%) e se via o tubo por dentro, escuro, ou nada do vidro. Chegando mais longe, a
+ * ocular fica na frente do olho até a luneta cobrir a tela; mirando de verdade, a arma não aparece.
+ */
+const SCOPE_RELIEF = 0.045;
+function scopeEye(g: GunModel): number {
+  const e = scopeEyepiece(g.id);
+  return e ? Math.min(-0.07, g.sight.z - e.z - SCOPE_RELIEF) : -0.07;
+}
 const ADS_EYE: Partial<Record<GunId, number>> = { m4: -0.15, mp5: -0.2, mp7: -0.18, scarl: -0.17 };
 /**
  * Facas paradas (posição e giro YXZ do `holder`, sem mirar). Baioneta em martelo: o polegar por cima, o cabo atravessando
@@ -359,8 +371,6 @@ const RIGHT_THUMB: Partial<Record<string, readonly [number, number]>> = {
  * armação, por fora do guarda-mato.
  */
 const INDEX_DROP: Partial<Record<string, number>> = { deagle: 0.35 };
-/** inspeção da StG 44, segundo lado: giro (rad) e quanto a arma vai para longe (m) */
-const S2_STG = { yaw: 0.45, roll: 0.3, pitch: 0.12, push: 0.04 };
 /** inspeção da MPX: giro (rad) e deslocamento (m) de cada lado (`mpxInspect`) */
 const MPX_INSPECT = {
   yaw1: -0.6,
@@ -430,8 +440,14 @@ const CY = blankCylinder();
 const POUCH_L = new THREE.Vector3(-0.32, -0.5, -0.3);
 /** indo e voltando do pente, a mão passa por fora (−x) e por baixo da arma, em arco (espaço da arma) */
 const ARC_OUT = new THREE.Vector3(-0.045, -0.035, 0);
-/** a mão esquerda no meio desse caminho: dedos e polegar meio fechados (fechamento) */
-const LEFT_TRANSIT: readonly [number, number] = [0.7, 0.45];
+/**
+ * a mão esquerda no ar, sem segurar nada (`leftFree`): dedos fechados num punho solto (1,3; o cerrado é ~1,6) e o
+ * polegar meio fechado. Com 0,7 (antes) ela ficava em concha e, vista de frente, os dedos pareciam garras abertas
+ */
+const LEFT_TRANSIT: readonly [number, number] = [1.3, 0.6];
+
+/** a mão empurrando a base do pente no fim do encaixe: dedos e polegar (fechamento) */
+const MAG_PALM: readonly [number, number] = [0.45, 0.3];
 /** o pente e a mão indo para o colete: por fora e pela frente (atrás ficam o punho e a mão direita) */
 const ARC_POUCH = new THREE.Vector3(-0.08, -0.02, -0.06);
 const POUCH_R = new THREE.Vector3(0.3, -0.55, -0.1);
@@ -566,8 +582,8 @@ const RHINO_LOADER_Q = new THREE.Quaternion()
     ),
   );
 /** acertos dos dedos (misturados por quadro, sem alocar) */
-const OFF_R: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
-const OFF_L: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+const OFF_R: [number, number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0, 0];
+const OFF_L: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
 const NO_OFF: FingerOffsets = [0, 0, 0, 0, 0];
 const M1 = new THREE.Matrix4();
 const POUCH = new THREE.Vector3();
@@ -576,8 +592,8 @@ const POUCH = new THREE.Vector3();
  * trás). FN Ballista: a coronha comprida passava na frente da câmera e enchia metade da tela; a arma vai para a frente
  * (antes de girar) e para a direita, e rola menos, mostrando o lado esquerdo inteiro de perfil
  */
-const INSPECT_TUNE: Partial<Record<string, { yaw: number; roll: number; x: number; z: number }>> = {
-  ballista: { yaw: 0.95, roll: 0.35, x: -0.06, z: -0.16 },
+const INSPECT_TUNE: Partial<Record<string, { yaw: number; roll: number; x: number; z: number; free2?: boolean }>> = {
+  ballista: { yaw: 0.95, roll: 0.35, x: -0.06, z: -0.16, free2: true },
 };
 /** armas em que a mão de apoio pega o pente pela lateral (na inspeção) */
 const SIDE_MAG: ReadonlySet<string> = new Set(['m4', 'ak47', 'mp5', 'scarl', 'mcx', 'aks74u', 'stg44', 'mpx', 'pdw']);
@@ -1085,7 +1101,7 @@ export class Viewmodel {
       spec.cls === 'pistol'
         ? -0.34
         : spec.scope
-          ? -0.07
+          ? scopeEye(g)
           : (g.adsEye ?? ADS_EYE[g.id] ?? (spec.cls === 'smg' ? -0.25 : -0.2));
     // o ponto da linha de mira já inclinado (`sightPitch`): sem isso, a linha da alça à massa passava 1–3 px fora do centro
     const sPitch = g.sightPitch ?? 0;
@@ -1270,10 +1286,13 @@ export class Viewmodel {
     let shoulderOut = 0;
     /** a mão esquerda solta a arma e desce para fora da tela (0–1): corrida tática e inspeção da pistola */
     let leftAway = ease(this.leftOffK);
-    /** a mão esquerda no ar entre o apoio e o pente (0–1, o pico do arco) */
-    let leftTransit = 0;
     /** quanto os dedos já têm a forma da pegada do pente (atrasado em relação a `magHold`) */
     let magFit = 0;
+    /**
+     * recarga: a mão está mesmo com o pente (1) ou só indo para onde ele vai estar (0): no `drop` ela vai ao colete
+     * antes de o pente velho cair; no revólver, ao cinto enquanto o tambor fica aberto
+     */
+    let magWith = 1;
     /** revólver: a fração da recarga (para o carregador rápido e os cartuchos do tambor); −1 fora dela */
     let cylU = -1;
     /** BFR: a fração da recarga (−1 fora dela) e o gesto do polegar no cão feito pela ação deste quadro */
@@ -1329,8 +1348,7 @@ export class Viewmodel {
               const r = seg(u, 0.32, 0.62);
               LEFT.addScaledVector(rise, 1 - r * r);
             } else leftAway = Math.max(leftAway, 1 - ease(seg(u, 0.3, 0.62)));
-            leftCurl = lerp(0.2, leftCurl, ease(seg(u, 0.6, 0.78)));
-            leftThumb = lerp(0.2, leftThumb, ease(seg(u, 0.6, 0.78)));
+            // os dedos ficam meio fechados no caminho e só fecham na pegada quando a mão chega (`leftFree`)
             joltAt('slap', 0.62, 1.1);
           }
           joltAt('end', 0.8, 1.6);
@@ -1427,6 +1445,8 @@ export class Viewmodel {
             magHold = cp.hold;
             handOut = cp.out;
             handPouch = cp.pouch;
+            // no cinto a mão está longe do tambor
+            magWith = 1 - Math.min(1, 4 * cp.pouch);
             // Rhino: os dedos ficam no carregador rápido (`rhinoLoader`); aberta, a mão abanava embaixo da arma
             magPalm = g.id === 'rhino' ? 0 : cp.palm;
             break;
@@ -1470,6 +1490,7 @@ export class Viewmodel {
           handOut = rp.handOut;
           handPouch = rp.handPouch;
           magPalm = rp.palm;
+          magWith = 1 - Math.min(1, 4 * (Math.abs(handOut - rp.out) + Math.abs(handPouch - rp.pouch)));
           if (g.id === 'm9') {
             // M9: o polegar da direita aperta o retém do pente, atrás do guarda-mato, logo antes de ele cair
             rightThumb += 0.3 * hump(u, 0.08, 0.13, 0.19, 0.26);
@@ -1846,29 +1867,29 @@ export class Viewmodel {
             }
             break;
           }
-          // pistolas, e as armas que se acertaram em cima da inspeção antiga (RS9, StG 44, AK-47, Ballista): duas
+          // pistolas, e as armas que se acertaram em cima da inspeção antiga (RS9, AK-47, Ballista): duas
           // paradas, com peso: um pequeno recuo antes (antecipação), a arma vira e mostra o lado esquerdo (para),
           // depois rola e mostra o lado direito e o topo, com a mão de apoio no pente; volta passando um pouco do ponto
           const w = hump(u, 0.04, 0.22, 0.82, 1);
           const pre = hump(u, 0, 0.05, 0.06, 0.14);
-          // RS9: o segundo lado volta direto para casa, junto com a arma (antes, ele saía primeiro e a arma passava de
-          // novo pelo lado esquerdo antes de voltar)
-          const side2 = g.id === 'rs9' ? hump(u, 0.46, 0.6, 0.82, 1) : hump(u, 0.46, 0.6, 0.74, 0.86);
+          // RS9 e AK-47: o segundo lado volta direto para casa, junto com a arma (antes, ele saía primeiro e a arma
+          // passava de novo pelo lado esquerdo antes de voltar). AK: e o primeiro lado não volta depois do segundo (no
+          // fim, a coronha virava duas vezes para a câmera e a arma repassava pelo primeiro perfil)
+          const home = g.id === 'rs9' || g.id === 'ak47';
+          const side2 = home ? hump(u, 0.46, 0.6, 0.82, 1) : hump(u, 0.46, 0.6, 0.74, 0.86);
           const settle = Math.sin(seg(u, 0.86, 1) * Math.PI) * (1 - seg(u, 0.86, 1));
-          // StG 44: no segundo lado o cano vai para a esquerda e quase não sobe, com a arma mais longe: o lado direito
-          // fica de frente (com o cano para cima, a coronha comprida vinha para a câmera e só se via a soleira)
-          // e do segundo lado ela volta direto para casa (passar de novo pelo primeiro fazia a coronha virar para a câmera)
-          const stg = g.id === 'stg44';
-          const side1 = stg && u > 0.6 ? 0 : 1 - side2;
+          const side1 = g.id === 'ak47' && u > 0.6 ? 0 : 1 - side2;
           const lt = INSPECT_TUNE[g.id];
-          rot.y += pre * 0.08 * mo - w * (lt?.yaw ?? 1.0) * side1 + side2 * (stg ? S2_STG.yaw : -0.25);
-          rot.z += w * (lt?.roll ?? 0.5) * side1 - side2 * (stg ? S2_STG.roll : 0.45) * mo;
-          rot.x += side2 * (stg ? S2_STG.pitch : 0.3) * mo - settle * 0.04 * mo;
-          if (stg) pos.z -= side2 * S2_STG.push;
+          rot.y += pre * 0.08 * mo - w * (lt?.yaw ?? 1.0) * side1 - side2 * 0.25;
+          rot.z += w * (lt?.roll ?? 0.5) * side1 - side2 * 0.45 * mo;
+          rot.x += side2 * 0.3 * mo - settle * 0.04 * mo;
           pos.x -= w * (lt?.x ?? 0.08) - side2 * 0.02;
           pos.y += w * 0.04 + side2 * 0.015;
           // arma comprida: vai para a frente antes de girar e só volta depois (senão a coronha passa pela câmera)
           pos.z += (lt ? hump(u, 0, 0.12, 0.88, 1) : w) * (lt?.z ?? 0.03);
+          // no segundo lado, a arma comprida virada leva o guarda-mão para longe do ombro: o braço não alcança, solta do
+          // ombro e a ponta cortada da manga aparecia no meio da tela. A esquerda solta a arma e sai da tela (`free2`)
+          if (lt?.free2) leftAway = Math.max(leftAway, hump(u, 0.44, 0.54, 0.8, 0.9));
           // AK: a coronha de madeira é comprida: virada de lado, ela tapava metade da tela (e no segundo lado a arma
           // ficava em pé no meio). Vira menos, longe do rosto e mais à direita; no segundo lado, menos empinada
           if (g.id === 'ak47') {
@@ -2102,22 +2123,17 @@ export class Viewmodel {
       // Eagle: o apoio fica logo acima do pente, um arco curto e a mão meio fechada bastam)
       const arc = 4 * magHold * (1 - magHold) * (g.id === 'deagle' ? 0.35 : 1);
       LEFT.addScaledVector(ARC_OUT, arc);
-      // no ar, meio fechada e solta (`LEFT_TRANSIT`): os acertos dos dedos de cada pegada somem no caminho. Antes ela
-      // abria de todo (0,15) para os dedos não atravessarem o guarda-mão ao sair, e ficava 2–3 quadros espalmada no ar;
-      // o arco já a leva para fora da arma antes de fechar
-      leftCurl = lerp(leftCurl, LEFT_TRANSIT[0], arc);
-      leftThumb = lerp(leftThumb, LEFT_TRANSIT[1], arc);
-      leftTransit = arc;
-      // a forma da pegada do pente (em geral aberta, pela lateral) só na segunda metade do caminho, chegando nele
+      // no ar ela fica meio fechada (`leftFree`, mais abaixo); a forma da pegada do pente (em geral aberta, pela lateral) só na segunda metade do caminho, chegando nele
       magFit = mh ? ease(seg(magHold, 0.5, 1)) : magHold;
       if (mh) {
         leftCurl = lerp(leftCurl, mh.curl[0], magFit);
         leftThumb = lerp(leftThumb, mh.curl[1], magFit);
       }
     }
-    // fim do encaixe: os dedos soltam e a palma empurra a base
-    leftCurl = lerp(leftCurl, 0.15, magPalm);
-    leftThumb = lerp(leftThumb, 0.15, magPalm);
+    // fim do encaixe: os dedos soltam o pente e a palma empurra a base, os dedos juntos e meio dobrados (`MAG_PALM`;
+    // espalmada, a 0,15, a mão abria toda no quadro do tranco)
+    leftCurl = lerp(leftCurl, MAG_PALM[0], magPalm);
+    leftThumb = lerp(leftThumb, MAG_PALM[1], magPalm);
     // BFR: a esquerda embaixo do tambor (andando com ele; a palma empurra a vareta), no cinto e com o carregador
     // rápido (a mão fica onde o carregador tem que estar: alinhado atrás dos furos, depois empurrando)
     if (bfrRl >= 0 && mh) {
@@ -2246,11 +2262,31 @@ export class Viewmodel {
     }
     // Rhino: com o carregador rápido, os dedos fecham menos (só em volta dele, sem passar por cima do tambor)
     if (g.id === 'rhino') leftCurl = lerp(leftCurl, 0.3, this.rhinoLoader(cylU));
+    // no ar (sem segurar nada), a mão fica meio fechada, dedos juntos (`LEFT_TRANSIT`), e só toma a forma de cada
+    // pegada ao encostar
+    let free = 0;
+    if (!knife && this.holds) {
+      free = leftFree({
+        hold: magHold,
+        with: magWith,
+        alt: leftAlt,
+        away: leftAway,
+        cradle: bfrRl >= 0 ? BR.cradle : -1,
+        carry:
+          bfrRl >= 0
+            ? hump(bfrRl, 0.36, 0.39, 0.62, 0.68)
+            : g.id === 'rhino' && this.loader?.visible && cylU >= 0
+              ? 1
+              : 0,
+      });
+      leftCurl = lerp(leftCurl, LEFT_TRANSIT[0], free);
+      leftThumb = lerp(leftThumb, LEFT_TRANSIT[1], free);
+    }
     this.handL.setCurl(
       leftCurl,
       leftThumb,
       leftCurl,
-      this.leftOffsets(leftFit, leftAlt, magPalm, Math.max(leftAway, leftTransit)),
+      this.leftOffsets(leftFit, leftAlt, magPalm, Math.max(leftAway, free)),
     );
     if (kp) this.knifeGuard(now, inp, mo);
     this.handR.root.updateMatrixWorld(true);
@@ -2868,18 +2904,20 @@ export class Viewmodel {
     if (!h) {
       for (let i = 0; i < 6; i++) OFF_R[i] = (this.knifeOff[i] ?? 0) * (1 - open);
       OFF_R[6] = 0;
+      OFF_R[7] = 0;
       return OFF_R;
     }
     const th = this.gun ? RIGHT_THUMB[this.gun.id] : undefined;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       // o acerto do indicador é o do gatilho: fora dele (correndo, recarregando), não vale
       let grip = (h.right.off[i] ?? 0) * (i === 0 ? onTrigger : 1);
       if (th && i === 4) grip = th[0] - h.right.curl[1];
       if (th && i === 5) grip = th[1];
       OFF_R[i] = lerp(grip, h.pinch?.off[i] ?? 0, toLever) * (1 - clip);
     }
+    // o oitavo acerto: a base do indicador para o lado do mindinho, fora do gatilho (o sétimo é o enrolar da pegada)
     const drop = this.gun ? (INDEX_DROP[this.gun.id] ?? 0) : 0;
-    OFF_R[6] = drop * (1 - onTrigger) * (1 - toLever) * (1 - clip);
+    OFF_R[7] = drop * (1 - onTrigger) * (1 - toLever) * (1 - clip);
     // Kar98k, no pente-lâmina: o polegar aberto para o lado, deitado de través em cima das balas
     if (clip > 0) OFF_R[5] += CLIP_THUMB_AB * clip;
     return OFF_R;
@@ -2889,7 +2927,7 @@ export class Viewmodel {
   private leftOffsets(mag: number, gesture: number, palm: number, away: number): FingerOffsets {
     const h = this.holds;
     if (!h) return NO_OFF;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       let o = lerp(h.left.off[i] ?? 0, h.mag?.off[i] ?? 0, mag);
       o = lerp(o, this.egOff[i] ?? 0, gesture);
       OFF_L[i] = o * (1 - palm) * (1 - away);
@@ -3558,7 +3596,8 @@ function m4Inspect(
 ): number {
   const pre = hump(u, 0, 0.04, 0.05, 0.12);
   const w = ease(seg(u, 0.05, 0.24)) * (1 - ease(seg(u, 0.78, 0.95)));
-  const b = ease(seg(u, 0.44, 0.6));
+  // a virada de lado é curta (de ponta para a câmera por menos tempo)
+  const b = ease(seg(u, 0.48, 0.6));
   const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
   // nas pausas a arma não fica parada: um respiro lento de poucos graus
   const drift = Math.sin(u * Math.PI * 5) * 0.025 * w;
@@ -3570,6 +3609,10 @@ function m4Inspect(
   pos.x += lerp(M4_INSPECT_A.px, M4_INSPECT_B.px, b) * w;
   pos.y += lerp(M4_INSPECT_A.py, M4_INSPECT_B.py, b) * w;
   pos.z += lerp(M4_INSPECT_A.pz, M4_INSPECT_B.pz, b) * w;
+  // na virada (de ponta para a câmera), para baixo e para a direita, fora do meio da tela (`inspectArc`)
+  const turn = 4 * b * (1 - b) * w;
+  pos.x += TURN_AWAY.x * turn;
+  pos.y -= TURN_AWAY.y * turn;
   joltAt('sideA', 0.24, 0.6);
   joltAt('sideB', 0.6, 0.6);
   // a esquerda no pente no segundo lado, com um puxão curto para baixo e o empurrão de volta
@@ -3633,7 +3676,7 @@ function authoredThumb(o: FingerOffsets): FingerOffsets {
  * feito na MCX): na antiga, a coronha das armas compridas vinha para a câmera no segundo lado e a volta passava de novo
  * pelo primeiro.
  */
-const OLD_INSPECT: ReadonlySet<string> = new Set(['rs9', 'stg44', 'ak47', 'ballista']);
+const OLD_INSPECT: ReadonlySet<string> = new Set(['rs9', 'ak47', 'ballista']);
 
 /**
  * Acerto do arco por arma: `yaw` é o giro do primeiro lado (rad; o comum é 1) e `push` leva a arma para longe (m,
@@ -3647,6 +3690,8 @@ interface ArcTune {
 const ARC_TUNE: Partial<Record<string, ArcTune>> = {
   l115: { yaw: 0.8, push: -0.15 },
   sv98: { yaw: 0.8, push: -0.15 },
+  stg44: { yaw: 0.8, push: -0.15 },
+  msmc: { yaw: 0.8, push: -0.12 },
 };
 
 /**
@@ -3658,20 +3703,24 @@ const ARC_TUNE: Partial<Record<string, ArcTune>> = {
 function inspectArc(u: number, mo: number, pos: THREE.Vector3, rot: THREE.Euler, tune?: ArcTune): number {
   const w = hump(u, 0.04, 0.22, 0.8, 0.97);
   const pre = hump(u, 0, 0.05, 0.06, 0.14);
-  const s2 = ease(seg(u, 0.46, 0.62));
+  const s2 = ease(seg(u, 0.47, 0.6));
   const settle = Math.sin(seg(u, 0.9, 1) * Math.PI) * (1 - seg(u, 0.9, 1));
   rot.y += pre * 0.08 * mo + w * lerp(-(tune?.yaw ?? 1), IA.ry, s2) * mo;
   rot.z += w * lerp(0.5, IA.rz, s2) * mo;
   rot.x += w * lerp(0, IA.rx, s2) * mo - settle * 0.04 * mo;
   pos.x += w * lerp(-0.08, IA.px, s2);
   pos.y += w * lerp(0.04, IA.py, s2);
-  // virando de uma pose para a outra, a coronha varre a frente da câmera: a arma vai um pouco para longe e para baixo
+  // virando de uma pose para a outra, a arma passa de ponta (a coronha para a câmera): ela vai um pouco para longe e
+  // volta para baixo e para a direita, onde fica no quadril (no meio da tela, em pé, ela tapava a vista por ~0,1 s)
   const turn = 4 * s2 * (1 - s2) * w;
   pos.z += w * lerp(0.03, IA.pz, s2) - 0.05 * turn;
-  pos.y -= 0.02 * turn;
+  pos.y -= TURN_AWAY.y * turn;
+  pos.x += TURN_AWAY.x * turn;
   if (tune) pos.z += tune.push * hump(u, 0, 0.12, 0.86, 1);
   return hump(u, 0.48, 0.62, 0.74, 0.86);
 }
+/** na virada de lado da inspeção, quanto a arma desce e volta para a direita (m, no pico da virada) */
+const TURN_AWAY = { x: 0.08, y: 0.05 };
 /** a segunda pose da inspeção em arco (giro YXZ e posição somados à de quadril) */
 const IA = { rx: 0.1, ry: 0.35, rz: -0.35, px: -0.06, py: 0.05, pz: -0.02 };
 
