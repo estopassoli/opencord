@@ -285,6 +285,13 @@ const bridge: OpenCordBridge = {
       return () => activeListeners.delete(cb);
     },
   },
+  windowShown: {
+    get: () => windowShown,
+    on: (cb) => {
+      shownListeners.add(cb);
+      return () => shownListeners.delete(cb);
+    },
+  },
   nativeClips: {
     start: (args: NativeClipArgs, onChunk: (c: NativeClipChunk) => void) => {
       const ch = new Channel<ArrayBuffer>();
@@ -472,6 +479,13 @@ const activeListeners = new Set<(active: boolean) => void>();
 void listen<boolean>('oc:window-focus', (e) => {
   windowActive = e.payload;
   for (const cb of activeListeners) cb(windowActive);
+});
+// janela à vista: nem minimizada nem na bandeja (o visibilityState do WebView2 fica "visible" minimizado)
+let windowShown = true;
+const shownListeners = new Set<(shown: boolean) => void>();
+void listen<boolean>('oc:window-shown', (e) => {
+  windowShown = e.payload;
+  for (const cb of shownListeners) cb(windowShown);
 });
 
 // ausente automático: a cada 30 s, há quanto tempo ninguém mexe no computador

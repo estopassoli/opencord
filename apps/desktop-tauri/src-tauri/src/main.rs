@@ -84,7 +84,15 @@ fn show_main(app: &AppHandle) {
     let _ = w.unminimize();
     let _ = w.show();
     let _ = w.set_focus();
+    emit_shown(&w);
   }
+}
+
+/// Janela à vista (nem minimizada nem escondida na bandeja). O WebView2 continua com `visibilityState` "visible"
+/// minimizado, então a interface sabe por aqui quando pode parar a prévia da própria live nativa.
+fn emit_shown(w: &tauri::WebviewWindow) {
+  let shown = w.is_visible().unwrap_or(true) && !w.is_minimized().unwrap_or(false);
+  let _ = w.emit_to(MAIN, "oc:window-shown", shown);
 }
 
 fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
@@ -296,12 +304,14 @@ fn create_main_window(app: &AppHandle, gpu_off: bool) -> tauri::Result<()> {
     WindowEvent::CloseRequested { api, .. } => {
       api.prevent_close();
       let _ = wc.hide();
+      emit_shown(&wc);
     }
     WindowEvent::Resized(_) => {
+      emit_shown(&wc);
       let _ = wc.emit_to(MAIN, "oc:window-state", serde_json::json!({ "maximized": wc.is_maximized().unwrap_or(false) }));
     }
     // ativação de verdade da janela no Windows (o document.hasFocus() do WebView2 continua true com outra janela na
-    // frente): a prévia da própria live nativa desliga com o app atrás do jogo
+    // frente)
     WindowEvent::Focused(f) => {
       let _ = wc.emit_to(MAIN, "oc:window-focus", *f);
     }

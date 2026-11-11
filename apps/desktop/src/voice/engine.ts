@@ -514,9 +514,9 @@ export class VoiceEngine {
   }
 
   /**
-   * Prévia da própria live nativa só com o OpenCord à vista (janela visível e em foco) ou na hora de tirar uma
-   * miniatura: com o app atrás do jogo, a SFU não manda o vídeo de volta e o WebView2 não decodifica 1080p60 à toa
-   * (medido: ~1,5 núcleo no processo da GPU e no da interface só com a prévia).
+   * Prévia da própria live nativa só com a janela do OpenCord à vista (mesmo sem foco: dá para assistir a própria live
+   * em outro monitor) ou na hora de tirar uma miniatura: minimizada ou na bandeja, a SFU não manda o vídeo de volta e o
+   * WebView2 não decodifica 1080p60 à toa (medido: ~1,5 núcleo no processo da GPU e no da interface só com a prévia).
    */
   private syncOwnPreview = () => {
     const room = this.room;
@@ -525,8 +525,8 @@ export class VoiceEngine {
       .get(liveIdentity(room.localParticipant.identity))
       ?.getTrackPublication(Track.Source.ScreenShare) as RemoteTrackPublication | undefined;
     if (!pub?.isSubscribed) return;
-    const active = bridge?.windowActive ? bridge.windowActive.get() : document.hasFocus();
-    const wanted = (document.visibilityState === 'visible' && active) || this.ownPulse > 0;
+    const shown = (bridge?.windowShown?.get() ?? true) && document.visibilityState === 'visible';
+    const wanted = shown || this.ownPulse > 0;
     if (pub.isEnabled !== wanted) pub.setEnabled(wanted);
   };
 
@@ -914,18 +914,14 @@ export class VoiceEngine {
         cursor: !opts.hideCursor,
       });
       const focus = () => this.syncOwnPreview();
-      window.addEventListener('focus', focus);
-      window.addEventListener('blur', focus);
       document.addEventListener('visibilitychange', focus);
-      const offActive = bridge?.windowActive?.on(focus);
+      const offShown = bridge?.windowShown?.on(focus);
       this.native = {
         audio: r.audio,
         off: () => {
           off();
-          window.removeEventListener('focus', focus);
-          window.removeEventListener('blur', focus);
           document.removeEventListener('visibilitychange', focus);
-          offActive?.();
+          offShown?.();
         },
       };
       this.note(`live nativa: ${r.encoder}`);

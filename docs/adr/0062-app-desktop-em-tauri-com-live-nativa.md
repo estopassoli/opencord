@@ -145,7 +145,9 @@ O app em Tauri foi usado de ponta a ponta (variante de teste com API e LiveKit l
 WebView2, com um segundo usuário no Edge). Gargalos achados: num monitor de 480 Hz, laços de `requestAnimationFrame` e
 animações CSS infinitas recompunham a janela de vidro 480 vezes por segundo — a aurora do fundo passou a `setTimeout`,
 o brilho do "Ao vivo" pulsa 3 vezes (opacidade/escala, sem sombra animada), o Espaço 3D cai para 30 qps sem foco e a
-prévia da própria live nativa só recebe vídeo com a janela ativa. No WebView2 o `document.hasFocus()` continua
+prévia da própria live nativa só recebe vídeo com a janela à vista (correção do mesmo dia: "ativa" congelava a prévia
+de quem assiste a própria live em outro monitor; agora só minimizada ou na bandeja, pelo evento `oc:window-shown` do
+Rust — minimizado, o `visibilityState` do WebView2 continua "visible"). No WebView2 o `document.hasFocus()` continua
 verdadeiro com outra janela na frente, então a ponte ganhou `windowActive` (evento `Focused` da janela no Rust).
 Erros corrigidos: CSP sem `blob:`/`data:` no `connect-src` (sons do gunfight), user agent (aparelho como "Edge"), Alt
 sozinho deixava a janela no modo menu (subclasse que ignora `SC_KEYMENU` de teclado), live/clipes nativos órfãos após

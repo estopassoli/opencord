@@ -284,6 +284,11 @@ export interface OpenCordBridge {
     get(): boolean;
     on(cb: (active: boolean) => void): () => void;
   };
+  /** janela à vista: nem minimizada nem escondida na bandeja (só no app em Tauri; o WebView2 não muda o visibilityState) */
+  windowShown?: {
+    get(): boolean;
+    on(cb: (shown: boolean) => void): () => void;
+  };
   /** replay dos clipes nativo (só no app em Tauri; o WebView2 abre o seletor de tela a cada captura) */
   nativeClips?: {
     /** responde com o tamanho do vídeo quando a gravação começou; erro `no-hw-encoder…` = sem H.264 na placa */
