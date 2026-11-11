@@ -1,8 +1,8 @@
 {
   "name": "@opencord/desktop-tauri",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Prot\u00f3tipo do OpenCord em Tauri (mesma interface do apps/desktop) para comparar consumo com o Electron",
+  "description": "Protótipo do OpenCord em Tauri (mesma interface do apps/desktop) para comparar consumo com o Electron",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -11,6 +11,9 @@
     "build:win": "node scripts/build-win.mjs"
   },
   "dependencies": {
+    "@opencord/contracts": "workspace:*",
+    "@opencord/media": "workspace:*",
+    "@opencord/ui": "workspace:*",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-global-shortcut": "^2.4.1",
     "@tauri-apps/plugin-notification": "^2.8.0"

@@ -1,6 +1,6 @@
 [package]
 name = "opencord-tauri"
-version = "0.2.0"
+version = "0.3.0"
 description = "OpenCord desktop (protótipo em Tauri, só para comparar consumo com o Electron)"
 license = "AGPL-3.0-only"
 edition = "2021"

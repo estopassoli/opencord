@@ -421,6 +421,15 @@ importers:
 
   apps/desktop-tauri:
     dependencies:
+      '@opencord/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@opencord/media':
+        specifier: workspace:*
+        version: link:../../packages/media
+      '@opencord/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@tauri-apps/api':
         specifier: ^2.12.4
         version: 2.12.4

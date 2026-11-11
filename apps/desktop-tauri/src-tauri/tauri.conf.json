@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "OpenCord Tauri",
-  "version": "0.2.0",
+  "productName": "OpenCord",
+  "version": "0.3.0",
   "identifier": "org.opencord.tauri",
   "build": {
     "frontendDist": "../dist",
