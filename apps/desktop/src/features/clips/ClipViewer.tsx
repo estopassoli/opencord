@@ -202,7 +202,8 @@ function Viewer({ clip }: { clip: ClipInfo }) {
   useEffect(() => {
     const v = video.current;
     if (!v) return;
-    let raf = 0;
+    // ~30 vezes por segundo (não a cada atualização do monitor: num monitor de 480 Hz eram 480 renderizações do
+    // React por segundo); o corte no fim do trecho erra no máximo 33 ms
     const tick = () => {
       const t = v.currentTime * 1000;
       if (t >= range.end) {
@@ -210,10 +211,9 @@ function Viewer({ clip }: { clip: ClipInfo }) {
         v.currentTime = range.start / 1000;
       }
       setNow(v.currentTime * 1000);
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const timer = window.setInterval(tick, 33);
+    return () => clearInterval(timer);
   }, [range, url]);
 
   const seek = (ms: number) => {

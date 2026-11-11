@@ -79,6 +79,10 @@ fn write_atomic(path: &Path, data: &str) -> Result<(), String> {
 /// Roda antes de qualquer janela. Só uma vez (marca no diretório do Tauri) e só se o Tauri ainda não tem sessão:
 /// quem já entrou no app novo não é sobrescrito. Falha não impede o app de abrir (a pessoa entra de novo).
 pub fn from_electron() {
+  // cópia de teste do app (outro identificador, servidor local): não leva a sessão de verdade
+  if std::env::var_os("OPENCORD_NO_MIGRATION").is_some() {
+    return;
+  }
   let (Some(edir), Some(tdir)) = (electron_dir(), tauri_dir()) else { return };
   if !edir.exists() || tdir.join(MARKER).exists() {
     return;

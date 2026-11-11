@@ -19,6 +19,11 @@ export function startPreviewSender(
   track: MediaStreamTrack,
   /** cada prévia geral (não as enviadas só para quem acabou de entrar) também vai para a API: "Em atividade" */
   onImage?: (blob: Blob) => void,
+  /**
+   * live nativa (ADR-0062): a prévia da própria live fica desligada com o app fora de foco; `fresh` liga e espera um
+   * quadro novo antes da foto, `done` devolve ao estado anterior
+   */
+  hooks?: { fresh(): Promise<void>; done(): void },
 ): () => void {
   const video = document.createElement('video');
   video.muted = true;
@@ -30,9 +35,11 @@ export function startPreviewSender(
   /** sem destino = todos; com destino = só quem acabou de entrar */
   const send = async (to?: string) => {
     // sem ninguém na sala ainda vale gerar: a prévia da API aparece para quem está fora da chamada
-    if (busy || video.videoWidth === 0 || (to && room.remoteParticipants.size === 0)) return;
+    if (busy || (to && room.remoteParticipants.size === 0)) return;
     busy = true;
     try {
+      if (hooks) await hooks.fresh();
+      if (video.videoWidth === 0) return;
       const w = PREVIEW_WIDTH;
       const h = Math.max(1, Math.round((video.videoHeight / video.videoWidth) * w));
       canvas.width = w;
@@ -50,6 +57,7 @@ export function startPreviewSender(
     } catch {
       /* prévia é opcional: falha de envio não afeta a live */
     } finally {
+      hooks?.done();
       busy = false;
     }
   };

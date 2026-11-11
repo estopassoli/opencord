@@ -279,6 +279,13 @@ const bridge: OpenCordBridge = {
       return () => void off.then((f) => f());
     },
   },
+  windowActive: {
+    get: () => windowActive,
+    on: (cb) => {
+      activeListeners.add(cb);
+      return () => activeListeners.delete(cb);
+    },
+  },
   nativeClips: {
     start: (args: NativeClipArgs, onChunk: (c: NativeClipChunk) => void) => {
       const ch = new Channel<ArrayBuffer>();
@@ -458,6 +465,19 @@ void listen<RemoteInputStop>('oc:remote-input-stop', () => {
 });
 void listen('oc:banner-stop', () => endRemote('banner'));
 void listen<UpdateStatus>('update-status', (e) => fire('update', e.payload));
+
+// página nova (recarregou, voltou de um erro): a live e o replay nativos de uma página anterior ficariam órfãos — a
+// live seguiria no ar sem botão para parar e o replay gravando a tela para sempre
+void invoke('live_stop').catch(() => undefined);
+void invoke('clips_native_stop').catch(() => undefined);
+
+// ativação da janela no Windows (WindowEvent::Focused do Tauri)
+let windowActive = true;
+const activeListeners = new Set<(active: boolean) => void>();
+void listen<boolean>('oc:window-focus', (e) => {
+  windowActive = e.payload;
+  for (const cb of activeListeners) cb(windowActive);
+});
 
 // ausente automático: a cada 30 s, há quanto tempo ninguém mexe no computador
 setInterval(() => void invoke<number>('idle_seconds').then((s) => fire('idle', s)), 30_000);

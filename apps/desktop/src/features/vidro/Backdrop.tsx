@@ -203,16 +203,27 @@ function mount(host: HTMLDivElement): { teardown(): void; lost(): boolean; tryRe
     uniforms.uPulse.value += (pulseTarget - uniforms.uPulse.value) * 0.05;
     renderer.render(scene, camera);
   };
+  // 30 fps bastam para uma aurora (20 com jogo aberto). O próximo quadro é pedido só quando for a hora dele: pedir
+  // a cada atualização do monitor e pular fazia o navegador gerar um quadro por atualização (480 por segundo num
+  // monitor de 480 Hz, medido no app em Tauri), e cada um repintava o que estivesse animado na tela.
+  let timer = 0;
   const loop = (now: number) => {
-    frame = requestAnimationFrame(loop);
-    if (idle()) return;
-    // 30 fps bastam para uma aurora (20 com jogo aberto): fração do custo
-    if (now - last < interval()) return;
-    last = now;
-    render(now);
+    frame = 0;
+    if (!idle()) {
+      last = now;
+      render(now);
+    }
+    schedule();
+  };
+  const schedule = () => {
+    const wait = Math.max(0, interval() - (performance.now() - last));
+    timer = window.setTimeout(() => {
+      timer = 0;
+      frame = requestAnimationFrame(loop);
+    }, wait);
   };
   render(start);
-  frame = requestAnimationFrame(loop);
+  schedule();
 
   // contexto WebGL perdido (jogo pesado na mesma placa, janela muito tempo minimizada): o canvas ficaria preto.
   // Escondido, aparece o gradiente do CSS; o Backdrop tenta restaurar e, se não voltar, monta um canvas novo.
@@ -245,6 +256,7 @@ function mount(host: HTMLDivElement): { teardown(): void; lost(): boolean; tryRe
     },
     teardown() {
       cancelAnimationFrame(frame);
+      clearTimeout(timer);
       canvas.removeEventListener('webglcontextlost', onLost);
       canvas.removeEventListener('webglcontextrestored', onRestored);
       ro.disconnect();

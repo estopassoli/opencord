@@ -3,6 +3,7 @@
  * dos outros (posições pela rede), voz pela distância e o telão (live como textura; YouTube em CSS 3D atrás do canvas).
  * No modo edição a câmera vira livre e o editor (editor.ts) recebe os cliques.
  */
+import { bridge } from '../../lib/bridge';
 import {
   DUEL_JAB_COOLDOWN_MS,
   DUEL_RING_R,
@@ -163,6 +164,10 @@ export class SpaceScene {
   mode: 'play' | 'edit' = 'play';
   readonly focus = new THREE.Vector3();
   private raf = 0;
+  /** espera do próximo quadro com o app em segundo plano (timer, não requestAnimationFrame) */
+  private wake = 0;
+  /** quando o último quadro foi desenhado */
+  private lastDraw = 0;
   private last = performance.now();
   private lastSend = 0;
   private lastSent: Pose | null = null;
@@ -1508,7 +1513,9 @@ export class SpaceScene {
       sfx.stopEngines();
       cancelAnimationFrame(this.raf);
       this.raf = 0;
-    } else if (!this.raf && !this.disposed) {
+      clearTimeout(this.wake);
+      this.wake = 0;
+    } else if (!this.raf && !this.wake && !this.disposed) {
       this.last = performance.now();
       this.raf = requestAnimationFrame(this.frame);
     }
@@ -1564,8 +1571,32 @@ export class SpaceScene {
   }
 
   // ---------- quadro ----------
+  /**
+   * Teto de quadros: 240 com o app ativo; 30 com a janela atrás de outro programa (o WebView2 nunca fica "escondido"
+   * por causa das opções da voz, e o espaço deixado aberto desenhava 3D na taxa do monitor — 480 por segundo num de
+   * 480 Hz — disputando a placa com o jogo da pessoa).
+   */
+  private frameGap() {
+    const active = bridge?.windowActive ? bridge.windowActive.get() : document.hasFocus();
+    return active ? 1000 / 240 : 1000 / 30;
+  }
+
   private frame = (now: number) => {
     if (this.disposed) return;
+    const gap = this.frameGap();
+    const wait = gap - (now - this.lastDraw);
+    if (wait > 1) {
+      this.raf = 0;
+      // em segundo plano espera por timer (o requestAnimationFrame acordaria o navegador a cada atualização do monitor)
+      if (gap > 20) {
+        this.wake = window.setTimeout(() => {
+          this.wake = 0;
+          if (!this.disposed && !this.raf) this.raf = requestAnimationFrame(this.frame);
+        }, wait);
+      } else this.raf = requestAnimationFrame(this.frame);
+      return;
+    }
+    this.lastDraw = now;
     this.raf = requestAnimationFrame(this.frame);
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
@@ -2257,6 +2288,7 @@ export class SpaceScene {
     this.inputs.clear();
     this.setTutorialTarget(null);
     cancelAnimationFrame(this.raf);
+    clearTimeout(this.wake);
     this.ro.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);
     // a cena sai com o mouse preso nela: solta (senão o cursor some na próxima tela)

@@ -249,6 +249,7 @@ async function startNative() {
   const now = () => Math.round(performance.now() * 1000);
   let conv: AnnexBToAvc | null = null;
   let offset: number | null = null;
+  let lastTs = -Infinity;
   const dur = Math.round(1e6 / cfg.clipFps);
   try {
     // som do computador sem o OpenCord (oc-audio apps-except, ADR-0025)
@@ -279,14 +280,18 @@ async function startNative() {
         // o relógio do processo de gravação vira o da interface (o mesmo do áudio)
         offset ??= now() - c.ts;
         const f = conv.push(c.data, c.key);
-        if (f)
-          ring.pushVideo({
-            ts: c.ts + offset,
-            dur,
-            key: c.key,
-            data: f.data,
-            ...(f.config ? { config: f.config } : {}),
-          });
+        if (!f) return;
+        // a captura entrega quadros em tempo variável: dois a menos de 1/fps caíam no mesmo ponto da grade do MP4
+        // (tempos repetidos no arquivo); cada quadro fica ao menos um quadro depois do anterior
+        const ts = Math.max(c.ts + offset, lastTs + dur);
+        lastTs = ts;
+        ring.pushVideo({
+          ts,
+          dur,
+          key: c.key,
+          data: f.data,
+          ...(f.config ? { config: f.config } : {}),
+        });
       },
     );
     conv = new AnnexBToAvc(size.width, size.height);

@@ -81,14 +81,13 @@ export function VideoPlayer({
   // progresso suave: a barra anda por quadro (variável CSS, sem re-render); o texto do tempo, pelo timeupdate
   useEffect(() => {
     if (!playing) return;
-    let raf = 0;
+    // ~30 vezes por segundo: a cada atualização do monitor eram 480 repinturas por segundo num monitor de 480 Hz
     const tick = () => {
       const v = video.current;
       if (v && v.duration) box.current?.style.setProperty('--vp-progress', String(v.currentTime / v.duration));
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const timer = window.setInterval(tick, 33);
+    return () => clearInterval(timer);
   }, [playing]);
 
   useEffect(() => {

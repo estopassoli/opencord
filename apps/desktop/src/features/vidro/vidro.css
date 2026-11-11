@@ -958,13 +958,18 @@ html[data-layout='vidro'] {
     transform: scale(0.96);
   }
 }
+/* o anel do "AO VIVO" pulsa só com opacidade e escala (a placa anima sem redesenhar). Animar o box-shadow repintava
+   a pílula a cada quadro, dentro dos painéis desfocados: com alguém ao vivo no servidor, o app de todo mundo ficava
+   em ~1 núcleo de CPU (medido no app em Tauri: processo da GPU ~90 %, interface ~40 %). */
 @keyframes vidro-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 55%, transparent);
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
   }
-  50% {
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--danger) 0%, transparent);
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.35, 1.6);
   }
 }
 @keyframes vidro-speaking {
@@ -1077,7 +1082,23 @@ html[data-layout='vidro'] .oc-btn-primary:hover:not(:disabled) {
     0 10px 28px -8px color-mix(in srgb, var(--brand) 80%, transparent);
 }
 html[data-layout='vidro'] .live-pill {
-  animation: vidro-glow 2.4s ease-in-out infinite;
+  position: relative;
+  isolation: isolate;
+}
+html[data-layout='vidro'] .live-pill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--danger);
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+  /* camada própria: a animação roda só na placa, sem repintar a cada quadro. Três pulsos ao aparecer e para:
+     animação infinita faz a janela inteira (com o vidro desfocado) ser recomposta a cada atualização do monitor
+     — 480 vezes por segundo num monitor de 480 Hz, ~40 % de um núcleo no processo da GPU enquanto houver live */
+  will-change: transform, opacity;
+  animation: vidro-glow 2.4s ease-out 3;
 }
 html[data-layout='vidro'] .composer,
 html[data-layout='vidro'] .oc-input,
@@ -1109,7 +1130,7 @@ html[data-layout='vidro'] .cat-toggle .oc-icon {
   html[data-layout='vidro'] .event-card,
   html[data-layout='vidro'] .highlight-card,
   html[data-layout='vidro'] .timeline-card,
-  html[data-layout='vidro'] .live-pill,
+  html[data-layout='vidro'] .live-pill::after,
   html[data-layout='vidro'] .tile[data-speaking='true']::after {
     animation: none;
   }

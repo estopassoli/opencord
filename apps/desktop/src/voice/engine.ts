@@ -183,6 +183,8 @@ export class VoiceEngine {
   private vadCtx: AudioContext | null = null;
   /** live nativa em andamento (ADR-0062): o processo `oc-live` publica como `<eu>:live` */
   private native: { audio: boolean; off: () => void } | null = null;
+  /** a prévia da própria live nativa precisa de um quadro agora (miniatura), mesmo com o app fora de foco */
+  private ownPulse = 0;
   private screen: {
     video: LocalVideoTrack;
     audio: LocalAudioTrack | null;
@@ -414,8 +416,33 @@ export class VoiceEngine {
           this.native &&
           liveOwner(p.identity) === room.localParticipant.identity &&
           !this.stopPreview
-        )
-          this.stopPreview = startPreviewSender(room, t.mediaStreamTrack, (img) => this.cb.onStreamPreview?.(img));
+        ) {
+          this.stopPreview = startPreviewSender(room, t.mediaStreamTrack, (img) => this.cb.onStreamPreview?.(img), {
+            fresh: async () => {
+              this.ownPulse++;
+              this.syncOwnPreview();
+              // a SFU volta a mandar a partir de um quadro-chave: espera um quadro novo (até 3 s)
+              await new Promise<void>((resolve) => {
+                const el = document.createElement('video');
+                el.muted = true;
+                el.srcObject = new MediaStream([t.mediaStreamTrack]);
+                const end = setTimeout(done, 3000);
+                function done() {
+                  clearTimeout(end);
+                  el.srcObject = null;
+                  resolve();
+                }
+                el.requestVideoFrameCallback(() => setTimeout(done, 200));
+                void el.play().catch(done);
+              });
+            },
+            done: () => {
+              this.ownPulse = Math.max(0, this.ownPulse - 1);
+              this.syncOwnPreview();
+            },
+          });
+          this.syncOwnPreview();
+        }
         emit();
       })
       .on(RoomEvent.TrackUnsubscribed, (t: RemoteTrack) => {
@@ -485,6 +512,23 @@ export class VoiceEngine {
     }
     pub.setSubscribed(isStream ? this.watching.has(owner ?? p.identity) || this.recordAll : true);
   }
+
+  /**
+   * Prévia da própria live nativa só com o OpenCord à vista (janela visível e em foco) ou na hora de tirar uma
+   * miniatura: com o app atrás do jogo, a SFU não manda o vídeo de volta e o WebView2 não decodifica 1080p60 à toa
+   * (medido: ~1,5 núcleo no processo da GPU e no da interface só com a prévia).
+   */
+  private syncOwnPreview = () => {
+    const room = this.room;
+    if (!room || !this.native) return;
+    const pub = room.remoteParticipants
+      .get(liveIdentity(room.localParticipant.identity))
+      ?.getTrackPublication(Track.Source.ScreenShare) as RemoteTrackPublication | undefined;
+    if (!pub?.isSubscribed) return;
+    const active = bridge?.windowActive ? bridge.windowActive.get() : document.hasFocus();
+    const wanted = (document.visibilityState === 'visible' && active) || this.ownPulse > 0;
+    if (pub.isEnabled !== wanted) pub.setEnabled(wanted);
+  };
 
   /** quem tem as trilhas da live de `identity`: o participante `<id>:live` (live nativa) ou a própria pessoa */
   private streamHolder(identity: string): RemoteParticipant | undefined {
@@ -869,7 +913,21 @@ export class VoiceEngine {
         audio: withAudio,
         cursor: !opts.hideCursor,
       });
-      this.native = { audio: r.audio, off };
+      const focus = () => this.syncOwnPreview();
+      window.addEventListener('focus', focus);
+      window.addEventListener('blur', focus);
+      document.addEventListener('visibilitychange', focus);
+      const offActive = bridge?.windowActive?.on(focus);
+      this.native = {
+        audio: r.audio,
+        off: () => {
+          off();
+          window.removeEventListener('focus', focus);
+          window.removeEventListener('blur', focus);
+          document.removeEventListener('visibilitychange', focus);
+          offActive?.();
+        },
+      };
       this.note(`live nativa: ${r.encoder}`);
     } catch (e) {
       off();

@@ -295,6 +295,14 @@ export interface OpenCordBridge {
     stop(): Promise<void>;
     onEvent(cb: (e: NativeLiveEvent) => void): () => void;
   };
+  /**
+   * Janela do app ativa no sistema (só no app em Tauri: no WebView2, `document.hasFocus()` não acompanha a ativação
+   * da janela). Sem isso, vale `document.hasFocus()`.
+   */
+  windowActive?: {
+    get(): boolean;
+    on(cb: (active: boolean) => void): () => void;
+  };
   /** replay dos clipes nativo (só no app em Tauri; o WebView2 abre o seletor de tela a cada captura) */
   nativeClips?: {
     /** responde com o tamanho do vídeo quando a gravação começou; erro `no-hw-encoder…` = sem H.264 na placa */

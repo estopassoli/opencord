@@ -31,6 +31,18 @@ pub const MAIN: &str = "main";
 /// Mesmas chaves do Chromium que o Electron liga (apps/desktop/electron/main/index.ts): voz e live não podem ser
 /// estranguladas com a janela escondida ou coberta por um jogo. As três primeiras features são as que o wry já
 /// desliga por padrão (passar argumentos substitui os dele).
+/// O user agent do WebView2 com "OpenCord/<versão>" no fim: a API reconhece o app desktop (a lista de aparelhos
+/// mostrava "Edge no Windows"), como faz com o Electron.
+pub fn user_agent(app: &AppHandle) -> String {
+  let edge = tauri::webview_version().unwrap_or_else(|_| "0.0.0.0".into());
+  let major = edge.split('.').next().unwrap_or("0");
+  format!(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.0.0 \
+     Safari/537.36 Edg/{edge} OpenCord/{}",
+    app.package_info().version
+  )
+}
+
 pub fn browser_args(gpu_off: bool) -> String {
   let mut a = String::from(
     "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion \
@@ -212,12 +224,34 @@ fn popout_window(
     .min_inner_size(480.0, 300.0)
     .background_color(tauri::window::Color(0, 0, 0, 0xff))
     .additional_browser_args(&browser_args(gpu_off))
+    .user_agent(&user_agent(app))
     .on_document_title_changed(|w, title| {
       let _ = w.set_title(if title.is_empty() || title == "about:blank" { "OpenCord — Transmissão" } else { &title });
     })
     .on_navigation(|u| u.as_str() == "about:blank")
     .on_new_window(|_, _| NewWindowResponse::Deny)
     .build()
+}
+
+/// Alt sozinho não abre o "modo menu" do Windows na janela: sem menu nenhum, ele só engolia a próxima tecla (digitar
+/// "oi" depois de um Alt dava "i") e travava o laço de mensagens até um Esc ou clique. Alt+Espaço continua abrindo o
+/// menu do sistema (o lParam traz a tecla) e Alt+Tab nem passa por aqui.
+#[cfg(windows)]
+fn block_alt_menu(w: &tauri::WebviewWindow) {
+  use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+  use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
+  use windows::Win32::UI::WindowsAndMessaging::{SC_KEYMENU, WM_SYSCOMMAND};
+  unsafe extern "system" fn proc(h: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _id: usize, _data: usize) -> LRESULT {
+    if msg == WM_SYSCOMMAND && (wp.0 & 0xFFF0) == SC_KEYMENU as usize && lp.0 == 0 {
+      return LRESULT(0);
+    }
+    unsafe { DefSubclassProc(h, msg, wp, lp) }
+  }
+  if let Ok(h) = w.hwnd() {
+    unsafe {
+      let _ = SetWindowSubclass(HWND(h.0), Some(proc), 0x0C41, 0);
+    }
+  }
 }
 
 fn create_main_window(app: &AppHandle, gpu_off: bool) -> tauri::Result<()> {
@@ -232,6 +266,7 @@ fn create_main_window(app: &AppHandle, gpu_off: bool) -> tauri::Result<()> {
     .visible(false)
     .background_color(tauri::window::Color(0x1b, 0x1d, 0x22, 0xff))
     .additional_browser_args(&browser_args(gpu_off))
+    .user_agent(&user_agent(app))
     .on_navigation(|u| is_app_url(u) || u.as_str() == "about:blank")
     .on_new_window(move |url, features| {
       // única janela filha: a transmissão desanexada (about:blank montada pela própria interface), numa janela do
@@ -253,6 +288,8 @@ fn create_main_window(app: &AppHandle, gpu_off: bool) -> tauri::Result<()> {
       }
     })
     .build()?;
+  #[cfg(windows)]
+  block_alt_menu(&w);
   let wc = w.clone();
   w.on_window_event(move |e| match e {
     // fechar a janela esconde na bandeja: a chamada continua
@@ -262,6 +299,11 @@ fn create_main_window(app: &AppHandle, gpu_off: bool) -> tauri::Result<()> {
     }
     WindowEvent::Resized(_) => {
       let _ = wc.emit_to(MAIN, "oc:window-state", serde_json::json!({ "maximized": wc.is_maximized().unwrap_or(false) }));
+    }
+    // ativação de verdade da janela no Windows (o document.hasFocus() do WebView2 continua true com outra janela na
+    // frente): a prévia da própria live nativa desliga com o app atrás do jogo
+    WindowEvent::Focused(f) => {
+      let _ = wc.emit_to(MAIN, "oc:window-focus", *f);
     }
     _ => {}
   });

@@ -281,9 +281,21 @@ fn should_auto_install(app: &AppHandle) -> bool {
   idle >= if visible { IDLE_VISIBLE_S } else { IDLE_HIDDEN_S }
 }
 
+fn clean_downloads() {
+  let root = std::env::temp_dir().join("opencord-update");
+  let Ok(entries) = std::fs::read_dir(&root) else { return };
+  for e in entries.flatten() {
+    // o instalador que acabou de rodar pode ainda estar preso: fica para a próxima
+    let _ = if e.path().is_dir() { std::fs::remove_dir_all(e.path()) } else { std::fs::remove_file(e.path()) };
+  }
+}
+
 /// verificação ao abrir (15 s), a cada 20 min, e instalação sozinha quando der
 pub fn start(app: AppHandle) {
   std::thread::spawn(move || {
+    // instaladores de versões anteriores (o atualizador do Electron deixava um por versão, ~120 MB cada, na mesma
+    // pasta; medido: 7,7 GB numa máquina): ao abrir, nada dali está em uso (o estado não sobrevive ao reinício)
+    clean_downloads();
     std::thread::sleep(FIRST_CHECK);
     let mut last = Instant::now() - CHECK_EVERY;
     loop {

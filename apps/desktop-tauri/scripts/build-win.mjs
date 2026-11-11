@@ -5,7 +5,7 @@
 // 3. no Windows: `cargo build --release` (padrão) ou, com --bundle, o instalador NSIS pelo CLI do Tauri.
 // Precisa no Windows: Rust (rustup, alvo x86_64-pc-windows-msvc) e Visual Studio Build Tools com o SDK do Windows.
 import { execFileSync, execSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,7 +23,10 @@ if (!skipVite) execSync('pnpm exec vite build', { cwd: root, stdio: 'inherit', e
 const win = (cmd) => execFileSync('cmd.exe', ['/c', cmd], { cwd: '/mnt/c', encoding: 'utf8' }).trim();
 const localAppData = win('echo %LOCALAPPDATA%');
 const profile = win('echo %USERPROFILE%');
-const stageWin = `${localAppData}\\OpenCordTauri\\src`;
+// TAURI_VARIANT=teste: cópia de teste (outra pasta, outro identificador e nome: dados e sessão separados do app de
+// verdade), para testar contra um servidor local
+const variant = process.env.TAURI_VARIANT ?? '';
+const stageWin = `${localAppData}\\OpenCordTauri\\${variant || 'src'}`;
 const stage = execFileSync('wslpath', ['-u', stageWin], { encoding: 'utf8' }).trim();
 
 mkdirSync(stage, { recursive: true });
@@ -32,12 +35,19 @@ cpSync(path.join(root, 'src-tauri'), path.join(stage, 'src-tauri'), {
   recursive: true,
   filter: (src) => !/[\\/](target|gen)([\\/]|$)/.test(src.slice(root.length)),
 });
+if (variant) {
+  const confFile = path.join(stage, 'src-tauri', 'tauri.conf.json');
+  const conf = JSON.parse(readFileSync(confFile, 'utf8'));
+  conf.identifier = `org.opencord.tauri.${variant}`;
+  conf.productName = `OpenCord ${variant}`;
+  writeFileSync(confFile, JSON.stringify(conf, null, 2));
+}
 rmSync(path.join(stage, 'dist'), { recursive: true, force: true });
 cpSync(path.join(root, 'dist'), path.join(stage, 'dist'), { recursive: true });
 mkdirSync(path.join(stage, 'resources'), { recursive: true });
 // Go Live nativo (ADR-0062): o oc-live.exe é compilado à parte (native/oc-live, no Windows)
 execFileSync('sh', [path.join(root, 'native/oc-live/build-win.sh')], { stdio: 'inherit' });
-cpSync(`${stage}/../oc-live/target/release/oc-live.exe`, path.join(stage, 'resources', 'oc-live.exe'));
+cpSync(`${path.dirname(stage)}/oc-live/target/release/oc-live.exe`, path.join(stage, 'resources', 'oc-live.exe'));
 for (const exe of ['oc-audio.exe', 'oc-input.exe']) {
   const src = path.join(root, '../desktop/resources/win', exe);
   if (!existsSync(src)) throw new Error(`${src} não existe: rode antes o build do apps/desktop (build-win-audio.mjs)`);
