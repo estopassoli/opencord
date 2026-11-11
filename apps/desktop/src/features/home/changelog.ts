@@ -24,6 +24,14 @@ export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) =>
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-11',
+    time: '02:00',
+    kind: 'melhoria',
+    icon: 'download',
+    title: 'Migramos de tecnologia no Windows',
+    body: 'No Windows, migramos de tecnologia: agora o app consome menos recursos e ficou mais leve. A sua live sai direto pela placa de vídeo, fora da janela do app, e leva só o som dos programas (sem as vozes da chamada). A troca é automática: você continua logado.',
+  },
+  {
     date: '2026-11-10',
     time: '10:00',
     kind: 'novo',
