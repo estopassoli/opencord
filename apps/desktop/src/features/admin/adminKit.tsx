@@ -3,7 +3,7 @@
  * chips de filtro e formatação. Tudo com classes `adm-*` (admin.css), acessível por teclado e sem `title` nativo.
  */
 import { Icon, type IconName } from '@opencord/ui';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Tooltip } from '../../components/Tooltip';
 import { describeError } from '../../store/session';
 import { useUi } from '../../store/ui';
@@ -220,6 +220,142 @@ export function BarChart({
           </Tooltip>
         );
       })}
+    </div>
+  );
+}
+
+/** Porcentagens inteiras que somam 100 (maior resto): 33/33/34 em vez de 33/33/33. */
+export function percents(values: readonly number[]): number[] {
+  const total = sum(values);
+  if (!total) return values.map(() => 0);
+  const raw = values.map((v) => (v / total) * 100);
+  const out = raw.map(Math.floor);
+  let left = 100 - sum(out);
+  for (const [, i] of raw.map((r, i) => [r - Math.floor(r), i] as const).sort((a, b) => b[0] - a[0])) {
+    if (left <= 0) break;
+    out[i] = (out[i] ?? 0) + 1;
+    left--;
+  }
+  return out;
+}
+const pctText = (p: number, v: number) => (p === 0 && v > 0 ? '<1%' : `${p}%`);
+
+export interface PieSlice {
+  id: string;
+  label: string;
+  value: number;
+  /** cor por papel (variável CSS), fixa por entidade */
+  color: string;
+  /** marca curta ao lado do nome na legenda ("mais recente") */
+  tag?: ReactNode;
+  /** linha extra no tooltip */
+  note?: ReactNode;
+}
+
+/** fatia de pizza de a0 a a1 (radianos, 0 = 12 h, sentido horário) */
+function arcPath(c: number, r: number, a0: number, a1: number) {
+  const x = (a: number) => (c + r * Math.sin(a)).toFixed(2);
+  const y = (a: number) => (c - r * Math.cos(a)).toFixed(2);
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  return `M${c},${c} L${x(a0)},${y(a0)} A${r},${r} 0 ${large} 1 ${x(a1)},${y(a1)} Z`;
+}
+
+/**
+ * Pizza com legenda (nome, % e total à vista, para não depender só da cor) e tooltip ao passar o mouse na fatia;
+ * a fatia sob o mouse (ou a linha da legenda) fica em destaque e as outras esmaecem.
+ */
+export function PieChart({
+  slices,
+  unit,
+  label,
+  size = 148,
+}: {
+  slices: readonly PieSlice[];
+  /** [singular, plural] */
+  unit: [string, string];
+  label: string;
+  size?: number;
+}) {
+  const [active, setActive] = useState<string | null>(null);
+  const total = sum(slices.map((s) => s.value));
+  const pcts = percents(slices.map((s) => s.value));
+  const c = size / 2;
+  const r = c - 1;
+  const amount = (v: number) => `${nf(v)} ${v === 1 ? unit[0] : unit[1]}`;
+  const summary = slices.map((s, i) => `${s.label} ${pctText(pcts[i] ?? 0, s.value)}`).join(', ');
+  let acc = 0;
+  return (
+    <div className="adm-pie">
+      <svg
+        className="adm-pie-svg"
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        role="img"
+        aria-label={`${label}: ${summary}`}
+      >
+        {slices.map((s, i) => {
+          const a0 = (acc / total) * 2 * Math.PI;
+          acc += s.value;
+          const a1 = (acc / total) * 2 * Math.PI;
+          // o tooltip sai do meio da fatia, não do topo da caixa dela (que numa fatia grande é a pizza inteira)
+          const mid = (a0 + a1) / 2;
+          const k = slices.length === 1 ? 0 : 0.6;
+          const at = (el: Element) => {
+            const box = ((el as SVGElement).ownerSVGElement ?? el).getBoundingClientRect();
+            const scale = box.width / size;
+            return new DOMRect(
+              box.left + (c + k * r * Math.sin(mid)) * scale,
+              box.top + (c - k * r * Math.cos(mid)) * scale,
+              0,
+              0,
+            );
+          };
+          const tip = (
+            <span className="adm-pie-tip">
+              <strong>{s.label}</strong>
+              <span>
+                {pctText(pcts[i] ?? 0, s.value)} · {amount(s.value)}
+              </span>
+              {s.note && <span className="muted small">{s.note}</span>}
+            </span>
+          );
+          const common = {
+            className: 'adm-pie-slice',
+            fill: s.color,
+            'data-dim': (active !== null && active !== s.id) || undefined,
+            onMouseEnter: () => setActive(s.id),
+            onMouseLeave: () => setActive(null),
+          };
+          return (
+            <Tooltip key={s.id} label={tip} at={at}>
+              {slices.length === 1 ? (
+                <circle cx={c} cy={c} r={r} {...common} />
+              ) : (
+                <path d={arcPath(c, r, a0, a1)} {...common} />
+              )}
+            </Tooltip>
+          );
+        })}
+      </svg>
+      <ul className="adm-pie-legend" aria-label={`Legenda: ${label}`}>
+        {slices.map((s, i) => (
+          <li
+            key={s.id}
+            data-active={active === s.id || undefined}
+            onMouseEnter={() => setActive(s.id)}
+            onMouseLeave={() => setActive(null)}
+          >
+            <span className="adm-pie-swatch" style={{ background: s.color }} aria-hidden />
+            <span className="adm-pie-name">
+              <span className="truncate">{s.label}</span>
+              {s.tag}
+            </span>
+            <span className="adm-num adm-pie-pct">{pctText(pcts[i] ?? 0, s.value)}</span>
+            <span className="muted small adm-num adm-pie-n">{nf(s.value)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

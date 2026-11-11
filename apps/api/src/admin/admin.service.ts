@@ -13,7 +13,7 @@ import type {
   UpdateInstanceConfigRequest,
 } from '@opencord/contracts';
 import type { z } from 'zod';
-import { rooms } from '@opencord/contracts';
+import { APP_VERSION_DAYS, appVersionOf, describeDevice, rooms } from '@opencord/contracts';
 import type { Prisma } from '@opencord/db';
 import { AuditService } from '../audit/audit.service.js';
 import { TokenService } from '../auth/token.service.js';
@@ -58,10 +58,20 @@ const USER_SELECT = {
   sessions: {
     orderBy: { createdAt: 'desc' },
     take: 1,
-    select: { createdAt: true, rotatedAt: true },
+    select: { createdAt: true, rotatedAt: true, userAgent: true },
   },
 } satisfies Prisma.UserSelect;
 type UserRow = Prisma.UserGetPayload<{ select: typeof USER_SELECT }>;
+
+/** Pessoas por versão do app, a partir do user agent da sessão mais recente de cada uma (agrupado por user agent). */
+export function appVersionShares(rows: readonly { ua: string | null; n: number }[]) {
+  const by = new Map<string | null, number>();
+  for (const r of rows) {
+    const v = appVersionOf(r.ua);
+    by.set(v, (by.get(v) ?? 0) + r.n);
+  }
+  return [...by].map(([version, users]) => ({ version, users })).sort((a, b) => b.users - a.users);
+}
 
 /**
  * Painel do super admin (ADR-0020): números da instância, usuários (suspender, encerrar sessões, promover),
@@ -129,7 +139,8 @@ export class AdminService {
       }
       return out;
     };
-    const [msgRows, userRows, serverRows, pendingModeration, deviceBans] = await Promise.all([
+    const versionsSince = new Date(now - APP_VERSION_DAYS * DAY_MS);
+    const [msgRows, userRows, serverRows, pendingModeration, deviceBans, uaRows] = await Promise.all([
       this.prisma.$queryRaw<{ day: number; n: number }[]>`
         SELECT floor(extract(epoch FROM "createdAt") / 86400)::int AS day, count(*)::int AS n
           FROM "Message" WHERE "createdAt" >= ${since} AND "deletedAt" IS NULL GROUP BY 1`,
@@ -141,6 +152,14 @@ export class AdminService {
           FROM "Server" WHERE "createdAt" >= ${since} GROUP BY 1`,
       this.prisma.moderationCase.count({ where: { status: 'pending' } }),
       this.prisma.deviceBan.count(),
+      // cada refresh cria uma sessão com o user agent da hora: a mais recente diz a versão em uso
+      this.prisma.$queryRaw<{ ua: string | null; n: number }[]>`
+        SELECT t.ua, count(*)::int AS n FROM (
+          SELECT DISTINCT ON (s."userId") s."userAgent" AS ua
+            FROM "Session" s JOIN "User" u ON u."id" = s."userId"
+           WHERE s."createdAt" >= ${versionsSince} AND u."deletedAt" IS NULL
+           ORDER BY s."userId", s."createdAt" DESC
+        ) t GROUP BY 1`,
     ]);
     return {
       users,
@@ -156,6 +175,7 @@ export class AdminService {
       serversDaily: daily(serverRows),
       pendingModeration,
       deviceBans,
+      appVersions: appVersionShares(uaRows),
     };
   }
 
@@ -188,6 +208,8 @@ export class AdminService {
       activeSessions,
       lastSeenAt: lastSeen?.toISOString() ?? null,
       online: ctx.online.has(r.id),
+      appVersion: appVersionOf(last?.userAgent),
+      device: last ? describeDevice(last.userAgent) : null,
     };
   }
 

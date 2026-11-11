@@ -313,6 +313,11 @@ export function describeDevice(ua: string | null | undefined): string {
   return os ? `${app} no ${os}` : app;
 }
 
+/** "0.3.4" do user agent do app desktop (o Electron e o Tauri terminam com "OpenCord/<versão>"); null no navegador. */
+export function appVersionOf(ua: string | null | undefined): string | null {
+  return ua ? (/OpenCord\/(\d+\.\d+\.\d+)/.exec(ua)?.[1] ?? null) : null;
+}
+
 /** IP só com o começo: 189.40.12.* / 2804:14c:65* */
 export function maskIp(ip: string | null | undefined): string | null {
   if (!ip) return null;
@@ -2139,8 +2144,15 @@ export const AdminStats = z.object({
   pendingModeration: z.number().int().optional(),
   /** aparelhos/IPs bloqueados */
   deviceBans: z.number().int().optional(),
+  /**
+   * versão do app de cada pessoa que entrou nos últimos APP_VERSION_DAYS dias, pela sessão mais recente
+   * (version null = navegador ou outro programa sem a versão no user agent)
+   */
+  appVersions: z.array(z.object({ version: z.string().nullable(), users: z.number().int() })).optional(),
 });
 export type AdminStats = z.infer<typeof AdminStats>;
+/** janela das versões em uso do painel (AdminStats.appVersions) */
+export const APP_VERSION_DAYS = 30;
 
 export const AdminUser = UserPublic.extend({
   email: z.string().nullable(),
@@ -2156,6 +2168,10 @@ export const AdminUser = UserPublic.extend({
   activeSessions: z.number().int(),
   lastSeenAt: IsoDate.nullable(),
   online: z.boolean(),
+  /** versão do app na sessão mais recente ("0.3.4"); null = navegador ou nunca entrou (opcional: API antiga) */
+  appVersion: z.string().nullable().optional(),
+  /** aparelho da sessão mais recente: "App OpenCord no Windows", "Chrome no Mac"… */
+  device: z.string().nullable().optional(),
 });
 export type AdminUser = z.infer<typeof AdminUser>;
 

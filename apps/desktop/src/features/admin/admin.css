@@ -660,6 +660,90 @@ button.adm-kpi:focus-visible {
   border-radius: inherit;
   background: var(--brand);
 }
+/* ---------- pizza (versões do app) ----------
+ * Cores categóricas validadas (contraste, daltonismo e separação entre vizinhas) sobre o cartão --elevated:
+ * 1–4 são as versões, da mais nova para a mais antiga; 5 é sempre o navegador; "outras" é cinza. */
+.adm-versions {
+  --adm-series-1: #3987e5;
+  --adm-series-2: #d95926;
+  --adm-series-3: #199e70;
+  --adm-series-4: #c98500;
+  --adm-series-5: #d55181;
+  --adm-series-other: var(--text-muted);
+}
+:root[data-theme='light'] .adm-versions {
+  --adm-series-1: #2a78d6;
+  --adm-series-2: #eb6834;
+  --adm-series-3: #1baf7a;
+  --adm-series-4: #eda100;
+  --adm-series-5: #e87ba4;
+}
+.adm-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px 20px;
+}
+.adm-pie-svg {
+  flex: none;
+  overflow: visible;
+}
+.adm-pie-slice {
+  /* o contorno na cor do cartão abre 2px entre as fatias */
+  stroke: var(--elevated);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.adm-pie-slice[data-dim] {
+  opacity: 0.35;
+}
+.adm-pie-legend {
+  flex: 1 1 160px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.adm-pie-legend > li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto 3.2em;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.adm-pie-legend > li[data-active] {
+  background: var(--interactive);
+}
+.adm-pie-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.adm-pie-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text);
+}
+.adm-pie-pct {
+  font-weight: 700;
+  color: var(--text);
+}
+.adm-pie-n {
+  text-align: right;
+}
+.adm-pie-tip {
+  display: grid;
+  gap: 2px;
+}
 .adm-people {
   display: grid;
   gap: 10px;
@@ -1204,6 +1288,10 @@ button.adm-kpi:focus-visible {
   .adm-side-status .adm-dot,
   .adm-skel {
     animation: none;
+  }
+  .adm-pie-slice,
+  .adm-pie-legend > li {
+    transition: none;
   }
 }
 

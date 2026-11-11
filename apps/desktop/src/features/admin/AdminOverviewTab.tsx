@@ -1,9 +1,10 @@
-import type {
-  AdminAuditPage,
-  AdminInstanceConfig,
-  AdminServerEntry,
-  AdminStats,
-  AdminUserPage,
+import {
+  APP_VERSION_DAYS,
+  type AdminAuditPage,
+  type AdminInstanceConfig,
+  type AdminServerEntry,
+  type AdminStats,
+  type AdminUserPage,
 } from '@opencord/contracts';
 import { Avatar, Button, Icon } from '@opencord/ui';
 import { useEffect, useState } from 'react';
@@ -20,6 +21,7 @@ import {
   KpiGrid,
   Loading,
   MB,
+  PieChart,
   Pill,
   RankList,
   ago,
@@ -28,6 +30,7 @@ import {
   series14,
   sum,
 } from './adminKit';
+import { compareVersions, referenceVersion, useLatestRelease, versionSlices } from './versions';
 
 /** Visão geral: números agora, séries de 14 dias, ranking, contas novas, estado da instância e atividade recente. */
 export function AdminOverviewTab({ stats, onTab }: { stats: AdminStats | null; onTab: (t: AdminTab) => void }) {
@@ -35,6 +38,7 @@ export function AdminOverviewTab({ stats, onTab }: { stats: AdminStats | null; o
   const [users, setUsers] = useState<AdminUserPage | null>(null);
   const [audit, setAudit] = useState<AdminAuditPage | null>(null);
   const [cfg, setCfg] = useState<AdminInstanceConfig | null>(null);
+  const release = useLatestRelease();
 
   useEffect(() => {
     // cada cartão carrega sozinho: um que falhe não derruba os outros
@@ -223,8 +227,10 @@ export function AdminOverviewTab({ stats, onTab }: { stats: AdminStats | null; o
           )}
         </Card>
 
+        <VersionsCard stats={stats} latest={referenceVersion(release, stats.appVersions)} onTab={onTab} />
+
         <Card
-          className="adm-span-12"
+          className="adm-span-8"
           title="Atividade recente"
           sub="ações de super admin"
           actions={
@@ -265,5 +271,58 @@ export function AdminOverviewTab({ stats, onTab }: { stats: AdminStats | null; o
         </Card>
       </div>
     </div>
+  );
+}
+
+/** Pizza com a versão do app de quem entrou nos últimos 30 dias (pela sessão mais recente de cada pessoa). */
+function VersionsCard({
+  stats,
+  latest,
+  onTab,
+}: {
+  stats: AdminStats;
+  latest: string | null;
+  onTab: (t: AdminTab) => void;
+}) {
+  const slices = versionSlices(stats.appVersions ?? [], latest);
+  const people = sum(slices.map((s) => s.value));
+  return (
+    <Card
+      className="adm-span-4 adm-versions"
+      title="Versões do app"
+      sub={`Quem entrou nos últimos ${APP_VERSION_DAYS} dias · ${nf(people)} ${people === 1 ? 'pessoa' : 'pessoas'}`}
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => onTab('users')}>
+          Ver pessoas
+        </Button>
+      }
+    >
+      {!stats.appVersions ? (
+        <p className="muted small adm-empty">O servidor ainda não informa as versões.</p>
+      ) : slices.length === 0 ? (
+        <p className="muted small adm-empty">Ninguém entrou nos últimos {APP_VERSION_DAYS} dias.</p>
+      ) : (
+        <PieChart
+          label="Pessoas por versão do app"
+          unit={['pessoa', 'pessoas']}
+          slices={slices.map((s) => ({
+            id: s.id,
+            label: s.label,
+            value: s.value,
+            color: s.color,
+            tag: s.latest ? <Pill tone="success">mais recente</Pill> : undefined,
+            note: s.folded
+              ? `${s.folded.slice(0, 6).join(', ')}${s.folded.length > 6 ? '…' : ''}`
+              : s.id === 'web'
+                ? 'sem o app instalado'
+                : s.latest
+                  ? 'versão mais recente'
+                  : latest && compareVersions(s.label, latest) < 0
+                    ? `desatualizada (a mais recente é ${latest})`
+                    : undefined,
+          }))}
+        />
+      )}
+    </Card>
   );
 }

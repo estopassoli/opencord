@@ -57,3 +57,20 @@ Status: Accepted (pedido do mantenedor, 2026-10-30)
   - encerrar sessões;
   - cadastro fechado, aviso e limite de upload;
   - os filtros da auditoria.
+
+## Adendo (2026-11-11): versão do app de cada pessoa
+- **Origem:** o user agent da sessão, já gravado em cada login e em cada refresh (a cada ~15 min com o app aberto).
+  - O Electron e o app em Tauri terminam o user agent com `OpenCord/<versão>`.
+  - `appVersionOf` (contracts) lê a versão; o navegador não tem versão.
+  - **Sem migração:** nada novo no banco.
+- **Lista de usuários:** `AdminUser.appVersion` e `device` vêm da sessão mais recente.
+  - A coluna "Versão" fica verde na mais recente e amarela quando está desatualizada.
+  - O tooltip mostra o aparelho.
+- **Visão geral:** `AdminStats.appVersions` conta as pessoas que entraram nos últimos 30 dias, pela sessão mais recente de cada uma.
+  - O cartão "Versões do app" mostra uma pizza com legenda (nome, % e total) e tooltip por fatia.
+  - Até 4 versões ganham fatia própria; o resto vai para "Outras versões", e o navegador fica à parte.
+- **Referência de "mais recente":** a maior entre a publicada em `/downloads/desktop` e a mais nova em uso.
+- **Limite:** quem nunca renovou a sessão desde a instalação aparece com a versão da última sessão.
+- **Evidência:**
+  - `admin.int.test.ts`: o refresh com o user agent do Tauri 0.3.4 aparece na lista e na contagem.
+  - `apps/desktop/test/admin-versions.test.ts`: leitura do user agent, fatias e porcentagens que somam 100.

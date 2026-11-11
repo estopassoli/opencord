@@ -24,6 +24,7 @@ import {
   nf,
   toastError,
 } from './adminKit';
+import { compareVersions, referenceVersion, useLatestRelease } from './versions';
 
 /** Usuários do painel admin: KPIs, busca, filtros e tabela com ações (menu na linha, botão direito ou "⋯"). */
 type UserFilter = 'all' | 'admins' | 'suspended';
@@ -35,6 +36,7 @@ export function AdminUsersTab({ stats }: { stats: AdminStats | null }) {
   const [page, setPage] = useState<AdminUserPage | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [badgesFor, setBadgesFor] = useState<AdminUser | null>(null);
+  const latest = referenceVersion(useLatestRelease(), stats?.appVersions);
 
   const fetchPage = useCallback(
     (cursor?: string) => {
@@ -255,6 +257,9 @@ export function AdminUsersTab({ stats }: { stats: AdminStats | null }) {
                     Contato
                   </th>
                   <th scope="col">Situação</th>
+                  <th scope="col" className="adm-hide-sm">
+                    Versão
+                  </th>
                   <th scope="col" className="adm-num-col adm-hide-sm">
                     Servidores
                   </th>
@@ -309,6 +314,9 @@ export function AdminUsersTab({ stats }: { stats: AdminStats | null }) {
                         )}
                       </span>
                     </td>
+                    <td className="adm-hide-sm adm-nowrap">
+                      <AppVersion user={u} latest={latest} />
+                    </td>
                     <td className="adm-num-col adm-hide-sm">
                       <span className="adm-num">{nf(u.serverCount)}</span>
                     </td>
@@ -346,5 +354,30 @@ export function AdminUsersTab({ stats }: { stats: AdminStats | null }) {
       )}
       {badgesFor && <UserBadgesDialog user={badgesFor} onClose={() => setBadgesFor(null)} onSaved={replace} />}
     </div>
+  );
+}
+
+/** Versão do app na sessão mais recente; o tooltip diz o aparelho e se está desatualizada. */
+function AppVersion({ user: u, latest }: { user: AdminUser; latest: string | null }) {
+  if (u.appVersion === undefined) return <span className="muted">—</span>; // API antiga
+  if (!u.appVersion)
+    return u.device ? (
+      <Tooltip label={u.device}>
+        <span className="muted" tabIndex={0}>
+          navegador
+        </span>
+      </Tooltip>
+    ) : (
+      <span className="muted">—</span>
+    );
+  const cmp = latest ? compareVersions(u.appVersion, latest) : 0;
+  const state = !latest ? '' : cmp >= 0 ? 'versão mais recente' : `desatualizada (a mais recente é ${latest})`;
+  return (
+    <Tooltip label={[u.device ?? 'App OpenCord', state].filter(Boolean).join(' · ')}>
+      <span className="adm-version" tabIndex={0}>
+        <Pill tone={!latest ? 'neutral' : cmp >= 0 ? 'success' : 'warning'}>{u.appVersion}</Pill>
+        {state && <span className="oc-visually-hidden"> ({state})</span>}
+      </span>
+    </Tooltip>
   );
 }

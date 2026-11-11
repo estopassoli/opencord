@@ -19,10 +19,13 @@ interface TriggerProps {
 export function Tooltip({
   label,
   side = 'top',
+  at,
   children,
 }: {
   label: ReactNode;
   side?: Side;
+  /** ponto/retângulo de ancoragem no lugar da caixa do gatilho (ex.: o meio de uma fatia de pizza) */
+  at?: (el: Element) => DOMRect;
   children: ReactElement<TriggerProps>;
 }) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
@@ -35,7 +38,7 @@ export function Tooltip({
   const show = (el: Element) => {
     anchorEl.current = el;
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setAnchor(el.getBoundingClientRect()), 120);
+    timer.current = setTimeout(() => setAnchor(at ? at(el) : el.getBoundingClientRect()), 120);
   };
   const hide = () => {
     if (timer.current) clearTimeout(timer.current);

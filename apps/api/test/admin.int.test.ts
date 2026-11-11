@@ -72,6 +72,35 @@ describe('painel do super admin', () => {
     expect(admins.body.users.map((u) => u.id)).toEqual([owner.id]);
   });
 
+  it('versão do app de cada pessoa pela sessão mais recente, e a contagem por versão', async () => {
+    const { owner, alice } = await setup();
+    // o refresh cria a sessão nova com o user agent da hora: o app em Tauri termina com "OpenCord/<versão>"
+    const ua =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36 Edg/157.0.4341.46 OpenCord/0.3.4';
+    const r = await http.req('POST', '/auth/refresh', {
+      body: { refreshToken: alice.refresh },
+      headers: { 'user-agent': ua },
+    });
+    expect(r.status).toBe(200);
+
+    const page = await http.req<AdminUserPage>('GET', '/admin/users', { token: owner.token });
+    expect(page.body.users.find((u) => u.id === alice.id)).toMatchObject({
+      appVersion: '0.3.4',
+      device: 'App OpenCord no Windows',
+    });
+    // o dono entrou pelo inject, sem a versão no user agent
+    expect(page.body.users.find((u) => u.id === owner.id)?.appVersion).toBeNull();
+
+    const stats = await http.req<AdminStats>('GET', '/admin/stats', { token: owner.token });
+    expect(stats.body.appVersions).toEqual(
+      expect.arrayContaining([
+        { version: '0.3.4', users: 1 },
+        { version: null, users: 1 },
+      ]),
+    );
+    expect(stats.body.appVersions).toHaveLength(2);
+  });
+
   it('suspender derruba as sessões e impede o login; reativar devolve o acesso', async () => {
     const { owner, alice } = await setup();
     const s = await http.req<AdminUser>('POST', `/admin/users/${alice.id}/suspend`, {
