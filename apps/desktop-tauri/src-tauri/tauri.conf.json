@@ -25,7 +25,11 @@
     },
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
-      "nsis": { "installMode": "currentUser", "languages": ["PortugueseBR"] }
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["PortugueseBR"],
+        "installerHooks": "./installer-hooks.nsh"
+      }
     }
   }
 }

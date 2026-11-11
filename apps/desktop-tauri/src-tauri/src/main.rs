@@ -10,8 +10,10 @@
 mod aux_windows;
 mod clips;
 mod live;
+mod migrate;
 mod sidecar;
 mod sys;
+mod updater;
 
 use serde::Deserialize;
 use std::sync::Mutex;
@@ -140,14 +142,51 @@ fn open_external(app: AppHandle, url: String) -> Result<(), String> {
 fn relaunch(app: AppHandle) {
   live::stop_all(&app);
   sidecar::stop_all(&app);
-  app.restart();
+  // não usa app.restart(): ele abre a instância nova antes de esta sair, e o WebView2 desta (com os argumentos
+  // antigos, ex.: a placa de vídeo) e a trava de instância única ainda estão de pé. A nova espera esta terminar.
+  if let Ok(exe) = std::env::current_exe() {
+    let _ = std::process::Command::new(exe).args([RELAUNCH_AFTER, &std::process::id().to_string()]).spawn();
+  }
+  app.exit(0);
+}
+
+const RELAUNCH_AFTER: &str = "--relaunch-after";
+
+/// Aberto por `relaunch`: espera a instância anterior (e o WebView2 dela) sair, até 15 s, antes de começar.
+fn wait_previous_instance() {
+  let args: Vec<String> = std::env::args().collect();
+  let Some(pid) = args.iter().position(|a| a == RELAUNCH_AFTER).and_then(|i| args.get(i + 1)).and_then(|p| p.parse::<u32>().ok())
+  else {
+    return;
+  };
+  let mut s = sysinfo::System::new();
+  let target = sysinfo::Pid::from_u32(pid);
+  for _ in 0..150 {
+    s.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[target]), true);
+    if s.process(target).is_none() {
+      break;
+    }
+    std::thread::sleep(std::time::Duration::from_millis(100));
+  }
+  // o processo do WebView2 sai logo depois do app que o abriu
+  std::thread::sleep(std::time::Duration::from_millis(800));
 }
 
 #[tauri::command]
 fn quit_app(app: AppHandle) {
-  live::stop_all(&app);
-  sidecar::stop_all(&app);
+  shutdown(&app);
+}
+
+/// encerra de vez: a live e os auxiliares param antes (sem deixar processo órfão)
+pub fn shutdown(app: &AppHandle) {
+  live::stop_all(app);
+  sidecar::stop_all(app);
   app.exit(0);
+}
+
+/// em chamada (o tray recebe o estado da interface): o atualizador não instala sozinho
+pub fn in_voice(app: &AppHandle) -> bool {
+  app.state::<AppState>().voice.lock().map(|v| v.in_voice).unwrap_or(true)
 }
 
 /// A página do próprio app (produção: http://tauri.localhost; desenvolvimento: o Vite).
@@ -230,6 +269,14 @@ fn create_main_window(app: &AppHandle, gpu_off: bool) -> tauri::Result<()> {
 }
 
 fn main() {
+  // diagnóstico da migração do Electron (sem segredos): o resultado vai para %TEMP%\opencord-migration-check.txt
+  if std::env::args().any(|a| a == "--migration-check") {
+    let _ = std::fs::write(std::env::temp_dir().join("opencord-migration-check.txt"), migrate::check_report());
+    return;
+  }
+  wait_previous_instance();
+  // quem vem do app Electron continua logado e com as mesmas preferências (uma vez, antes de abrir a janela)
+  migrate::from_electron();
   let gpu_off = sys::read_prefs_raw().map(|p| p.gpu_mode == "off").unwrap_or(false);
   let app = tauri::Builder::default()
     .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
@@ -254,9 +301,11 @@ fn main() {
     .manage(AppState { voice: Mutex::new(VoiceState::default()), gpu_off_active: gpu_off })
     .manage(sidecar::Sidecars::default())
     .manage(live::Live::default())
+    .manage(updater::Updater::default())
     .setup(move |app| {
       let handle = app.handle().clone();
       create_main_window(&handle, gpu_off)?;
+      updater::start(handle.clone());
       let icon = Image::from_bytes(include_bytes!("../icons/tray.png"))?;
       TrayIconBuilder::with_id("main")
         .icon(icon)
@@ -315,6 +364,10 @@ fn main() {
       clips::clips_reveal,
       clips::clips_copy,
       clips::clips_export,
+      updater::update_status,
+      updater::update_check,
+      updater::update_install,
+      updater::update_game_running,
       live::live_sources,
       live::live_start,
       live::live_stop,
@@ -337,6 +390,8 @@ fn main() {
     .expect("erro ao iniciar o OpenCord");
   app.run(|app, e| {
     if let RunEvent::Exit = e {
+      // atualização pronta: instala em silêncio ao encerrar (a próxima abertura já é a versão nova)
+      updater::install_on_quit(app);
       live::stop_all(app);
       sidecar::stop_all(app);
     }

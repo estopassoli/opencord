@@ -98,3 +98,31 @@ A voz da chamada, a câmera, quem assiste às lives e toda a interface. Mover a 
   primeiro, então os seguintes levam o último cabeçalho visto (sem isso, a SFU pedia quadro-chave a cada segundo).
 - Ainda não medido: 1440p60 com jogo aberto, o Go Live do Electron na mesma máquina para comparar, o áudio do
   sistema pelo `oc-audio`, placas AMD/Intel e máquina sem encoder de hardware.
+
+## Adendo (2026-11-11): migração automática do Electron para o Tauri (preparada, desligada)
+Pedido do mantenedor: quem tem o app Electron instalado passa para o Tauri **sem baixar instalador novo**, na versão
+0.3.0 (a tela mostra "0.3.0-tauri"). Decisão do mantenedor: deixar tudo pronto e só ligar depois de resolver os
+clipes nativos e o vazamento das vozes no áudio da live.
+- **Versão:** o atualizador do Electron só entende `x.y.z` (`isNewer`); o instalador sai como `0.3.<n>` e o app em
+  Tauri exibe `<versão>-tauri` (`sys.rs`, `app_info`).
+- **Entrega:** o mesmo caminho de hoje (ADR-0051). Com a variável `TAURI_WINDOWS=1` (e `TAURI_FIRST_RUN` = o run da
+  primeira versão), o CI gera o Windows pelo Tauri (`windows-tauri`, `scripts/build-ci.mjs`) com o nome
+  `OpenCord-Setup-<versão>-x64.exe`; macOS e Linux seguem no Electron. O atualizador do Electron baixa, confere o
+  SHA-256 e executa como se fosse uma versão sua.
+- **Instalador** (`installer-hooks.nsh`): antes de instalar, fecha o `OpenCord.exe` (Electron) e roda o desinstalador
+  dele em silêncio (os atalhos "OpenCord" saem antes de o novo criá-los; os dados ficam); depois, com `--force-run`
+  (o que o atualizador do Electron passa no modo ocioso/"atualizar agora"), abre o app novo.
+- **Dados** (`migrate.rs`, uma vez, antes da janela): os segredos do Electron (`serverUrl`, `session`) são decifrados
+  (`safeStorage` = `os_crypt` do Chromium: AES-256-GCM `v10` com a chave do `Local State` protegida pela DPAPI) e
+  gravados no cofre do Tauri; `app-prefs.json` (placa de vídeo) e `clips-dir.json` vêm junto. Só se o Tauri ainda
+  não tem sessão. Não migram: o que a interface guardava no `localStorage` do Electron (preferências locais de tela,
+  jogo, etc.) e fixações na barra de tarefas (o atalho fixado aponta para o exe antigo).
+- **Atualizações seguintes** (`updater.rs`): o Tauri tem o próprio atualizador com as regras do Electron (mesma
+  origem, https, tamanho e SHA-256; instala ao encerrar, ocioso fora de chamada/jogo ou em "atualizar agora").
+- **Placa de vídeo:** "Sem aceleração" vira `--disable-gpu` no WebView2 e exige reiniciar; o reinício espera a
+  instância anterior sair (o `app.restart()` abria a nova com o WebView2 antigo de pé). A sua live nativa continua
+  na placa (processo à parte); o texto da opção diz isso.
+- **Evidências:** `cargo test` 3/3 (versão `x.y.z`, URL confiável, decifrar `v10`); `--migration-check` na máquina do
+  mantenedor decifrou `serverUrl` e `session` do Electron; build e instalador no Windows. **Falta:** o teste de ponta
+  a ponta (Electron instalado → atualização → Tauri logado), o CI do `windows-tauri` rodando de verdade e o gate de
+  mídia.

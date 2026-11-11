@@ -30,7 +30,7 @@ fn check_key(key: &str) -> Result<(), String> {
 }
 
 #[cfg(windows)]
-mod dpapi {
+pub mod dpapi {
   use windows::Win32::Foundation::{LocalFree, HLOCAL};
   use windows::Win32::Security::Cryptography::{
     CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
@@ -80,14 +80,17 @@ fn secure_save(app: &AppHandle, data: &Map<String, Value>) -> Result<(), String>
   fs::rename(tmp, f).map_err(|e| e.to_string())
 }
 
+/// lê um segredo direto (sem passar pela interface): o atualizador usa o `serverUrl`
+pub fn secure_read(app: &AppHandle, key: &str) -> Option<String> {
+  let enc = secure_load(app).get(key).and_then(|v| v.as_str().map(String::from))?;
+  let raw = B64.decode(enc).ok()?;
+  dpapi::unprotect(&raw).ok().and_then(|v| String::from_utf8(v).ok())
+}
+
 #[tauri::command]
 pub fn secure_get(app: AppHandle, key: String) -> Result<Option<String>, String> {
   check_key(&key)?;
-  let Some(enc) = secure_load(&app).get(&key).and_then(|v| v.as_str().map(String::from)) else {
-    return Ok(None);
-  };
-  let Ok(raw) = B64.decode(enc) else { return Ok(None) };
-  Ok(dpapi::unprotect(&raw).ok().and_then(|v| String::from_utf8(v).ok()))
+  Ok(secure_read(&app, &key))
 }
 
 #[tauri::command]
@@ -218,6 +221,9 @@ fn kind_of(s: &System, pid: Pid) -> String {
   let name = p.name().to_string_lossy().to_lowercase();
   if name.starts_with("oc-audio") || name.starts_with("oc-input") {
     return "Auxiliar nativo".into();
+  }
+  if name.starts_with("oc-live") {
+    return "Live".into();
   }
   let ty = p
     .cmd()

@@ -209,6 +209,8 @@ const games = {
   set(g: DetectedGame | null) {
     if (sameGame(g, this.current)) return;
     this.current = g ? { ...g, startedAt: Date.now() } : null;
+    // o atualizador não instala sozinho com jogo aberto
+    void invoke('update_game_running', { running: g !== null }).catch(() => undefined);
     fire('game', this.current);
   },
   configure(enabled: boolean, custom: CustomGame[]) {
@@ -305,12 +307,9 @@ const bridge: OpenCordBridge = {
   appInfo: () => invoke<AppInfo>('app_info'),
   hardwareId: () => invoke<string | null>('hardware_id'),
   appMetrics: () => invoke<ProcessMetric[]>('app_metrics'),
-  rendererMemory: async () => {
-    // o WebView2 não dá as estatísticas do Blink; o heap JS vem do performance.memory do Chromium
-    const m = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
-    const mb = (b: number) => Math.round(b / (1024 * 1024));
-    return { heap: m ? mb(m.usedJSHeapSize) : 0, external: 0, blink: 0, privateMb: 0 };
-  },
+  // o WebView2 não dá as estatísticas do Blink nem a memória privada da interface: sem números inventados (a tela
+  // esconde essas linhas; o heap JS ela mesma lê)
+  rendererMemory: () => Promise.reject(new Error('indisponível no WebView2')),
   openExternal: (url) => invoke('open_external', { url: ExternalUrl.parse(url) }),
   prefs: {
     get: () => invoke<AppPrefsState>('prefs_get'),
@@ -411,10 +410,11 @@ const bridge: OpenCordBridge = {
     },
   },
   reportError: (report) => invoke('report_error', { report: ErrorReport.parse(report) }),
+  // atualização automática (ADR-0051, no Rust: updater.rs)
   updates: {
-    status: async (): Promise<UpdateStatus> => ({ state: 'idle' }),
-    check: async (): Promise<UpdateStatus> => ({ state: 'idle' }),
-    install: async () => undefined,
+    status: () => invoke<UpdateStatus>('update_status'),
+    check: () => invoke<UpdateStatus>('update_check'),
+    install: () => invoke('update_install'),
   },
   on: ((event: Events, cb: (arg: unknown) => void) => {
     let set = listeners.get(event);
@@ -439,6 +439,7 @@ void listen<RemoteInputStop>('oc:remote-input-stop', () => {
   fire('remote-input-stop', 'exit');
 });
 void listen('oc:banner-stop', () => endRemote('banner'));
+void listen<UpdateStatus>('update-status', (e) => fire('update', e.payload));
 
 // ausente automático: a cada 30 s, há quanto tempo ninguém mexe no computador
 setInterval(() => void invoke<number>('idle_seconds').then((s) => fire('idle', s)), 30_000);

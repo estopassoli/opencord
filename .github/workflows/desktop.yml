@@ -7,12 +7,19 @@
 # os instaladores anexados e as novidades do changelog desde a release anterior (tags são criadas pela própria
 # release; por isso o workflow não dispara em tags). O app instalado vê a versão nova e mostra
 # "Atualização pronta". Tag vX.Y.Z usa exatamente essa versão; o disparo manual empacota sem publicar por padrão.
+#
+# Migração para o app em Tauri (ADR-0062): com a variável do repositório TAURI_WINDOWS=1, o instalador do Windows
+# passa a ser o do app em Tauri (job windows-tauri; macOS e Linux continuam no Electron) e a versão vira
+# <major>.<minor do apps/desktop-tauri>.<nº do run − TAURI_FIRST_RUN> (a primeira, 0.3.0). O atualizador do Electron
+# instalado baixa esse instalador como uma versão nova; o instalador desinstala o Electron e o app novo importa a
+# sessão (installer-hooks.nsh, migrate.rs). Desligado (padrão), nada muda.
 name: Desktop (instaladores)
 on:
   push:
     branches: [main]
     paths:
       - apps/desktop/**
+      - apps/desktop-tauri/**
       - packages/**
       - pnpm-lock.yaml
       - .github/workflows/desktop.yml
@@ -23,6 +30,10 @@ on:
         default: https://api.opencord.pro
       publish:
         description: Entregar no servidor (DOWNLOADS_SSH_*) ao final
+        type: boolean
+        default: false
+      tauri:
+        description: Windows pelo app em Tauri (teste do CI, sem ligar TAURI_WINDOWS; não publique)
         type: boolean
         default: false
 
@@ -43,9 +54,21 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - id: v
         shell: bash
+        env:
+          TAURI_WINDOWS: ${{ vars.TAURI_WINDOWS }}
+          TAURI_FIRST_RUN: ${{ vars.TAURI_FIRST_RUN }}
+          TAURI_TEST: ${{ inputs.tauri }}
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             v="${GITHUB_REF_NAME#v}"
+          elif [ "$TAURI_WINDOWS" = 1 ]; then
+            # sem o run inicial, toda versão sairia igual e ninguém atualizaria
+            [ -n "$TAURI_FIRST_RUN" ] || { echo "::error::TAURI_WINDOWS=1 exige TAURI_FIRST_RUN"; exit 1; }
+            base=$(node -p "require('./apps/desktop-tauri/package.json').version")
+            v="$(echo "$base" | cut -d. -f1-2).$((GITHUB_RUN_NUMBER - TAURI_FIRST_RUN))"
+          elif [ "$TAURI_TEST" = true ]; then
+            # teste do CI (disparo manual): versão só para o artefato
+            v="0.3.$GITHUB_RUN_NUMBER"
           else
             base=$(node -p "require('./apps/desktop/package.json').version")
             v="$(echo "$base" | cut -d. -f1-2).$GITHUB_RUN_NUMBER"
@@ -61,10 +84,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { name: windows, os: windows-latest, flag: --win }
-          - { name: mac, os: macos-latest, flag: --mac }
-          - { name: linux, os: ubuntu-latest, flag: --linux }
+        # com o app em Tauri ligado, o Windows sai do job windows-tauri
+        include: ${{ fromJSON((vars.TAURI_WINDOWS == '1' || inputs.tauri) && '[{"name":"mac","os":"macos-latest","flag":"--mac"},{"name":"linux","os":"ubuntu-latest","flag":"--linux"}]' || '[{"name":"windows","os":"windows-latest","flag":"--win"},{"name":"mac","os":"macos-latest","flag":"--mac"},{"name":"linux","os":"ubuntu-latest","flag":"--linux"}]') }}
     env:
       VITE_OPENCORD_SERVER_URL: ${{ inputs.server_url || vars.OPENCORD_SERVER_URL || 'https://api.opencord.pro' }}
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -108,11 +129,50 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Windows pelo app em Tauri (ADR-0062): interface do apps/desktop no WebView2, núcleo em Rust, live nativa (oc-live)
+  windows-tauri:
+    needs: version
+    if: vars.TAURI_WINDOWS == '1' || inputs.tauri
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      VITE_OPENCORD_SERVER_URL: ${{ inputs.server_url || vars.OPENCORD_SERVER_URL || 'https://api.opencord.pro' }}
+      APP_VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Versão nas novidades
+        shell: bash
+        run: node apps/desktop/scripts/changelog-versions.mjs --current "$APP_VERSION"
+      - run: pnpm turbo run build --filter "@opencord/desktop-tauri^..."
+      - run: pnpm --filter @opencord/desktop test
+      # Rust do runner (rustup estável, alvo msvc) e o csc do .NET Framework para o oc-audio/oc-input
+      - name: Empacotar (Tauri, NSIS)
+        shell: bash
+        run: node apps/desktop-tauri/scripts/build-ci.mjs "$APP_VERSION" out
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: opencord-windows
+          path: out/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
   # Entrega no volume de downloads da API (docs/DEPLOYMENT.md → "Entrega automática"). Só roda se todos os
   # instaladores foram gerados e o secret existe; a API passa a servir a versão nova sem redeploy.
   publish:
-    needs: [version, package]
-    if: github.event_name == 'push' || inputs.publish
+    needs: [version, package, windows-tauri]
+    # o windows-tauri fica de fora (skipped) sem TAURI_WINDOWS; com ele, precisa ter dado certo
+    if: >-
+      !cancelled() && needs.package.result == 'success' &&
+      (needs.windows-tauri.result == 'success' || needs.windows-tauri.result == 'skipped') &&
+      (github.event_name == 'push' || inputs.publish)
     runs-on: ubuntu-latest
     concurrency: desktop-publish
     permissions:

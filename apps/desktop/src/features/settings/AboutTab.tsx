@@ -52,6 +52,11 @@ function UpdateCheck() {
   );
 }
 
+/** o app em Tauri responde "Tauri 2.x" e "WebView2 1xx"; o Electron, só os números */
+const isTauri = (i: AppInfo) => i.electron.startsWith('Tauri');
+const appBase = (i: AppInfo) => (isTauri(i) ? i.electron : `Electron ${i.electron}`);
+const engineOf = (i: AppInfo) => (isTauri(i) ? i.chrome : `Chromium ${i.chrome}`);
+
 export function AboutTab() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [error, setError] = useState(false);
@@ -82,10 +87,10 @@ export function AboutTab() {
         <dl className="settings-kv">
           <dt>Versão</dt>
           <dd>{info.version}</dd>
-          <dt>Electron</dt>
-          <dd>{info.electron}</dd>
-          <dt>Chromium</dt>
-          <dd>{info.chrome}</dd>
+          <dt>Base do app</dt>
+          <dd>{appBase(info)}</dd>
+          <dt>Motor da interface</dt>
+          <dd>{engineOf(info)}</dd>
           <dt>Sistema</dt>
           <dd>
             {info.platform} {info.osRelease}
@@ -105,6 +110,10 @@ const PROCESS_LABEL: Record<string, string> = {
   GPU: 'Placa de vídeo',
   Utility: 'Auxiliar',
   Zygote: 'Auxiliar',
+  // app em Tauri (ADR-0062): o processo do navegador da interface, os auxiliares nativos e a live nativa
+  WebView2: 'Navegador da interface (WebView2)',
+  'Auxiliar nativo': 'Áudio/controle remoto (nativo)',
+  Live: 'Live (nativa)',
   Pepper: 'Plugin',
   Unknown: 'Outro',
 };
@@ -187,7 +196,10 @@ export function MemorySection() {
   );
 }
 
-const GPU_MODE_OPTIONS: readonly { value: GpuMode; label: string; description: string }[] = [
+type GpuOption = { value: GpuMode; label: string; description: string };
+
+/** Electron: a live sai da própria janela (getDisplayMedia), então ela segue a opção */
+const GPU_MODE_OPTIONS: readonly GpuOption[] = [
   {
     value: 'full',
     label: 'Placa de vídeo para tudo',
@@ -198,6 +210,21 @@ const GPU_MODE_OPTIONS: readonly { value: GpuMode; label: string; description: s
     label: 'Sem aceleração',
     description:
       'Tudo pelo processador, inclusive a sua live (mais pesado e com menos fps). Use se o app piscar, ficar com a tela preta ou travar.',
+  },
+];
+
+/** app em Tauri (ADR-0062): a sua live sai de um processo à parte (oc-live), sempre pelo encoder da placa */
+const GPU_MODE_OPTIONS_NATIVE_LIVE: readonly GpuOption[] = [
+  {
+    value: 'full',
+    label: 'Placa de vídeo para tudo',
+    description: 'A interface e as lives que você assiste usam a placa de vídeo.',
+  },
+  {
+    value: 'off',
+    label: 'Sem aceleração na interface',
+    description:
+      'A interface e as lives que você assiste passam pelo processador (mais pesado). A sua live continua na placa de vídeo, num processo à parte. Use se o app piscar, ficar com a tela preta ou travar.',
   },
 ];
 
@@ -224,7 +251,7 @@ export function HardwareAcceleration() {
       {state && (
         <RadioGroup
           label="Uso da placa de vídeo"
-          options={GPU_MODE_OPTIONS}
+          options={bridge.nativeLive ? GPU_MODE_OPTIONS_NATIVE_LIVE : GPU_MODE_OPTIONS}
           value={state.saved.gpuMode}
           onChange={(gpuMode) =>
             bridge?.prefs.set({ gpuMode }).then(setState, () => setError('Não foi possível salvar.'))
