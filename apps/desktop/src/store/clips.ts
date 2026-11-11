@@ -132,6 +132,12 @@ const logClips = (msg: string) => reportError('clips', new Error(msg));
 
 async function start() {
   if (stream || starting || !bridge) return;
+  // app em Tauri (ADR-0062): o WebView2 abre o seletor de tela a cada captura, então o replay não pode ligar sozinho
+  // por aqui; os clipes vão sair do processo nativo (oc-live), como a live
+  if (bridge.nativeLive) {
+    startError = 'os clipes ainda não funcionam nesta versão do app (estão sendo refeitos sem o navegador)';
+    return;
+  }
   if (!webCodecsAvailable()) {
     startError = 'este computador não tem o codificador de vídeo do navegador (WebCodecs)';
     return;

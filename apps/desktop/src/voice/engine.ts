@@ -715,7 +715,9 @@ export class VoiceEngine {
     const maxBitrate = streamBitrate(profile.id, bitrate);
     // áudio do sistema: de preferência o oc-audio (tudo menos o OpenCord, ADR-0025); sem ele, o loopback do Chromium
     const system = withAudio && bridge && sourceId ? await SystemAudio.start() : null;
-    const chromiumAudio = withAudio && !system;
+    // no app em Tauri o áudio do WebView2 não exclui o próprio OpenCord (as vozes da chamada iriam junto): sem o
+    // oc-audio, a live sai sem áudio
+    const chromiumAudio = withAudio && !system && !bridge?.nativeLive;
     if (bridge && sourceId) await bridge.capture.select({ sourceId, systemAudio: chromiumAudio });
     let stream: MediaStream;
     try {
