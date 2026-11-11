@@ -1,10 +1,12 @@
 //! oc-live.exe — Go Live nativo do OpenCord (ADR-0062), fora do WebView:
 //!   oc-live sources [pid]  → JSON com telas e janelas (miniaturas) para o seletor; `pid` = o app (fica de fora)
 //!   oc-live run            → lê a configuração (uma linha JSON) no stdin e transmite até "stop" no stdin
+//!   oc-live clip           → grava a tela para o replay dos clipes (H.264 no stdout; ver clip.rs)
 //! Processo à parte (como o oc-audio): se o driver da placa ou o libwebrtc travar, cai só a live.
 
 #![cfg(windows)]
 
+mod clip;
 mod encoder;
 mod gpu;
 mod live;
@@ -19,8 +21,9 @@ fn main() {
             0
         }
         Some("run") => live::run_from_stdin(),
+        Some("clip") => clip::run_from_stdin(),
         _ => {
-            eprintln!("uso: oc-live sources [pid] | oc-live run");
+            eprintln!("uso: oc-live sources [pid] | oc-live run | oc-live clip");
             2
         }
     };

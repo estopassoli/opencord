@@ -6,6 +6,8 @@ import { encodeStream, webCodecsAvailable, type EncodeSession } from '../clips/e
 import { ClipAudio } from '../clips/audio';
 import { muxClip } from '../clips/mux';
 import { ChunkRing, type StoredChunk } from '../clips/ring';
+import { AnnexBToAvc } from '../clips/annexb';
+import { SystemAudio } from '../voice/system-audio';
 import { bridge } from '../lib/bridge';
 import { clipNotice } from '../lib/overlay';
 import { playSound } from '../lib/sounds';
@@ -117,6 +119,8 @@ async function clipOutputs(off: string[]) {
   };
 }
 let ring = new ChunkRing(60e6);
+/** replay nativo (app em Tauri): o processo de gravação e o som do sistema dele */
+let native: { off: () => void; system: SystemAudio | null } | null = null;
 let fpsNow = 60;
 let running: string | null = null;
 let starting: Promise<void> | null = null;
@@ -132,10 +136,16 @@ const logClips = (msg: string) => reportError('clips', new Error(msg));
 
 async function start() {
   if (stream || starting || !bridge) return;
-  // app em Tauri (ADR-0062): o WebView2 abre o seletor de tela a cada captura, então o replay não pode ligar sozinho
-  // por aqui; os clipes vão sair do processo nativo (oc-live), como a live
+  // app em Tauri (ADR-0062): o WebView2 abre o seletor de tela a cada captura; a tela é gravada pelo oc-live
+  if (bridge.nativeClips) {
+    starting = startNative().finally(() => {
+      starting = null;
+    });
+    await starting;
+    return;
+  }
   if (bridge.nativeLive) {
-    startError = 'os clipes ainda não funcionam nesta versão do app (estão sendo refeitos sem o navegador)';
+    startError = 'este app não grava a tela pelo navegador';
     return;
   }
   if (!webCodecsAvailable()) {
@@ -223,7 +233,109 @@ async function start() {
   await starting;
 }
 
+/**
+ * Replay no app em Tauri: o vídeo vem do oc-live (captura do Windows, H.264 da placa, fora do WebView) e entra no
+ * mesmo buffer; o som (sistema sem o OpenCord, outras saídas, microfone, vozes) segue misturado e codificado aqui.
+ */
+async function startNative() {
+  const nc = bridge?.nativeClips;
+  if (!nc) return;
+  if (typeof AudioEncoder === 'undefined') {
+    startError = 'este computador não tem o codificador de áudio do navegador (WebCodecs)';
+    return;
+  }
+  const cfg = settingsOf();
+  const max = MAX_SIZE[cfg.clipResolution];
+  const now = () => Math.round(performance.now() * 1000);
+  let conv: AnnexBToAvc | null = null;
+  let offset: number | null = null;
+  const dur = Math.round(1e6 / cfg.clipFps);
+  try {
+    // som do computador sem o OpenCord (oc-audio apps-except, ADR-0025)
+    const system = await SystemAudio.start();
+    const voice = await import('./voice');
+    const eng = () => voice.useVoice.getState().engine();
+    const outs = await clipOutputs(cfg.clipOutputsOff);
+    const audio = await ClipAudio.create({
+      system: outs.systemOn ? (system?.track ?? null) : null,
+      systemName: outs.systemName,
+      outputs: outs.outputs,
+      opencordInOutputs: outs.opencordInOutputs,
+      mic: () => eng()?.micAudioTrack() ?? null,
+      voices: () => eng()?.remoteAudioTracks() ?? [],
+    });
+    ring = new ChunkRing(cfg.clipSeconds * 1e6);
+    const size = await nc.start(
+      {
+        maxWidth: max?.width ?? 0,
+        maxHeight: max?.height ?? 0,
+        fps: cfg.clipFps,
+        bitrate: clipBitrate(max?.width ?? 1920, max?.height ?? 1080, cfg.clipFps, cfg.clipQuality),
+        keyEverySec: 2,
+        cursor: false,
+      },
+      (c) => {
+        if (!conv) return;
+        // o relógio do processo de gravação vira o da interface (o mesmo do áudio)
+        offset ??= now() - c.ts;
+        const f = conv.push(c.data, c.key);
+        if (f)
+          ring.pushVideo({
+            ts: c.ts + offset,
+            dur,
+            key: c.key,
+            data: f.data,
+            ...(f.config ? { config: f.config } : {}),
+          });
+      },
+    );
+    conv = new AnnexBToAvc(size.width, size.height);
+    clipAudio = audio;
+    audioNames = audio.names();
+    setSoundTap((m, el) => clipAudio?.addEffect(m, el));
+    fpsNow = cfg.clipFps;
+    running = JSON.stringify(cfg);
+    stream = new MediaStream(audio.tracks());
+    session = encodeStream(
+      stream,
+      { fps: cfg.clipFps, bitrate: 0, keyEverySec: 2 },
+      {
+        video: () => undefined,
+        audio: (c, i) => ring.pushAudio(c, i),
+        error: (reason) => logClips(`clipes: codificador de áudio falhou (${reason})`),
+      },
+    );
+    const startedAt = Date.now();
+    const off = nc.onEnded(() => {
+      if (!native) return;
+      restarts = Date.now() - startedAt > 60_000 ? 0 : restarts + 1;
+      if (restarts > 5) {
+        startError = 'a gravação da tela parou várias vezes seguidas';
+        logClips(`clipes: ${startError}; parado até o próximo jogo`);
+        void stop();
+        return;
+      }
+      logClips('clipes: a gravação da tela parou; religando');
+      void stop().then(() => setTimeout(syncClips, RESTART_MS));
+    });
+    native = { off, system };
+    startError = null;
+    useClips.setState({ active: true });
+  } catch (e) {
+    startError = reasonOf(e).startsWith('no-hw-encoder') ? 'a placa de vídeo não codifica H.264' : reasonOf(e);
+    logClips(`clipes: a gravação não começou (${startError})`);
+    await stop();
+  }
+}
+
 async function stop() {
+  const n = native;
+  native = null;
+  if (n) {
+    n.off();
+    n.system?.stop();
+    await bridge?.nativeClips?.stop().catch(() => undefined);
+  }
   const s = session;
   session = null;
   const st = stream;

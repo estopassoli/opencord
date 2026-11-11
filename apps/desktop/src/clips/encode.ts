@@ -88,13 +88,16 @@ async function audioConfig(sampleRate: number, numberOfChannels: number): Promis
   return null;
 }
 
-/** Começa a codificar as trilhas do `stream` até `stop()`. */
+/**
+ * Começa a codificar as trilhas do `stream` até `stop()`. Sem trilha de vídeo, só o áudio (o replay nativo do app em
+ * Tauri: o vídeo já vem codificado do oc-live).
+ */
 export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: EncodeSink): EncodeSession {
   const Processor = g.MediaStreamTrackProcessor;
   if (!Processor || !webCodecsAvailable()) throw new Error('WebCodecs indisponível');
   const [vTrack] = stream.getVideoTracks();
   const aTracks = stream.getAudioTracks();
-  if (!vTrack) throw new Error('nenhuma trilha de vídeo');
+  if (!vTrack && !aTracks.length) throw new Error('nenhuma trilha');
   let stopped = false;
   let forceKey = true;
   let lastKey = -Infinity;
@@ -130,7 +133,7 @@ export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: Encode
   };
 
   const runVideo = async () => {
-    const reader = new Processor<VideoFrame>({ track: vTrack }).readable.getReader();
+    const reader = new Processor<VideoFrame>({ track: vTrack! }).readable.getReader();
     let configuring: Promise<void> | null = null;
     // a placa de vídeo pode derrubar o codificador (jogo entrando em tela cheia, troca de resolução, driver)
     let broken = false;
@@ -260,7 +263,7 @@ export function encodeStream(stream: MediaStream, o: EncodeOptions, sink: Encode
     }
   };
 
-  void runVideo().catch(() => undefined);
+  if (vTrack) void runVideo().catch(() => undefined);
   aTracks.forEach((t, i) => void runAudio(t, i).catch(() => undefined));
   return session;
 }

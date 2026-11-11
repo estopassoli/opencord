@@ -64,17 +64,20 @@ pub fn say(v: serde_json::Value) {
     let _ = out.flush();
 }
 
-struct Flags {
-    cfg: Config,
-    tx: SyncSender<Input>,
-    ctl: Arc<Control>,
-    start: Instant,
+pub(crate) struct Flags {
+    /// tamanho e fps da saída (a captura é convertida para isso na GPU)
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    pub tx: SyncSender<Input>,
+    pub ctl: Arc<Control>,
+    pub start: Instant,
     /// o encoder é criado com o device da captura (o mesmo da textura): o handler entrega o device para a thread dele
-    dev_tx: SyncSender<Dev>,
-    dropped: Arc<AtomicU64>,
+    pub dev_tx: SyncSender<Dev>,
+    pub dropped: Arc<AtomicU64>,
 }
 
-struct Capture {
+pub(crate) struct Capture {
     conv: Converter,
     tx: SyncSender<Input>,
     ctl: Arc<Control>,
@@ -94,7 +97,7 @@ impl GraphicsCaptureApiHandler for Capture {
             }
         }
         let f = ctx.flags;
-        let conv = Converter::new(&ctx.device, &ctx.device_context, f.cfg.width, f.cfg.height, f.cfg.fps)
+        let conv = Converter::new(&ctx.device, &ctx.device_context, f.width, f.height, f.fps)
             .map_err(|e| format!("conversão na GPU: {e}"))?;
         f.dev_tx.send(Dev(ctx.device.clone())).map_err(|_| "encoder não iniciou".to_string())?;
         Ok(Self { conv, tx: f.tx, ctl: f.ctl, start: f.start, dropped: f.dropped })
@@ -220,7 +223,9 @@ async fn run(cfg: Config, handle: tokio::runtime::Handle) -> i32 {
     let (dev_tx, dev_rx) = sync_channel::<Dev>(1);
     let dropped = Arc::new(AtomicU64::new(0));
     let flags = Flags {
-        cfg: cfg.clone(),
+        width: cfg.width,
+        height: cfg.height,
+        fps: cfg.fps,
         tx,
         ctl: ctl.clone(),
         start: Instant::now(),
@@ -261,7 +266,7 @@ async fn run(cfg: Config, handle: tokio::runtime::Handle) -> i32 {
     };
 
     let video = NativeVideoSource::new_encoded(VideoResolution { width: cfg.width, height: cfg.height });
-    let enc_cfg = EncConfig { width: cfg.width, height: cfg.height, fps: cfg.fps, bitrate: cfg.bitrate };
+    let enc_cfg = EncConfig { width: cfg.width, height: cfg.height, fps: cfg.fps, bitrate: cfg.bitrate, gop_sec: 4 };
     let (name_tx, name_rx) = sync_channel::<Result<String, String>>(1);
     let frames = Arc::new(AtomicU64::new(0));
     let bytes = Arc::new(AtomicU64::new(0));

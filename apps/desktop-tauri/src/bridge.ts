@@ -38,6 +38,8 @@ import {
   type AppInfo,
   type AppPrefsState,
   type CaptureSourceDto,
+  type NativeClipArgs,
+  type NativeClipChunk,
   type NativeLiveEvent,
   type NativeLiveStartArgs,
   type ClipInfo,
@@ -60,6 +62,7 @@ import {
   type RemoteInputStop,
 } from '../../desktop/electron/shared/remote-input';
 import { toTauriAccelerator } from './accelerator';
+import { parseNativeChunk } from '../../desktop/src/clips/annexb';
 
 type Events =
   | 'shortcut'
@@ -273,6 +276,21 @@ const bridge: OpenCordBridge = {
     stop: () => invoke('live_stop'),
     onEvent: (cb) => {
       const off = listen<NativeLiveEvent>('live-event', (e) => cb(e.payload));
+      return () => void off.then((f) => f());
+    },
+  },
+  nativeClips: {
+    start: (args: NativeClipArgs, onChunk: (c: NativeClipChunk) => void) => {
+      const ch = new Channel<ArrayBuffer>();
+      ch.onmessage = (buf) => {
+        const c = parseNativeChunk(buf);
+        if (c) onChunk(c);
+      };
+      return invoke<{ width: number; height: number }>('clips_native_start', { args, onChunk: ch });
+    },
+    stop: () => invoke('clips_native_stop'),
+    onEnded: (cb) => {
+      const off = listen('clips-native-ended', () => cb());
       return () => void off.then((f) => f());
     },
   },

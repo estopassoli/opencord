@@ -126,3 +126,16 @@ clipes nativos e o vazamento das vozes no áudio da live.
   mantenedor decifrou `serverUrl` e `session` do Electron; build e instalador no Windows. **Falta:** o teste de ponta
   a ponta (Electron instalado → atualização → Tauri logado), o CI do `windows-tauri` rodando de verdade e o gate de
   mídia.
+
+## Adendo (2026-11-11): replay dos clipes nativo
+No WebView2 cada `getDisplayMedia` abre o seletor de tela, então o replay (que liga sozinho com um jogo aberto) abria
+o seletor ao abrir o app. Agora a tela do replay sai do `oc-live clip` (mesma captura, conversão e encoder da live;
+monitor principal; quadro-chave pelo relógio a cada 2 s, para a tela parada não alongar o GOP) e cada quadro vai para
+a interface por um canal binário (cabeçalho de 13 bytes + H.264 Annex B). A interface converte para o formato do MP4
+(`clips/annexb.ts`: NAL com tamanho, SPS/PPS no `avcC`), leva o relógio do processo para o `performance.now()` (o
+mesmo do áudio) e guarda no mesmo `ChunkRing`; o áudio (sistema pelo `oc-audio apps-except`, outras saídas, microfone,
+vozes) continua misturado e codificado no WebCodecs. Placa sem H.264: os clipes avisam que não gravam.
+Evidência: `oc-live clip` 1080p e 720p no Windows do mantenedor, quadros-chave a 2,0 s, `ffprobe`/`ffmpeg` decodificam
+o MP4 montado pelo `muxClip` com os quadros nativos sem aviso (após corrigir o tempo do quadro repetido, que usava
+outro relógio — valia também para a live); `clips-annexb.test.ts` 4/4. Falta: salvar um clipe de verdade (jogo aberto
++ atalho) e ouvir o som dele.

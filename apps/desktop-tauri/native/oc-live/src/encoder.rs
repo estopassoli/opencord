@@ -52,6 +52,8 @@ pub struct Config {
     pub height: u32,
     pub fps: u32,
     pub bitrate: u32,
+    /// quadro-chave a cada N segundos (a rede ainda pode pedir um a qualquer hora)
+    pub gop_sec: u32,
 }
 
 const MF_VERSION: u32 = 0x0002_0070;
@@ -260,8 +262,8 @@ impl Encoder {
             );
             let _ = codec.SetValue(&CODECAPI_AVEncCommonMeanBitRate, &var_u32(cfg.bitrate));
             let _ = codec.SetValue(&CODECAPI_AVEncMPVDefaultBPictureCount, &var_u32(0));
-            // quadro-chave a cada 4 s; quem entra no meio pede um na hora (PLI)
-            let _ = codec.SetValue(&CODECAPI_AVEncMPVGOPSize, &var_u32(cfg.fps * 4));
+            // quadro-chave a cada `gop_sec` (live: quem entra no meio pede um na hora, PLI)
+            let _ = codec.SetValue(&CODECAPI_AVEncMPVGOPSize, &var_u32(cfg.fps * cfg.gop_sec.max(1)));
         }
         let info = unsafe { mft.GetOutputStreamInfo(0)? };
         let provides_samples = info.dwFlags & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES.0 as u32) != 0;
@@ -388,8 +390,8 @@ impl Encoder {
         ctl: Arc<Control>,
         mut on_out: impl FnMut(Encoded),
     ) -> windows::core::Result<()> {
-        let mut last: Option<(Tex, Instant)> = None;
-        let start = Instant::now();
+        // o último quadro, quando foi entregue e o tempo dele: o repetido continua o mesmo relógio da captura
+        let mut last: Option<(Tex, Instant, i64)> = None;
         while !ctl.stop.load(Ordering::Acquire) {
             let ev = unsafe { self.events.GetEvent(MEDIA_EVENT_GENERATOR_GET_EVENT_FLAGS(0))? };
             let kind = unsafe { ev.GetType()? } as i32;
@@ -403,18 +405,19 @@ impl Encoder {
                         Ok(inp) => {
                             self.apply_control(&ctl);
                             self.feed(&inp.tex.0, inp.ts)?;
-                            last = Some((inp.tex, Instant::now()));
+                            last = Some((inp.tex, Instant::now(), inp.ts));
                             break;
                         }
                         Err(RecvTimeoutError::Timeout) => {
-                            let repeat = last.as_ref().is_some_and(|(_, at)| at.elapsed() >= REPEAT_AFTER)
+                            let repeat = last.as_ref().is_some_and(|(_, at, _)| at.elapsed() >= REPEAT_AFTER)
                                 || (last.is_some() && ctl.force_key.load(Ordering::Acquire));
                             if repeat {
-                                let (tex, _) = last.take().unwrap();
+                                let (tex, at, ts0) = last.take().unwrap();
                                 self.apply_control(&ctl);
-                                let ts = start.elapsed().as_nanos() as i64 / 100;
+                                // sempre depois do anterior (ao menos 1 ms), no relógio da captura
+                                let ts = ts0 + (at.elapsed().as_nanos() as i64 / 100).max(10_000);
                                 self.feed(&tex.0, ts)?;
-                                last = Some((tex, Instant::now()));
+                                last = Some((tex, Instant::now(), ts));
                                 break;
                             }
                         }

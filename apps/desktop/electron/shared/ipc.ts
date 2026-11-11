@@ -259,6 +259,25 @@ export type NativeLiveEvent =
   | { ev: 'exited' }
   | { ev: 'connected' | 'publishing' };
 
+/** replay dos clipes nativo (app em Tauri, ADR-0062): a tela gravada fora do WebView */
+export interface NativeClipArgs {
+  /** teto do tamanho do vídeo (0 = o do monitor) */
+  maxWidth: number;
+  maxHeight: number;
+  fps: number;
+  /** bps */
+  bitrate: number;
+  keyEverySec: number;
+  cursor: boolean;
+}
+
+/** um quadro H.264 (Annex B) do replay nativo, no relógio do processo de gravação (µs) */
+export interface NativeClipChunk {
+  key: boolean;
+  ts: number;
+  data: Uint8Array;
+}
+
 /** API exposta em `window.opencord`. */
 export interface OpenCordBridge {
   capture: {
@@ -275,6 +294,14 @@ export interface OpenCordBridge {
     start(args: NativeLiveStartArgs): Promise<{ encoder: string; audio: boolean }>;
     stop(): Promise<void>;
     onEvent(cb: (e: NativeLiveEvent) => void): () => void;
+  };
+  /** replay dos clipes nativo (só no app em Tauri; o WebView2 abre o seletor de tela a cada captura) */
+  nativeClips?: {
+    /** responde com o tamanho do vídeo quando a gravação começou; erro `no-hw-encoder…` = sem H.264 na placa */
+    start(args: NativeClipArgs, onChunk: (c: NativeClipChunk) => void): Promise<{ width: number; height: number }>;
+    stop(): Promise<void>;
+    /** a gravação parou sozinha (processo saiu) */
+    onEnded(cb: () => void): () => void;
   };
   secure: {
     get(key: SecureKey): Promise<string | null>;
