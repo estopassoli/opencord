@@ -39,3 +39,21 @@ alguém da chamada **ouve a voz de todo mundo pela transmissão**. O ADR-0003 pr
   padrão (ex.: o "Voice" de um fone com duas saídas) também entram na live.
 - Programas que **reproduzem** o som do OpenCord por fora (mixers virtuais, "escutar este dispositivo") continuam
   levando as vozes, porque o som sai de outro processo.
+
+## Adendo (2026-11-11): o `except` deixava as vozes passar — troca por um INCLUDE por programa
+Relato real do mantenedor (live nativa do app em Tauri, ADR-0062): as vozes da chamada iam no áudio da live. Medido na
+máquina dele, com a chamada e um jogo abertos (diagnóstico de sessões de áudio por saída + capturas lado a lado):
+- O WebView2/Chromium toca as vozes da chamada no **dispositivo de comunicação** (`dev0`), não no padrão; o jogo toca
+  no padrão. A sessão é do serviço de áudio do WebView2, que é neto do processo do app (árvore certa).
+- `include <pid do app>` capturou **zero** das vozes (0,000 com voz a 0,233): o Windows não atribui esse áudio à árvore
+  do app no process loopback. `except <pid do app>` (o modo deste ADR) teve picos de 0,2 a 0,69 que não existiam no
+  som do jogo — as vozes vazando.
+- `include <pid do jogo>` trouxe só o jogo, certinho.
+
+Decisão: novo modo `oc-audio apps-except <pid>` — a cada 2 s lista as sessões de áudio de **todas** as saídas, abre um
+process loopback **INCLUDE** para cada programa fora da árvore do OpenCord (o pai cobre o filho; até 32) e mistura em
+estéreo float 48 kHz no stdout (mesmo formato; quem consome não muda). Programas abertos depois entram na próxima
+varredura (até 2 s). Usado pela live nativa (`oc-live`), pelo Go Live do Tauri e pelo do Electron (`except-self`).
+Evidência: 90 s com voz (pico 0,371) e jogo: `except` passou o `apps-except` em 16 janelas (até 0,69); o `apps-except`
+nunca passou o som dos programas (média 0,0208 × só o jogo 0,0193 × `except` 0,0349). Limites: som de sistema (sessão
+de pid 0) fica de fora; programa que só toca na primeira fração de segundo após abrir pode perder o começo.

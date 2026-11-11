@@ -4,8 +4,11 @@
 //
 //   oc-audio.exe list          → JSON com as saídas ativas: [{"id","name","default","comm"}]
 //   oc-audio.exe capture <id>  → PCM float32 LE estéreo 48 kHz intercalado no stdout, até o stdin fechar
+//   oc-audio.exe include <pid> → idem, só o som de <pid> e dos filhos dele (o som de um aplicativo transmitido)
 //   oc-audio.exe except <pid>  → idem, com o som de TODOS os processos menos <pid> e os filhos dele (process loopback,
-//                                Windows 10 build 20348+). Áudio do Go Live sem as vozes da chamada (ADR-0025).
+//                                Windows 10 build 20348+). Não segura o áudio de chamada do Chromium (ver abaixo).
+//   oc-audio.exe apps-except <pid> → o som de cada programa com sessão de áudio, menos <pid> e os filhos dele, um
+//                                INCLUDE por programa, misturados: o áudio do Go Live sem as vozes da chamada.
 //
 // Compilado com o csc do .NET Framework 4 que vem no Windows (C# 5: sem interpolação de strings etc.).
 using System;
@@ -93,6 +96,49 @@ namespace OpenCord.WinAudio
         [PreserveSig] int GetNextPacketSize(out uint frames);
     }
 
+    [ComImport, Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IAudioSessionManager2
+    {
+        [PreserveSig] int GetAudioSessionControl(IntPtr guid, int flags, out IntPtr control);
+        [PreserveSig] int GetSimpleAudioVolume(IntPtr guid, int flags, out IntPtr volume);
+        [PreserveSig] int GetSessionEnumerator(out IAudioSessionEnumerator sessions);
+    }
+
+    [ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IAudioSessionEnumerator
+    {
+        [PreserveSig] int GetCount(out int count);
+        [PreserveSig] int GetSession(int index, out IAudioSessionControl2 session);
+    }
+
+    [ComImport, Guid("bfb7ff88-7239-4fc9-8fa2-07c950be9c6d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IAudioSessionControl2
+    {
+        [PreserveSig] int GetState(out int state);
+        [PreserveSig] int GetDisplayName(out IntPtr name);
+        [PreserveSig] int SetDisplayName(IntPtr name, IntPtr ctx);
+        [PreserveSig] int GetIconPath(out IntPtr path);
+        [PreserveSig] int SetIconPath(IntPtr path, IntPtr ctx);
+        [PreserveSig] int GetGroupingParam(out Guid g);
+        [PreserveSig] int SetGroupingParam(IntPtr g, IntPtr ctx);
+        [PreserveSig] int RegisterAudioSessionNotification(IntPtr n);
+        [PreserveSig] int UnregisterAudioSessionNotification(IntPtr n);
+        [PreserveSig] int GetSessionIdentifier(out IntPtr id);
+        [PreserveSig] int GetSessionInstanceIdentifier(out IntPtr id);
+        [PreserveSig] int GetProcessId(out uint pid);
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct PROCESSENTRY32W
+    {
+        public uint dwSize, cntUsage, th32ProcessID;
+        public IntPtr th32DefaultHeapID;
+        public uint th32ModuleID, cntThreads, th32ParentProcessID;
+        public int pcPriClassBase;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szExeFile;
+    }
+
     [ComImport, Guid("72A22D78-CDE4-431D-B8CC-843A71199B6D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface IActivateAudioInterfaceAsyncOperation
     {
@@ -138,6 +184,7 @@ namespace OpenCord.WinAudio
         const int AUDCLNT_STREAMFLAGS_EVENTCALLBACK = 0x00040000;
         const int AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM = unchecked((int)0x80000000);
         const int AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK = 1;
+        const int PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE = 0;
         const int PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE = 1;
         const ushort VT_BLOB = 65;
         const uint AUDCLNT_BUFFERFLAGS_SILENT = 2;
@@ -161,8 +208,10 @@ namespace OpenCord.WinAudio
                 if (args.Length == 1 && args[0] == "list") return List();
                 if (args.Length == 2 && args[0] == "capture") return Capture(args[1]);
                 uint pid;
-                if (args.Length == 2 && args[0] == "except" && uint.TryParse(args[1], out pid)) return Except(pid);
-                Console.Error.WriteLine("uso: oc-audio list | oc-audio capture <id> | oc-audio except <pid>");
+                if (args.Length == 2 && args[0] == "except" && uint.TryParse(args[1], out pid)) return Except(pid, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE);
+                if (args.Length == 2 && args[0] == "include" && uint.TryParse(args[1], out pid)) return Except(pid, PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE);
+                if (args.Length == 2 && args[0] == "apps-except" && uint.TryParse(args[1], out pid)) return AppsExcept(pid);
+                Console.Error.WriteLine("uso: oc-audio list | oc-audio capture <id> | oc-audio except <pid> | oc-audio include <pid> | oc-audio apps-except <pid>");
                 return 64;
             }
             catch (Exception e)
@@ -266,7 +315,276 @@ namespace OpenCord.WinAudio
             return Pump(client, new Converter(channels, rate, bits / 8, isFloat), null);
         }
 
-        static int Except(uint pid)
+        /// <summary>Cliente de captura do process loopback (incluir ou excluir a árvore de <pid>), float estéreo 48 kHz.</summary>
+        static IAudioClient ProcessLoopback(uint pid, int mode, AutoResetEvent ready)
+        {
+            IntPtr p = Marshal.AllocHGlobal(12);
+            IntPtr pv = Marshal.AllocHGlobal(8 + 2 * IntPtr.Size);
+            IntPtr fmt = Marshal.AllocHGlobal(18);
+            try
+            {
+                Marshal.WriteInt32(p, 0, AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK);
+                Marshal.WriteInt32(p, 4, unchecked((int)pid));
+                Marshal.WriteInt32(p, 8, mode);
+                for (int i = 0; i < 8 + 2 * IntPtr.Size; i++) Marshal.WriteByte(pv, i, 0);
+                Marshal.WriteInt16(pv, 0, unchecked((short)VT_BLOB));
+                Marshal.WriteInt32(pv, 8, 12);
+                Marshal.WriteIntPtr(pv, 8 + IntPtr.Size, p);
+                Activation act = new Activation();
+                IActivateAudioInterfaceAsyncOperation op;
+                Marshal.ThrowExceptionForHR(ActivateAudioInterfaceAsync("VAD\\Process_Loopback", IID_IAudioClient, pv, act, out op));
+                if (!act.Done.WaitOne(5000)) throw new Exception("ativação do process loopback não respondeu");
+                Marshal.ThrowExceptionForHR(act.Result);
+                IAudioClient client = (IAudioClient)act.Client;
+                Marshal.WriteInt16(fmt, 0, 3);
+                Marshal.WriteInt16(fmt, 2, 2);
+                Marshal.WriteInt32(fmt, 4, OUT_RATE);
+                Marshal.WriteInt32(fmt, 8, OUT_RATE * 8);
+                Marshal.WriteInt16(fmt, 12, 8);
+                Marshal.WriteInt16(fmt, 14, 32);
+                Marshal.WriteInt16(fmt, 16, 0);
+                Marshal.ThrowExceptionForHR(client.Initialize(AUDCLNT_SHAREMODE_SHARED,
+                    AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
+                    2000000, 0, fmt, IntPtr.Zero));
+                Marshal.ThrowExceptionForHR(client.SetEventHandle(ready.SafeWaitHandle.DangerousGetHandle()));
+                return client;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(fmt);
+                Marshal.FreeHGlobal(pv);
+                Marshal.FreeHGlobal(p);
+            }
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint pid);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        static extern bool Process32FirstW(IntPtr snap, ref PROCESSENTRY32W e);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        static extern bool Process32NextW(IntPtr snap, ref PROCESSENTRY32W e);
+        [DllImport("kernel32.dll")]
+        static extern bool CloseHandle(IntPtr h);
+
+        /// <summary>pai de cada processo vivo agora</summary>
+        static Dictionary<uint, uint> Parents()
+        {
+            Dictionary<uint, uint> map = new Dictionary<uint, uint>();
+            IntPtr snap = CreateToolhelp32Snapshot(2, 0);
+            if (snap == new IntPtr(-1)) return map;
+            try
+            {
+                PROCESSENTRY32W e = new PROCESSENTRY32W();
+                e.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32W));
+                if (Process32FirstW(snap, ref e))
+                    do { map[e.th32ProcessID] = e.th32ParentProcessID; } while (Process32NextW(snap, ref e));
+            }
+            finally { CloseHandle(snap); }
+            return map;
+        }
+
+        /// <summary><pid> é <root> ou descende dele (a subida para em ciclos e em pais que já saíram)</summary>
+        static bool Under(uint pid, uint root, Dictionary<uint, uint> parents)
+        {
+            HashSet<uint> seen = new HashSet<uint>();
+            uint cur = pid;
+            while (cur != 0 && seen.Add(cur))
+            {
+                if (cur == root) return true;
+                uint up;
+                if (!parents.TryGetValue(cur, out up)) return false;
+                cur = up;
+            }
+            return false;
+        }
+
+        /// <summary>processos com sessão de áudio (tocando ou parados) em qualquer saída ativa</summary>
+        static HashSet<uint> AudioPids()
+        {
+            HashSet<uint> pids = new HashSet<uint>();
+            IMMDeviceEnumerator en = Enumerator();
+            IMMDeviceCollection all;
+            if (en.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, out all) != 0) return pids;
+            int n;
+            all.GetCount(out n);
+            Guid iid = new Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F");
+            for (int i = 0; i < n; i++)
+            {
+                IMMDevice d;
+                if (all.Item(i, out d) != 0) continue;
+                object o;
+                if (d.Activate(ref iid, CLSCTX_ALL, IntPtr.Zero, out o) != 0) continue;
+                IAudioSessionEnumerator sessions;
+                if (((IAudioSessionManager2)o).GetSessionEnumerator(out sessions) != 0) continue;
+                int count;
+                sessions.GetCount(out count);
+                for (int k = 0; k < count; k++)
+                {
+                    IAudioSessionControl2 c;
+                    if (sessions.GetSession(k, out c) != 0) continue;
+                    int state;
+                    uint pid;
+                    // 2 = expirada (o programa fechou a sessão)
+                    if (c.GetState(out state) == 0 && state != 2 && c.GetProcessId(out pid) == 0 && pid != 0) pids.Add(pid);
+                }
+            }
+            return pids;
+        }
+
+        /// <summary>Um programa capturado: o que chegou dele e ainda não foi misturado (float estéreo 48 kHz).</summary>
+        class AppSource
+        {
+            public uint Pid;
+            public volatile bool Stop;
+            public readonly object Lock = new object();
+            public readonly Queue<float> Buf = new Queue<float>();
+            public Thread Thread;
+        }
+
+        /// <summary>no máximo 200 ms guardados por programa: mais que isso é atraso, descarta o mais velho</summary>
+        const int MAX_BUFFERED = OUT_RATE * 2 / 5;
+        const int MAX_APPS = 32;
+
+        static void RunSource(AppSource src)
+        {
+            try
+            {
+                AutoResetEvent ready = new AutoResetEvent(false);
+                IAudioClient client = ProcessLoopback(src.Pid, PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE, ready);
+                Guid ciid = IID_IAudioCaptureClient;
+                object co;
+                Marshal.ThrowExceptionForHR(client.GetService(ref ciid, out co));
+                IAudioCaptureClient capture = (IAudioCaptureClient)co;
+                Converter conv = new Converter(2, OUT_RATE, 4, true);
+                Marshal.ThrowExceptionForHR(client.Start());
+                try
+                {
+                    while (!src.Stop)
+                    {
+                        ready.WaitOne(50);
+                        uint packet;
+                        if (capture.GetNextPacketSize(out packet) != 0) return;
+                        while (packet > 0)
+                        {
+                            IntPtr data;
+                            uint frames, flags;
+                            ulong pos, qpc;
+                            if (capture.GetBuffer(out data, out frames, out flags, out pos, out qpc) != 0) return;
+                            float[] f = conv.ConvertFloats(data, (int)frames, (flags & AUDCLNT_BUFFERFLAGS_SILENT) != 0);
+                            capture.ReleaseBuffer(frames);
+                            lock (src.Lock)
+                            {
+                                foreach (float x in f) src.Buf.Enqueue(x);
+                                while (src.Buf.Count > MAX_BUFFERED) src.Buf.Dequeue();
+                            }
+                            if (capture.GetNextPacketSize(out packet) != 0) return;
+                        }
+                    }
+                }
+                finally { client.Stop(); }
+            }
+            catch (Exception)
+            {
+                // programa que fechou no meio ou que não deixa capturar: só fica de fora
+            }
+        }
+
+        /// <summary>
+        /// Som de todos os programas menos <root> e os filhos dele, um process loopback INCLUDE por programa, misturados.
+        /// O EXCLUDE (modo except) não segura o áudio de chamada do WebView2/Chromium (sai pelo dispositivo de
+        /// comunicação e o Windows não o atribui à árvore do app): as vozes da chamada vazavam na live (ADR-0025, adendo).
+        /// </summary>
+        static int AppsExcept(uint root)
+        {
+            uint self = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
+            bool running = true;
+            Thread watch = new Thread(delegate ()
+            {
+                try { Console.OpenStandardInput().CopyTo(Stream.Null); } catch { }
+                running = false;
+            });
+            watch.IsBackground = true;
+            watch.Start();
+            Dictionary<uint, AppSource> sources = new Dictionary<uint, AppSource>();
+            Stream stdout = Console.OpenStandardOutput();
+            System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+            long produced = 0;
+            long nextScan = 0;
+            Console.Error.WriteLine("ready");
+            Console.Error.Flush();
+            try
+            {
+                while (running)
+                {
+                    if (clock.ElapsedMilliseconds >= nextScan)
+                    {
+                        nextScan = clock.ElapsedMilliseconds + 2000;
+                        Dictionary<uint, uint> parents = Parents();
+                        HashSet<uint> want = new HashSet<uint>();
+                        foreach (uint pid in AudioPids())
+                        {
+                            if (pid == self || Under(pid, root, parents) || !parents.ContainsKey(pid)) continue;
+                            want.Add(pid);
+                        }
+                        // processo e filho com sessão: a captura da árvore do pai já leva o filho
+                        HashSet<uint> top = new HashSet<uint>();
+                        foreach (uint pid in want)
+                        {
+                            bool covered = false;
+                            foreach (uint other in want)
+                                if (other != pid && Under(pid, other, parents)) { covered = true; break; }
+                            if (!covered) top.Add(pid);
+                        }
+                        foreach (uint pid in new List<uint>(sources.Keys))
+                            if (!top.Contains(pid) || !sources[pid].Thread.IsAlive)
+                            {
+                                sources[pid].Stop = true;
+                                sources.Remove(pid);
+                            }
+                        foreach (uint pid in top)
+                        {
+                            if (sources.ContainsKey(pid) || sources.Count >= MAX_APPS) continue;
+                            AppSource src = new AppSource();
+                            src.Pid = pid;
+                            src.Thread = new Thread(delegate () { RunSource(src); });
+                            src.Thread.IsBackground = true;
+                            src.Thread.Start();
+                            sources[pid] = src;
+                        }
+                    }
+                    Thread.Sleep(10);
+                    // quantos quadros o relógio pede agora (a saída anda no tempo real, com ou sem som)
+                    long due = clock.ElapsedMilliseconds * OUT_RATE / 1000 - produced;
+                    if (due <= 0) continue;
+                    if (due > OUT_RATE / 5) due = OUT_RATE / 5;
+                    int samples = (int)due * 2;
+                    float[] mix = new float[samples];
+                    foreach (AppSource src in sources.Values)
+                        lock (src.Lock)
+                        {
+                            int take = Math.Min(samples, src.Buf.Count & ~1);
+                            for (int i = 0; i < take; i++) mix[i] += src.Buf.Dequeue();
+                        }
+                    for (int i = 0; i < samples; i++) mix[i] = Math.Max(-1f, Math.Min(1f, mix[i]));
+                    byte[] bytes = new byte[samples * 4];
+                    Buffer.BlockCopy(mix, 0, bytes, 0, bytes.Length);
+                    stdout.Write(bytes, 0, bytes.Length);
+                    stdout.Flush();
+                    produced += due;
+                }
+            }
+            catch (IOException)
+            {
+                // o processo principal fechou o pipe
+            }
+            finally
+            {
+                foreach (AppSource src in sources.Values) src.Stop = true;
+            }
+            return 0;
+        }
+
+        static int Except(uint pid, int mode)
         {
             // AUDIOCLIENT_ACTIVATION_PARAMS { ActivationType, TargetProcessId, ProcessLoopbackMode } num PROPVARIANT VT_BLOB
             IntPtr p = Marshal.AllocHGlobal(12);
@@ -276,7 +594,7 @@ namespace OpenCord.WinAudio
             {
                 Marshal.WriteInt32(p, 0, AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK);
                 Marshal.WriteInt32(p, 4, unchecked((int)pid));
-                Marshal.WriteInt32(p, 8, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE);
+                Marshal.WriteInt32(p, 8, mode);
                 for (int i = 0; i < 8 + 2 * IntPtr.Size; i++) Marshal.WriteByte(pv, i, 0);
                 Marshal.WriteInt16(pv, 0, unchecked((short)VT_BLOB));
                 Marshal.WriteInt32(pv, 8, 12);
@@ -421,6 +739,14 @@ namespace OpenCord.WinAudio
             if (channels >= 8) { sl += Sample(data, b + 6) * k; sr += Sample(data, b + 7) * k; }
             l = (l + c + sl) / (channels >= 6 ? 2.4f : 1.7f);
             r = (r + c + sr) / (channels >= 6 ? 2.4f : 1.7f);
+        }
+
+        public float[] ConvertFloats(IntPtr data, int frames, bool silent)
+        {
+            byte[] b = Convert(data, frames, silent);
+            float[] f = new float[b.Length / 4];
+            Buffer.BlockCopy(b, 0, f, 0, b.Length);
+            return f;
         }
 
         public byte[] Convert(IntPtr data, int frames, bool silent)

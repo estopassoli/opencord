@@ -141,7 +141,7 @@ fn parse_source(s: &str) -> Result<(bool, usize), String> {
 fn start_audio(cfg: &Config, src: NativeAudioSource, rt: &tokio::runtime::Handle) -> Option<Child> {
     let (pid, exe) = (cfg.audio_except_pid?, cfg.oc_audio.clone()?);
     let mut child = Command::new(exe)
-        .args(["except", &pid.to_string()])
+        .args(["apps-except", &pid.to_string()])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

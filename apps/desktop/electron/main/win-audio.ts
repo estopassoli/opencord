@@ -41,7 +41,7 @@ export function startOutput(id: string, to: WebContents, channel: string): Promi
   if (running.has(id)) return Promise.resolve(true);
   if (!winAudioAvailable()) return Promise.resolve(false);
   // a árvore de processos do OpenCord parte do processo principal: renderers e o serviço de áudio são filhos dele
-  const args = id === WIN_AUDIO_EXCEPT_SELF ? ['except', String(process.pid)] : ['capture', id];
+  const args = id === WIN_AUDIO_EXCEPT_SELF ? ['apps-except', String(process.pid)] : ['capture', id];
   const child = spawn(exe(), args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   running.set(id, child);
   let rest: Buffer = Buffer.alloc(0);

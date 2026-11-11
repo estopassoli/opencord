@@ -130,7 +130,7 @@ pub async fn win_audio_start(app: AppHandle, id: String, on_chunk: Channel<Invok
   let mut cmd = Command::new(path);
   // a árvore de processos do OpenCord parte deste processo: o WebView2 é filho dele
   if id == EXCEPT_SELF {
-    cmd.args(["except", &std::process::id().to_string()]);
+    cmd.args(["apps-except", &std::process::id().to_string()]);
   } else {
     cmd.args(["capture", &id]);
   }
