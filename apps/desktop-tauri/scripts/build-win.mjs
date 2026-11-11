@@ -35,6 +35,9 @@ cpSync(path.join(root, 'src-tauri'), path.join(stage, 'src-tauri'), {
 rmSync(path.join(stage, 'dist'), { recursive: true, force: true });
 cpSync(path.join(root, 'dist'), path.join(stage, 'dist'), { recursive: true });
 mkdirSync(path.join(stage, 'resources'), { recursive: true });
+// Go Live nativo (ADR-0062): o oc-live.exe é compilado à parte (native/oc-live, no Windows)
+execFileSync('sh', [path.join(root, 'native/oc-live/build-win.sh')], { stdio: 'inherit' });
+cpSync(`${stage}/../oc-live/target/release/oc-live.exe`, path.join(stage, 'resources', 'oc-live.exe'));
 for (const exe of ['oc-audio.exe', 'oc-input.exe']) {
   const src = path.join(root, '../desktop/resources/win', exe);
   if (!existsSync(src)) throw new Error(`${src} não existe: rode antes o build do apps/desktop (build-win-audio.mjs)`);
@@ -49,6 +52,7 @@ execFileSync('cmd.exe', ['/c', `cd /d ${stageWin}\\src-tauri && ${run}`], { cwd:
 
 // sem o instalador, os auxiliares ficam ao lado do .exe (o app procura lá)
 const out = path.join(stage, 'src-tauri', 'target', 'release');
-for (const exe of ['oc-audio.exe', 'oc-input.exe']) cpSync(path.join(stage, 'resources', exe), path.join(out, exe));
+for (const exe of ['oc-audio.exe', 'oc-input.exe', 'oc-live.exe'])
+  cpSync(path.join(stage, 'resources', exe), path.join(out, exe));
 console.log(`\nPronto: ${stageWin}\\src-tauri\\target\\release\\opencord-tauri.exe`);
 if (bundle) console.log(`Instalador: ${stageWin}\\src-tauri\\target\\release\\bundle\\nsis\\`);

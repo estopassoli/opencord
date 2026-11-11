@@ -20,7 +20,8 @@
     "icon": ["icons/icon.png", "icons/icon.ico"],
     "resources": {
       "../resources/oc-audio.exe": "oc-audio.exe",
-      "../resources/oc-input.exe": "oc-input.exe"
+      "../resources/oc-input.exe": "oc-input.exe",
+      "../resources/oc-live.exe": "oc-live.exe"
     },
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },

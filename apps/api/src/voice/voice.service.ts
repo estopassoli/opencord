@@ -10,11 +10,14 @@ import {
 } from '@nestjs/common';
 import {
   hasPermission,
+  liveIdentity,
+  liveOwner,
   Permission,
   rooms,
   type ActivityState,
   type MusicState,
   type VoiceJoinResponse,
+  type VoiceLiveResponse,
   type VoiceMemberState,
 } from '@opencord/contracts';
 import { AccessToken, RoomServiceClient, TrackSource, WebhookReceiver, type WebhookEvent } from 'livekit-server-sdk';
@@ -477,6 +480,54 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /**
+   * Token da live nativa (ADR-0062): o `oc-live` do app em Tauri entra na sala da chamada como `<userId>:live`, um
+   * participante à parte (a SFU não aceita duas conexões com a mesma identidade). Só para quem está na chamada e pode
+   * transmitir nela (mesmas regras do token de voz); o token só publica tela e áudio da tela, não assina nada, não
+   * publica dados e não cria sala (a chamada já existe).
+   */
+  async liveToken(userId: string): Promise<VoiceLiveResponse> {
+    const s = await this.stateOf(userId);
+    if (!s) throw new BadRequestException('não está em um canal de voz');
+    // chamada privada (ADR-0038): todos podem transmitir
+    if (!s.conversationId) {
+      const access = await this.perms.requireChannel(s.channelId, userId, Permission.CONNECT);
+      assertNotTimedOut(access);
+      const sources = voiceSources(access.perms, {
+        serverMuted: s.serverMute,
+        afk: await this.isAfkChannel(access.serverId, s.channelId),
+      });
+      if (!sources.includes(TrackSource.SCREEN_SHARE)) throw forbidden('sem permissão para transmitir neste canal');
+    }
+    const identity = liveIdentity(userId);
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { displayName: true } });
+    const at = new AccessToken(this.cfg.LIVEKIT_API_KEY, this.cfg.LIVEKIT_API_SECRET, {
+      identity,
+      name: user.displayName,
+      ttl: this.cfg.LIVEKIT_TOKEN_TTL_SECONDS,
+      metadata: JSON.stringify({ live: true, owner: userId, channelId: s.channelId }),
+    });
+    at.addGrant({
+      room: s.roomName,
+      roomJoin: true,
+      roomCreate: false,
+      ...permissionFor([TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO]),
+      // a live só envia: quem assiste continua sendo a conexão de voz do app
+      canSubscribe: false,
+      // a prévia da live (ADR-0012) continua saindo da conexão de voz
+      canPublishData: false,
+      canUpdateOwnMetadata: false,
+      hidden: false,
+    });
+    return {
+      url: this.cfg.LIVEKIT_URL,
+      token: await at.toJwt(),
+      roomName: s.roomName,
+      identity,
+      expiresAt: new Date(Date.now() + this.cfg.LIVEKIT_TOKEN_TTL_SECONDS * 1000).toISOString(),
+    };
+  }
+
   /** Quem está na chamada privada desta conversa (só para membros dela). */
   async listConversation(userId: string, conversationId: string): Promise<VoiceMemberState[]> {
     const member = await this.prisma.conversationMember.findFirst({
@@ -539,6 +590,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
     if (notifyUser)
       this.realtime.toUser(s.userId, 'voice:force-disconnect', { channelId: s.channelId, reason: notifyUser });
     await this.rooms.removeParticipant(s.roomName, s.userId).catch(() => undefined);
+    // a live nativa (ADR-0062) cai junto com a chamada
+    await this.rooms.removeParticipant(s.roomName, liveIdentity(s.userId)).catch(() => undefined);
     this.realtime.emit(this.roomOf(s), 'voice:member:left', {
       userId: s.userId,
       channelId: s.channelId,
@@ -716,6 +769,9 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
             permission: permissionFor(sources),
           })
           .catch(() => undefined);
+        // perdeu STREAM: a live nativa (ADR-0062) sai da sala (o token dela não muda de permissão)
+        if (!sources.includes(TrackSource.SCREEN_SHARE))
+          await this.rooms.removeParticipant(s.roomName, liveIdentity(uid)).catch(() => undefined);
       }
     }
   }
@@ -731,6 +787,7 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       const roomName = any?.roomName ?? this.roomNameFor(channelId);
       const present = new Set((await this.rooms.listParticipants(roomName).catch(() => [])).map((p) => p.identity));
       for (const uid of uids) {
+        // a conexão de voz é a que conta: a live nativa (`<userId>:live`) não confirma nem mantém a sessão
         const s = states.get(uid) ?? null;
         if (!s || s.channelId !== channelId) {
           await this.r.srem(`voice:channel:${channelId}`, uid);
@@ -746,6 +803,14 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
           await this.endSession(s, 'timeout');
           removed++;
         }
+      }
+      // live nativa (ADR-0062) cujo dono não está mais nesta chamada (o endSession falhou ao tirá-la): sai da sala
+      for (const identity of present) {
+        const owner = liveOwner(identity);
+        if (!owner) continue;
+        if ((await this.stateOf(owner))?.channelId === channelId) continue;
+        this.log.log(`voz: live de ${owner} em ${channelId} sem o dono na chamada; removida`);
+        await this.rooms.removeParticipant(roomName, identity).catch(() => undefined);
       }
     }
     return { removed };
@@ -773,6 +838,8 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (!identity) return;
+    const owner = liveOwner(identity);
+    if (owner) return this.handleLiveWebhook(ev, roomName, channelId, identity, owner);
     const s = await this.stateOf(identity);
     if (!s || s.channelId !== channelId) {
       // participante na SFU sem autorização lógica atual: remover
@@ -816,5 +883,52 @@ export class VoiceService implements OnModuleInit, OnModuleDestroy {
       default:
         break;
     }
+  }
+
+  /**
+   * Eventos da live nativa (`<owner>:live`, ADR-0062): valem para o estado do dono. A conexão da live não confirma nem
+   * encerra a sessão de voz (isso é da conexão de voz); sair da live só desliga o "transmitindo".
+   */
+  private async handleLiveWebhook(
+    ev: WebhookEvent,
+    roomName: string,
+    channelId: string,
+    identity: string,
+    owner: string,
+  ): Promise<void> {
+    const s = await this.stateOf(owner);
+    if (!s || s.channelId !== channelId) {
+      // live de quem não está nesta chamada: remover
+      if (ev.event === 'participant_joined') {
+        this.log.log(`voz: live ${identity} entrou na SFU (${roomName}) sem o dono na chamada; removida`);
+        await this.rooms.removeParticipant(roomName, identity).catch(() => undefined);
+      }
+      return;
+    }
+    let on: boolean;
+    if (ev.event === 'participant_left') {
+      if (!s.streaming) return;
+      on = false;
+    } else if (ev.event === 'track_published' || ev.event === 'track_unpublished') {
+      if (ev.track?.source !== TrackSource.SCREEN_SHARE) return;
+      on = ev.event === 'track_published';
+    } else return;
+    if (!on) {
+      // o `oc-live` reabriu (mesma identidade, conexão nova): o aviso atrasado da conexão antiga não desliga a live nova
+      const cur = await this.rooms.getParticipant(roomName, identity).catch(() => null);
+      if (cur && cur.sid !== ev.participant?.sid) {
+        this.log.log(
+          `voz: fim de live ignorado de ${identity} em ${roomName} (conexão antiga ${ev.participant?.sid ?? '?'})`,
+        );
+        return;
+      }
+    }
+    s.streaming = on;
+    if (!on) {
+      s.previewAt = null;
+      await this.r.del(`voice:preview:${s.userId}`);
+    }
+    await this.save(s);
+    this.realtime.emit(this.roomOf(s), 'voice:state:changed', this.publicState(s));
   }
 }

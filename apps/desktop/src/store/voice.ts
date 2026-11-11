@@ -1,4 +1,4 @@
-import type { UserSettings, VoiceJoinResponse } from '@opencord/contracts';
+import type { UserSettings, VoiceJoinResponse, VoiceLiveResponse } from '@opencord/contracts';
 import {
   initialStreamState,
   initialVoiceState,
@@ -212,6 +212,8 @@ export const useVoice = create<VoiceStore>()((set, get) => {
           void get().stopStream();
         },
         onStats: (stats) => set({ stats }),
+        // live nativa do app em Tauri (ADR-0062): token do participante `<eu>:live`
+        liveToken: () => api().request<VoiceLiveResponse>('POST', '/voice/live'),
         // prévia também na API, para o card "Em atividade" de quem está fora da chamada (falha não afeta a live)
         onStreamPreview: (image) =>
           void api()

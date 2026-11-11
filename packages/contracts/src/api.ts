@@ -1847,6 +1847,29 @@ export const VoiceJoinResponse = z.object({
 });
 export type VoiceJoinResponse = z.infer<typeof VoiceJoinResponse>;
 
+/**
+ * Go Live nativo (ADR-0062): no app em Tauri a live sai de um processo próprio (`oc-live`), que entra na SFU como um
+ * participante só dela, `<userId>:live` (a SFU não aceita duas conexões com a mesma identidade). Quem assiste trata as
+ * trilhas de tela desse participante como a live de `<userId>`.
+ */
+export const LIVE_IDENTITY_SUFFIX = ':live';
+export const liveIdentity = (userId: string) => `${userId}${LIVE_IDENTITY_SUFFIX}`;
+/** o dono da live (`<userId>`), ou null se a identidade não é de uma live nativa */
+export const liveOwner = (identity: string): string | null =>
+  identity.endsWith(LIVE_IDENTITY_SUFFIX) && identity.length > LIVE_IDENTITY_SUFFIX.length
+    ? identity.slice(0, -LIVE_IDENTITY_SUFFIX.length)
+    : null;
+
+/** token da live nativa: só publica tela e áudio da tela, não assina nada */
+export const VoiceLiveResponse = z.object({
+  url: z.string(),
+  token: z.string(),
+  roomName: z.string(),
+  identity: z.string(),
+  expiresAt: IsoDate,
+});
+export type VoiceLiveResponse = z.infer<typeof VoiceLiveResponse>;
+
 export const VoiceMemberState = z.object({
   userId: Id,
   /** canal de voz, ou o id da conversa numa chamada privada (ADR-0038) */

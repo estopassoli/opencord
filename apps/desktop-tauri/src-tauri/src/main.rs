@@ -9,6 +9,7 @@
 
 mod aux_windows;
 mod clips;
+mod live;
 mod sidecar;
 mod sys;
 
@@ -137,12 +138,14 @@ fn open_external(app: AppHandle, url: String) -> Result<(), String> {
 
 #[tauri::command]
 fn relaunch(app: AppHandle) {
+  live::stop_all(&app);
   sidecar::stop_all(&app);
   app.restart();
 }
 
 #[tauri::command]
 fn quit_app(app: AppHandle) {
+  live::stop_all(&app);
   sidecar::stop_all(&app);
   app.exit(0);
 }
@@ -250,6 +253,7 @@ fn main() {
     })
     .manage(AppState { voice: Mutex::new(VoiceState::default()), gpu_off_active: gpu_off })
     .manage(sidecar::Sidecars::default())
+    .manage(live::Live::default())
     .setup(move |app| {
       let handle = app.handle().clone();
       create_main_window(&handle, gpu_off)?;
@@ -311,6 +315,9 @@ fn main() {
       clips::clips_reveal,
       clips::clips_copy,
       clips::clips_export,
+      live::live_sources,
+      live::live_start,
+      live::live_stop,
       sidecar::win_audio_list,
       sidecar::win_audio_start,
       sidecar::win_audio_stop,
@@ -330,6 +337,7 @@ fn main() {
     .expect("erro ao iniciar o OpenCord");
   app.run(|app, e| {
     if let RunEvent::Exit = e {
+      live::stop_all(app);
       sidecar::stop_all(app);
     }
   });

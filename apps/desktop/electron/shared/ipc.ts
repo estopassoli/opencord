@@ -233,12 +233,48 @@ export interface AppInfo {
   secureStorage: boolean;
 }
 
+/** Go Live nativo (app em Tauri, ADR-0062): o que o processo da live precisa para entrar na sala e transmitir */
+export interface NativeLiveStartArgs {
+  url: string;
+  token: string;
+  /** id do `capture.listSources` (`window:<hwnd>` ou `screen:<monitor>`) */
+  sourceId: string;
+  width: number;
+  height: number;
+  fps: number;
+  /** bps */
+  bitrate: number;
+  /** com o áudio do sistema (tudo menos o OpenCord) */
+  audio: boolean;
+  cursor: boolean;
+}
+
+/** avisos do processo da live nativa */
+export type NativeLiveEvent =
+  | { ev: 'stats'; fps: number; kbps: number; keyframes: number; dropped: number }
+  | { ev: 'ended'; reason: string }
+  | { ev: 'error'; code?: string; message: string }
+  | { ev: 'warn'; message: string }
+  /** o processo saiu (parou, caiu ou a sala fechou) */
+  | { ev: 'exited' }
+  | { ev: 'connected' | 'publishing' };
+
 /** API exposta em `window.opencord`. */
 export interface OpenCordBridge {
   capture: {
     listSources(): Promise<CaptureSourceDto[]>;
     /** Autoriza a PRÓXIMA chamada a getDisplayMedia a usar esta fonte (e áudio do sistema se pedido). */
     select(args: CaptureSelectArgs): Promise<void>;
+  };
+  /**
+   * Go Live nativo (só no app em Tauri): captura, codificação na placa de vídeo e envio fora do WebView, num processo
+   * próprio que entra na sala como `<userId>:live`. Ausente no Electron e no navegador (Go Live pelo getDisplayMedia).
+   */
+  nativeLive?: {
+    /** responde quando a live está publicada; erro começando com `no-hw-encoder` = sem encoder na placa */
+    start(args: NativeLiveStartArgs): Promise<{ encoder: string; audio: boolean }>;
+    stop(): Promise<void>;
+    onEvent(cb: (e: NativeLiveEvent) => void): () => void;
   };
   secure: {
     get(key: SecureKey): Promise<string | null>;

@@ -4,10 +4,12 @@
  */
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
+  liveIdentity,
   Permission,
   type Role,
   type ServerDetail,
   type VoiceJoinResponse,
+  type VoiceLiveResponse,
   type Channel,
   type VoiceMemberState,
 } from '@opencord/contracts';
@@ -523,5 +525,158 @@ describe('voz com LiveKit real', () => {
       token: owner.token,
     });
     expect(states.body.find((s) => s.userId === alice.id)).toBeUndefined();
+  });
+});
+
+/** Go Live nativo do app em Tauri (ADR-0062): o `oc-live` entra na sala como `<userId>:live`. */
+describe('live nativa (participante <userId>:live)', () => {
+  /** conexão do `oc-live`: só publica, não assina nada */
+  async function connectLive(l: VoiceLiveResponse) {
+    const room = new Room();
+    await room.connect(l.url, l.token, { autoSubscribe: false, dynacast: false });
+    cleanup.push(() => room.disconnect().catch(() => undefined));
+    return room;
+  }
+
+  async function publishScreen(room: Room) {
+    const track = LocalVideoTrack.createVideoTrack('screen', new VideoSource(64, 64));
+    const opts = new TrackPublishOptions();
+    opts.source = TrackSource.SOURCE_SCREENSHARE;
+    await room.localParticipant?.publishTrack(track, opts);
+  }
+
+  /** entra na voz (conexão de voz confirmada na SFU) e pega o token da live */
+  async function inCallWithLive(token: string, userId: string, voiceId: string) {
+    const j = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${voiceId}/join`, { token });
+    const voice = await connectRoom(j.body);
+    const svc = app.get(VoiceService);
+    await waitUntil(async () => !!(await svc.stateOf(userId))?.sid);
+    const l = await http.req<VoiceLiveResponse>('POST', '/voice/live', { token });
+    expect(l.status).toBe(201);
+    return { j: j.body, voice, l: l.body, svc };
+  }
+
+  it('token só para quem está na chamada: identidade :live, só tela, sem assinar nem criar sala', async () => {
+    const { alice, voiceId } = await setup();
+    // fora da chamada: recusado
+    expect((await http.req('POST', '/voice/live', { token: alice.token })).status).toBe(400);
+    const j = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    const r = await http.req<VoiceLiveResponse>('POST', '/voice/live', { token: alice.token });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ url: j.body.url, roomName: j.body.roomName, identity: liveIdentity(alice.id) });
+    expect(new Date(r.body.expiresAt).getTime()).toBeGreaterThan(Date.now());
+    const claims = decodeJwt(r.body.token) as {
+      sub: string;
+      exp: number;
+      metadata: string;
+      video: Record<string, unknown>;
+    };
+    expect(claims.sub).toBe(`${alice.id}:live`);
+    expect(JSON.parse(claims.metadata)).toEqual({ live: true, owner: alice.id, channelId: voiceId });
+    expect(claims.video).toMatchObject({
+      room: j.body.roomName,
+      roomJoin: true,
+      canPublish: true,
+      canSubscribe: false,
+      canPublishData: false,
+      canUpdateOwnMetadata: false,
+    });
+    expect(claims.video.roomCreate).toBeFalsy();
+    expect((claims.video.canPublishSources as string[]).sort()).toEqual(['screen_share', 'screen_share_audio']);
+    expect(claims.exp * 1000 - Date.now()).toBeLessThanOrEqual(600_000 + 2000);
+  });
+
+  it('canal sem STREAM: token da live recusado', async () => {
+    const { alice, owner, serverId, voiceId } = await setup();
+    const d = await http.req<ServerDetail>('GET', `/servers/${serverId}`, { token: owner.token });
+    const everyone = d.body.roles.find((r) => r.isEveryone) as Role;
+    await http.req('PATCH', `/channels/${voiceId}`, {
+      token: owner.token,
+      body: { overrides: [{ subjectType: 'role', subjectId: everyone.id, allow: 0, deny: Permission.STREAM }] },
+    });
+    expect((await http.req('POST', `/voice/channels/${voiceId}/join`, { token: alice.token })).status).toBe(201);
+    expect((await http.req('POST', '/voice/live', { token: alice.token })).status).toBe(403);
+  });
+
+  it('tela publicada pela :live marca o dono transmitindo; sair da live desliga e mantém a chamada', async () => {
+    const { alice, owner, serverId, voiceId } = await setup();
+    const so = await sock(owner.token);
+    const { j, voice, l, svc } = await inCallWithLive(alice.token, alice.id, voiceId);
+    const live = await connectLive(l);
+    await waitUntil(async () => (await participants(j.roomName)).includes(liveIdentity(alice.id)));
+    // a live não confirma nem troca a conexão de voz
+    const sid = (await svc.stateOf(alice.id))?.sid;
+    expect(sid).toBeTruthy();
+
+    const on = nextEvent<VoiceMemberState>(
+      so,
+      'voice:state:changed',
+      (s) => s.userId === alice.id && s.streaming,
+      10000,
+    );
+    await publishScreen(live);
+    expect((await on).streaming).toBe(true);
+    const list = await http.req<VoiceMemberState[]>('GET', `/servers/${serverId}/voice-states`, { token: owner.token });
+    expect(list.body.map((s) => s.userId)).toEqual([alice.id]);
+    expect(list.body[0]?.streaming).toBe(true);
+    expect((await svc.stateOf(alice.id))?.sid).toBe(sid);
+
+    const off = nextEvent<VoiceMemberState>(
+      so,
+      'voice:state:changed',
+      (s) => s.userId === alice.id && !s.streaming,
+      10000,
+    );
+    const noLeft = noEvent(so, 'voice:member:left', () => true, 3000);
+    await live.disconnect();
+    expect((await off).streaming).toBe(false);
+    await noLeft;
+    const s = await svc.stateOf(alice.id);
+    expect(s).toMatchObject({ channelId: voiceId, streaming: false, previewAt: null, sid });
+    expect(voice.isConnected).toBe(true);
+    expect(await participants(j.roomName)).toContain(alice.id);
+  });
+
+  it('live de quem não está na chamada é removida da SFU', async () => {
+    const { alice, owner, voiceId } = await setup();
+    // alice mantém a sala aberta (a live não cria sala)
+    const j = await http.req<VoiceJoinResponse>('POST', `/voice/channels/${voiceId}/join`, { token: alice.token });
+    await connectRoom(j.body);
+    await waitUntil(async () => (await participants(j.body.roomName)).includes(alice.id));
+    // o dono pega o token e sai da chamada antes de a live conectar
+    const { l } = await inCallWithLive(owner.token, owner.id, voiceId);
+    expect((await http.req('POST', '/voice/leave', { token: owner.token })).status).toBe(204);
+    // conecta (o token é válido) e o webhook participant_joined a derruba
+    const live = await connectLive(l);
+    await waitUntil(async () => !live.isConnected);
+    expect(await participants(j.body.roomName)).not.toContain(liveIdentity(owner.id));
+    const svc = app.get(VoiceService);
+    expect(await svc.stateOf(owner.id)).toBeNull();
+    expect(await participants(j.body.roomName)).toContain(alice.id);
+  });
+
+  it('sair da chamada tira a live da SFU junto', async () => {
+    const { alice, voiceId } = await setup();
+    const { j, l } = await inCallWithLive(alice.token, alice.id, voiceId);
+    await connectLive(l);
+    await waitUntil(async () => (await participants(j.roomName)).includes(liveIdentity(alice.id)));
+    expect((await http.req('POST', '/voice/leave', { token: alice.token })).status).toBe(204);
+    await waitUntil(async () => {
+      const p = await participants(j.roomName);
+      return !p.includes(alice.id) && !p.includes(liveIdentity(alice.id));
+    });
+  });
+
+  it('reconcile mantém a live de quem está na chamada e tira a de quem não está mais', async () => {
+    const { alice, voiceId } = await setup();
+    const { j, l, svc } = await inCallWithLive(alice.token, alice.id, voiceId);
+    await connectLive(l);
+    await waitUntil(async () => (await participants(j.roomName)).includes(liveIdentity(alice.id)));
+    expect((await svc.reconcile()).removed).toBe(0);
+    expect(await participants(j.roomName)).toContain(liveIdentity(alice.id));
+    // o estado da alice some sem passar pelo endSession (ex.: a remoção da live falhou): o reconcile tira a live
+    await svc['redis'].client.del(`voice:user:${alice.id}`);
+    await svc.reconcile();
+    await waitUntil(async () => !(await participants(j.roomName)).includes(liveIdentity(alice.id)));
   });
 });

@@ -17,7 +17,7 @@ use tauri::{AppHandle, Emitter, Manager};
 const NO_WINDOW: u32 = 0x0800_0000;
 const EXCEPT_SELF: &str = "except-self";
 
-fn exe(app: &AppHandle, name: &str) -> PathBuf {
+pub fn exe(app: &AppHandle, name: &str) -> PathBuf {
   let res = app.path().resource_dir().ok().map(|d| d.join(name));
   match res {
     Some(p) if p.exists() => p,

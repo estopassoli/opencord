@@ -5,6 +5,9 @@
  * - Ensurdecer: volume 0 em todas as trilhas remotas + mute.
  * - Go Live: captura via bridge Electron (loopback do sistema com restrictOwnAudio, ADR-0003) e publica
  *   `screen_share` + `screen_share_audio`. Espectadores assinam streams sob demanda (P08).
+ * - Go Live nativo (app em Tauri, ADR-0062): a live sai do processo `oc-live` (captura do Windows, H.264 da placa),
+ *   que entra na sala como `<userId>:live`. Aqui ela vira a live de `<userId>`: o `:live` não aparece como pessoa, e
+ *   as trilhas de tela dele são as de quem é o dono (`streamHolder`).
  */
 import {
   backoffDelay,
@@ -39,6 +42,7 @@ import { SceneCompositor } from './compositor';
 import { SystemAudio } from './system-audio';
 import { screenLayer, type Scene } from '../lib/scenes';
 import { bridge } from '../lib/bridge';
+import { liveIdentity, liveOwner } from '@opencord/contracts';
 import { isMobileWeb } from '../lib/pwa';
 
 export interface ParticipantView {
@@ -114,6 +118,8 @@ export interface EngineCallbacks {
   onStats(s: MediaStats): void;
   /** nova prévia da própria live (JPEG), para publicar na API */
   onStreamPreview?(image: Blob): void;
+  /** token da live nativa (`POST /voice/live`, ADR-0062); sem ele, o Go Live usa sempre o getDisplayMedia */
+  liveToken?(): Promise<{ url: string; token: string }>;
   /** tela de bloqueio/fones pediram para desligar (Media Session) */
   onHangupRequested?(): void;
   /**
@@ -175,6 +181,8 @@ export class VoiceEngine {
   private vadTimer: ReturnType<typeof setInterval> | null = null;
   private statsTimer: ReturnType<typeof setInterval> | null = null;
   private vadCtx: AudioContext | null = null;
+  /** live nativa em andamento (ADR-0062): o processo `oc-live` publica como `<eu>:live` */
+  private native: { audio: boolean; off: () => void } | null = null;
   private screen: {
     video: LocalVideoTrack;
     audio: LocalAudioTrack | null;
@@ -196,7 +204,7 @@ export class VoiceEngine {
     if (this.roomEvents.length > 40) this.roomEvents.shift();
   }
   private previews = new PreviewReceiver(
-    (id) => Boolean(this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.ScreenShare)),
+    (id) => Boolean(this.streamHolder(id)?.getTrackPublication(Track.Source.ScreenShare)),
     () => this.emit(),
   );
 
@@ -371,8 +379,11 @@ export class VoiceEngine {
       .on(RoomEvent.Reconnected, () => this.note('reconnected'))
       .on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => {
         this.note(`participant-left ${p.identity.slice(-4)}`);
-        this.watching.delete(p.identity);
-        this.previews.drop(p.identity);
+        const owner = liveOwner(p.identity);
+        // a live nativa saiu: a pessoa continua na chamada (e quem assistia continua "assistindo" se ela voltar)
+        if (!owner) this.watching.delete(p.identity);
+        this.previews.drop(owner ?? p.identity);
+        if (owner && owner === room.localParticipant.identity && this.native) this.cb.onStreamEnded();
         emit();
       })
       .on(RoomEvent.TrackPublished, (pub: RemoteTrackPublication, p: RemoteParticipant) => {
@@ -380,7 +391,7 @@ export class VoiceEngine {
         emit();
       })
       .on(RoomEvent.TrackUnpublished, (pub: RemoteTrackPublication, p: RemoteParticipant) => {
-        if (pub.source === Track.Source.ScreenShare) this.previews.drop(p.identity);
+        if (pub.source === Track.Source.ScreenShare) this.previews.drop(liveOwner(p.identity) ?? p.identity);
         emit();
       })
       .on(RoomEvent.TrackSubscribed, (t: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
@@ -397,6 +408,14 @@ export class VoiceEngine {
           const rx = t.receiver as (RTCRtpReceiver & { jitterBufferTarget?: number | null }) | undefined;
           if (rx && 'jitterBufferTarget' in rx) rx.jitterBufferTarget = LIVE_JITTER_BUFFER_MS;
         }
+        // a própria live nativa (assinada só para a prévia na tela): as miniaturas saem dela
+        if (
+          pub.source === Track.Source.ScreenShare &&
+          this.native &&
+          liveOwner(p.identity) === room.localParticipant.identity &&
+          !this.stopPreview
+        )
+          this.stopPreview = startPreviewSender(room, t.mediaStreamTrack, (img) => this.cb.onStreamPreview?.(img));
         emit();
       })
       .on(RoomEvent.TrackUnsubscribed, (t: RemoteTrack) => {
@@ -458,7 +477,19 @@ export class VoiceEngine {
 
   private autoSubscribe(pub: RemoteTrackPublication, p: RemoteParticipant) {
     const isStream = pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio;
-    pub.setSubscribed(isStream ? this.watching.has(p.identity) || this.recordAll : true);
+    const owner = liveOwner(p.identity);
+    // a própria live nativa: só o vídeo (prévia na tela), nunca o áudio (seria o meu som voltando)
+    if (owner && owner === this.room?.localParticipant.identity) {
+      pub.setSubscribed(pub.source === Track.Source.ScreenShare && this.native !== null);
+      return;
+    }
+    pub.setSubscribed(isStream ? this.watching.has(owner ?? p.identity) || this.recordAll : true);
+  }
+
+  /** quem tem as trilhas da live de `identity`: o participante `<id>:live` (live nativa) ou a própria pessoa */
+  private streamHolder(identity: string): RemoteParticipant | undefined {
+    const r = this.room?.remoteParticipants;
+    return r?.get(liveIdentity(identity)) ?? r?.get(identity);
   }
 
   // ---------- microfone / PTT / VAD ----------
@@ -565,7 +596,9 @@ export class VoiceEngine {
         : (this.volumes.get(p.identity) ?? 1) * (this.spatial.get(p.identity) ?? 1) * this.prefs.outputVolume;
     p.setVolume(v, Track.Source.Microphone);
     // áudio da transmissão: volume próprio por pessoa (menu da live), independente do volume da voz
-    const sv = this.deafened ? 0 : (this.screenVolumes.get(p.identity) ?? 1) * this.prefs.outputVolume;
+    const sv = this.deafened
+      ? 0
+      : (this.screenVolumes.get(liveOwner(p.identity) ?? p.identity) ?? 1) * this.prefs.outputVolume;
     p.setVolume(sv, Track.Source.ScreenShareAudio);
     // iOS ignora o volume do <audio>: silenciar/ensurdecer vira muted no elemento
     if (mobileWeb)
@@ -578,6 +611,8 @@ export class VoiceEngine {
     this.screenVolumes.set(identity, v);
     const p = this.room?.remoteParticipants.get(identity);
     if (p) this.applyVolume(p);
+    const live = this.room?.remoteParticipants.get(liveIdentity(identity));
+    if (live) this.applyVolume(live);
   }
 
   setUserMuted(identity: string, muted: boolean) {
@@ -666,6 +701,16 @@ export class VoiceEngine {
     opts: { hideCursor?: boolean } = {},
   ): Promise<{ audioPublished: boolean }> {
     if (!this.room) throw new Error('não conectado');
+    // app em Tauri: a live sai do processo nativo (fora do WebView). Cena ainda é só pelo caminho do navegador.
+    if (bridge?.nativeLive && this.cb.liveToken && sourceId && !scene) {
+      const r = await this.startNative(sourceId, withAudio, profileId, bitrate, opts).catch((e: unknown) => {
+        // placa sem encoder H.264: segue pela captura do WebView, como antes
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.startsWith('no-hw-encoder') || msg === 'no-live-token') return null;
+        throw e instanceof Error ? e : new Error(String(e));
+      });
+      if (r) return r;
+    }
     const profile = effectiveProfile(profileId, { hardware: codec === 'h264' ? null : false });
     const maxBitrate = streamBitrate(profile.id, bitrate);
     // áudio do sistema: de preferência o oc-audio (tudo menos o OpenCord, ADR-0025); sem ele, o loopback do Chromium
@@ -785,7 +830,66 @@ export class VoiceEngine {
     }, 4000);
   }
 
+  /**
+   * Go Live nativo (ADR-0062): token da live (`<eu>:live`) na API, e o processo `oc-live` captura, codifica na placa e
+   * publica. A prévia na tela é a própria live assinada (só o vídeo).
+   */
+  private async startNative(
+    sourceId: string,
+    withAudio: boolean,
+    profileId: StreamProfileId,
+    bitrate: StreamBitrateLevel,
+    opts: { hideCursor?: boolean },
+  ): Promise<{ audioPublished: boolean }> {
+    const live = bridge?.nativeLive;
+    if (!live || !this.cb.liveToken) throw new Error('live nativa indisponível');
+    // o encoder é da placa: o perfil pedido vale (1440p60 inclusive)
+    const profile = effectiveProfile(profileId, { hardware: true });
+    // servidor sem a rota da live nativa (versão antiga): segue pelo WebView
+    const t = await this.cb.liveToken().catch(() => {
+      throw new Error('no-live-token');
+    });
+    const off = live.onEvent((e) => {
+      if (!this.native) return;
+      if (e.ev === 'stats') this.note(`live ${e.fps} fps ${e.kbps} kbps`);
+      // a janela fechou, a sala caiu ou o processo saiu: a live acabou
+      if (e.ev === 'ended' || e.ev === 'exited') this.cb.onStreamEnded();
+    });
+    try {
+      const r = await live.start({
+        url: t.url,
+        token: t.token,
+        sourceId,
+        width: profile.width,
+        height: profile.height,
+        fps: profile.fps,
+        bitrate: streamBitrate(profile.id, bitrate),
+        audio: withAudio,
+        cursor: !opts.hideCursor,
+      });
+      this.native = { audio: r.audio, off };
+      this.note(`live nativa: ${r.encoder}`);
+    } catch (e) {
+      off();
+      throw e;
+    }
+    // a própria live já pode estar na sala: assina o vídeo para a prévia na tela
+    const mine = this.room?.remoteParticipants.get(liveIdentity(this.room.localParticipant.identity));
+    if (mine) this.autoSubscribeAll(mine);
+    this.emit();
+    return { audioPublished: this.native.audio };
+  }
+
   async stopStream() {
+    const n = this.native;
+    if (n) {
+      this.native = null;
+      n.off();
+      this.stopPreview?.();
+      this.stopPreview = null;
+      await bridge?.nativeLive?.stop().catch(() => undefined);
+      this.emit();
+    }
     const s = this.screen;
     this.screen = null;
     this.lastVideoBytes = null;
@@ -830,14 +934,14 @@ export class VoiceEngine {
   }
 
   get streaming() {
-    return this.screen !== null;
+    return this.screen !== null || this.native !== null;
   }
 
   /** Assinar/cancelar assinatura da stream de alguém. */
   watch(identity: string, on: boolean) {
     if (on) this.watching.add(identity);
     else this.watching.delete(identity);
-    const p = this.room?.remoteParticipants.get(identity);
+    const p = this.streamHolder(identity);
     if (p) {
       for (const pub of p.trackPublications.values()) {
         if (pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio)
@@ -889,10 +993,16 @@ export class VoiceEngine {
     if (!room) return null;
     const src = source === 'camera' ? Track.Source.Camera : Track.Source.ScreenShare;
     if (identity === room.localParticipant.identity) {
+      if (source === 'screen' && this.native) {
+        const own = room.remoteParticipants.get(liveIdentity(identity))?.getTrackPublication(src);
+        return own?.isSubscribed && own.track ? own.track.mediaStreamTrack : null;
+      }
       if (source === 'screen') return this.screen?.video.mediaStreamTrack ?? null;
       return room.localParticipant.getTrackPublication(src)?.track?.mediaStreamTrack ?? null;
     }
-    const pub = room.remoteParticipants.get(identity)?.getTrackPublication(src);
+    const pub = (
+      source === 'screen' ? this.streamHolder(identity) : room.remoteParticipants.get(identity)
+    )?.getTrackPublication(src);
     return pub?.isSubscribed && pub.track ? pub.track.mediaStreamTrack : null;
   }
 
@@ -901,14 +1011,20 @@ export class VoiceEngine {
     const room = this.room;
     const src = source === 'camera' ? Track.Source.Camera : Track.Source.ScreenShare;
     if (!room) return () => undefined;
-    if (identity === room.localParticipant.identity) {
+    if (identity === room.localParticipant.identity && !(source === 'screen' && this.native)) {
       const t = this.videoTrack(identity, source);
       el.srcObject = t ? new MediaStream([t]) : null;
       return () => {
         el.srcObject = null;
       };
     }
-    const track = room.remoteParticipants.get(identity)?.getTrackPublication(src)?.track;
+    const holder =
+      source !== 'screen'
+        ? room.remoteParticipants.get(identity)
+        : identity === room.localParticipant.identity
+          ? room.remoteParticipants.get(liveIdentity(identity))
+          : this.streamHolder(identity);
+    const track = holder?.getTrackPublication(src)?.track;
     if (!track) return () => undefined;
     track.attach(el);
     return () => track.detach(el);
@@ -937,17 +1053,20 @@ export class VoiceEngine {
         hasCamera: Boolean(
           p.getTrackPublication(Track.Source.Camera) && !p.getTrackPublication(Track.Source.Camera)?.isMuted,
         ),
-        hasScreen: isLocal ? this.screen !== null : Boolean(p.getTrackPublication(Track.Source.ScreenShare)),
+        hasScreen: isLocal
+          ? this.streaming
+          : Boolean(this.streamHolder(p.identity)?.getTrackPublication(Track.Source.ScreenShare)),
         screenAudio: isLocal
-          ? Boolean(this.screen?.audio)
-          : Boolean(p.getTrackPublication(Track.Source.ScreenShareAudio)),
-        watchingScreen: isLocal ? this.screen !== null : this.watching.has(p.identity),
+          ? Boolean(this.screen?.audio) || Boolean(this.native?.audio)
+          : Boolean(this.streamHolder(p.identity)?.getTrackPublication(Track.Source.ScreenShareAudio)),
+        watchingScreen: isLocal ? this.streaming : this.watching.has(p.identity),
         ...(isLocal ? {} : { previewUrl: this.previews.get(p.identity) }),
         quality: QUALITY[p.connectionQuality] ?? 'unknown',
       };
     };
     views.push(toView(lp, true));
-    for (const p of room.remoteParticipants.values()) views.push(toView(p, false));
+    // a live nativa (`<id>:live`) não é uma pessoa: aparece como a live do dono
+    for (const p of room.remoteParticipants.values()) if (!liveOwner(p.identity)) views.push(toView(p, false));
     this.cb.onParticipants(views);
   }
 
@@ -1119,7 +1238,7 @@ export class VoiceEngine {
       });
     }
     const id = [...this.watching][0];
-    const pub = id ? this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.ScreenShare) : undefined;
+    const pub = id ? this.streamHolder(id)?.getTrackPublication(Track.Source.ScreenShare) : undefined;
     const track = pub?.track as RemoteTrack | undefined;
     if (track) {
       out.watchingName = this.room?.remoteParticipants.get(id as string)?.name || id;
@@ -1250,7 +1369,7 @@ export class VoiceEngine {
   /** Estatísticas de recepção da primeira live assistida (quem assiste vê no selo da live). */
   private async collectWatching(s: MediaStats) {
     const id = [...this.watching][0];
-    const pub = id ? this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.ScreenShare) : undefined;
+    const pub = id ? this.streamHolder(id)?.getTrackPublication(Track.Source.ScreenShare) : undefined;
     const track = pub?.track as RemoteTrack | undefined;
     if (!id || !track) {
       this.lastRecv = null;

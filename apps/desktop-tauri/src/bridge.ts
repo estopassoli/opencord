@@ -38,6 +38,8 @@ import {
   type AppInfo,
   type AppPrefsState,
   type CaptureSourceDto,
+  type NativeLiveEvent,
+  type NativeLiveStartArgs,
   type ClipInfo,
   type DetectedGameDto,
   type OpenCordBridge,
@@ -257,10 +259,19 @@ let lastOverlay = '';
 
 const bridge: OpenCordBridge = {
   capture: {
-    listSources: async () => SOURCES,
+    // seletor do próprio OpenCord (ADR-0062): telas e janelas com miniatura pelo oc-live, não o do WebView2
+    listSources: () => invoke<CaptureSourceDto[]>('live_sources').catch(() => SOURCES),
     select: async (args) => {
       CaptureSelectArgs.parse(args);
       await invoke('boost_media_priority');
+    },
+  },
+  nativeLive: {
+    start: (args: NativeLiveStartArgs) => invoke<{ encoder: string; audio: boolean }>('live_start', { args }),
+    stop: () => invoke('live_stop'),
+    onEvent: (cb) => {
+      const off = listen<NativeLiveEvent>('live-event', (e) => cb(e.payload));
+      return () => void off.then((f) => f());
     },
   },
   secure: {

@@ -70,6 +70,12 @@ export class VoiceController {
     await this.voice.leave(u.userId);
   }
 
+  /** Token da live nativa do app em Tauri (ADR-0062): participante `<userId>:live`, só publica tela. */
+  @Post('voice/live')
+  live(@CurrentUser() u: AuthUser) {
+    return this.voice.liveToken(u.userId);
+  }
+
   @Patch('voice/state')
   state(
     @CurrentUser() u: AuthUser,
