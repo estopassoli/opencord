@@ -1,18 +1,20 @@
 # Instaladores do app desktop para Windows, macOS e Linux, cada um no próprio sistema (o .dmg só é gerado em macOS).
 # Sem assinatura (Windows) / assinatura ad-hoc sem notarização (macOS) até haver certificados (ADR-0008).
 #
-# Automático (decisão do mantenedor, docs/DECISIONS.md): push no main que mexe no app gera a versão
-# <major>.<minor>.<nº do run> (base no package.json) e, se o secret DOWNLOADS_SSH_KEY existir, entrega os arquivos
-# no volume de downloads do servidor por SSH restrito (rrsync só-escrita) e cria a release v<versão> no GitHub com
-# os instaladores anexados e as novidades do changelog desde a release anterior (tags são criadas pela própria
-# release; por isso o workflow não dispara em tags). O app instalado vê a versão nova e mostra
-# "Atualização pronta". Tag vX.Y.Z usa exatamente essa versão; o disparo manual empacota sem publicar por padrão.
+# Automático (decisão do mantenedor, docs/DECISIONS.md): push no main que mexe no app gera uma versão nova e, se o
+# secret DOWNLOADS_SSH_KEY existir, entrega os arquivos no volume de downloads do servidor por SSH restrito (rrsync
+# só-escrita) e cria a release v<versão> no GitHub com os instaladores anexados e as novidades do changelog desde a
+# release anterior (tags são criadas pela própria release; por isso o workflow não dispara em tags). O app instalado
+# vê a versão nova e mostra "Atualização pronta". Tag vX.Y.Z usa exatamente essa versão; o disparo manual empacota
+# sem publicar por padrão.
 #
-# Migração para o app em Tauri (ADR-0062): com a variável do repositório TAURI_WINDOWS=1, o instalador do Windows
-# passa a ser o do app em Tauri (job windows-tauri; macOS e Linux continuam no Electron) e a versão vira
-# <major>.<minor do apps/desktop-tauri>.<nº do run − TAURI_FIRST_RUN> (a primeira, 0.3.0). O atualizador do Electron
-# instalado baixa esse instalador como uma versão nova; o instalador desinstala o Electron e o app novo importa a
-# sessão (installer-hooks.nsh, migrate.rs). Desligado (padrão), nada muda.
+# Versão (SemVer, ADR-0063): a última tag de release + os commits do app desde ela (Conventional Commits): `feat` sobe
+# o MINOR, `tipo!:`/`BREAKING CHANGE:` sobe o MAJOR, o resto sobe o PATCH (apps/desktop/scripts/next-version.mjs).
+#
+# App em Tauri (ADR-0062): com a variável do repositório TAURI_WINDOWS=1, o instalador do Windows é o do app em Tauri
+# (job windows-tauri; macOS e Linux continuam no Electron). O atualizador do Electron instalado baixa esse instalador
+# como uma versão nova; o instalador desinstala o Electron e o app novo importa a sessão (installer-hooks.nsh,
+# migrate.rs).
 name: Desktop (instaladores)
 on:
   push:
@@ -52,26 +54,17 @@ jobs:
       version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # a versão sai da última tag de release e dos commits desde ela
+          fetch-depth: 0
       - id: v
         shell: bash
-        env:
-          TAURI_WINDOWS: ${{ vars.TAURI_WINDOWS }}
-          TAURI_FIRST_RUN: ${{ vars.TAURI_FIRST_RUN }}
-          TAURI_TEST: ${{ inputs.tauri }}
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             v="${GITHUB_REF_NAME#v}"
-          elif [ "$TAURI_WINDOWS" = 1 ]; then
-            # sem o run inicial, toda versão sairia igual e ninguém atualizaria
-            [ -n "$TAURI_FIRST_RUN" ] || { echo "::error::TAURI_WINDOWS=1 exige TAURI_FIRST_RUN"; exit 1; }
-            base=$(node -p "require('./apps/desktop-tauri/package.json').version")
-            v="$(echo "$base" | cut -d. -f1-2).$((GITHUB_RUN_NUMBER - TAURI_FIRST_RUN))"
-          elif [ "$TAURI_TEST" = true ]; then
-            # teste do CI (disparo manual): versão só para o artefato
-            v="0.3.$GITHUB_RUN_NUMBER"
           else
-            base=$(node -p "require('./apps/desktop/package.json').version")
-            v="$(echo "$base" | cut -d. -f1-2).$GITHUB_RUN_NUMBER"
+            # SemVer pelos commits desde a última release (feat → minor, ! / BREAKING CHANGE → major, resto → patch)
+            v=$(node apps/desktop/scripts/next-version.mjs)
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "Versão do app: $v" >> "$GITHUB_STEP_SUMMARY"

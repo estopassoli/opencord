@@ -1,5 +1,5 @@
 // Carimba em cada novidade do changelog a versão do app em que ela entrou (campo `version`), olhando as tags de
-// release (v0.2.<n>): a versão é a da primeira tag cujo changelog já tinha a entrada (mesma data, hora e título).
+// release (vX.Y.Z): a versão é a da primeira tag cujo changelog já tinha a entrada (mesma data, hora e título).
 //
 // Uso (da raiz do repositório, com as tags baixadas):
 //   node apps/desktop/scripts/changelog-versions.mjs [--current <versão>]
