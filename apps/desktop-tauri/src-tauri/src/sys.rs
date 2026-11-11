@@ -212,7 +212,7 @@ fn tree(s: &System) -> Vec<Pid> {
   out
 }
 
-/// Tipo do processo nos mesmos nomes do Electron (Configurações → Sobre → Memória).
+/// Tipo do processo nos nomes do Chromium (para a prioridade da live).
 fn kind_of(s: &System, pid: Pid) -> String {
   let Some(p) = s.process(pid) else { return "Unknown".into() };
   if pid.as_u32() == std::process::id() {
@@ -238,31 +238,6 @@ fn kind_of(s: &System, pid: Pid) -> String {
     Some("utility") | Some("crashpad-handler") => "Utility".into(),
     Some(other) => other.to_string(),
   }
-}
-
-#[derive(Serialize)]
-pub struct ProcessMetric {
-  pid: u32,
-  r#type: String,
-  mb: u64,
-}
-
-#[tauri::command]
-pub async fn app_metrics() -> Vec<ProcessMetric> {
-  tauri::async_runtime::spawn_blocking(|| {
-    let s = system_with(true);
-    let mut out: Vec<ProcessMetric> = tree(&s)
-      .into_iter()
-      .filter_map(|pid| {
-        let p = s.process(pid)?;
-        Some(ProcessMetric { pid: pid.as_u32(), r#type: kind_of(&s, pid), mb: p.memory() / (1024 * 1024) })
-      })
-      .collect();
-    out.sort_by(|a, b| b.mb.cmp(&a.mb));
-    out
-  })
-  .await
-  .unwrap_or_default()
 }
 
 /// Live começando: GPU e janela do WebView2 acima do normal, para não perderem a disputa com um jogo pesado.

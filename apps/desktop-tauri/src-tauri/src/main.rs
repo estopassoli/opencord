@@ -387,7 +387,6 @@ fn main() {
       sys::secure_set,
       sys::secure_delete,
       sys::hardware_id,
-      sys::app_metrics,
       sys::app_info,
       sys::idle_seconds,
       sys::processes,

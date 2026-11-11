@@ -205,25 +205,6 @@ export const ErrorReport = z.object({
 export type ErrorReport = z.infer<typeof ErrorReport>;
 
 /** memória de cada processo do app (Configurações → Sobre → Memória) */
-export interface ProcessMetric {
-  pid: number;
-  type: string;
-  /** working set, em MB */
-  mb: number;
-}
-
-/** memória da janela por tipo (do próprio processo, via preload) — em MB */
-export interface RendererMemory {
-  /** heap JS usado */
-  heap: number;
-  /** ArrayBuffers/typed arrays fora do heap (áudio PCM, pedaços de vídeo, arquivos lidos) */
-  external: number;
-  /** alocado pelo motor de layout/mídia (Blink) */
-  blink: number;
-  /** memória privada do processo */
-  privateMb: number;
-}
-
 export interface AppInfo {
   version: string;
   electron: string;
@@ -327,8 +308,6 @@ export interface OpenCordBridge {
   appInfo(): Promise<AppInfo>;
   /** impressão digital do aparelho (hash dos MACs) para o bloqueio de dispositivo (ADR-0036); null sem interface */
   hardwareId(): Promise<string | null>;
-  appMetrics(): Promise<ProcessMetric[]>;
-  rendererMemory(): Promise<RendererMemory>;
   openExternal(url: string): Promise<void>;
   prefs: {
     get(): Promise<AppPrefsState>;

@@ -45,7 +45,6 @@ import {
   type ClipInfo,
   type DetectedGameDto,
   type OpenCordBridge,
-  type ProcessMetric,
   type ShortcutAction,
   type UpdateStatus,
   type WinAudioOutput,
@@ -331,10 +330,6 @@ const bridge: OpenCordBridge = {
   setTrayVoiceState: (state) => invoke('tray_voice_state', { state: TrayVoiceState.parse(state) }),
   appInfo: () => invoke<AppInfo>('app_info'),
   hardwareId: () => invoke<string | null>('hardware_id'),
-  appMetrics: () => invoke<ProcessMetric[]>('app_metrics'),
-  // o WebView2 não dá as estatísticas do Blink nem a memória privada da interface: sem números inventados (a tela
-  // esconde essas linhas; o heap JS ela mesma lê)
-  rendererMemory: () => Promise.reject(new Error('indisponível no WebView2')),
   openExternal: (url) => invoke('open_external', { url: ExternalUrl.parse(url) }),
   prefs: {
     get: () => invoke<AppPrefsState>('prefs_get'),

@@ -18,7 +18,7 @@ import { KeybindsTab } from './KeybindsTab';
 import { AppearanceTab } from './AppearanceTab';
 import { NotificationsTab } from './NotificationsTab';
 import { StreamerTab } from './StreamerTab';
-import { AboutTab, HardwareAcceleration, MemorySection } from './AboutTab';
+import { AboutTab, HardwareAcceleration } from './AboutTab';
 
 // ---------------------------------------------------------------------------
 // Modal de configurações do usuário
@@ -306,7 +306,6 @@ function UserSettingsDashboard({ settings, me, onClose }: { settings: UserSettin
               <>
                 <AboutTab />
                 <HardwareAcceleration />
-                <MemorySection />
               </>
             )}
           </div>

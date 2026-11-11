@@ -14,7 +14,6 @@ export const IPC = {
   badgeSet: 'badge:set',
   appInfo: 'app:info',
   hardwareId: 'app:hardware-id',
-  appMetrics: 'app:metrics',
   openExternal: 'app:open-external',
   trayVoiceState: 'tray:voice-state',
   updateStatus: 'update:status',
