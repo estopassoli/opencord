@@ -2,6 +2,7 @@
 //   - mudança incompatível (`tipo!:` ou `BREAKING CHANGE:` no corpo) → MAJOR
 //   - `feat` → MINOR
 //   - qualquer outro (fix, perf, refactor, docs, chore, test…) → PATCH
+//   - `Release-As: X.Y.Z` no corpo de um commit fixa a versão (como no release-please), se for maior que a última
 // Só contam os commits que mexem no app (os mesmos caminhos que disparam o desktop.yml).
 //
 // Uso (da raiz do repositório, com o histórico e as tags baixados):
@@ -41,8 +42,26 @@ export function bumpOf(message) {
   return 'patch';
 }
 
-/** a versão seguinte a `prev` para estes commits; sem commits, sobe o patch (uma build nova nunca repete versão) */
+/** a maior versão pedida com `Release-As: X.Y.Z` no corpo dos commits, ou undefined */
+export function releaseAs(messages) {
+  const asked = messages.flatMap((m) =>
+    m
+      .split('\n')
+      .slice(1)
+      .map((l) => /^Release-As:\s*v?(\d+\.\d+\.\d+)\s*$/i.exec(l.trim())?.[1])
+      .filter(Boolean),
+  );
+  return asked.sort(compareVersions).at(-1);
+}
+
+/**
+ * a versão seguinte a `prev` para estes commits; sem commits, sobe o patch (uma build nova nunca repete versão).
+ * `Release-As` vence o cálculo quando é maior que `prev` (menor ou igual seria repetir/voltar versão: é ignorado).
+ */
 export function nextVersion(prev, messages) {
+  const forced = releaseAs(messages);
+  if (forced && compareVersions(forced, prev) > 0) return forced;
+  if (forced) console.error(`Release-As ${forced} ignorado: não é maior que ${prev}`);
   const [major, minor, patch] = parseVersion(prev);
   const kinds = new Set(messages.map(bumpOf));
   if (kinds.has('major')) return `${major + 1}.0.0`;

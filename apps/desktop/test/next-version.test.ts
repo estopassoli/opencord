@@ -16,6 +16,16 @@ describe('versão do app (SemVer pelos commits)', () => {
     expect(bumpOf('fix(x): corpo menciona breaking change: em minúsculas\n\nnada')).toBe('patch');
   });
 
+  it('Release-As no corpo fixa a versão (se for maior que a última)', () => {
+    const feat = 'feat(admin): versões do app';
+    expect(nextVersion('0.3.4', [feat, 'ci: fixa a versão\n\nRelease-As: 0.3.401'])).toBe('0.3.401');
+    expect(nextVersion('0.3.4', [feat, 'ci: x\n\nrelease-as: v0.3.5', 'ci: y\n\nRelease-As: 0.3.6'])).toBe('0.3.6');
+    // menor ou igual à última não volta a versão: segue o cálculo normal
+    expect(nextVersion('0.3.4', [feat, 'ci: x\n\nRelease-As: 0.3.4'])).toBe('0.4.0');
+    // só no corpo, não no assunto
+    expect(nextVersion('0.3.4', ['fix: Release-As: 9.9.9'])).toBe('0.3.5');
+  });
+
   it('sem commits ainda é uma build nova: sobe o patch', () => {
     expect(nextVersion('0.3.2', [])).toBe('0.3.3');
   });

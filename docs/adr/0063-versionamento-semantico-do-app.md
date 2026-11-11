@@ -34,3 +34,8 @@ Na prática, o tipo do commit passa a decidir a versão: `feat` só para recurso
 - O checkout do job de versão precisa do histórico completo (`fetch-depth: 0`).
 - Evidência: `test/next-version.test.ts` 4/4; o script em 11/11 a partir de `v0.3.2` com o commit `fix(oc-live)` deu
   `0.3.3`.
+
+## Adendo (2026-11-11): `Release-As`
+- Um commit com `Release-As: X.Y.Z` no corpo fixa a versão da próxima release, como no release-please. Só vale quando é maior que a última tag. Menor ou igual seria repetir ou voltar a versão, então é ignorado com um aviso, e o cálculo segue normal.
+- Primeiro uso: o painel admin ganhou a versão do app de cada pessoa (`feat`, que daria 0.4.0). O mantenedor pediu para manter como patch da 0.3, com o número 0.3.401. A partir daí as correções seguem 0.3.402, 0.3.403…
+- Evidência: `test/next-version.test.ts` 5/5.
