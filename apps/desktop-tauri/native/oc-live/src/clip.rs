@@ -16,8 +16,7 @@ use serde::Deserialize;
 use windows_capture::capture::GraphicsCaptureApiHandler;
 use windows_capture::monitor::Monitor;
 use windows_capture::settings::{
-    ColorFormat, CursorCaptureSettings, DirtyRegionSettings, DrawBorderSettings, MinimumUpdateIntervalSettings,
-    SecondaryWindowSettings, Settings,
+    ColorFormat, DirtyRegionSettings, SecondaryWindowSettings, Settings,
 };
 
 use crate::encoder::{Config as EncConfig, Control, Dev, Encoder, Input};
@@ -89,12 +88,13 @@ pub fn run_from_stdin() -> i32 {
         dev_tx,
         dropped: Arc::new(AtomicU64::new(0)),
     };
+    let (cursor, border, interval) = crate::live::capture_options(cfg.cursor, fps);
     let settings = Settings::new(
         monitor,
-        if cfg.cursor { CursorCaptureSettings::WithCursor } else { CursorCaptureSettings::WithoutCursor },
-        DrawBorderSettings::WithoutBorder,
+        cursor,
+        border,
         SecondaryWindowSettings::Default,
-        MinimumUpdateIntervalSettings::Custom(Duration::from_micros(1_000_000 / fps as u64)),
+        interval,
         DirtyRegionSettings::Default,
         ColorFormat::Bgra8,
         flags,

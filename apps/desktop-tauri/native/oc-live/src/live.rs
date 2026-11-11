@@ -23,7 +23,7 @@ use windows::core::Interface;
 use windows::Win32::Graphics::Direct3D11::ID3D11Multithread;
 use windows_capture::capture::{Context, GraphicsCaptureApiHandler};
 use windows_capture::frame::Frame;
-use windows_capture::graphics_capture_api::InternalCaptureControl;
+use windows_capture::graphics_capture_api::{GraphicsCaptureApi, InternalCaptureControl};
 use windows_capture::monitor::Monitor;
 use windows_capture::settings::{
     ColorFormat, CursorCaptureSettings, DirtyRegionSettings, DrawBorderSettings, MinimumUpdateIntervalSettings,
@@ -83,6 +83,41 @@ pub(crate) struct Capture {
     ctl: Arc<Control>,
     start: Instant,
     dropped: Arc<AtomicU64>,
+    /// sem `MinUpdateInterval` no Windows (antes do 11 24H2) a captura chega no ritmo do monitor: o handler segura o fps
+    pace: Option<Duration>,
+    due: Option<Instant>,
+}
+
+/// Opções da captura que este Windows aceita. O windows-capture recusa começar se uma opção fora do padrão não existe
+/// no sistema: tirar a borda amarela (`IsBorderRequired`) é do Windows 11, o cursor ligável é do Windows 10 2004 e o
+/// intervalo mínimo entre quadros (`MinUpdateInterval`) é do Windows 11 24H2. No Windows 10 dava
+/// `BorderConfigUnsupported` e a live não começava.
+pub(crate) fn capture_options(
+    cursor: bool,
+    fps: u32,
+) -> (CursorCaptureSettings, DrawBorderSettings, MinimumUpdateIntervalSettings) {
+    let cursor = if !GraphicsCaptureApi::is_cursor_settings_supported().unwrap_or(false) {
+        CursorCaptureSettings::Default
+    } else if cursor {
+        CursorCaptureSettings::WithCursor
+    } else {
+        CursorCaptureSettings::WithoutCursor
+    };
+    let border = if GraphicsCaptureApi::is_border_settings_supported().unwrap_or(false) {
+        DrawBorderSettings::WithoutBorder
+    } else {
+        DrawBorderSettings::Default
+    };
+    let interval = if GraphicsCaptureApi::is_minimum_update_interval_supported().unwrap_or(false) {
+        MinimumUpdateIntervalSettings::Custom(frame_interval(fps))
+    } else {
+        MinimumUpdateIntervalSettings::Default
+    };
+    (cursor, border, interval)
+}
+
+fn frame_interval(fps: u32) -> Duration {
+    Duration::from_micros(1_000_000 / fps.max(1) as u64)
 }
 
 impl GraphicsCaptureApiHandler for Capture {
@@ -100,13 +135,25 @@ impl GraphicsCaptureApiHandler for Capture {
         let conv = Converter::new(&ctx.device, &ctx.device_context, f.width, f.height, f.fps)
             .map_err(|e| format!("conversão na GPU: {e}"))?;
         f.dev_tx.send(Dev(ctx.device.clone())).map_err(|_| "encoder não iniciou".to_string())?;
-        Ok(Self { conv, tx: f.tx, ctl: f.ctl, start: f.start, dropped: f.dropped })
+        let pace = (!GraphicsCaptureApi::is_minimum_update_interval_supported().unwrap_or(false))
+            .then(|| frame_interval(f.fps));
+        Ok(Self { conv, tx: f.tx, ctl: f.ctl, start: f.start, dropped: f.dropped, pace, due: None })
     }
 
     fn on_frame_arrived(&mut self, frame: &mut Frame, control: InternalCaptureControl) -> Result<(), Self::Error> {
         if self.ctl.stop.load(Ordering::Acquire) {
             control.stop();
             return Ok(());
+        }
+        // quadros acima do fps pedido ficam de fora (tolerância de 1/4 de quadro para o ritmo do monitor não derrubar
+        // 60 em 48); atrasou mais de um quadro, recomeça a grade a partir de agora
+        if let Some(iv) = self.pace {
+            let now = Instant::now();
+            if self.due.is_some_and(|due| now + iv / 4 < due) {
+                return Ok(());
+            }
+            let base = self.due.filter(|due| *due + iv > now).unwrap_or(now);
+            self.due = Some(base + iv);
         }
         let (w, h) = (frame.width(), frame.height());
         let nv12 = self.conv.convert(frame.as_raw_texture(), w, h).map_err(|e| format!("conversão: {e}"))?;
@@ -232,14 +279,13 @@ async fn run(cfg: Config, handle: tokio::runtime::Handle) -> i32 {
         dev_tx,
         dropped: dropped.clone(),
     };
-    let cursor = if cfg.cursor { CursorCaptureSettings::WithCursor } else { CursorCaptureSettings::WithoutCursor };
-    let interval = MinimumUpdateIntervalSettings::Custom(Duration::from_micros(1_000_000 / cfg.fps as u64));
+    let (cursor, border, interval) = capture_options(cfg.cursor, cfg.fps);
     macro_rules! settings {
         ($item:expr) => {
             Settings::new(
                 $item,
                 cursor,
-                DrawBorderSettings::WithoutBorder,
+                border,
                 SecondaryWindowSettings::Default,
                 interval,
                 DirtyRegionSettings::Default,
