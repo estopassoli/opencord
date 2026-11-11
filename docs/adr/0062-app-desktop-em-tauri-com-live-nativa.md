@@ -139,3 +139,15 @@ Evidência: `oc-live clip` 1080p e 720p no Windows do mantenedor, quadros-chave 
 o MP4 montado pelo `muxClip` com os quadros nativos sem aviso (após corrigir o tempo do quadro repetido, que usava
 outro relógio — valia também para a live); `clips-annexb.test.ts` 4/4. Falta: salvar um clipe de verdade (jogo aberto
 + atalho) e ouvir o som dele.
+
+## Adendo (2026-11-11): teste em massa antes de ligar a migração
+O app em Tauri foi usado de ponta a ponta (variante de teste com API e LiveKit locais, dirigido pelo DevTools do
+WebView2, com um segundo usuário no Edge). Gargalos achados: num monitor de 480 Hz, laços de `requestAnimationFrame` e
+animações CSS infinitas recompunham a janela de vidro 480 vezes por segundo — a aurora do fundo passou a `setTimeout`,
+o brilho do "Ao vivo" pulsa 3 vezes (opacidade/escala, sem sombra animada), o Espaço 3D cai para 30 qps sem foco e a
+prévia da própria live nativa só recebe vídeo com a janela ativa. No WebView2 o `document.hasFocus()` continua
+verdadeiro com outra janela na frente, então a ponte ganhou `windowActive` (evento `Focused` da janela no Rust).
+Erros corrigidos: CSP sem `blob:`/`data:` no `connect-src` (sons do gunfight), user agent (aparelho como "Edge"), Alt
+sozinho deixava a janela no modo menu (subclasse que ignora `SC_KEYMENU` de teclado), live/clipes nativos órfãos após
+recarregar, instaladores de atualização antigos acumulados em `%TEMP%`, tempos repetidos nos clipes nativos.
+Medido (CPU somada da árvore, % de um núcleo): ocioso 12–20 → 5; live sem foco ~140 → ~25; Espaço 3D 119 → 56.
