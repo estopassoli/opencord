@@ -89,6 +89,7 @@ pub fn run_from_stdin() -> i32 {
         dropped: Arc::new(AtomicU64::new(0)),
     };
     let (cursor, border, interval) = crate::live::capture_options(cfg.cursor, fps);
+    let settings_flags = flags.clone();
     let settings = Settings::new(
         monitor,
         cursor,
@@ -99,12 +100,23 @@ pub fn run_from_stdin() -> i32 {
         ColorFormat::Bgra8,
         flags,
     );
-    let capture = match Capture::start_free_threaded(settings) {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("error captura não começou: {e:?}");
-            return 4;
-        }
+    // sem a borda amarela no Windows 10: Desktop Duplication (se não abrir, WGC)
+    let dxgi = if crate::dxgi::wanted() {
+        crate::dxgi::start(monitor.as_raw_hmonitor() as usize, settings_flags, cfg.cursor)
+            .map_err(|e| eprintln!("duplicação indisponível, captura pela WGC: {e}"))
+            .ok()
+    } else {
+        None
+    };
+    let capture: Box<dyn std::any::Any> = match dxgi {
+        Some(d) => Box::new(d),
+        None => match Capture::start_free_threaded(settings) {
+            Ok(c) => Box::new(c),
+            Err(e) => {
+                eprintln!("error captura não começou: {e:?}");
+                return 4;
+            }
+        },
     };
     let Ok(Dev(device)) = dev_rx.recv_timeout(Duration::from_secs(5)) else {
         eprintln!("error captura sem device");

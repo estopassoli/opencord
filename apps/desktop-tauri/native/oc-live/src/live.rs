@@ -64,6 +64,7 @@ pub fn say(v: serde_json::Value) {
     let _ = out.flush();
 }
 
+#[derive(Clone)]
 pub(crate) struct Flags {
     /// tamanho e fps da saída (a captura é convertida para isso na GPU)
     pub width: u32,
@@ -84,8 +85,31 @@ pub(crate) struct Capture {
     start: Instant,
     dropped: Arc<AtomicU64>,
     /// sem `MinUpdateInterval` no Windows (antes do 11 24H2) a captura chega no ritmo do monitor: o handler segura o fps
-    pace: Option<Duration>,
+    pacer: Pacer,
+}
+
+/// Limite de fps na mão: quadros acima do pedido ficam de fora (tolerância de 1/4 de quadro para o ritmo do monitor não
+/// derrubar 60 em 48); atrasou mais de um quadro, recomeça a grade a partir de agora. `None` = sem limite.
+pub(crate) struct Pacer {
+    iv: Option<Duration>,
     due: Option<Instant>,
+}
+
+impl Pacer {
+    pub(crate) fn new(iv: Option<Duration>) -> Self {
+        Self { iv, due: None }
+    }
+
+    /// este quadro entra?
+    pub(crate) fn take(&mut self, now: Instant) -> bool {
+        let Some(iv) = self.iv else { return true };
+        if self.due.is_some_and(|due| now + iv / 4 < due) {
+            return false;
+        }
+        let base = self.due.filter(|due| *due + iv > now).unwrap_or(now);
+        self.due = Some(base + iv);
+        true
+    }
 }
 
 /// Opções da captura que este Windows aceita. O windows-capture recusa começar se uma opção fora do padrão não existe
@@ -116,7 +140,7 @@ pub(crate) fn capture_options(
     (cursor, border, interval)
 }
 
-fn frame_interval(fps: u32) -> Duration {
+pub(crate) fn frame_interval(fps: u32) -> Duration {
     Duration::from_micros(1_000_000 / fps.max(1) as u64)
 }
 
@@ -137,7 +161,7 @@ impl GraphicsCaptureApiHandler for Capture {
         f.dev_tx.send(Dev(ctx.device.clone())).map_err(|_| "encoder não iniciou".to_string())?;
         let pace = (!GraphicsCaptureApi::is_minimum_update_interval_supported().unwrap_or(false))
             .then(|| frame_interval(f.fps));
-        Ok(Self { conv, tx: f.tx, ctl: f.ctl, start: f.start, dropped: f.dropped, pace, due: None })
+        Ok(Self { conv, tx: f.tx, ctl: f.ctl, start: f.start, dropped: f.dropped, pacer: Pacer::new(pace) })
     }
 
     fn on_frame_arrived(&mut self, frame: &mut Frame, control: InternalCaptureControl) -> Result<(), Self::Error> {
@@ -145,15 +169,8 @@ impl GraphicsCaptureApiHandler for Capture {
             control.stop();
             return Ok(());
         }
-        // quadros acima do fps pedido ficam de fora (tolerância de 1/4 de quadro para o ritmo do monitor não derrubar
-        // 60 em 48); atrasou mais de um quadro, recomeça a grade a partir de agora
-        if let Some(iv) = self.pace {
-            let now = Instant::now();
-            if self.due.is_some_and(|due| now + iv / 4 < due) {
-                return Ok(());
-            }
-            let base = self.due.filter(|due| *due + iv > now).unwrap_or(now);
-            self.due = Some(base + iv);
+        if !self.pacer.take(Instant::now()) {
+            return Ok(());
         }
         let (w, h) = (frame.width(), frame.height());
         let nv12 = self.conv.convert(frame.as_raw_texture(), w, h).map_err(|e| format!("conversão: {e}"))?;
@@ -294,15 +311,27 @@ async fn run(cfg: Config, handle: tokio::runtime::Handle) -> i32 {
             )
         };
     }
-    let capture = if is_window {
+    // tela inteira sem a borda amarela no Windows 10: Desktop Duplication (se não abrir, WGC)
+    let dxgi = if !is_window && crate::dxgi::wanted() {
+        crate::dxgi::start(raw, flags.clone(), cfg.cursor)
+            .map_err(|e| eprintln!("duplicação indisponível, captura pela WGC: {e}"))
+            .ok()
+    } else {
+        None
+    };
+    let capture = if let Some(d) = dxgi {
+        Ok(Box::new(d) as Box<dyn std::any::Any>)
+    } else if is_window {
         Capture::start_free_threaded(settings!(Window::from_raw_hwnd(raw as *mut _)))
             .map(|c| Box::new(c) as Box<dyn std::any::Any>)
+            .map_err(|e| format!("{e:?}"))
     } else {
         Capture::start_free_threaded(settings!(Monitor::from_raw_hmonitor(raw as *mut _)))
             .map(|c| Box::new(c) as Box<dyn std::any::Any>)
+            .map_err(|e| format!("{e:?}"))
     };
     if let Err(e) = &capture {
-        say(json!({ "ev": "error", "message": format!("captura não começou: {e:?}") }));
+        say(json!({ "ev": "error", "message": format!("captura não começou: {e}") }));
         room.close().await.ok();
         return 4;
     }

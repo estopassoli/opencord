@@ -159,7 +159,12 @@ No Windows 10 a live nativa não começava (`GraphicsCaptureApiError(BorderConfi
 recusa iniciar quando uma opção fora do padrão não existe no sistema, e pedíamos sem borda amarela (`IsBorderRequired`,
 Windows 11) e intervalo mínimo entre quadros (`MinUpdateInterval`, Windows 11 24H2). Agora cada opção só é pedida se o
 Windows tem (`capture_options` no `oc-live`); sem `MinUpdateInterval` o handler descarta os quadros acima do fps pedido
-(grade com tolerância de 1/4 de quadro). No Windows 10 a borda amarela aparece em volta do que é capturado (limite do
-sistema). Evidência: `oc-live clip` compilado fingindo um Windows sem as três opções, no monitor de 480 Hz do
+(grade com tolerância de 1/4 de quadro). No Windows 10 a WGC sempre desenha a borda amarela; por isso, quando o
+sistema não deixa tirá-la, **monitor inteiro** (live e clipes) vai pela Desktop Duplication do DXGI (`dxgi.rs`, sem
+borda; o cursor é desenhado pelo GDI numa cópia da imagem; duplicação perdida em troca de resolução/UAC é refeita;
+se não abrir, volta para a WGC). **Janela** continua pela WGC, com a borda no Windows 10 (não há outra API de janela).
+`OC_LIVE_DXGI=1` força a duplicação para testar no Windows 11. Evidência da duplicação: `oc-live clip` com
+`OC_LIVE_DXGI=1` na máquina do mantenedor (jogo em tela cheia aberto) gravou 1920×1080 decodificável, sem aviso de
+volta para a WGC; o cursor desenhado e a live `run` pela duplicação ficam para o teste num Windows 10. Evidência: `oc-live clip` compilado fingindo um Windows sem as três opções, no monitor de 480 Hz do
 mantenedor: começa, 59,5 qps com alvo 60 e menor intervalo 15,5 ms (sem o limite do handler: 8,5 ms). Falta: testar
 numa máquina com Windows 10 de verdade.

@@ -7,6 +7,7 @@
 #![cfg(windows)]
 
 mod clip;
+mod dxgi;
 mod encoder;
 mod gpu;
 mod live;
