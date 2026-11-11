@@ -13,6 +13,8 @@ import type { AppConfig } from './config/config.js';
 import { REDIS_PREFIX } from './common/redis.service.js';
 import { clientIp } from './common/client-ip.js';
 
+const DESKTOP_ORIGINS = new Set(['null', 'http://tauri.localhost']);
+
 export async function createApp(cfg: AppConfig, opts: { logger?: boolean } = {}): Promise<NestFastifyApplication> {
   const adapter = new FastifyAdapter({
     trustProxy: cfg.TRUST_PROXY,
@@ -73,10 +75,12 @@ export async function createApp(cfg: AppConfig, opts: { logger?: boolean } = {})
     .map((s) => s.trim())
     .filter(Boolean);
   app.enableCors({
-    // Electron empacotado carrega de file:// (Origin "null"); aceito apenas porque a autenticação é por Bearer, não cookie.
-    origin: (origin, cb) => cb(null, !origin || origin === 'null' || origins.includes(origin)),
+    // Apps desktop, aceitos apenas porque a autenticação é por Bearer, não cookie: o Electron empacotado carrega de
+    // file:// (Origin "null"); o app em Tauri (apps/desktop-tauri) carrega de http://tauri.localhost (WebView2). O
+    // x-hardware-id (bloqueio de aparelho, ADR-0036) precisa estar liberado: o WebView2 aplica o CORS a ele.
+    origin: (origin, cb) => cb(null, !origin || DESKTOP_ORIGINS.has(origin) || origins.includes(origin)),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Device-Id'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Device-Id', 'X-Hardware-Id'],
   });
   app.useWebSocketAdapter(new IoAdapter(app));
   // Só SIGTERM/SIGINT (Docker/systemd/Ctrl+C). SIGHUP NÃO: ao fechar o terminal, o Nest rodava o shutdown

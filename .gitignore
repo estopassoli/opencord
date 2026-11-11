@@ -26,3 +26,8 @@ apps/desktop/resources/win/
 
 # worktrees temporários dos agentes do Claude Code
 .claude/worktrees/
+
+# App em Tauri: compilação do Rust e esquemas gerados
+apps/desktop-tauri/src-tauri/target/
+apps/desktop-tauri/src-tauri/gen/
+apps/desktop-tauri/resources/
