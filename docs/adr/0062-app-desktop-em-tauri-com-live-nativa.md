@@ -32,14 +32,24 @@ Tudo fora do WebView, num módulo Rust do próprio processo do app:
    OpenCord, não o do WebView2).
 2. **Áudio:** o mesmo process loopback do `oc-audio` (ADR-0025, "tudo menos o OpenCord"), lido direto no Rust (WASAPI),
    sem passar pelo worklet do navegador.
-3. **Codificação e envio:** SDK do LiveKit em Rust (`livekit`, libwebrtc nativo) com `NativeVideoSource`/
-   `NativeAudioSource`, trilhas `screen_share` e `screen_share_audio`; codificador por hardware quando a placa tiver
-   (NVENC, AMF, Quick Sync), senão software.
-4. **Participante próprio da live:** a SFU não aceita duas conexões com a mesma identidade, então a live entra como
+3. **Codificação:** H.264 pelo encoder da placa via Media Foundation (o MFT de hardware do Windows: NVENC, AMF ou
+   Quick Sync, o mesmo caminho do Chromium), alimentado com a textura D3D11 da captura (sem cópia para a CPU), modo
+   de baixa latência, CBR, quadro-chave sob pedido. Sem encoder de hardware, a live cai para o perfil seguro
+   (1080p60), como no Electron (`checkEncoderFallback`).
+   O SDK do LiveKit em Rust (`livekit` 0.10, `libwebrtc` 0.4) **não tem encoder por hardware no Windows** (o NVENC
+   do `webrtc-sys` 0.3.53 só compila no Linux; o VAAPI do Windows está comentado): pelo caminho normal, 1440p60
+   seria codificado por software. Por isso o vídeo entra **pré-codificado** (`NativeVideoSource::new_encoded`,
+   `capture_encoded_frame`): o libwebrtc só empacota e envia, e repassa os pedidos de quadro-chave
+   (`take_keyframe_request`) e de bitrate/fps da estimativa de banda (`take_rate_control_request`) para o encoder.
+   Trilhas `screen_share` e `screen_share_audio` como hoje; o áudio vai pelo `NativeAudioSource` (Opus do libwebrtc).
+4. **Processo próprio (`oc-live.exe`):** captura, codificação e envio rodam num processo à parte, como o `oc-audio`.
+   Se o libwebrtc ou o driver da placa travar, cai só a live; o app avisa e pode reabrir. O app conversa com ele por
+   stdin/stdout (JSON por linha).
+5. **Participante próprio da live:** a SFU não aceita duas conexões com a mesma identidade, então a live entra como
    `<userId>:live`. A API emite esse token só para quem está na chamada e pode transmitir naquele canal (mesmas regras
    do token de voz), com `canPublish` apenas de tela e `canSubscribe: false`; o webhook da voz reconhece essa
    identidade (não a remove como "fora da chamada") e a derruba quando o dono sai da chamada.
-5. **Quem assiste:** o `engine.ts` (comum aos dois apps) trata as trilhas de tela do participante `<userId>:live` como a
+6. **Quem assiste:** o `engine.ts` (comum aos dois apps) trata as trilhas de tela do participante `<userId>:live` como a
    live de `<userId>` e não o mostra como uma pessoa a mais na chamada. Quem assiste não muda de app nem de versão da
    SFU.
 
@@ -48,7 +58,8 @@ A voz da chamada, a câmera, quem assiste às lives e toda a interface. Mover a 
 
 ## Fases
 1. Protótipo de volta, com o que mudou no Electron desde 08/11 (atalho que volta sozinho; prender o mouse no Espaço 3D).
-2. Spike da live nativa: captura de uma janela → LiveKit em Rust numa sala de teste; medir CPU, GPU, RAM, fps e
+2. Spike da live nativa: captura de uma janela → H.264 da placa (Media Foundation) → LiveKit em Rust (pré-codificado)
+   numa sala de teste; medir CPU, GPU, RAM, fps e
    latência contra o Go Live do Electron na mesma máquina, com e sem jogo aberto. Critério para seguir: 1080p60
    estável com uso de CPU menor que o do Electron.
 3. Token e participante da live na API, `engine.ts` mostrando a live do `:live` no lugar certo.
@@ -71,3 +82,19 @@ A voz da chamada, a câmera, quem assiste às lives e toda a interface. Mover a 
   um participante desconhecido: a live nativa só sai quando os dois apps tiverem o `engine.ts` novo.
 - O SDK do LiveKit em Rust traz o libwebrtc nativo (dezenas de MB no instalador, ainda bem abaixo do Electron).
 - Compilação do Rust no Windows (Rust + Visual Studio Build Tools), a partir do WSL por `scripts/build-win.mjs`.
+
+## Evidências do spike (2026-11-10, Windows 11 do mantenedor, RTX/NVENC)
+- `oc-live sources`: 3 telas e 5 janelas com miniatura em 560 ms (Steam, explorador, terminal; o próprio app fica
+  de fora pelo pid).
+- `oc-live run`: Tela 1 em 1920×1080, 60 fps, 12 Mbps, encoder escolhido "NVIDIA H.264 Encoder MFT"; com a tela em
+  movimento, 57–60 fps saindo do encoder usando **4–12 % de um núcleo de CPU e 100–112 MB de RAM** no processo.
+- Espectador (Edge no Windows, `livekit-client` 2.22.4) num LiveKit 1.13.10 local (`scripts/dev-livekit.sh`):
+  1920×1080 H.264 (`profile-level-id=42e01f`) recebido, decodificado e renderizado, 0 pacotes perdidos, jitter
+  ~3 ms; o quadro conferido na tela (cores e texto certos, cursor junto). Tela parada: o Windows só entrega quadro
+  quando muda; o `oc-live` repete o último a cada 250 ms (4 fps na rede, ~20–200 kbps).
+- Dois tropeços achados no caminho, já corrigidos: a fonte pré-codificada precisa de
+  `video_encoder: VideoEncoderBackend::PreEncoded` (senão o libwebrtc negocia um encoder próprio e nada sai), e a SFU
+  só libera o vídeo para quem assiste num quadro-chave **com SPS** — o encoder da NVIDIA manda SPS/PPS só no
+  primeiro, então os seguintes levam o último cabeçalho visto (sem isso, a SFU pedia quadro-chave a cada segundo).
+- Ainda não medido: 1440p60 com jogo aberto, o Go Live do Electron na mesma máquina para comparar, o áudio do
+  sistema pelo `oc-audio`, placas AMD/Intel e máquina sem encoder de hardware.

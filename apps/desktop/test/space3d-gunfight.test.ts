@@ -1313,7 +1313,8 @@ describe('gunfight: recuo (padrão, volta, cadência e molas)', () => {
     const fast = await climb(160);
     const slow = await climb(800);
     // devagar, cada tiro é o primeiro (60% do recuo); rápido, a partir do segundo é o recuo inteiro
-    expect(fast[3]!).toBeGreaterThan(slow[3]! * 1.3);
+    // falhou 2× só no Windows do CI (razão ~1,25; aqui sempre 1,67): a mensagem traz as séries para achar a causa
+    expect(fast[3]!, JSON.stringify({ fast, slow })).toBeGreaterThan(slow[3]! * 1.3);
   });
 });
 

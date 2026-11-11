@@ -1,0 +1,3 @@
+# o libwebrtc pré-compilado do LiveKit usa a CRT estática (/MT): o resto precisa ser igual
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
