@@ -168,3 +168,15 @@ se não abrir, volta para a WGC). **Janela** continua pela WGC, com a borda no W
 volta para a WGC; o cursor desenhado e a live `run` pela duplicação ficam para o teste num Windows 10. Evidência: `oc-live clip` compilado fingindo um Windows sem as três opções, no monitor de 480 Hz do
 mantenedor: começa, 59,5 qps com alvo 60 e menor intervalo 15,5 ms (sem o limite do handler: 8,5 ms). Falta: testar
 numa máquina com Windows 10 de verdade.
+
+### Adendo 2026-11-12 — "Reiniciar e atualizar agora" só com a janela de progresso
+
+No Tauri, o clique rodava o instalador com o assistente completo ("Bem-vindo…", "Próximo"), contrariando a decisão
+de 2026-10-29 (atualização só com a janela de progresso, como no Electron `oneClick`). Agora `updater.rs` usa o modo
+passivo do instalador do Tauri (`/P /UPDATE --updated --force-run`): pula as telas e fecha sozinho no fim. O gancho
+`OPENCORD_PROGRESS_ONLY` (`installer-hooks.nsh`, só com `/P`) deixa a janela só com o progresso: título e cabeçalho
+"Atualizando o OpenCord", sem os botões Voltar/Próximo/Cancelar, sem "Mostrar detalhes" e sem o menu da janela (sem X
+nem minimizar; a barra de título continua arrastável). As instalações silenciosas (`/S`) também passam a levar
+`/UPDATE`, o modo de atualização do Tauri: não recria o atalho da área de trabalho que a pessoa apagou e não roda o
+instalador do WebView2. Evidência: os ganchos compilam com `makensis -WX` (NSIS 3.10) num script de teste com MUI2;
+a janela em si não foi vista num Windows real.

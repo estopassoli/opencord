@@ -240,7 +240,10 @@ fn intact(path: &PathBuf, sha: &str) -> bool {
   format!("{:x}", h.finalize()).eq_ignore_ascii_case(sha)
 }
 
-/// `manual`: com a janela do instalador e reabre; `auto`: silencioso e reabre; `quit`: silencioso, não reabre
+/// `manual`: só uma janela de progresso (modo passivo, sem telas nem botões) e reabre; `auto`: silencioso e reabre;
+/// `quit`: silencioso, não reabre. `/UPDATE` é o modo de atualização do instalador do Tauri: não pergunta se
+/// desinstala a versão anterior, não baixa o WebView2 de novo e não recria o atalho da área de trabalho que a pessoa
+/// apagou.
 fn launch(app: &AppHandle, mode: &str) -> bool {
   let State::Ready { path, sha256, .. } = current(app) else { return false };
   let up = app.state::<Updater>();
@@ -253,9 +256,9 @@ fn launch(app: &AppHandle, mode: &str) -> bool {
     return false;
   }
   let args: &[&str] = match mode {
-    "manual" => &["--updated", "--force-run"],
-    "auto" => &["/S", "--updated", "--force-run"],
-    _ => &["/S", "--updated"],
+    "manual" => &["/P", "/UPDATE", "--updated", "--force-run"],
+    "auto" => &["/S", "/UPDATE", "--updated", "--force-run"],
+    _ => &["/S", "/UPDATE", "--updated"],
   };
   if std::process::Command::new(&path).args(args).spawn().is_ok() {
     up.launched.store(true, Ordering::Release);
