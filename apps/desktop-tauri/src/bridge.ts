@@ -125,6 +125,17 @@ let shortcutAccels: string[] = [];
 const shortcutPending = new Map<string, { accel: string; action: ShortcutAction }>();
 let shortcutRetry: ReturnType<typeof setInterval> | null = null;
 const SHORTCUT_RETRY_MS = 5_000;
+let shortcutChain: Promise<unknown> = Promise.resolve();
+
+/**
+ * Um registro de atalhos por vez. Com duas chamadas sobrepostas, o `unregisterAll` de uma caía no meio dos `register`
+ * da outra, e os atalhos do próprio app voltavam como "já em uso por outro aplicativo".
+ */
+function serialShortcuts<T>(job: () => Promise<T>): Promise<T> {
+  const run = shortcutChain.then(job);
+  shortcutChain = run.catch(() => undefined);
+  return run;
+}
 
 /** registra um atalho já convertido; `false` = outro programa usa */
 async function tryShortcut(t: string, action: ShortcutAction): Promise<boolean> {
@@ -174,7 +185,7 @@ async function registerShortcuts(s: ShortcutsArgs) {
   }
   // o unregisterAll acima também tirou o atalho de emergência do controle remoto
   await armPanic();
-  if (shortcutPending.size) shortcutRetry = setInterval(() => void retryShortcuts(), SHORTCUT_RETRY_MS);
+  if (shortcutPending.size) shortcutRetry = setInterval(() => void serialShortcuts(retryShortcuts), SHORTCUT_RETRY_MS);
   return { registered, failed };
 }
 
@@ -316,7 +327,10 @@ const bridge: OpenCordBridge = {
     const n = NotifyArgs.parse(args);
     sendNotification({ title: n.title, body: n.body, ...(n.silent ? { silent: true } : {}) });
   },
-  setShortcuts: async (args) => registerShortcuts(ShortcutsArgs.parse(args)),
+  setShortcuts: async (args) => {
+    const s = ShortcutsArgs.parse(args);
+    return serialShortcuts(() => registerShortcuts(s));
+  },
   flashFrame: async () => {
     if (!(await win.isFocused())) await win.requestUserAttention(UserAttentionType.Informational);
   },

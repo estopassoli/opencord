@@ -23,22 +23,7 @@ export function applySettingsSideEffects(s: UserSettings) {
     startServerTheme();
     reapplyServerTheme();
   });
-  if (bridge) {
-    void bridge
-      .setShortcuts({
-        toggleMute: s.keybinds.toggleMute,
-        toggleDeafen: s.keybinds.toggleDeafen,
-        pushToTalkToggle: s.audio.inputMode === 'ptt' ? pushToTalkAccelerator(s.keybinds.pushToTalk) : null,
-        saveClip: s.games.clips ? s.keybinds.saveClip : null,
-        stopSounds: s.keybinds.stopSounds,
-        toggleSoundsMuted: s.keybinds.toggleSoundsMuted,
-      })
-      .then((r) => {
-        if (r.failed.length)
-          useUi.getState().toast('error', `Atalho já em uso por outro aplicativo: ${r.failed.join(', ')}`);
-      })
-      .catch(() => useUi.getState().toast('error', 'Atalho inválido.'));
-  }
+  syncShortcuts(s);
   void import('./voice').then(({ useVoice }) => useVoice.getState().applySettings(s));
   void import('./games').then(({ configureGames }) => configureGames(s));
   void import('../lib/overlay').then(({ startOverlay }) => startOverlay());
@@ -56,6 +41,35 @@ export function applySettingsSideEffects(s: UserSettings) {
     wireClips();
     syncClips();
   });
+}
+
+/** atalhos do último registro; `null` = ainda não registrou nesta sessão do app */
+let shortcutsKey: string | null = null;
+
+/**
+ * Registra os atalhos globais só quando eles mudam. Qualquer mudança de configuração passa por aqui (arrastar o volume
+ * de alguém salva a cada passo); registrar de novo em todas elas repetia o aviso de "atalho em uso" a cada passo.
+ */
+export function syncShortcuts(s: UserSettings) {
+  if (!bridge) return;
+  const shortcuts = {
+    toggleMute: s.keybinds.toggleMute,
+    toggleDeafen: s.keybinds.toggleDeafen,
+    pushToTalkToggle: s.audio.inputMode === 'ptt' ? pushToTalkAccelerator(s.keybinds.pushToTalk) : null,
+    saveClip: s.games.clips ? s.keybinds.saveClip : null,
+    stopSounds: s.keybinds.stopSounds,
+    toggleSoundsMuted: s.keybinds.toggleSoundsMuted,
+  };
+  const key = JSON.stringify(shortcuts);
+  if (key === shortcutsKey) return;
+  shortcutsKey = key;
+  void bridge
+    .setShortcuts(shortcuts)
+    .then((r) => {
+      if (r.failed.length)
+        useUi.getState().toast('error', `Atalho já em uso por outro aplicativo: ${r.failed.join(', ')}`);
+    })
+    .catch(() => useUi.getState().toast('error', 'Atalho inválido.'));
 }
 
 /** Cor de destaque, tom de fundo, cantos e fonte: viram variáveis CSS no :root. */
