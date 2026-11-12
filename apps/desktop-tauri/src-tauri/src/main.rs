@@ -275,6 +275,9 @@ fn create_main_window(app: &AppHandle, gpu_off: bool) -> tauri::Result<()> {
     .background_color(tauri::window::Color(0x1b, 0x1d, 0x22, 0xff))
     .additional_browser_args(&browser_args(gpu_off))
     .user_agent(&user_agent(app))
+    // sem isso o Tauri toma o arrastar e soltar da janela no Windows e o HTML5 da interface para de funcionar:
+    // arrastar alguém para outro canal de voz, reordenar canais e soltar arquivos no chat
+    .disable_drag_drop_handler()
     .on_navigation(|u| is_app_url(u) || u.as_str() == "about:blank")
     .on_new_window(move |url, features| {
       // única janela filha: a transmissão desanexada (about:blank montada pela própria interface), numa janela do
