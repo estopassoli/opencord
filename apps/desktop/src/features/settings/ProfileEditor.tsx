@@ -62,6 +62,28 @@ const PROFILE_COLORS = [
 type ImageDraft =
   { kind: 'keep' } | { kind: 'none' } | { kind: 'file'; file: File; preview: string } | { kind: 'url'; url: string };
 type AvatarDraft = ImageDraft | { kind: 'recent'; entry: string; url: string };
+type ImageKind = 'avatar' | 'banner';
+/** imagem original de um recorte; `url` = link do KLIPY de onde ela veio */
+interface Origin {
+  file: File;
+  url?: string;
+}
+type Cropping = Origin & { kind: ImageKind };
+
+const KLIPY_URL = /^https:\/\/([a-z0-9-]+\.)*klipy\.com\//i;
+/** GIF do KLIPY de tamanho médio passa de 4 MB; acima disso nem tenta */
+const MAX_FETCH_BYTES = 24 * 1024 * 1024;
+
+/** baixa uma imagem (KLIPY, a atual no servidor ou a prévia local) como arquivo para o recorte */
+async function fileFromUrl(src: string): Promise<File> {
+  const res = await fetch(src);
+  if (!res.ok) throw new Error('Não foi possível abrir a imagem.');
+  if (Number(res.headers.get('content-length') ?? 0) > MAX_FETCH_BYTES) throw new Error('A imagem é grande demais.');
+  const blob = await res.blob();
+  if (blob.size > MAX_FETCH_BYTES) throw new Error('A imagem é grande demais.');
+  const type = blob.type.startsWith('image/') ? blob.type : /\.gif(\?|$)/i.test(src) ? 'image/gif' : 'image/png';
+  return new File([blob], 'imagem', { type });
+}
 
 const toastError = (e: unknown) => useUi.getState().toast('error', describeError(e));
 
@@ -92,7 +114,9 @@ export function ProfileEditor({ me }: { me: Me }) {
   const [busy, setBusy] = useState(false);
   const [gifFor, setGifFor] = useState<'avatar' | 'banner' | null>(null);
   const [pickFor, setPickFor] = useState<'avatar' | 'banner' | null>(null);
-  const [cropping, setCropping] = useState<{ file: File; kind: 'avatar' | 'banner' } | null>(null);
+  const [cropping, setCropping] = useState<Cropping | null>(null);
+  /** de onde saiu a foto/o banner do rascunho: "Ajustar recorte" recorta de novo do original, sem perder resolução */
+  const [origin, setOrigin] = useState<Partial<Record<ImageKind, Origin>>>({});
   const [recent, setRecent] = useState<RecentAvatar[]>([]);
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
@@ -157,6 +181,7 @@ export function ProfileEditor({ me }: { me: Me }) {
     setColors(undefined);
     setBanner({ kind: 'keep' });
     setAvatar({ kind: 'keep' });
+    setOrigin({});
   };
 
   const save = async () => {
@@ -219,6 +244,22 @@ export function ProfileEditor({ me }: { me: Me }) {
     if (!file.type.startsWith('image/'))
       return useUi.getState().toast('error', 'Escolha uma imagem (PNG, JPEG, WebP ou GIF).');
     setCropping({ file, kind: 'banner' });
+  };
+
+  /**
+   * Abre o recorte a partir de um endereço: GIF do KLIPY (a mídia deles libera CORS) ou a foto/o banner atual. Se não
+   * der para baixar, o GIF do KLIPY entra inteiro, como antes do recorte.
+   */
+  const cropFromUrl = async (kind: ImageKind, src: string) => {
+    const klipy = KLIPY_URL.test(src) ? src : undefined;
+    try {
+      setCropping({ kind, file: await fileFromUrl(src), url: klipy });
+    } catch (e) {
+      if (!klipy) return toastError(e);
+      if (kind === 'avatar') setAvatar({ kind: 'url', url: klipy });
+      else setBanner({ kind: 'url', url: klipy });
+      useUi.getState().toast('info', 'Não deu para abrir o recorte deste GIF; ele entrou inteiro.');
+    }
   };
 
   const shownColors = draft.colors;
@@ -356,11 +397,21 @@ export function ProfileEditor({ me }: { me: Me }) {
           }}
           onRecent={(r) => {
             setAvatar({ kind: 'recent', entry: r.entry, url: r.url });
+            setOrigin((o) => ({ ...o, avatar: undefined }));
             setPickFor(null);
+          }}
+          onAdjust={() => {
+            const kind = pickFor;
+            setPickFor(null);
+            const o = origin[kind];
+            if (o) return setCropping({ kind, ...o });
+            const src = kind === 'avatar' ? avatarSrc : bannerSrc;
+            if (src) void cropFromUrl(kind, src);
           }}
           onRemove={() => {
             if (pickFor === 'avatar') setAvatar({ kind: 'none' });
             else setBanner({ kind: 'none' });
+            setOrigin((o) => ({ ...o, [pickFor]: undefined }));
             setPickFor(null);
           }}
         />
@@ -404,15 +455,20 @@ export function ProfileEditor({ me }: { me: Me }) {
           aspect={cropping.kind === 'avatar' ? 1 : BANNER_ASPECT}
           onCancel={() => setCropping(null)}
           onConfirm={async (crop, onProgress) => {
-            const { file, kind } = cropping;
+            const { file, kind, url } = cropping;
             try {
               const out =
                 kind === 'avatar'
                   ? await avatarImage(file, crop, onProgress)
                   : await profileBannerImage(file, crop, onProgress);
-              const next = { kind: 'file' as const, file: out, preview: URL.createObjectURL(out) };
+              // GIF do KLIPY sem recorte continua sendo o link do KLIPY (não guarda cópia)
+              const next =
+                url && out === file
+                  ? { kind: 'url' as const, url }
+                  : { kind: 'file' as const, file: out, preview: URL.createObjectURL(out) };
               if (kind === 'avatar') setAvatar(next);
               else setBanner(next);
+              setOrigin((o) => ({ ...o, [kind]: { file, url } }));
               setCropping(null);
             } catch (e) {
               toastError(e);
@@ -425,9 +481,9 @@ export function ProfileEditor({ me }: { me: Me }) {
           title={gifFor === 'avatar' ? 'GIF para a foto' : 'GIF para o banner'}
           onClose={() => setGifFor(null)}
           onPick={(url) => {
-            if (gifFor === 'avatar') setAvatar({ kind: 'url', url });
-            else setBanner({ kind: 'url', url });
+            const kind = gifFor;
             setGifFor(null);
+            void cropFromUrl(kind, url);
           }}
         />
       )}
@@ -550,7 +606,10 @@ function StatusBubble({ value, onChange }: { value: string; onChange: (v: string
   );
 }
 
-/** Escolher de onde vem a foto ou o banner: enviar do computador, um GIF do KLIPY ou (foto) uma das recentes. */
+/**
+ * Escolher de onde vem a foto ou o banner: enviar do computador, um GIF do KLIPY, ajustar o recorte da atual ou (foto)
+ * uma das recentes.
+ */
 function ImageSourceDialog({
   kind,
   canGif,
@@ -563,6 +622,7 @@ function ImageSourceDialog({
   onGif,
   onRecent,
   onRemove,
+  onAdjust,
 }: {
   kind: 'avatar' | 'banner';
   canGif: boolean;
@@ -575,6 +635,8 @@ function ImageSourceDialog({
   onGif: () => void;
   onRecent: (r: RecentAvatar) => void;
   onRemove: () => void;
+  /** recortar de novo a imagem atual (mover, zoom) */
+  onAdjust: () => void;
 }) {
   return (
     <Dialog title={kind === 'avatar' ? 'Escolher foto' : 'Escolher banner'} onClose={onClose}>
@@ -592,6 +654,15 @@ function ImageSourceDialog({
               <span className="gif-btn-label">GIF</span>
               <strong>Escolher GIF</strong>
               <span className="muted small">Busque no KLIPY</span>
+            </button>
+          )}
+          {canRemove && (
+            <button type="button" className="image-source-tile" onClick={onAdjust}>
+              <Icon name="scissors" size={28} />
+              <strong>Ajustar recorte</strong>
+              <span className="muted small">
+                {kind === 'avatar' ? 'Mover e dar zoom na foto atual' : 'Mover e dar zoom no banner atual'}
+              </span>
             </button>
           )}
         </div>

@@ -62,8 +62,12 @@ Para a parte 1 ele escolheu:
   global por corte na mediana, só o retângulo que muda entre quadros, LZW como no omggif). Sem dependência nova.
   Se o resultado passar do limite do servidor (foto 1 MB, banner 4 MB), tenta tamanhos menores; recorte que pega o
   GIF inteiro e cabe no limite vai como está.
-- GIF do KLIPY continua sem recorte (é um link para o KLIPY, não um arquivo nosso). Imagem do servidor e banner do
-  servidor não mudaram.
+- GIF do KLIPY também passa pelo recorte (corrigido no mesmo dia, depois do relato "coloquei uma capa e não consigo
+  mover"): o app baixa a mídia (o CDN do KLIPY responde `Access-Control-Allow-Origin: *`) e recorta como um arquivo.
+  Se o recorte não mexer no GIF, continua sendo o link do KLIPY (sem cópia); recortado, vira um arquivo nosso, como a
+  imagem de servidor do ADR-0050. Se não der para baixar, o GIF entra inteiro, como antes.
+- "Ajustar recorte" no menu da foto e do banner: recorta de novo a imagem atual (o original do rascunho, sem perder
+  resolução, ou a salva no servidor/no KLIPY). Imagem do servidor e banner do servidor não mudaram.
 - Evidência: `test/gif-encode.test.ts` (decodifica o GIF gravado e confere quadro a quadro, LZW com tabela
   reiniciada, transparência); no Chromium 1254 com GIFs do ffmpeg: 30 quadros recortados com diferença média de
   0,1/255 por canal e durações mantidas; GIF de pior caso (12 MB de ruído, 75 quadros) em 1–2 s, reduzido até caber.
