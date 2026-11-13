@@ -24,6 +24,14 @@ export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) =>
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-13',
+    time: '01:45',
+    kind: 'melhoria',
+    icon: 'image',
+    title: 'Recorte da foto e do banner, com GIF animado',
+    body: 'Ao escolher uma foto de perfil ou um banner do computador, agora dá para recortar: arraste para posicionar e use a barra (ou a roda do mouse) para o zoom. Vale para imagem comum e para GIF, que continua animado depois do recorte. O banner é recortado no formato do cartão de perfil.',
+  },
+  {
     date: '2026-11-11',
     time: '02:00',
     kind: 'melhoria',

@@ -5948,9 +5948,17 @@ section:first-child > .friends-panel-sep {
   gap: 16px;
   justify-items: center;
 }
+.cropper {
+  max-width: 100%;
+  margin-inline: auto;
+}
 .cropper > .oc-field,
 .cropper > * :where(.oc-slider) {
-  width: 320px;
+  width: 100%;
+}
+.cropper-note {
+  margin: 0;
+  text-align: center;
 }
 .cropper-view {
   position: relative;

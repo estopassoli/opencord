@@ -25,7 +25,7 @@ import { Dialog } from '../../components/Dialog';
 import { EmojiButton } from '../../components/EmojiButton';
 import { ImageCropDialog } from '../../components/ImageCropDialog';
 import { ProfileCardHead, profileThemeVars, useBannerUrl } from '../../components/ProfileCardView';
-import { bannerImage, keepsAnimation, squareImage } from '../../lib/images';
+import { avatarImage, BANNER_ASPECT, profileBannerImage } from '../../lib/images';
 import { BadgeGlyph, useBadgeCatalog } from '../../components/UserBadges';
 import { useData } from '../../store/data';
 import { EMPTY_APPEARANCE, useProfiles } from '../../store/profiles';
@@ -92,7 +92,7 @@ export function ProfileEditor({ me }: { me: Me }) {
   const [busy, setBusy] = useState(false);
   const [gifFor, setGifFor] = useState<'avatar' | 'banner' | null>(null);
   const [pickFor, setPickFor] = useState<'avatar' | 'banner' | null>(null);
-  const [cropping, setCropping] = useState<File | null>(null);
+  const [cropping, setCropping] = useState<{ file: File; kind: 'avatar' | 'banner' } | null>(null);
   const [recent, setRecent] = useState<RecentAvatar[]>([]);
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
@@ -204,27 +204,21 @@ export function ProfileEditor({ me }: { me: Me }) {
     }
   };
 
-  const pickAvatar = async (file: File | undefined) => {
+  const pickAvatar = (file: File | undefined) => {
     if (avatarInput.current) avatarInput.current.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/'))
       return useUi.getState().toast('error', 'Escolha uma imagem (PNG, JPEG, WebP ou GIF).');
-    // GIF animado pequeno vai como está (recortar perderia a animação)
-    if (await keepsAnimation(file)) return setAvatar({ kind: 'file', file, preview: URL.createObjectURL(file) });
-    setCropping(file);
+    // GIF também passa pelo recorte e continua animado
+    setCropping({ file, kind: 'avatar' });
   };
 
-  const pickBanner = async (file: File | undefined) => {
+  const pickBanner = (file: File | undefined) => {
     if (bannerInput.current) bannerInput.current.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/'))
       return useUi.getState().toast('error', 'Escolha uma imagem (PNG, JPEG, WebP ou GIF).');
-    try {
-      const f = await bannerImage(file);
-      setBanner({ kind: 'file', file: f, preview: URL.createObjectURL(f) });
-    } catch (e) {
-      toastError(e);
-    }
+    setCropping({ file, kind: 'banner' });
   };
 
   const shownColors = draft.colors;
@@ -391,7 +385,7 @@ export function ProfileEditor({ me }: { me: Me }) {
         accept="image/png,image/jpeg,image/webp,image/gif"
         hidden
         aria-label="Escolher foto de perfil"
-        onChange={(e) => void pickAvatar(e.target.files?.[0])}
+        onChange={(e) => pickAvatar(e.target.files?.[0])}
       />
       <input
         ref={bannerInput}
@@ -399,21 +393,30 @@ export function ProfileEditor({ me }: { me: Me }) {
         accept="image/png,image/jpeg,image/webp,image/gif"
         hidden
         aria-label="Escolher banner"
-        onChange={(e) => void pickBanner(e.target.files?.[0])}
+        onChange={(e) => pickBanner(e.target.files?.[0])}
       />
       {cropping && (
         <ImageCropDialog
-          file={cropping}
-          title="Recortar foto de perfil"
-          shape="circle"
+          key={cropping.kind}
+          file={cropping.file}
+          title={cropping.kind === 'avatar' ? 'Recortar foto de perfil' : 'Recortar banner'}
+          shape={cropping.kind === 'avatar' ? 'circle' : 'rect'}
+          aspect={cropping.kind === 'avatar' ? 1 : BANNER_ASPECT}
           onCancel={() => setCropping(null)}
-          onConfirm={(crop) => {
-            const f = cropping;
-            setCropping(null);
-            void squareImage(f, 256, 'avatar', crop).then(
-              (out) => setAvatar({ kind: 'file', file: out, preview: URL.createObjectURL(out) }),
-              toastError,
-            );
+          onConfirm={async (crop, onProgress) => {
+            const { file, kind } = cropping;
+            try {
+              const out =
+                kind === 'avatar'
+                  ? await avatarImage(file, crop, onProgress)
+                  : await profileBannerImage(file, crop, onProgress);
+              const next = { kind: 'file' as const, file: out, preview: URL.createObjectURL(out) };
+              if (kind === 'avatar') setAvatar(next);
+              else setBanner(next);
+              setCropping(null);
+            } catch (e) {
+              toastError(e);
+            }
           }}
         />
       )}

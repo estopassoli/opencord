@@ -51,3 +51,19 @@ Para a parte 1 ele escolheu:
 - **Animação:** a foto e o banner em GIF não param com "reduzir movimento". O navegador não pausa GIF sem convertê-lo, então isso fica para depois.
 - **Deploy:** a migração é aditiva e roda antes da API nova (Rick). Apps antigos ignoram os campos novos e mostram as iniciais no lugar da foto por GIF do KLIPY.
 - **Reversão:** remover as rotas e as colunas (SQL na migração). Os arquivos em `banners/` ficam órfãos.
+
+## Adendo (2026-11-13): recorte da foto e do banner, com GIF animado
+
+- Foto e banner enviados do computador passam pelo `ImageCropDialog` (arrastar, zoom pela barra, roda ou teclado). A
+  foto é recortada em quadrado (prévia em círculo); o banner na proporção do cartão (`BANNER_ASPECT` = 300 × 104 px,
+  `.pc-banner`). Antes, o banner ia inteiro e o GIF da foto pulava o recorte para não perder a animação.
+- **GIF continua animado:** os quadros saem do `ImageDecoder` (WebCodecs; Chromium no Electron, no WebView2 e no
+  Chrome), são recortados num canvas e voltam a ser GIF por um codificador próprio (`lib/gif-encode.ts`: paleta
+  global por corte na mediana, só o retângulo que muda entre quadros, LZW como no omggif). Sem dependência nova.
+  Se o resultado passar do limite do servidor (foto 1 MB, banner 4 MB), tenta tamanhos menores; recorte que pega o
+  GIF inteiro e cabe no limite vai como está.
+- GIF do KLIPY continua sem recorte (é um link para o KLIPY, não um arquivo nosso). Imagem do servidor e banner do
+  servidor não mudaram.
+- Evidência: `test/gif-encode.test.ts` (decodifica o GIF gravado e confere quadro a quadro, LZW com tabela
+  reiniciada, transparência); no Chromium 1254 com GIFs do ffmpeg: 30 quadros recortados com diferença média de
+  0,1/255 por canal e durações mantidas; GIF de pior caso (12 MB de ruído, 75 quadros) em 1–2 s, reduzido até caber.
