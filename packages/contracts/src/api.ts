@@ -2042,6 +2042,8 @@ export const UserSettingsV1 = z.object({
       /** conjunto de sons (padrao, classico, suave, retro, madeira, telefone, discreto) */
       soundPack: z.string().max(32).default('padrao'),
       dnd: z.boolean().default(false),
+      /** "Chamar atenção" (ADR-0064): outras pessoas podem tremer o meu app e tocar o aviso */
+      nudges: z.boolean().default(true),
       /** preferências por servidor e por canal (só eu vejo; o canal vale por cima do servidor) */
       servers: z.record(z.string().max(64), NotifyOverride).default({}),
       channels: z.record(z.string().max(64), NotifyOverride).default({}),
@@ -2153,6 +2155,9 @@ export const AdminStats = z.object({
 export type AdminStats = z.infer<typeof AdminStats>;
 /** janela das versões em uso do painel (AdminStats.appVersions) */
 export const APP_VERSION_DAYS = 30;
+
+/** "Chamar atenção" (ADR-0064): intervalo mínimo para chamar a mesma pessoa de novo */
+export const NUDGE_COOLDOWN_MS = 15_000;
 
 export const AdminUser = UserPublic.extend({
   email: z.string().nullable(),

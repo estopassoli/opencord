@@ -70,6 +70,12 @@ export function NotificationsTab({ settings }: { settings: UserSettings }) {
           </>
         )}
         <Switch
+          label="Chamar atenção"
+          description="Quem divide um servidor com você ou é seu amigo pode tremer o seu app e tocar um aviso."
+          checked={n.nudges}
+          onChange={(v) => set({ nudges: v })}
+        />
+        <Switch
           label="Não perturbe"
           description="Silencia notificações e sons."
           checked={n.dnd}

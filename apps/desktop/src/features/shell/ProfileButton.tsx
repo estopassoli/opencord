@@ -93,6 +93,18 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
           })
           .catch(apiError),
     });
+    // "Chamar atenção" (ADR-0064): treme o app da pessoa e toca um aviso (útil com ela mutada ou sem áudio)
+    if (!user.bot && !user.system)
+      items.push({
+        label: 'Chamar atenção',
+        icon: 'bell',
+        hint: voice?.selfDeaf ? 'Sem áudio' : voice?.selfMute ? 'Mutado' : undefined,
+        onSelect: () =>
+          void api()
+            .request('POST', `/users/${userId}/nudge`)
+            .then(() => useUi.getState().toast('success', `Você chamou a atenção de ${user.displayName}.`))
+            .catch(apiError),
+      });
     if (!d.friends.some((f) => f.user.id === userId)) {
       items.push({
         label: 'Adicionar amigo',

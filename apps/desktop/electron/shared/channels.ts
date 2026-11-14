@@ -8,6 +8,7 @@ export const IPC = {
   notify: 'notify:show',
   shortcutsSet: 'shortcuts:set',
   windowFlash: 'window:flash',
+  windowShake: 'window:shake',
   windowFocus: 'window:focus',
   windowControl: 'window:control',
   windowState: 'window:state',

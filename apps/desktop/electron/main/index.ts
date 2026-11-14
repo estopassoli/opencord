@@ -110,6 +110,8 @@ const ALLOWED_PERMISSIONS = new Set([
 ]);
 
 let win: BrowserWindow | null = null;
+/** deslocamentos (px) do tremor da janela, diminuindo até parar */
+const SHAKE_STEPS = [12, -12, 10, -10, 8, -8, 6, -6, 4, -4, 2, -2, 0];
 let tray: Tray | null = null;
 let quitting = false;
 const shortcuts = new ShortcutRegistry<ShortcutAction>({
@@ -398,6 +400,18 @@ function registerIpc() {
     if (win && !win.isFocused()) win.flashFrame(true);
   });
   handle(IPC.windowFocus, [], () => showWindow());
+  // "Chamar atenção" (ADR-0064): só com a janela à mostra e solta (maximizada ou em tela cheia não sai do lugar)
+  handle(IPC.windowShake, [], async () => {
+    const w = win;
+    if (!w || !w.isVisible() || w.isMinimized() || w.isMaximized() || w.isFullScreen()) return;
+    const [x = 0, y = 0] = w.getPosition();
+    for (const dx of SHAKE_STEPS) {
+      if (w.isDestroyed()) return;
+      w.setPosition(x + dx, y + (dx > 0 ? -1 : 1) * Math.min(3, Math.abs(dx) / 3));
+      await new Promise((r) => setTimeout(r, 28));
+    }
+    if (!w.isDestroyed()) w.setPosition(x, y);
+  });
   handle(IPC.windowControl, [WindowControl], (action) => {
     if (!win) return;
     if (action === 'minimize') win.minimize();

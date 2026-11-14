@@ -329,7 +329,7 @@ export function currentPack(): SoundPack {
 }
 
 /** últimos sons disparados (diagnóstico/E2E: confere os gatilhos com o áudio mudo) */
-export const soundLog: SoundName[] = [];
+export const soundLog: (SoundName | 'nudge')[] = [];
 
 let ctx: AudioContext | null = null;
 let sink: string | null = null;
@@ -371,6 +371,34 @@ export function playSound(name: SoundName, opts: { force?: boolean; pack?: Sound
   last.set(name, now);
   soundLog.push(name);
   if (soundLog.length > 50) soundLog.shift();
+  playNotes(SOUND_SETS[opts.pack ?? currentPack()][name], vol);
+}
+
+/**
+ * "Chamar atenção" (ADR-0064): um trinado rápido e insistente seguido de dois toques, igual em todos os conjuntos
+ * (precisa ser reconhecível). Próprio do OpenCord, sintetizado como os outros.
+ */
+export const NUDGE_NOTES: Note[] = [
+  ...Array.from({ length: 10 }, (_, i) => ({
+    f: i % 2 ? 1046.5 : 784,
+    t: i * 0.045,
+    d: 0.04,
+    g: 0.55,
+    type: 'triangle' as const,
+  })),
+  { f: E6, t: 0.5, d: 0.12, g: 0.8 },
+  { f: 1760, t: 0.62, d: 0.22, g: 0.7 },
+];
+
+/** toca o aviso de "Chamar atenção" no volume dado (0–1), fora da regra de "Efeitos sonoros" */
+export function playNudge(vol: number) {
+  if (vol <= 0) return;
+  soundLog.push('nudge');
+  if (soundLog.length > 50) soundLog.shift();
+  playNotes(NUDGE_NOTES, vol);
+}
+
+function playNotes(notes: readonly Note[], vol: number) {
   const c = context();
   if (!c) return;
   void applySink(c);
@@ -380,7 +408,7 @@ export function playSound(name: SoundName, opts: { force?: boolean; pack?: Sound
   master.gain.value = 0.35 * vol * vol;
   master.connect(c.destination);
   const t0 = c.currentTime + 0.01;
-  for (const n of SOUND_SETS[opts.pack ?? currentPack()][name]) {
+  for (const n of notes) {
     const start = t0 + n.t;
     const end = start + n.d;
     const peak = n.g ?? 1;

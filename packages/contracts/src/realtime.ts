@@ -219,6 +219,8 @@ export interface ServerEvents {
   'voice:force-disconnect': { channelId: string; reason: 'kicked' | 'revoked' | 'replaced' };
   /** um moderador arrastou você para outro canal de voz: o app reentra nele */
   'voice:force-move': { serverId: string; channelId: string; byUserId: string };
+  /** "Chamar atenção" (ADR-0064): alguém tremeu o seu app; `fromName` é o nome de exibição de quem chamou */
+  'user:nudge': { fromUserId: string; fromName: string };
   'server:updated': z.infer<typeof ServerSummary>;
   /** o usuário passou a ser membro de um servidor (servidor novo ou entrada pelo diretório) */
   'server:added': z.infer<typeof ServerSummary>;

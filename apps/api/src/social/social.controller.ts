@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { CurrentUser, type AuthUser } from '../common/auth.js';
 import { zodPipe } from '../common/zod.pipe.js';
 import { PresenceService } from '../realtime/presence.service.js';
+import { NudgeService } from './nudge.service.js';
 import { SocialService } from './social.service.js';
 
 const id = new ParseUUIDPipe();
@@ -13,7 +14,15 @@ export class SocialController {
   constructor(
     private readonly social: SocialService,
     private readonly presence: PresenceService,
+    private readonly nudges: NudgeService,
   ) {}
+
+  /** "Chamar atenção" (ADR-0064): treme o app da pessoa e toca um aviso */
+  @Post('users/:userId/nudge')
+  @HttpCode(204)
+  async nudge(@CurrentUser() u: AuthUser, @Param('userId', id) userId: string): Promise<void> {
+    await this.nudges.nudge(u.userId, userId);
+  }
 
   @Get('users/:userId/profile')
   profile(@CurrentUser() u: AuthUser, @Param('userId', id) other: string) {

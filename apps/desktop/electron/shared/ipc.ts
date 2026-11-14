@@ -305,6 +305,8 @@ export interface OpenCordBridge {
   notify(args: NotifyArgs): Promise<void>;
   setShortcuts(args: ShortcutsArgs): Promise<ShortcutResult>;
   flashFrame(): Promise<void>;
+  /** "Chamar atenção" (ADR-0064): treme a janela, se ela estiver à mostra e não maximizada */
+  shakeWindow(): Promise<void>;
   focusWindow(): Promise<void>;
   windowControl(action: WindowControl): Promise<void>;
   windowState(): Promise<WindowState>;

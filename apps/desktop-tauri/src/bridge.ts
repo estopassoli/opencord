@@ -9,6 +9,7 @@
  */
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { PhysicalPosition } from '@tauri-apps/api/dpi';
 import { getCurrentWindow, primaryMonitor, UserAttentionType } from '@tauri-apps/api/window';
 import { isRegistered, register, unregister, unregisterAll } from '@tauri-apps/plugin-global-shortcut';
 import { sendNotification } from '@tauri-apps/plugin-notification';
@@ -333,6 +334,22 @@ const bridge: OpenCordBridge = {
   },
   flashFrame: async () => {
     if (!(await win.isFocused())) await win.requestUserAttention(UserAttentionType.Informational);
+  },
+  // "Chamar atenção" (ADR-0064): só com a janela à mostra e solta (maximizada ou em tela cheia não sai do lugar)
+  shakeWindow: async () => {
+    if (
+      !(await win.isVisible()) ||
+      (await win.isMinimized()) ||
+      (await win.isMaximized()) ||
+      (await win.isFullscreen())
+    )
+      return;
+    const start = await win.outerPosition();
+    for (const dx of [12, -12, 10, -10, 8, -8, 6, -6, 4, -4, 2, -2]) {
+      await win.setPosition(new PhysicalPosition(start.x + dx, start.y + (dx > 0 ? -2 : 2)));
+      await new Promise((r) => setTimeout(r, 28));
+    }
+    await win.setPosition(start);
   },
   focusWindow: async () => {
     await win.unminimize();

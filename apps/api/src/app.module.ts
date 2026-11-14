@@ -70,6 +70,7 @@ import { RetentionService } from './users/retention.service.js';
 import { AvatarsController } from './users/avatars.controller.js';
 import { SocialController } from './social/social.controller.js';
 import { SocialService } from './social/social.service.js';
+import { NudgeService } from './social/nudge.service.js';
 import { UsersController } from './users/users.controller.js';
 import { VoiceController } from './voice/voice.controller.js';
 import { VoiceService } from './voice/voice.service.js';
@@ -164,6 +165,7 @@ export class AppModule {
         DeviceBansService,
         ModerationCasesService,
         SocialService,
+        NudgeService,
         VoiceService,
       ],
     };

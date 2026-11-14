@@ -33,6 +33,7 @@ const bridge: OpenCordBridge = {
   notify: (args) => ipcRenderer.invoke(IPC.notify, args),
   setShortcuts: (args) => ipcRenderer.invoke(IPC.shortcutsSet, args),
   flashFrame: () => ipcRenderer.invoke(IPC.windowFlash),
+  shakeWindow: () => ipcRenderer.invoke(IPC.windowShake),
   focusWindow: () => ipcRenderer.invoke(IPC.windowFocus),
   windowControl: (action) => ipcRenderer.invoke(IPC.windowControl, action),
   windowState: () => ipcRenderer.invoke(IPC.windowState),

@@ -55,6 +55,7 @@ test('janela segura: sem Node no renderer e bridge mínima exposta', async () =>
     'setBadge',
     'setShortcuts',
     'setTrayVoiceState',
+    'shakeWindow',
     'updates',
     'windowControl',
     'windowState',

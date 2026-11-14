@@ -25,6 +25,14 @@ export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) =>
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-13',
+    time: '23:00',
+    kind: 'novo',
+    icon: 'bell',
+    title: 'Chamar atenção',
+    body: 'Clique com o botão direito em alguém e escolha "Chamar atenção": o app da pessoa treme e toca um aviso, útil quando ela está mutada ou sem áudio na chamada. Funciona com amigos e com quem está nos mesmos servidores que você, uma vez a cada 15 s por pessoa. Para não receber, desligue em Configurações → Notificações.',
+  },
+  {
+    date: '2026-11-13',
     time: '01:45',
     kind: 'melhoria',
     icon: 'image',
