@@ -1,10 +1,11 @@
-//! Replay dos clipes (ADR-0022/0062) no app em Tauri: a tela gravada fora do WebView (que abria o seletor de tela a
-//! cada captura). Mesma captura, conversão e encoder da live; o H.264 sai no stdout e a interface guarda os últimos
-//! segundos e monta o MP4 com o áudio dela.
+//! Vídeo da tela para a interface, fora do WebView (que abria o seletor de tela a cada captura), em dois usos no app em
+//! Tauri (ADR-0022/0062): o replay dos clipes (monitor) e a tela de uma live com cena (monitor ou janela escolhida no
+//! seletor do OpenCord; a interface decodifica e compõe a cena). Mesma captura, conversão e encoder da live.
 //!
 //! Configuração numa linha JSON no stdin; "ready <largura> <altura>" no stderr quando o encoder está pronto (ou
 //! "error <motivo>"); depois, cada quadro no stdout: tamanho (u32 LE) · 1 se quadro-chave (u8) · tempo em µs
 //! (i64 LE) · H.264 Annex B (com SPS/PPS nos quadros-chave). Para com "stop" no stdin ou com o stdin fechado.
+//! Janela fechada: "ended source-closed" no stderr e o processo sai.
 
 use std::io::{BufRead, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -13,11 +14,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
+use windows::Win32::Foundation::{HWND, RECT};
+use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
+use windows::Win32::UI::HiDpi::{SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
 use windows_capture::capture::GraphicsCaptureApiHandler;
 use windows_capture::monitor::Monitor;
 use windows_capture::settings::{
     ColorFormat, DirtyRegionSettings, SecondaryWindowSettings, Settings,
 };
+use windows_capture::window::Window;
 
 use crate::encoder::{Config as EncConfig, Control, Dev, Encoder, Input};
 use crate::live::{Capture, Flags};
@@ -25,7 +30,7 @@ use crate::live::{Capture, Flags};
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ClipConfig {
-    /// `screen:<hmonitor>`; sem fonte, o monitor principal
+    /// `screen:<hmonitor>` ou `window:<hwnd>` (ids do `sources`); sem fonte, o monitor principal
     source: Option<String>,
     /// teto do tamanho do vídeo (0 = o do monitor)
     max_width: u32,
@@ -41,6 +46,28 @@ struct ClipConfig {
 
 fn even(n: f32) -> u32 {
     ((n as u32) / 2 * 2).max(2)
+}
+
+/// o que capturar
+enum Target {
+    Screen(Monitor),
+    Window(usize),
+}
+
+/// tamanho da janela na tela em pixels reais, sem a borda invisível que o Windows põe em volta (a mesma área da captura)
+fn window_size(hwnd: usize) -> Option<(u32, u32)> {
+    let mut r = RECT::default();
+    unsafe {
+        DwmGetWindowAttribute(
+            HWND(hwnd as *mut _),
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            &mut r as *mut RECT as *mut _,
+            std::mem::size_of::<RECT>() as u32,
+        )
+        .ok()?;
+    }
+    let (w, h) = ((r.right - r.left).max(0) as u32, (r.bottom - r.top).max(0) as u32);
+    (w >= 2 && h >= 2).then_some((w, h))
 }
 
 /// o tamanho do monitor reduzido para caber no teto (sem aumentar), sempre par
@@ -61,18 +88,38 @@ pub fn run_from_stdin() -> i32 {
             return 2;
         }
     };
-    let monitor = match cfg.source.as_deref().and_then(|s| s.strip_prefix("screen:")).and_then(|v| v.parse::<usize>().ok()) {
-        Some(raw) => Monitor::from_raw_hmonitor(raw as *mut _),
+    let target = match cfg.source.as_deref().map(crate::live::parse_source) {
+        Some(Ok((true, raw))) => Target::Window(raw),
+        Some(Ok((false, raw))) => Target::Screen(Monitor::from_raw_hmonitor(raw as *mut _)),
+        Some(Err(e)) => {
+            eprintln!("error {e}");
+            return 2;
+        }
         None => match Monitor::primary() {
-            Ok(m) => m,
+            Ok(m) => Target::Screen(m),
             Err(e) => {
                 eprintln!("error sem monitor: {e:?}");
                 return 4;
             }
         },
     };
-    let (mw, mh) = (monitor.width().unwrap_or(1920), monitor.height().unwrap_or(1080));
-    let (width, height) = fit(mw, mh, cfg.max_width, cfg.max_height);
+    let (sw, sh) = match &target {
+        Target::Screen(m) => (m.width().unwrap_or(1920), m.height().unwrap_or(1080)),
+        Target::Window(hwnd) => {
+            // tamanho em pixels reais (sem isso, numa tela com escala de 150% a janela pareceria menor)
+            unsafe {
+                let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            }
+            match window_size(*hwnd) {
+                Some(s) => s,
+                None => {
+                    eprintln!("error a janela não está mais aberta");
+                    return 4;
+                }
+            }
+        }
+    };
+    let (width, height) = fit(sw, sh, cfg.max_width, cfg.max_height);
     let fps = cfg.fps.clamp(15, 120);
 
     let ctl = Arc::new(Control::default());
@@ -87,30 +134,46 @@ pub fn run_from_stdin() -> i32 {
         start: Instant::now(),
         dev_tx,
         dropped: Arc::new(AtomicU64::new(0)),
+        json_out: false,
     };
     let (cursor, border, interval) = crate::live::capture_options(cfg.cursor, fps);
-    let settings_flags = flags.clone();
-    let settings = Settings::new(
-        monitor,
-        cursor,
-        border,
-        SecondaryWindowSettings::Default,
-        interval,
-        DirtyRegionSettings::Default,
-        ColorFormat::Bgra8,
-        flags,
-    );
-    // sem a borda amarela no Windows 10: Desktop Duplication (se não abrir, WGC)
-    let dxgi = if crate::dxgi::wanted() {
-        crate::dxgi::start(monitor.as_raw_hmonitor() as usize, settings_flags, cfg.cursor)
-            .map_err(|e| eprintln!("duplicação indisponível, captura pela WGC: {e}"))
-            .ok()
-    } else {
-        None
-    };
-    let capture: Box<dyn std::any::Any> = match dxgi {
-        Some(d) => Box::new(d),
-        None => match Capture::start_free_threaded(settings) {
+    macro_rules! settings {
+        ($item:expr, $flags:expr) => {
+            Settings::new(
+                $item,
+                cursor,
+                border,
+                SecondaryWindowSettings::Default,
+                interval,
+                DirtyRegionSettings::Default,
+                ColorFormat::Bgra8,
+                $flags,
+            )
+        };
+    }
+    let capture: Box<dyn std::any::Any> = match target {
+        Target::Screen(monitor) => {
+            // sem a borda amarela no Windows 10: Desktop Duplication (se não abrir, WGC)
+            let dxgi = if crate::dxgi::wanted() {
+                crate::dxgi::start(monitor.as_raw_hmonitor() as usize, flags.clone(), cfg.cursor)
+                    .map_err(|e| eprintln!("duplicação indisponível, captura pela WGC: {e}"))
+                    .ok()
+            } else {
+                None
+            };
+            match dxgi {
+                Some(d) => Box::new(d),
+                None => match Capture::start_free_threaded(settings!(monitor, flags)) {
+                    Ok(c) => Box::new(c),
+                    Err(e) => {
+                        eprintln!("error captura não começou: {e:?}");
+                        return 4;
+                    }
+                },
+            }
+        }
+        // janela: WGC (no Windows 10 com a borda amarela, como na live sem cena)
+        Target::Window(hwnd) => match Capture::start_free_threaded(settings!(Window::from_raw_hwnd(hwnd as *mut _), flags)) {
             Ok(c) => Box::new(c),
             Err(e) => {
                 eprintln!("error captura não começou: {e:?}");

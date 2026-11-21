@@ -76,6 +76,8 @@ pub(crate) struct Flags {
     /// o encoder é criado com o device da captura (o mesmo da textura): o handler entrega o device para a thread dele
     pub dev_tx: SyncSender<Dev>,
     pub dropped: Arc<AtomicU64>,
+    /// avisos em JSON no stdout (a live); no `clip` o stdout é o vídeo e o aviso vai para o stderr
+    pub json_out: bool,
 }
 
 pub(crate) struct Capture {
@@ -84,6 +86,7 @@ pub(crate) struct Capture {
     ctl: Arc<Control>,
     start: Instant,
     dropped: Arc<AtomicU64>,
+    json_out: bool,
     /// sem `MinUpdateInterval` no Windows (antes do 11 24H2) a captura chega no ritmo do monitor: o handler segura o fps
     pacer: Pacer,
 }
@@ -161,7 +164,15 @@ impl GraphicsCaptureApiHandler for Capture {
         f.dev_tx.send(Dev(ctx.device.clone())).map_err(|_| "encoder não iniciou".to_string())?;
         let pace = (!GraphicsCaptureApi::is_minimum_update_interval_supported().unwrap_or(false))
             .then(|| frame_interval(f.fps));
-        Ok(Self { conv, tx: f.tx, ctl: f.ctl, start: f.start, dropped: f.dropped, pacer: Pacer::new(pace) })
+        Ok(Self {
+            conv,
+            tx: f.tx,
+            ctl: f.ctl,
+            start: f.start,
+            dropped: f.dropped,
+            json_out: f.json_out,
+            pacer: Pacer::new(pace),
+        })
     }
 
     fn on_frame_arrived(&mut self, frame: &mut Frame, control: InternalCaptureControl) -> Result<(), Self::Error> {
@@ -188,13 +199,17 @@ impl GraphicsCaptureApiHandler for Capture {
 
     fn on_closed(&mut self) -> Result<(), Self::Error> {
         // janela fechada / monitor removido
-        say(json!({ "ev": "ended", "reason": "source-closed" }));
+        if self.json_out {
+            say(json!({ "ev": "ended", "reason": "source-closed" }));
+        } else {
+            eprintln!("ended source-closed");
+        }
         self.ctl.stop.store(true, Ordering::Release);
         Ok(())
     }
 }
 
-fn parse_source(s: &str) -> Result<(bool, usize), String> {
+pub(crate) fn parse_source(s: &str) -> Result<(bool, usize), String> {
     let (kind, id) = s.split_once(':').ok_or("fonte inválida")?;
     let id: usize = id.parse().map_err(|_| "fonte inválida")?;
     match kind {
@@ -295,6 +310,7 @@ async fn run(cfg: Config, handle: tokio::runtime::Handle) -> i32 {
         start: Instant::now(),
         dev_tx,
         dropped: dropped.clone(),
+        json_out: true,
     };
     let (cursor, border, interval) = capture_options(cfg.cursor, cfg.fps);
     macro_rules! settings {

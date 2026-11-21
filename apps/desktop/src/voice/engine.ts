@@ -39,6 +39,7 @@ import {
 import { RNNOISE, RnnoiseProcessor } from './noise';
 import { PreviewReceiver, startPreviewSender } from './preview';
 import { SceneCompositor } from './compositor';
+import { canUseNativeFeed, feedBitrate, startNativeFeed, type NativeFeed } from './nativeFeed';
 import { SystemAudio } from './system-audio';
 import { screenLayer, type Scene } from '../lib/scenes';
 import { bridge } from '../lib/bridge';
@@ -190,6 +191,8 @@ export class VoiceEngine {
     audio: LocalAudioTrack | null;
     stream: MediaStream;
     system: SystemAudio | null;
+    /** live com cena no app em Tauri: a tela vem do oc-live (ver nativeFeed.ts) */
+    feed: NativeFeed | null;
   } | null = null;
   private lastBytes: { t: number; bytes: number } | null = null;
   private lastVideoBytes: { t: number; bytes: number } | null = null;
@@ -745,7 +748,7 @@ export class VoiceEngine {
     opts: { hideCursor?: boolean } = {},
   ): Promise<{ audioPublished: boolean }> {
     if (!this.room) throw new Error('não conectado');
-    // app em Tauri: a live sai do processo nativo (fora do WebView). Cena ainda é só pelo caminho do navegador.
+    // app em Tauri: a live sai do processo nativo (fora do WebView). Com cena, a composição é aqui (abaixo).
     if (bridge?.nativeLive && this.cb.liveToken && sourceId && !scene) {
       const r = await this.startNative(sourceId, withAudio, profileId, bitrate, opts).catch((e: unknown) => {
         // placa sem encoder H.264: segue pela captura do WebView, como antes
@@ -763,38 +766,68 @@ export class VoiceEngine {
     // oc-audio, a live sai sem áudio
     const chromiumAudio = withAudio && !system && !bridge?.nativeLive;
     if (bridge && sourceId) await bridge.capture.select({ sourceId, systemAudio: chromiumAudio });
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: profile.width },
-          height: { ideal: profile.height },
-          // captura no DOBRO do fps da live; o limite fica no envio (maxFramerate). Pedindo só 60, a captura olha a tela a
-          // cada 1/60 s e, com a variação de tempo, perde quadros novos: medido no E2E golive-fps, 57,7 quadros distintos
-          // no espectador com 60 pedidos × 59,5 com 120 (conteúdo a 60 e a 120 fps, com e sem cena).
-          frameRate: { ideal: profile.fps * 2, max: profile.fps * 2 },
-          // restrição padrão da captura de tela (`cursor`); navegador que não a conhece simplesmente ignora
-          ...(opts.hideCursor ? { cursor: 'never' } : {}),
-        } as MediaTrackConstraints,
-        // restrictOwnAudio: exclui as vozes da chamada tocadas pelo próprio OpenCord (evita eco para quem assiste)
-        audio: chromiumAudio
-          ? ({
-              echoCancellation: false,
-              noiseSuppression: false,
-              autoGainControl: false,
-              restrictOwnAudio: true,
-            } as MediaTrackConstraints)
-          : false,
-        // navegador (sem bridge): pede o áudio do sistema já marcado no seletor do Chrome/Edge e esconde a própria aba
-        ...(bridge ? {} : { systemAudio: withAudio ? 'include' : 'exclude', selfBrowserSurface: 'exclude' }),
-      } as DisplayMediaStreamOptions);
-    } catch (e) {
-      system?.stop();
-      throw e;
+    // app em Tauri com cena: a tela escolhida vem do oc-live (o getDisplayMedia do WebView2 abriria o seletor dele)
+    const feedApi = scene && sourceId && canUseNativeFeed() ? bridge?.nativeLive?.feed : undefined;
+    let feed: NativeFeed | null = null;
+    if (feedApi && sourceId) {
+      feed = await startNativeFeed(
+        feedApi,
+        {
+          sourceId,
+          maxWidth: profile.width,
+          maxHeight: profile.height,
+          // o fps da live, como na live nativa sem cena (o oc-live segura o ritmo com tolerância; o dobro pesaria na
+          // placa e no IPC sem ganho)
+          fps: profile.fps,
+          bitrate: feedBitrate(maxBitrate),
+          keyEverySec: 1,
+          cursor: !opts.hideCursor,
+        },
+        () => this.cb.onStreamEnded(),
+      ).catch((e: unknown) => {
+        // placa sem encoder H.264: segue pelo getDisplayMedia (com o seletor do WebView2)
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.startsWith('no-hw-encoder')) return null;
+        system?.stop();
+        throw e instanceof Error ? e : new Error(msg);
+      });
+      if (feed) this.note(`cena com a captura nativa (${sourceId})`);
     }
+    let stream: MediaStream;
+    if (feed) stream = new MediaStream([feed.track]);
+    else
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: profile.width },
+            height: { ideal: profile.height },
+            // captura no DOBRO do fps da live; o limite fica no envio (maxFramerate). Pedindo só 60, a captura olha a tela a
+            // cada 1/60 s e, com a variação de tempo, perde quadros novos: medido no E2E golive-fps, 57,7 quadros distintos
+            // no espectador com 60 pedidos × 59,5 com 120 (conteúdo a 60 e a 120 fps, com e sem cena).
+            frameRate: { ideal: profile.fps * 2, max: profile.fps * 2 },
+            // restrição padrão da captura de tela (`cursor`); navegador que não a conhece simplesmente ignora
+            ...(opts.hideCursor ? { cursor: 'never' } : {}),
+          } as MediaTrackConstraints,
+          // restrictOwnAudio: exclui as vozes da chamada tocadas pelo próprio OpenCord (evita eco para quem assiste)
+          audio: chromiumAudio
+            ? ({
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                restrictOwnAudio: true,
+              } as MediaTrackConstraints)
+            : false,
+          // navegador (sem bridge): pede o áudio do sistema já marcado no seletor do Chrome/Edge e esconde a própria aba
+          ...(bridge ? {} : { systemAudio: withAudio ? 'include' : 'exclude', selfBrowserSurface: 'exclude' }),
+        } as DisplayMediaStreamOptions);
+      } catch (e) {
+        system?.stop();
+        throw e;
+      }
     const [v] = stream.getVideoTracks();
     if (!v) {
       system?.stop();
+      feed?.stop();
       throw new Error('nenhuma trilha de vídeo capturada');
     }
     // Pensado para jogos: 'motion' mantém o fps de captura ('detail' põe o WebRTC em modo de tela e limitou um jogo
@@ -804,13 +837,22 @@ export class VoiceEngine {
     // com cena (ADR-0015): a live é a composição do canvas (tela + câmera + imagens + texto), não a captura crua
     let published: MediaStreamTrack = v;
     if (scene) {
-      this.compositor = new SceneCompositor(v, scene, profile.width, profile.height, profile.fps);
-      published = await this.compositor.start();
+      try {
+        this.compositor = new SceneCompositor(v, scene, profile.width, profile.height, profile.fps);
+        published = await this.compositor.start();
+      } catch (e) {
+        this.compositor?.stop();
+        this.compositor = null;
+        for (const t of stream.getTracks()) t.stop();
+        feed?.stop();
+        system?.stop();
+        throw e;
+      }
       published.contentHint = 'motion';
     }
     const video = new LocalVideoTrack(published, undefined, false);
     const audio = a ? new LocalAudioTrack(a, undefined, false) : null;
-    this.screen = { video, audio, stream, system };
+    this.screen = { video, audio, stream, system, feed };
     // fonte encerrada (janela fechada/monitor removido) → parar a publicação imediatamente
     v.addEventListener('ended', () => this.cb.onStreamEnded(), { once: true });
     try {
@@ -960,6 +1002,7 @@ export class VoiceEngine {
       if (s.audio) await lp.unpublishTrack(s.audio, true).catch(() => undefined);
     }
     for (const t of s.stream.getTracks()) t.stop();
+    s.feed?.stop();
     s.system?.stop();
     this.emit();
   }
@@ -1168,6 +1211,8 @@ export class VoiceEngine {
       outputSink: (room as unknown as { audioContext?: { sinkId?: unknown } }).audioContext?.sinkId ?? null,
       // cena do Go Live: quadros que chegam da captura × enviados (onde a composição para, se parar)
       compositor: this.compositor?.stats() ?? null,
+      // cena no app em Tauri: quadros do oc-live decodificados × entregues ao compositor
+      nativeFeed: this.screen?.feed?.stats() ?? null,
       roomEvents: this.roomEvents,
       remotes,
       pipeline: await this.pipeline(),
@@ -1242,6 +1287,7 @@ export class VoiceEngine {
       out.captureSettings = v?.getSettings() ?? null;
       out.publishedSettings = this.screen.video.mediaStreamTrack.getSettings();
       out.compositor = this.compositor?.stats() ?? null;
+      out.nativeFeed = this.screen.feed?.stats() ?? null;
       const params = this.screen.video.sender?.getParameters() as
         (RTCRtpSendParameters & { degradationPreference?: string }) | undefined;
       out.sender = params

@@ -24,6 +24,14 @@ export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) =>
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-21',
+    time: '12:00',
+    kind: 'correção',
+    icon: 'screen',
+    title: 'Live com cena sem o seletor de tela do Windows',
+    body: 'No app novo, começar uma live com cena (como "Tela + câmera") abria uma segunda janela pedindo de novo o que compartilhar. Agora a tela ou janela que você escolheu no OpenCord já entra direto na cena.',
+  },
+  {
     date: '2026-11-13',
     time: '23:00',
     kind: 'novo',

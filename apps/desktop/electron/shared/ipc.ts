@@ -230,6 +230,20 @@ export interface NativeLiveStartArgs {
   cursor: boolean;
 }
 
+/** a tela de uma live com cena no app em Tauri: H.264 do oc-live, decodificado e composto na interface */
+export interface NativeFeedArgs {
+  /** id do `capture.listSources` (`window:<hwnd>` ou `screen:<monitor>`) */
+  sourceId: string;
+  /** teto do tamanho do vídeo (a proporção da fonte é mantida) */
+  maxWidth: number;
+  maxHeight: number;
+  fps: number;
+  /** bps */
+  bitrate: number;
+  keyEverySec: number;
+  cursor: boolean;
+}
+
 /** avisos do processo da live nativa */
 export type NativeLiveEvent =
   | { ev: 'stats'; fps: number; kbps: number; keyframes: number; dropped: number }
@@ -275,6 +289,16 @@ export interface OpenCordBridge {
     start(args: NativeLiveStartArgs): Promise<{ encoder: string; audio: boolean }>;
     stop(): Promise<void>;
     onEvent(cb: (e: NativeLiveEvent) => void): () => void;
+    /**
+     * Live com cena: a tela escolhida vem do oc-live em H.264 (quadros como os do replay nativo) e a interface compõe
+     * a cena. Responde com o tamanho do vídeo; erro `no-hw-encoder…` = sem H.264 na placa.
+     */
+    feed?: {
+      start(args: NativeFeedArgs, onChunk: (c: NativeClipChunk) => void): Promise<{ width: number; height: number }>;
+      stop(): Promise<void>;
+      /** a captura parou sozinha (janela fechada ou processo saiu) */
+      onEnded(cb: () => void): () => void;
+    };
   };
   /**
    * Janela do app ativa no sistema (só no app em Tauri: no WebView2, `document.hasFocus()` não acompanha a ativação

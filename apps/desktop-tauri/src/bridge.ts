@@ -41,6 +41,7 @@ import {
   type CaptureSourceDto,
   type NativeClipArgs,
   type NativeClipChunk,
+  type NativeFeedArgs,
   type NativeLiveEvent,
   type NativeLiveStartArgs,
   type ClipInfo,
@@ -288,6 +289,21 @@ const bridge: OpenCordBridge = {
     onEvent: (cb) => {
       const off = listen<NativeLiveEvent>('live-event', (e) => cb(e.payload));
       return () => void off.then((f) => f());
+    },
+    feed: {
+      start: (args: NativeFeedArgs, onChunk: (c: NativeClipChunk) => void) => {
+        const ch = new Channel<ArrayBuffer>();
+        ch.onmessage = (buf) => {
+          const c = parseNativeChunk(buf);
+          if (c) onChunk(c);
+        };
+        return invoke<{ width: number; height: number }>('live_feed_start', { args, onChunk: ch });
+      },
+      stop: () => invoke('live_feed_stop'),
+      onEnded: (cb) => {
+        const off = listen('live-feed-ended', () => cb());
+        return () => void off.then((f) => f());
+      },
     },
   },
   windowActive: {

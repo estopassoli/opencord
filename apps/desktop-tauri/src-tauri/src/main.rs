@@ -427,6 +427,8 @@ fn main() {
       live::live_stop,
       live::clips_native_start,
       live::clips_native_stop,
+      live::live_feed_start,
+      live::live_feed_stop,
       sidecar::win_audio_list,
       sidecar::win_audio_start,
       sidecar::win_audio_stop,

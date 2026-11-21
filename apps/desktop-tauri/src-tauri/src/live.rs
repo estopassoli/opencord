@@ -20,7 +20,11 @@ pub struct Live {
   run: Mutex<Option<(Arc<Mutex<Child>>, Option<ChildStdin>)>>,
   /// o replay dos clipes (oc-live clip)
   clip: Mutex<Option<(Arc<Mutex<Child>>, Option<ChildStdin>)>>,
+  /// a tela de uma live com cena (oc-live clip com a fonte escolhida; a interface compõe a cena)
+  feed: Mutex<Option<(Arc<Mutex<Child>>, Option<ChildStdin>)>>,
 }
+
+type Slot = Mutex<Option<(Arc<Mutex<Child>>, Option<ChildStdin>)>>;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,7 +60,7 @@ fn stop_running(live: &Live) {
   stop_slot(&live.run);
 }
 
-fn stop_slot(slot: &Mutex<Option<(Arc<Mutex<Child>>, Option<ChildStdin>)>>) {
+fn stop_slot(slot: &Slot) {
   if let Some((child, stdin)) = slot.lock().unwrap().take() {
     if let Some(mut s) = stdin {
       let _ = s.write_all(b"stop\n");
@@ -156,6 +160,7 @@ pub fn stop_all(app: &AppHandle) {
   let live = app.state::<Live>();
   stop_running(&live);
   stop_slot(&live.clip);
+  stop_slot(&live.feed);
 }
 
 // ---------- replay dos clipes (oc-live clip) ----------
@@ -179,8 +184,6 @@ pub async fn clips_native_start(
   args: ClipArgs,
   on_chunk: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
 ) -> Result<Value, String> {
-  let live = app.state::<Live>();
-  stop_slot(&live.clip);
   let cfg = json!({
     "maxWidth": args.max_width,
     "maxHeight": args.max_height,
@@ -189,6 +192,64 @@ pub async fn clips_native_start(
     "keyEverySec": args.key_every_sec,
     "cursor": args.cursor,
   });
+  encoded(app, |l| &l.clip, cfg, on_chunk, "clips-native-ended", "a gravação dos clipes").await
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedArgs {
+  /// `window:<hwnd>` ou `screen:<hmonitor>` (ids do `live_sources`)
+  source_id: String,
+  max_width: u32,
+  max_height: u32,
+  fps: u32,
+  bitrate: u32,
+  key_every_sec: u32,
+  cursor: bool,
+}
+
+/// A tela de uma live com cena: o WebView2 abriria o seletor de tela dele a cada `getDisplayMedia`, então a fonte
+/// escolhida no seletor do OpenCord vem do oc-live, em H.264 pelo canal, e a interface decodifica e compõe a cena.
+#[tauri::command]
+pub async fn live_feed_start(
+  app: AppHandle,
+  args: FeedArgs,
+  on_chunk: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
+) -> Result<Value, String> {
+  let ok = args.source_id.split_once(':').is_some_and(|(k, id)| {
+    matches!(k, "window" | "screen") && !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit())
+  });
+  if !ok {
+    return Err("fonte inválida".into());
+  }
+  let cfg = json!({
+    "source": args.source_id,
+    "maxWidth": args.max_width,
+    "maxHeight": args.max_height,
+    "fps": args.fps,
+    "bitrate": args.bitrate,
+    "keyEverySec": args.key_every_sec,
+    "cursor": args.cursor,
+  });
+  encoded(app, |l| &l.feed, cfg, on_chunk, "live-feed-ended", "a captura da tela").await
+}
+
+#[tauri::command]
+pub fn live_feed_stop(app: AppHandle) {
+  stop_slot(&app.state::<Live>().feed);
+}
+
+/// Abre o `oc-live clip` com a configuração e manda cada quadro pelo canal; `ended` vai para a interface quando ele sai.
+async fn encoded(
+  app: AppHandle,
+  slot: fn(&Live) -> &Slot,
+  cfg: Value,
+  on_chunk: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
+  ended: &'static str,
+  what: &'static str,
+) -> Result<Value, String> {
+  let live = app.state::<Live>();
+  stop_slot(slot(&live));
   let mut child = Command::new(exe(&app, "oc-live.exe"))
     .arg("clip")
     .stdin(Stdio::piped())
@@ -205,7 +266,7 @@ pub async fn clips_native_start(
   let stdout = child.stdout.take().ok_or("oc-live sem saída")?;
   let stderr = child.stderr.take().ok_or("oc-live sem saída de erro")?;
   let child = Arc::new(Mutex::new(child));
-  *live.clip.lock().unwrap() = Some((child.clone(), stdin));
+  *slot(&live).lock().unwrap() = Some((child.clone(), stdin));
   // "ready <w> <h>" ou "error <motivo>" no stderr
   let (tx, rx) = mpsc::channel::<Result<Value, String>>();
   std::thread::spawn(move || {
@@ -227,10 +288,10 @@ pub async fn clips_native_start(
       }
     }
     if let Some(t) = tx {
-      let _ = t.send(Err("a gravação dos clipes encerrou antes de começar".into()));
+      let _ = t.send(Err(format!("{what} encerrou antes de começar")));
     }
   });
-  // os quadros vão inteiros (cabeçalho + dados) pelo canal; a interface monta o replay
+  // os quadros vão inteiros (cabeçalho + dados) pelo canal
   let emitter = app.clone();
   std::thread::spawn(move || {
     let mut out = BufReader::with_capacity(1 << 20, stdout);
@@ -253,15 +314,15 @@ pub async fn clips_native_start(
         break;
       }
     }
-    let _ = emitter.emit("clips-native-ended", json!({}));
+    let _ = emitter.emit(ended, json!({}));
   });
   let res = tauri::async_runtime::spawn_blocking(move || {
-    rx.recv_timeout(Duration::from_secs(15)).unwrap_or_else(|_| Err("a gravação dos clipes não respondeu".into()))
+    rx.recv_timeout(Duration::from_secs(15)).unwrap_or_else(|_| Err(format!("{what} não respondeu")))
   })
   .await
   .map_err(|e| e.to_string())?;
   if res.is_err() {
-    stop_slot(&app.state::<Live>().clip);
+    stop_slot(slot(&app.state::<Live>()));
   }
   res
 }

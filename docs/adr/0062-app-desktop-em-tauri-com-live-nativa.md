@@ -180,3 +180,22 @@ nem minimizar; a barra de título continua arrastável). As instalações silenc
 `/UPDATE`, o modo de atualização do Tauri: não recria o atalho da área de trabalho que a pessoa apagou e não roda o
 instalador do WebView2. Evidência: os ganchos compilam com `makensis -WX` (NSIS 3.10) num script de teste com MUI2;
 a janela em si não foi vista num Windows real.
+
+### Adendo 2026-11-21 — live com cena sem o seletor do WebView2
+
+Live com cena (ADR-0015) no app em Tauri ainda saía pelo `getDisplayMedia` do WebView2, que sempre abre o seletor de
+tela dele ("Escolha o que compartilhar com http://tauri.localhost"), mesmo depois de a pessoa escolher a fonte no
+seletor do OpenCord: o WebView2 não deixa escolher a fonte por código. Agora a tela vem do `oc-live clip` (o mesmo
+modo do replay dos clipes, que passou a aceitar `window:<hwnd>` além de `screen:<hmonitor>`, no tamanho da janela sem
+a borda invisível), em H.264 da placa com folga de bitrate (1,5× o da live, de 16 a 50 Mb/s) por um canal próprio
+(`live_feed_start`/`live_feed_stop`, separado do replay). A interface decodifica com WebCodecs e entrega os quadros
+num `MediaStreamTrackGenerator` (`voice/nativeFeed.ts`): o compositor de cenas e a prévia do editor continuam iguais,
+e a live composta segue publicada pelo WebView. A captura nativa da live sem cena (`oc-live run`) não muda. Placa sem
+encoder H.264: volta para o `getDisplayMedia` (com o seletor). Janela fechada: "ended source-closed" no stderr (o
+stdout desse modo é o vídeo) e a live acaba. Alternativas descartadas: compor a cena no Rust (câmera, imagens e texto
+nativos, reescrever o compositor); quadros crus pelo IPC (~500 MB/s em 1080p60); `--auto-select-desktop-capture-source`
+(argumento fixo na criação do WebView). Evidência: `oc-live clip` com `window:<hwnd>` na máquina do mantenedor
+(1920×1044, 155 quadros em 2,66 s, ~58 qps, H.264 decodificável com ffmpeg); os mesmos quadros no Chromium do
+Playwright por `startNativeFeed` + `SceneCompositor` com uma camada de texto: 155/155 decodificados e entregues, cena
+composta correta; `native-feed.test.ts` 6/6. Falta: a live com cena de ponta a ponta no app em Tauri num Windows real.
+
