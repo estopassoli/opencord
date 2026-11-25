@@ -76,7 +76,8 @@ export function memberMenu(userId: string, serverId: string | undefined, openPro
       onSelect: () => {
         const ui = useUi.getState();
         const cur = ui.drafts[chatKey] ?? '';
-        ui.setDraft(chatKey, `${cur}${cur && !cur.endsWith(' ') ? ' ' : ''}<@${userId}> `);
+        // @usuario no campo (legível); vira menção ao enviar
+        ui.setDraft(chatKey, `${cur}${cur && !cur.endsWith(' ') ? ' ' : ''}@${user.username} `);
       },
     });
   }

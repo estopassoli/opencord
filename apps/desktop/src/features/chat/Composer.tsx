@@ -4,7 +4,7 @@ import { GifPicker } from './GifPicker';
 import { EmojiPicker } from './EmojiPicker';
 import { emojiPicker, resolveShortcodes } from '../../lib/customEmoji';
 import type { Attachment, BotCommandChoice, CreateInteractionResponse } from '@opencord/contracts';
-import { Icon, portalTarget, TextArea } from '@opencord/ui';
+import { Avatar, Icon, portalTarget, TextArea } from '@opencord/ui';
 import {
   useEffect,
   useId,
@@ -43,6 +43,8 @@ import { sendMessage, type ChatTarget } from './ChatView';
 import { CreatePollDialog } from './Poll';
 import { openContextMenu } from '../../components/ContextMenu';
 import { fmt } from './VoiceNote';
+import { mentionAt, resolveMentions, suggestMentions, type MentionSuggestion } from '../../lib/mentions';
+import { canMentionEveryone, mentionCandidates } from './mentionCandidates';
 
 /** limite de uma mensagem de voz */
 const VOICE_MAX_S = 5 * 60;
@@ -55,8 +57,11 @@ interface Upload {
   error?: string;
 }
 
-/** item do popover de barra: um comando (primeira palavra) ou uma sugestão (subcomando, opção, valor) */
-type PopItem = { kind: 'command'; ref: SlashCommandRef } | { kind: 'suggest'; s: SlashSuggestion };
+/** item do popover: comando (primeira palavra), sugestão do comando (subcomando, opção, valor) ou menção `@` */
+type PopItem =
+  | { kind: 'command'; ref: SlashCommandRef }
+  | { kind: 'suggest'; s: SlashSuggestion }
+  | { kind: 'mention'; m: MentionSuggestion };
 
 /** autocompletar do bot: espera a pessoa parar de digitar por isso antes de perguntar */
 const AUTOCOMPLETE_DEBOUNCE_MS = 250;
@@ -164,15 +169,30 @@ export function Composer({
     };
     // acSig resume o corpo inteiro (comando, caminho, opções parciais e texto em foco)
   }, [acSig]);
+  // `@nome` no cursor (fora de comando de barra): sugere quem está no canal/conversa
+  const mentionQ = !slashTyping && !slashHit && !slashClosed ? mentionAt(draft, caret) : null;
+  const mentionQuery = mentionQ?.query ?? null;
+  const mentionItems = useMemo<MentionSuggestion[]>(
+    () =>
+      mentionQuery === null
+        ? []
+        : suggestMentions(
+            mentionQuery,
+            mentionCandidates({ serverId, conversationId: target.conversationId }, targetKey),
+            { everyone: canMentionEveryone(serverId) },
+          ),
+    // detail: a lista de membros chegou ou mudou
+    [mentionQuery, serverId, target.conversationId, targetKey, detail],
+  );
   const popItems = useMemo<PopItem[]>(() => {
     if (slashTyping) return slashMatches.map((ref) => ({ kind: 'command', ref }));
-    if (!suggest) return [];
+    if (!suggest) return mentionItems.map((m) => ({ kind: 'mention', m }));
     const fromBot =
       suggest.autocomplete && botChoices && botChoices.key === acKey
         ? choiceSuggestions(suggest.autocomplete.option, botChoices.choices)
         : [];
     return [...suggest.items, ...fromBot].map((s) => ({ kind: 'suggest', s }));
-  }, [slashTyping, slashMatches, suggest, botChoices, acKey]);
+  }, [slashTyping, slashMatches, suggest, botChoices, acKey, mentionItems]);
   const slashOpen = popItems.length > 0;
   const slashSelected = popItems[Math.min(slashIndex, popItems.length - 1)];
   // dica: limites estourados enquanto digita, senão a forma do comando no nível atual
@@ -286,6 +306,16 @@ export function Composer({
   /** escolher no popover: comando (primeira palavra) ou sugestão (substitui o trecho em edição) */
   const pickItem = (it: PopItem) => {
     if (it.kind === 'command') return pickSlash(it.ref);
+    if (it.kind === 'mention') {
+      if (!mentionQ) return;
+      // já tem espaço depois do trecho: não dobra
+      const after = draft.slice(mentionQ.end);
+      const ins = /^\s/.test(after) ? it.m.insert.trimEnd() : it.m.insert;
+      setDraft(draft.slice(0, mentionQ.start) + ins + after);
+      setSlashIndex(0);
+      placeCaret(mentionQ.start + ins.length + (ins === it.m.insert ? 0 : 1));
+      return;
+    }
     if (!suggest) return;
     const next = draft.slice(0, suggest.start) + it.s.insert + draft.slice(suggest.end);
     setDraft(next);
@@ -349,7 +379,11 @@ export function Composer({
       targetKey,
       target,
       crypto.randomUUID(),
-      withEmojis(body),
+      // `@usuario` digitado (ou escolhido na lista) vira menção de verdade
+      resolveMentions(
+        withEmojis(body),
+        mentionCandidates({ serverId, conversationId: target.conversationId }, targetKey),
+      ),
       replyToId ?? undefined,
       attachmentIds.length ? attachmentIds : undefined,
       // resposta comum na DM tem prioridade (a faixa da resposta no privado some enquanto isso)
@@ -480,10 +514,13 @@ export function Composer({
       }
       // Enter com o nome do comando já completo envia (comando sem opções); nas sugestões, Enter completa só se
       // há algo digitado e ainda não é a sugestão inteira (logo depois de um espaço, Enter envia; Tab completa)
+      // na menção, Enter com o @usuario já inteiro envia (a menção é resolvida no envio)
       const completes =
         slashSelected.kind === 'command'
           ? draft.slice(1, firstWordEnd).toLowerCase() !== slashSelected.ref.command.name
-          : Boolean(suggest?.typed) && valuePart(suggest?.typed ?? '') !== valuePart(slashSelected.s.insert);
+          : slashSelected.kind === 'mention'
+            ? `@${mentionQ?.query ?? ''}`.toLowerCase() !== slashSelected.m.insert.trim().toLowerCase()
+            : Boolean(suggest?.typed) && valuePart(suggest?.typed ?? '') !== valuePart(slashSelected.s.insert);
       if (e.key === 'Tab' || (e.key === 'Enter' && completes)) {
         e.preventDefault();
         pickItem(slashSelected);
@@ -534,22 +571,47 @@ export function Composer({
     <div className="composer" ref={root} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       {slashOpen &&
         createPortal(
-          <div className="slash-popover" style={slashStyle} role="listbox" id={slashId} aria-label="Comandos de barra">
+          <div
+            className="slash-popover"
+            style={slashStyle}
+            role="listbox"
+            id={slashId}
+            aria-label={popItems[0]?.kind === 'mention' ? 'Mencionar' : 'Comandos de barra'}
+          >
             {popItems.map((it, i) => (
               <button
-                key={it.kind === 'command' ? `${it.ref.botId}:${it.ref.command.name}` : `${it.s.kind}:${it.s.insert}`}
+                key={
+                  it.kind === 'command'
+                    ? `${it.ref.botId}:${it.ref.command.name}`
+                    : it.kind === 'mention'
+                      ? `mention:${it.m.kind === 'user' ? it.m.id : 'everyone'}`
+                      : `${it.s.kind}:${it.s.insert}`
+                }
                 type="button"
                 role="option"
                 id={`${slashId}-${i}`}
                 aria-selected={i === slashIndex}
                 className="slash-item"
-                data-kind={it.kind === 'command' ? 'command' : it.s.kind}
+                data-kind={it.kind === 'suggest' ? it.s.kind : it.kind}
                 tabIndex={-1}
                 onPointerDown={(e) => e.preventDefault()}
                 onPointerMove={() => setSlashIndex(i)}
                 onClick={() => pickItem(it)}
               >
-                {it.kind === 'command' ? (
+                {it.kind === 'mention' ? (
+                  <>
+                    <span className="slash-item-name">
+                      {it.m.kind === 'user' ? (
+                        <Avatar id={it.m.id} name={it.m.label} size={24} />
+                      ) : (
+                        <Icon name="at-symbol" size={20} />
+                      )}
+                      <span className="truncate">{it.m.label}</span>
+                    </span>
+                    <span className="slash-item-desc truncate">{it.m.detail}</span>
+                    <span className="slash-item-bot" />
+                  </>
+                ) : it.kind === 'command' ? (
                   <>
                     <span className="slash-item-name">/{it.ref.command.name}</span>
                     <span className="slash-item-desc truncate">{it.ref.command.description}</span>

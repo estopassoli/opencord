@@ -8549,6 +8549,15 @@ html[data-wallpaper='true'] .chat-scroll {
   font-family: inherit;
   font-weight: 500;
 }
+/* menção `@`: avatar + nome, @usuario ao lado */
+.slash-item[data-kind='mention'] .slash-item-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-family: inherit;
+  font-weight: 500;
+}
 
 /* ---- castigo (ADR-0034): relógio ao lado do nome na lista de membros ---- */
 .member-timeout {

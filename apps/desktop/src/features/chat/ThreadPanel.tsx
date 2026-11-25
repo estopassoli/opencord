@@ -14,6 +14,8 @@ import { useUi } from '../../store/ui';
 import { sendMessage, type ChatTarget } from './ChatView';
 import { jumpTo } from './PinnedMessages';
 import { renderRich } from './rich';
+import { resolveMentions } from '../../lib/mentions';
+import { mentionCandidates } from './mentionCandidates';
 
 const targetOfKey = (key: TargetKey): ChatTarget =>
   key.startsWith('c:') ? { channelId: key.slice(2) } : { conversationId: key.slice(2) };
@@ -73,7 +75,9 @@ export function ThreadPanel({ thread }: { thread: { key: TargetKey; rootId: stri
   const send = () => {
     const body = draft.trim();
     if (!body) return;
-    void sendMessage(key, target, crypto.randomUUID(), body, rootId);
+    // `@usuario` vira menção, como no compositor do canal
+    const who = mentionCandidates({ serverId: detail?.id, conversationId: target.conversationId }, key);
+    void sendMessage(key, target, crypto.randomUUID(), resolveMentions(body, who), rootId);
     setDraft('');
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {

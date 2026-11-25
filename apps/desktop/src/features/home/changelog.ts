@@ -24,6 +24,14 @@ export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) =>
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-25',
+    time: '10:30',
+    kind: 'correção',
+    icon: 'at-symbol',
+    title: 'Marcar alguém com @ funciona',
+    body: 'Escrever "@" e o nome de alguém no chat agora marca a pessoa de verdade: ela recebe a notificação e o nome aparece destacado. Ao digitar "@" aparece uma lista com quem está no canal ou na conversa (e @everyone, se você puder usar). Escolha com as setas e Tab ou Enter, ou só escreva o @usuario completo. Também funciona nas respostas em tópico e ao editar uma mensagem.',
+  },
+  {
     date: '2026-11-21',
     time: '12:00',
     kind: 'correção',

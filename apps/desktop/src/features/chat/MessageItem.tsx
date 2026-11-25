@@ -28,6 +28,8 @@ import { UserBadges } from '../../components/UserBadges';
 import { canReplyPrivately, openQuotedMessage, startPrivateReply } from './privateReply';
 import { CustomEmojiImg, EmojiGlyph } from '../../components/CustomEmoji';
 import { emojiToken, onlyCustomEmojis } from '../../lib/customEmoji';
+import { mentionsAsText, resolveMentions } from '../../lib/mentions';
+import { mentionCandidates } from './mentionCandidates';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 const NO_EMOJIS: CustomEmoji[] = [];
@@ -83,8 +85,11 @@ export const MessageItem = memo(function MessageItem({
   const setEditing = (on: boolean) => useUi.getState().setEditing(on ? m.id : null);
   const editBox = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState(m.body);
+  const serverId = useUi((s) => (s.view.kind === 'server' ? s.view.serverId : undefined));
+  // na edição as menções aparecem como @usuario e voltam a ser menção ao salvar
+  const mentionWho = () => mentionCandidates({ serverId, conversationId: target.conversationId });
   useEffect(() => {
-    if (editing) setDraft(m.body);
+    if (editing) setDraft(mentionsAsText(m.body, mentionWho()));
   }, [editing, m.body]);
   const [picker, setPicker] = useState(false);
   const touchKeyboard = useTouchKeyboard();
@@ -100,7 +105,6 @@ export const MessageItem = memo(function MessageItem({
   // na DM qualquer participante fixa; no canal, quem gerencia mensagens
   const canPin = Boolean(target.conversationId) || hasPermission(perms, Permission.MANAGE_MESSAGES);
   const time = new Date(m.createdAt);
-  const serverId = useUi((s) => (s.view.kind === 'server' ? s.view.serverId : undefined));
   // cargos por reação (ADR-0019): quem gerencia cargos configura, em mensagens de canal
   const canRoles = useData((s) =>
     Boolean(
@@ -140,7 +144,7 @@ export const MessageItem = memo(function MessageItem({
   };
 
   const saveEdit = async () => {
-    const body = draft.trim();
+    const body = resolveMentions(draft.trim(), mentionWho());
     setEditing(false);
     if (!body || body === m.body) return;
     try {
