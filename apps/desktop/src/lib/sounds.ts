@@ -1,9 +1,13 @@
 /**
- * Efeitos sonoros do OpenCord, sintetizados na hora com Web Audio (sem arquivos de áudio: nada de assets de
- * terceiros, nada para baixar). Cada som é uma sequência curta de notas com envelope suave.
+ * Efeitos sonoros do OpenCord, quase todos sintetizados na hora com Web Audio: cada som é uma sequência curta de
+ * notas com envelope suave. A exceção são as gravações de `SOUND_SAMPLES` (entrar e sair da chamada no conjunto
+ * "Padrão", arquivos em `assets/sounds/`), que vêm junto com o app; as notas do conjunto ficam de reserva.
  * Respeita Configurações → Notificações (Sons, volume, Não perturbe) e toca no dispositivo de saída escolhido.
  */
+import joinCallUrl from '../assets/sounds/join-call.ogg';
+import leaveCallUrl from '../assets/sounds/leave-call.ogg';
 import { useData } from '../store/data';
+import { fetchAudio } from './audioFile';
 
 export type SoundName =
   | 'join'
@@ -284,8 +288,8 @@ const DISCRETO: Record<SoundName, Note[]> = {
 
 /**
  * Padrão: o jeito de "som de chat" que todo mundo reconhece. Notas redondas (seno + um parcial uma oitava acima,
- * mais baixo, para dar corpo), duas notas subindo para entrar e descendo para sair, "tunc" grave e curto no mute,
- * "ding" com cauda na mensagem. Timbre e notas próprios.
+ * mais baixo, para dar corpo), "tunc" grave e curto no mute, "ding" com cauda na mensagem. Timbre e notas próprios.
+ * Entrar e sair da chamada tocam gravações (`SOUND_SAMPLES`); as duas notas subindo/descendo daqui são a reserva.
  */
 const round = (f: number, t: number, d: number, g = 1): Note[] => [
   { f, t, d, g },
@@ -320,6 +324,23 @@ export const SOUND_SETS: Record<SoundPack, Record<SoundName, Note[]>> = {
   madeira: MADEIRA,
   telefone: TELEFONE,
   discreto: DISCRETO,
+};
+
+/** uma gravação no lugar das notas; `gain` iguala o volume dela ao dos sons sintetizados */
+interface Sample {
+  url: string;
+  gain: number;
+}
+
+/**
+ * Sons de um conjunto que tocam uma gravação (créditos e tratamento em `assets/sounds/CREDITS.md`). As notas de
+ * `SOUND_SETS` continuam valendo de reserva: tocam se o arquivo não carregar ou sem Web Audio que decodifique.
+ */
+export const SOUND_SAMPLES: Partial<Record<SoundPack, Partial<Record<SoundName, Sample>>>> = {
+  padrao: {
+    join: { url: joinCallUrl, gain: 0.9 },
+    leave: { url: leaveCallUrl, gain: 0.9 },
+  },
 };
 
 /** conjunto escolhido nas configurações */
@@ -371,7 +392,49 @@ export function playSound(name: SoundName, opts: { force?: boolean; pack?: Sound
   last.set(name, now);
   soundLog.push(name);
   if (soundLog.length > 50) soundLog.shift();
-  playNotes(SOUND_SETS[opts.pack ?? currentPack()][name], vol);
+  const pack = opts.pack ?? currentPack();
+  const sample = SOUND_SAMPLES[pack]?.[name];
+  if (sample) playSample(pack, sample, SOUND_SETS[pack][name], vol);
+  else playNotes(SOUND_SETS[pack][name], vol);
+}
+
+/** gravações decodificadas (no AudioContext único, que não é trocado); null = não carregou, fica a síntese */
+const samples = new Map<string, Promise<AudioBuffer | null>>();
+
+function loadSample(c: AudioContext, url: string): Promise<AudioBuffer | null> {
+  let p = samples.get(url);
+  if (!p) {
+    p = fetchAudio(url)
+      .then((data) => c.decodeAudioData(data))
+      .catch((err: unknown) => {
+        console.warn('[sons] gravação não carregou; fica o som sintetizado', url, err);
+        return null;
+      });
+    samples.set(url, p);
+  }
+  return p;
+}
+
+function playSample(pack: SoundPack, s: Sample, fallback: readonly Note[], vol: number) {
+  const c = context();
+  if (!c) return;
+  if (typeof c.decodeAudioData !== 'function') return playNotes(fallback, vol);
+  // já deixa as outras gravações do conjunto prontas (quem entra na chamada sai dela depois)
+  for (const other of Object.values(SOUND_SAMPLES[pack] ?? {})) if (other) void loadSample(c, other.url);
+  void loadSample(c, s.url).then((buf) => {
+    if (!buf) return playNotes(fallback, vol);
+    void applySink(c);
+    if (c.state === 'suspended') void c.resume().catch(() => undefined);
+    const master = c.createGain();
+    // mesma curva perceptual das notas
+    master.gain.value = s.gain * vol * vol;
+    master.connect(c.destination);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.connect(master);
+    src.onended = () => master.disconnect();
+    src.start(c.currentTime + 0.01);
+  });
 }
 
 /**

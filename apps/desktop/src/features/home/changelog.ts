@@ -24,6 +24,14 @@ export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) =>
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-27',
+    time: '14:00',
+    kind: 'melhoria',
+    icon: 'speaker',
+    title: 'Sons novos ao entrar e sair da chamada',
+    body: 'No conjunto de sons "Padrão", entrar e sair de uma chamada de voz agora tocam dois sons novos, gravados para o OpenCord. O "Padrão" já vem escolhido; se você trocou, dá para voltar em Configurações → Notificações → Conjunto de sons. Os outros conjuntos continuam iguais.',
+  },
+  {
     date: '2026-11-25',
     time: '10:30',
     kind: 'correção',
