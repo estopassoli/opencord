@@ -9,6 +9,7 @@
 
 mod aux_windows;
 mod clips;
+mod keyhook;
 mod live;
 mod migrate;
 mod sidecar;
@@ -147,6 +148,22 @@ fn tray_voice_state(app: AppHandle, state: TrayVoiceArgs) {
     *v = VoiceState { in_voice: state.in_voice, muted: state.muted, deafened: state.deafened };
   }
   refresh_tray(&app);
+}
+
+/// Atalhos que o gancho de teclado também vigia (ver keyhook.rs); o aviso chega à interface como `keyhook`.
+#[tauri::command]
+fn keyhook_set(app: AppHandle, binds: Vec<keyhook::Bind>) -> Result<(), String> {
+  if binds.len() > 32 || binds.iter().any(|b| b.id.len() > 64 || b.vk == 0 || b.vk > 0xFE || b.mods > 15) {
+    return Err("atalhos inválidos".into());
+  }
+  if !binds.is_empty() {
+    let a = app.clone();
+    keyhook::start(move |id| {
+      let _ = a.emit("keyhook", id);
+    })?;
+  }
+  keyhook::set_binds(binds);
+  Ok(())
 }
 
 #[tauri::command]
@@ -393,6 +410,7 @@ fn main() {
     })
     .invoke_handler(tauri::generate_handler![
       tray_voice_state,
+      keyhook_set,
       open_external,
       relaunch,
       quit_app,

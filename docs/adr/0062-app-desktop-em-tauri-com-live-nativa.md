@@ -199,3 +199,20 @@ nativos, reescrever o compositor); quadros crus pelo IPC (~500 MB/s em 1080p60);
 Playwright por `startNativeFeed` + `SceneCompositor` com uma camada de texto: 155/155 decodificados e entregues, cena
 composta correta; `native-feed.test.ts` 6/6. Falta: a live com cena de ponta a ponta no app em Tauri num Windows real.
 
+### Adendo 2026-11-27 — atalhos globais também pelo gancho de teclado
+
+No League of Legends o atalho de clipe (e os demais atalhos globais) nunca chegava ao app: o plugin de atalhos do
+Tauri usa `RegisterHotKey`, e o jogo desliga esses atalhos enquanto está em foco (raw input com `RIDEV_NOHOTKEYS`).
+Medido na máquina do mantenedor com um verificador (PowerShell, só a tecla F10) e o jogo em foco: o gancho
+`WH_KEYBOARD_LL` e o raw input viram Shift+F10 e Ctrl+Alt+F10; o `RegisterHotKey` de teste não recebeu nada, e o log
+do app não tinha "atalho recebido" com o LoL (tinha com Path of Exile 2, PUBG e Battlefield 6). Não era permissão: o
+jogo, o cliente da Riot e o OpenCord rodavam todos elevados. Agora os atalhos ativos também vão para um gancho de
+teclado de baixo nível (`keyhook.rs`, thread própria com fila de mensagens, como o Discord): dispara no aperto (sem a
+repetição da tecla segurada; sem aviso há mais de 1 s vale como aperto novo), com os modificadores exatos, sem segurar
+a tecla. O `RegisterHotKey` continua (reserva a tecla e avisa "em uso por outro aplicativo"); quando os dois disparam
+juntos, a interface ignora o segundo aviso da mesma ação em 400 ms. Só entram no gancho os atalhos registrados com
+sucesso e, durante o controle remoto, o de emergência. O app Electron (só fora do Windows hoje) não muda. Evidência:
+`keyhook.rs` num programa de teste no Windows com `SendInput` (Ctrl+Alt+Shift+F13 com repetição → 1 aviso; F13 sozinho
+→ nenhum; de novo → mais 1) e os testes de unidade dele 2/2; `tauri-accelerator.test.ts` 3/3. Falta: o clipe no LoL
+com o app atualizado.
+

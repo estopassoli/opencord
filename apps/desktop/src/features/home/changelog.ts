@@ -25,6 +25,14 @@ export const changelogKey = (e: Pick<ChangeEntry, 'date' | 'time' | 'title'>) =>
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-11-27',
+    time: '21:00',
+    kind: 'correção',
+    icon: 'gamepad',
+    title: 'Atalhos e clipes funcionando no League of Legends',
+    body: 'Com o League of Legends em foco, os atalhos do OpenCord (salvar clipe, mutar, ensurdecer) não chegavam ao app, porque o jogo desliga esse tipo de atalho do Windows. Agora o OpenCord também ouve o teclado do jeito que outros apps de voz fazem, e o atalho funciona dentro do jogo. Nos outros jogos nada muda, e o atalho continua disparando uma vez só.',
+  },
+  {
+    date: '2026-11-27',
     time: '14:00',
     kind: 'melhoria',
     icon: 'speaker',

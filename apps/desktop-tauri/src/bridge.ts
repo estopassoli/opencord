@@ -62,7 +62,7 @@ import {
   type RemoteFileResult,
   type RemoteInputStop,
 } from '../../desktop/electron/shared/remote-input';
-import { toTauriAccelerator } from './accelerator';
+import { toTauriAccelerator, toVirtualKey } from './accelerator';
 import { parseNativeChunk } from '../../desktop/src/clips/annexb';
 
 type Events =
@@ -139,11 +139,45 @@ function serialShortcuts<T>(job: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/**
+ * Atalhos ativos (acelerador do Electron → ação), vigiados também pelo gancho de teclado (keyhook.rs): alguns jogos
+ * desligam o `RegisterHotKey` do plugin enquanto estão em foco (no League of Legends o atalho de clipe nunca chegava).
+ */
+const activeShortcuts = new Map<string, ShortcutAction>();
+const PANIC_ID = '__panic';
+const lastShortcutAt = new Map<string, number>();
+/** o mesmo aperto chega pelos dois caminhos (atalho global e gancho) quase juntos: só o primeiro vale */
+function once(key: string, run: () => void) {
+  const now = performance.now();
+  if (now - (lastShortcutAt.get(key) ?? -Infinity) < 400) return;
+  lastShortcutAt.set(key, now);
+  run();
+}
+const fireShortcut = (action: ShortcutAction) => once(action, () => fire('shortcut', action));
+
+/** passa ao gancho os atalhos ativos (e o de emergência do controle remoto, enquanto ele durar) */
+async function syncKeyHook() {
+  const binds: { id: string; mods: number; vk: number }[] = [];
+  for (const [accel, action] of activeShortcuts) {
+    const k = toVirtualKey(accel);
+    if (k) binds.push({ id: action, ...k });
+  }
+  const panic = remote ? toVirtualKey(REMOTE_PANIC_ACCEL) : null;
+  if (panic) binds.push({ id: PANIC_ID, ...panic });
+  await invoke('keyhook_set', { binds }).catch(() => undefined);
+}
+
+void listen<string>('keyhook', (e) => {
+  const id = e.payload;
+  if (id === PANIC_ID) once(PANIC_ID, () => endRemote('panic'));
+  else if ([...activeShortcuts.values()].includes(id as ShortcutAction)) fireShortcut(id as ShortcutAction);
+});
+
 /** registra um atalho já convertido; `false` = outro programa usa */
 async function tryShortcut(t: string, action: ShortcutAction): Promise<boolean> {
   try {
     await register(t, (e) => {
-      if (e.state === 'Pressed') fire('shortcut', action);
+      if (e.state === 'Pressed') fireShortcut(action);
     });
     shortcutAccels.push(t);
     return true;
@@ -153,7 +187,14 @@ async function tryShortcut(t: string, action: ShortcutAction): Promise<boolean> 
 }
 
 async function retryShortcuts() {
-  for (const [t, p] of [...shortcutPending]) if (await tryShortcut(t, p.action)) shortcutPending.delete(t);
+  let changed = false;
+  for (const [t, p] of [...shortcutPending])
+    if (await tryShortcut(t, p.action)) {
+      shortcutPending.delete(t);
+      activeShortcuts.set(p.accel, p.action);
+      changed = true;
+    }
+  if (changed) await syncKeyHook();
   if (!shortcutPending.size && shortcutRetry) {
     clearInterval(shortcutRetry);
     shortcutRetry = null;
@@ -166,6 +207,7 @@ async function registerShortcuts(s: ShortcutsArgs) {
   shortcutPending.clear();
   await unregisterAll().catch(() => undefined);
   shortcutAccels = [];
+  activeShortcuts.clear();
   const registered: string[] = [];
   const failed: string[] = [];
   for (const [action, accel] of Object.entries(s) as [ShortcutAction, string | null | undefined][]) {
@@ -178,8 +220,10 @@ async function registerShortcuts(s: ShortcutsArgs) {
       failed.push(accel);
       continue;
     }
-    if (await tryShortcut(t, action)) registered.push(accel);
-    else {
+    if (await tryShortcut(t, action)) {
+      registered.push(accel);
+      activeShortcuts.set(accel, action);
+    } else {
       // outro app já usa o atalho (ex.: o Shift+F10 de um gravador): volta sozinho quando ficar livre
       failed.push(accel);
       shortcutPending.set(t, { accel, action });
@@ -187,6 +231,7 @@ async function registerShortcuts(s: ShortcutsArgs) {
   }
   // o unregisterAll acima também tirou o atalho de emergência do controle remoto
   await armPanic();
+  await syncKeyHook();
   if (shortcutPending.size) shortcutRetry = setInterval(() => void serialShortcuts(retryShortcuts), SHORTCUT_RETRY_MS);
   return { registered, failed };
 }
@@ -250,7 +295,7 @@ async function armPanic() {
   const accel = toTauriAccelerator(REMOTE_PANIC_ACCEL);
   if (await isRegistered(accel).catch(() => false)) return;
   await register(accel, (e) => {
-    if (e.state === 'Pressed') endRemote('panic');
+    if (e.state === 'Pressed') once(PANIC_ID, () => endRemote('panic'));
   }).catch(() => undefined);
 }
 
@@ -258,6 +303,7 @@ async function stopRemoteLocal() {
   if (!remote) return;
   remote = null;
   await unregister(toTauriAccelerator(REMOTE_PANIC_ACCEL)).catch(() => undefined);
+  await syncKeyHook();
   await invoke('banner_close').catch(() => undefined);
   await invoke('remote_input_stop').catch(() => undefined);
 }
@@ -452,6 +498,7 @@ const bridge: OpenCordBridge = {
       remote = { rect: { x: m.position.x, y: m.position.y, width: m.size.width, height: m.size.height } };
       await invoke('banner_show', { controller: a.controller }).catch(() => undefined);
       await armPanic();
+      await syncKeyHook();
       return true;
     },
     send: (ev) => {
